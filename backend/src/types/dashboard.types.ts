@@ -13,6 +13,14 @@ export interface NetProcessRow {
   porcentaje: number;
 }
 
+/** Celda del reporte de libras netas por proceso, agrupada por período (día o mes). */
+export interface NetProcessPeriodRow {
+  /** "YYYY-MM-DD" para diario, "YYYY-MM" para mensual */
+  periodo: string;
+  proceso: string;
+  libras: number;
+}
+
 /** Contador en vivo de una línea IQF (día de producción en curso) */
 export interface IqfLiveLine {
   linea: string;

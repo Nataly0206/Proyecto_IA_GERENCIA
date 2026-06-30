@@ -1,5 +1,12 @@
 import { apiClient } from './client';
-import { DashboardEndpoint, DashboardFilters, DataRow, IqfLiveResponse } from '../types';
+import {
+  AiChatResponse,
+  AiMessage,
+  DashboardEndpoint,
+  DashboardFilters,
+  DataRow,
+  IqfLiveResponse,
+} from '../types';
 
 function toParams(filters: DashboardFilters): Record<string, string> {
   const params: Record<string, string> = {
@@ -23,6 +30,19 @@ export async function fetchWidgetData(
 ): Promise<DataRow[]> {
   const { data } = await apiClient.get<DataRow[]>(`/dashboard/${endpoint}`, {
     params: toParams(filters),
+  });
+  return data;
+}
+
+/**
+ * Envía un mensaje al Asistente IA y recibe texto + gráficas opcionales.
+ * `history` contiene todos los mensajes previos (usuario y asistente)
+ * para mantener contexto de conversación.
+ */
+export async function sendAiChat(history: AiMessage[]): Promise<AiChatResponse> {
+  const messages = history.map((m) => ({ role: m.role, content: m.content }));
+  const { data } = await apiClient.post<AiChatResponse>('/ai/chat', { messages }, {
+    timeout: 130_000,
   });
   return data;
 }

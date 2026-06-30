@@ -58,8 +58,8 @@ export default function DynamicChart({ config, data }: DynamicChartProps) {
     return <Chart options={options} series={series} type={config.type} height={height} />;
   }
 
-  /* ---- type "table" se renderiza en <PivotTable />, no aquí ---- */
-  if (config.type === 'table') return null;
+  /* ---- type "table" / "cards" se renderizan en otros componentes, no aquí ---- */
+  if (config.type === 'table' || config.type === 'cards') return null;
 
   /* ---- Gráficos de ejes (bar / column / line / area) ---- */
   let categories: string[];

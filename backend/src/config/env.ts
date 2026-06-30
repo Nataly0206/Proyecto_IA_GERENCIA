@@ -13,4 +13,7 @@ export const env = {
   DB_ENCRYPT: (process.env.DB_ENCRYPT ?? 'false') === 'true',
   DB_TRUST_SERVER_CERTIFICATE:
     (process.env.DB_TRUST_SERVER_CERTIFICATE ?? 'true') === 'true',
+  AI_API_KEY: process.env.AI_API_KEY ?? '',
+  AI_BASE_URL: process.env.AI_BASE_URL ?? 'https://opencode.ai/zen/go/v1',
+  AI_MODEL: process.env.AI_MODEL ?? 'minimax-m3',
 };

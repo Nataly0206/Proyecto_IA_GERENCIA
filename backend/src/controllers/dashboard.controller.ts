@@ -44,6 +44,29 @@ export async function getLibrasNetasPorProceso(req: Request, res: Response): Pro
   );
 }
 
+export async function getLibrasNetasPorProcesoDia(req: Request, res: Response): Promise<void> {
+  const filters = parseFilters(req);
+  res.json(
+    await withTtlCache(
+      JSON.stringify(['libras-netas-proceso-dia', filters]),
+      REPORT_CACHE_MS,
+      () => dashboardService.getLibrasNetasPorProcesoDia(filters),
+    ),
+  );
+}
+
+export async function getLibrasNetasPorProcesoMes(req: Request, res: Response): Promise<void> {
+  const filters = parseFilters(req);
+  const meses = Math.min(Math.max(Number(req.query.meses) || 12, 1), 36);
+  res.json(
+    await withTtlCache(
+      JSON.stringify(['libras-netas-proceso-mes', filters.turno ?? '', meses]),
+      REPORT_CACHE_MS,
+      () => dashboardService.getLibrasNetasPorProcesoMes(filters, meses),
+    ),
+  );
+}
+
 export async function getIqfLibrasHoraDia(req: Request, res: Response): Promise<void> {
   const filters = parseFilters(req);
   res.json(

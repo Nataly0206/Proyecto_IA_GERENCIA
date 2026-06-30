@@ -33,6 +33,26 @@ GROUP BY a.NombreTipoProceso, a.Turno
 `;
 
 /**
+ * Misma definición que NET_FROZEN_BY_PROCESS_QUERY, con el día de
+ * producción incluido para poder agrupar por día o por mes en el
+ * servicio (vista "Día" / "Mensual" del reporte de libras netas).
+ */
+export const NET_FROZEN_BY_PROCESS_DAILY_QUERY = `
+SELECT
+  a.NombreTipoProceso AS Proceso,
+  a.Turno,
+  CAST(a.DiaProduccion2024 AS DATE) AS Dia,
+  SUM(a.PesoLibras) AS Libras
+FROM dbo.AV_Produccion_Diaria_Resumen a
+WHERE CAST(a.DiaProduccion2024 AS DATE) BETWEEN @Fecha_Inicial AND @Fecha_Final
+  AND a.VaEjecutivo = 1
+  AND a.ProcesadaPlanta = 1
+  AND a.fkTipo NOT IN (2, 4)
+  AND a.NombreTipoProceso <> 'FRESH TAIL'
+GROUP BY a.NombreTipoProceso, a.Turno, CAST(a.DiaProduccion2024 AS DATE)
+`;
+
+/**
  * Día de producción más reciente con actividad IQF (la planta puede
  * cruzar medianoche, por eso no se asume la fecha calendario).
  */

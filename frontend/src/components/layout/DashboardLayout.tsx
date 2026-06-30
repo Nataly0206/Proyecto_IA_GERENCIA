@@ -4,6 +4,7 @@ import {
   Box,
   Button,
   Container,
+  Divider,
   Drawer,
   IconButton,
   Stack,
@@ -26,26 +27,62 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column', bgcolor: 'background.default' }}>
-      <AppBar position="static">
-        <Toolbar variant="dense" disableGutters sx={{ px: { xs: 1.5, md: 2.5 }, minHeight: 46, gap: 1 }}>
-          <Typography variant="subtitle1" fontWeight={700} sx={{ flexGrow: 1, letterSpacing: 0 }}>
-            Dashboard Gerencial
-          </Typography>
+      <AppBar position="static" elevation={0}>
+        <Toolbar
+          variant="dense"
+          disableGutters
+          sx={{ px: { xs: 2, md: 3 }, minHeight: 46, gap: 1.5 }}
+        >
+          <Stack direction="row" alignItems="center" spacing={1} sx={{ flexGrow: 1 }}>
+            <Box
+              sx={{
+                width: 6,
+                height: 22,
+                borderRadius: 1,
+                bgcolor: 'primary.main',
+                flexShrink: 0,
+              }}
+            />
+            <Typography
+              variant="subtitle1"
+              fontWeight={800}
+              sx={{ letterSpacing: 0, color: 'text.primary' }}
+            >
+              Dashboard Gerencial
+            </Typography>
+            <Typography
+              variant="caption"
+              sx={{
+                color: 'text.secondary',
+                fontWeight: 600,
+                display: { xs: 'none', sm: 'block' },
+              }}
+            >
+              ESF Seafood
+            </Typography>
+          </Stack>
+
           <Button
             size="small"
-            variant="contained"
-            startIcon={<TuneOutlinedIcon />}
+            variant="outlined"
+            startIcon={<TuneOutlinedIcon sx={{ fontSize: '15px !important' }} />}
             onClick={() => setFiltersOpen(true)}
-            sx={{ fontSize: 12, boxShadow: 'none' }}
+            sx={{
+              fontSize: 12,
+              fontWeight: 700,
+              borderColor: 'divider',
+              color: 'text.secondary',
+              '&:hover': { borderColor: 'primary.main', color: 'primary.main' },
+            }}
           >
             Filtros
           </Button>
           <Button
             size="small"
-            variant="outlined"
-            startIcon={<SmartToyOutlinedIcon />}
+            variant="contained"
+            startIcon={<SmartToyOutlinedIcon sx={{ fontSize: '15px !important' }} />}
             onClick={() => setAiPanelOpen(true)}
-            sx={{ fontSize: 12 }}
+            sx={{ fontSize: 12, fontWeight: 700, boxShadow: 'none' }}
           >
             Asistente IA
           </Button>
@@ -53,7 +90,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       </AppBar>
 
       <Box sx={{ flex: 1, overflow: 'hidden' }}>
-        <Container maxWidth={false} sx={{ height: '100%', px: { xs: 1.25, md: 2.5 }, py: { xs: 1, md: 1.5 } }}>
+        <Container
+          maxWidth={false}
+          sx={{ height: '100%', px: { xs: 1.5, md: 2.5 }, py: { xs: 1, md: 1.25 } }}
+        >
           {children}
         </Container>
       </Box>
@@ -64,21 +104,22 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         onClose={() => setFiltersOpen(false)}
         PaperProps={{
           sx: {
-            width: { xs: '100%', sm: 380 },
+            width: { xs: '100%', sm: 360 },
             p: 2.5,
             bgcolor: 'background.paper',
           },
         }}
       >
-        <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2}>
+        <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2.5}>
           <Stack direction="row" alignItems="center" spacing={1}>
-            <TuneOutlinedIcon color="primary" />
-            <Typography variant="h6">Filtros</Typography>
+            <TuneOutlinedIcon color="primary" fontSize="small" />
+            <Typography variant="subtitle1" fontWeight={700}>Filtros del dashboard</Typography>
           </Stack>
-          <IconButton onClick={() => setFiltersOpen(false)} aria-label="Cerrar filtros">
-            <CloseIcon />
+          <IconButton size="small" onClick={() => setFiltersOpen(false)} aria-label="Cerrar filtros">
+            <CloseIcon fontSize="small" />
           </IconButton>
         </Stack>
+        <Divider sx={{ mb: 2.5 }} />
         <GlobalFilters />
       </Drawer>
 

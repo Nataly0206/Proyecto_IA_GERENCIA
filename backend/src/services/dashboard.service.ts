@@ -5,6 +5,7 @@ import {
   IQF_LIVE_DAY_QUERY,
   IQF_LIVE_LINES_QUERY,
   IQF_LIVE_QUERY,
+  NET_FROZEN_BY_PROCESS_DAILY_QUERY,
   NET_FROZEN_BY_PROCESS_QUERY,
 } from './reports.queries';
 import { matchesTurno, pickNumber, pickString } from '../utils/rows';
@@ -12,6 +13,7 @@ import {
   DashboardFilters,
   IqfLiveResponse,
   IqfRateRow,
+  NetProcessPeriodRow,
   NetProcessRow,
 } from '../types/dashboard.types';
 
@@ -53,6 +55,70 @@ export async function getLibrasNetasPorProceso(
       porcentaje: total > 0 ? round2((libras / total) * 100) : 0,
     }))
     .sort((a, b) => b.libras - a.libras);
+}
+
+/**
+ * Libras netas por proceso, agrupadas por período (día o mes) además de
+ * por tipo de proceso — alimenta la vista "Día" / "Mensual" del mismo
+ * reporte, sin alterar la consulta ni el agregado "Total" original.
+ */
+async function fetchNetProcessGroups(
+  fechaInicial: string,
+  fechaFinal: string,
+  turno?: string,
+): Promise<{ dia: string; proceso: string; libras: number }[]> {
+  const rows = await runQuery(
+    NET_FROZEN_BY_PROCESS_DAILY_QUERY,
+    dateParams(fechaInicial, fechaFinal),
+  );
+  return rows
+    .filter((row) => !turno || matchesTurno(pickString(row, 'Turno'), turno))
+    .map((row) => ({
+      dia: pickString(row, 'Dia'),
+      proceso: pickString(row, 'Proceso'),
+      libras: pickNumber(row, 'Libras'),
+    }))
+    .filter((g) => g.dia !== '' && g.proceso !== '');
+}
+
+function aggregateNetProcessByPeriod(
+  groups: { dia: string; proceso: string; libras: number }[],
+  periodOf: (dia: string) => string,
+): NetProcessPeriodRow[] {
+  const map = new Map<string, { periodo: string; proceso: string; libras: number }>();
+  for (const g of groups) {
+    const periodo = periodOf(g.dia);
+    const key = `${periodo}|${g.proceso}`;
+    const acc = map.get(key) ?? { periodo, proceso: g.proceso, libras: 0 };
+    acc.libras += g.libras;
+    map.set(key, acc);
+  }
+  return Array.from(map.values())
+    .map((c) => ({ periodo: c.periodo, proceso: c.proceso, libras: round2(c.libras) }))
+    .sort((a, b) => a.periodo.localeCompare(b.periodo) || a.proceso.localeCompare(b.proceso));
+}
+
+/** Libras netas por proceso, por día, dentro del rango de fechas filtrado. */
+export async function getLibrasNetasPorProcesoDia(
+  filters: DashboardFilters,
+): Promise<NetProcessPeriodRow[]> {
+  const groups = await fetchNetProcessGroups(filters.fechaInicial, filters.fechaFinal, filters.turno);
+  return aggregateNetProcessByPeriod(groups, (dia) => dia);
+}
+
+/**
+ * Libras netas por proceso, por mes. Usa una ventana de meses calendario
+ * que termina hoy (independiente del filtro de fechas, que es para la
+ * vista diaria), igual que el reporte mensual de rendimientos IQF.
+ */
+export async function getLibrasNetasPorProcesoMes(
+  filters: DashboardFilters,
+  meses: number,
+): Promise<NetProcessPeriodRow[]> {
+  const hoy = new Date();
+  const inicio = new Date(hoy.getFullYear(), hoy.getMonth() - (meses - 1), 1);
+  const groups = await fetchNetProcessGroups(formatDate(inicio), formatDate(hoy), filters.turno);
+  return aggregateNetProcessByPeriod(groups, (dia) => dia.slice(0, 7));
 }
 
 /* ------------------------------------------------------------------ */

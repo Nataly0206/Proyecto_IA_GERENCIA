@@ -3,6 +3,7 @@ import cors from 'cors';
 import { env } from './config/env';
 import { closePool } from './config/db';
 import dashboardRoutes from './routes/dashboard.routes';
+import aiRoutes from './routes/ai.routes';
 import { errorHandler, notFound } from './middleware/errorHandler';
 
 const app = express();
@@ -15,6 +16,7 @@ app.get('/api/health', (_req, res) => {
 });
 
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/ai', aiRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

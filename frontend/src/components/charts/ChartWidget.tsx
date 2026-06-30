@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { ReactNode, useState } from 'react';
 import {
   Alert,
   Box,
@@ -17,10 +17,13 @@ import { ChartConfig } from '../../types';
 import { useWidgetData } from '../../hooks/useDashboardData';
 import DynamicChart from './DynamicChart';
 import PivotTable from './PivotTable';
+import KpiCards from './KpiCards';
 import ErrorBoundary from '../ErrorBoundary';
 
 interface ChartWidgetProps {
   config: ChartConfig;
+  /** Controles adicionales mostrados en la cabecera, junto al selector tabla/gráfica */
+  actions?: ReactNode;
 }
 
 type ViewMode = 'table' | 'chart';
@@ -31,7 +34,7 @@ type ViewMode = 'table' | 'chart';
  * DynamicChart. Si el config declara `altChartType`, muestra un selector
  * para alternar entre vista de tabla y gráfica comparativa.
  */
-export default function ChartWidget({ config }: ChartWidgetProps) {
+export default function ChartWidget({ config, actions }: ChartWidgetProps) {
   const { data, isLoading, isError, error } = useWidgetData(config.endpoint);
   const [view, setView] = useState<ViewMode>('chart');
 
@@ -54,38 +57,41 @@ export default function ChartWidget({ config }: ChartWidgetProps) {
 
   return (
     <Card sx={{ height: '100%' }}>
-      <CardContent sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1.5} mb={1.25}>
-          <Box>
-            <Typography variant="subtitle2" fontWeight={800} lineHeight={1.25}>
+      <CardContent sx={{ height: '100%', display: 'flex', flexDirection: 'column', p: '14px !important' }}>
+        <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1.5} mb={1}>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography variant="subtitle2" fontWeight={800} lineHeight={1.2} noWrap>
               {config.title}
             </Typography>
             {config.subtitle && (
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.3 }}>
                 {config.subtitle}
               </Typography>
             )}
           </Box>
-          {hasToggle && (
-            <ToggleButtonGroup
-              size="small"
-              exclusive
-              value={view}
-              onChange={(_e, next: ViewMode | null) => next && setView(next)}
-              sx={{ '& .MuiToggleButton-root': { p: 0.75, lineHeight: 1 } }}
-            >
-              <ToggleButton value="table" aria-label="Vista de tabla">
-                <Tooltip title="Tabla">
-                  <TableChartOutlinedIcon sx={{ fontSize: 14 }} />
-                </Tooltip>
-              </ToggleButton>
-              <ToggleButton value="chart" aria-label="Vista de gráfica">
-                <Tooltip title="Gráfica comparativa">
-                  <InsertChartOutlinedIcon sx={{ fontSize: 14 }} />
-                </Tooltip>
-              </ToggleButton>
-            </ToggleButtonGroup>
-          )}
+          <Stack direction="row" spacing={1} alignItems="center" sx={{ flexShrink: 0 }}>
+            {actions}
+            {hasToggle && (
+              <ToggleButtonGroup
+                size="small"
+                exclusive
+                value={view}
+                onChange={(_e, next: ViewMode | null) => next && setView(next)}
+                sx={{ '& .MuiToggleButton-root': { p: 0.75, lineHeight: 1 } }}
+              >
+                <ToggleButton value="table" aria-label="Vista de tabla">
+                  <Tooltip title="Tabla">
+                    <TableChartOutlinedIcon sx={{ fontSize: 14 }} />
+                  </Tooltip>
+                </ToggleButton>
+                <ToggleButton value="chart" aria-label="Vista de gráfica">
+                  <Tooltip title="Gráfica comparativa">
+                    <InsertChartOutlinedIcon sx={{ fontSize: 14 }} />
+                  </Tooltip>
+                </ToggleButton>
+              </ToggleButtonGroup>
+            )}
+          </Stack>
         </Stack>
 
         {isLoading && (
@@ -118,6 +124,8 @@ export default function ChartWidget({ config }: ChartWidgetProps) {
             <Box sx={{ flex: 1, minHeight: 0 }}>
               {effectiveConfig.type === 'table' ? (
                 <PivotTable config={effectiveConfig} data={visibleData} />
+              ) : effectiveConfig.type === 'cards' ? (
+                <KpiCards config={effectiveConfig} data={visibleData} />
               ) : (
                 <DynamicChart config={effectiveConfig} data={visibleData} />
               )}

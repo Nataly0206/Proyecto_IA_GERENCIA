@@ -1,27 +1,31 @@
 import { useEffect, useRef, useState } from 'react';
 import { Grid, Stack } from '@mui/material';
 import ChartWidget from '../components/charts/ChartWidget';
-import ExecutiveSummary from '../components/insights/ExecutiveSummary';
+import NetProcessWidget from '../components/charts/NetProcessWidget';
 import IqfLiveCounters from '../components/live/IqfLiveCounters';
 import { dashboardWidgets } from '../config/dashboardConfig';
 
-const [librasNetas, iqfDiario, iqfMensual] = dashboardWidgets;
+const [, iqfDiario, iqfMensual] = dashboardWidgets;
+
 const APP_BAR = 46;
-const CONTAINER_PY = 24;
-const STACK_GAP = 12;
-const GRID_ROW_GAP = 16;
-const CARD_CHROME = 92;
+const CONTAINER_PY = 20;   // py: 1.25 top + bottom
+const STACK_GAP = 12;       // spacing={1.5}
+const GRID_ROW_GAP = 16;    // spacing={2}
+const CARD_CHROME = 96;     // cardcontent padding + title block + margin
 
 export default function DashboardPage() {
   const topRef = useRef<HTMLDivElement>(null);
-  const [chartHeight, setChartHeight] = useState(260);
+  const [heights, setHeights] = useState({ netas: 320, iqf: 240 });
 
   useEffect(() => {
     const calc = () => {
       const topH = topRef.current?.offsetHeight ?? 0;
       const available =
         window.innerHeight - APP_BAR - CONTAINER_PY - topH - STACK_GAP - GRID_ROW_GAP;
-      setChartHeight(Math.max(150, Math.floor(available / 2) - CARD_CHROME));
+      setHeights({
+        netas: Math.max(240, Math.floor(available * 0.54) - CARD_CHROME),
+        iqf: Math.max(160, Math.floor(available * 0.46) - CARD_CHROME),
+      });
     };
     calc();
     window.addEventListener('resize', calc);
@@ -40,17 +44,14 @@ export default function DashboardPage() {
       </div>
 
       <Grid container spacing={2} sx={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
-        <Grid item xs={12} md={7} sx={{ display: 'flex', flexDirection: 'column' }}>
-          <ChartWidget config={{ ...librasNetas, height: chartHeight }} />
-        </Grid>
-        <Grid item xs={12} md={5} sx={{ display: 'flex', flexDirection: 'column' }}>
-          <ExecutiveSummary />
+        <Grid item xs={12} sx={{ display: 'flex', flexDirection: 'column' }}>
+          <NetProcessWidget height={heights.netas} />
         </Grid>
         <Grid item xs={12} md={6} sx={{ display: 'flex', flexDirection: 'column' }}>
-          <ChartWidget config={{ ...iqfDiario, height: chartHeight }} />
+          <ChartWidget config={{ ...iqfDiario, height: heights.iqf }} />
         </Grid>
         <Grid item xs={12} md={6} sx={{ display: 'flex', flexDirection: 'column' }}>
-          <ChartWidget config={{ ...iqfMensual, height: chartHeight }} />
+          <ChartWidget config={{ ...iqfMensual, height: heights.iqf }} />
         </Grid>
       </Grid>
     </Stack>

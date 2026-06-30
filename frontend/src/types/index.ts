@@ -23,6 +23,13 @@ export interface NetProcessRow extends DataRow {
   porcentaje: number;
 }
 
+/** Libras netas por proceso, agrupadas por período (día o mes) */
+export interface NetProcessPeriodRow extends DataRow {
+  periodo: string; // "YYYY-MM-DD" diario, "YYYY-MM" mensual
+  proceso: string;
+  libras: number;
+}
+
 /**
  * Celda del reporte "Rendimientos IQF x Hora": una línea IQF en un
  * período. `librasPorHora` es el promedio simple de los rendimientos por
@@ -40,6 +47,8 @@ export interface IqfRateRow extends DataRow {
 
 export type DashboardEndpoint =
   | 'libras-netas-proceso'
+  | 'libras-netas-proceso-dia'
+  | 'libras-netas-proceso-mes'
   | 'iqf-libras-hora-dia'
   | 'iqf-libras-hora-mes';
 
@@ -70,7 +79,46 @@ export interface IqfLiveResponse {
 /* Fase 2, el agente de IA generará estos objetos en tiempo real.      */
 /* ------------------------------------------------------------------ */
 
-export type ChartType = 'bar' | 'column' | 'line' | 'area' | 'donut' | 'pie' | 'table';
+export type ChartType = 'bar' | 'column' | 'line' | 'area' | 'donut' | 'pie' | 'table' | 'cards';
+
+/* ------------------------------------------------------------------ */
+/* Tipos del Asistente IA                                              */
+/* ------------------------------------------------------------------ */
+
+/** Configuración de gráfica generada por el agente IA (sin endpoint) */
+export interface AiChartConfig {
+  id: string;
+  type: Exclude<ChartType, 'table'>;
+  title: string;
+  subtitle?: string;
+  xField: string;
+  yField: string | string[];
+  seriesField?: string;
+  seriesNames?: string[];
+  valueFormat?: ValueFormat;
+  sort?: ChartSort;
+  colors?: string[];
+}
+
+/** Gráfica + datos devueltos por el agente IA */
+export interface AiChartResult {
+  config: AiChartConfig;
+  rows: DataRow[];
+}
+
+/** Respuesta del backend /api/ai/chat */
+export interface AiChatResponse {
+  message: string;
+  charts: AiChartResult[];
+}
+
+/** Mensaje en la conversación del panel de IA */
+export interface AiMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  charts?: AiChartResult[];
+  timestamp: string;
+}
 
 export type ValueFormat = 'number' | 'decimal' | 'percent' | 'currency';
 

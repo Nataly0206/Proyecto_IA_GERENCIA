@@ -4,7 +4,6 @@ import {
   Card,
   CardContent,
   Chip,
-  Grid,
   Skeleton,
   Stack,
   Typography,
@@ -15,41 +14,49 @@ import { formatPeriodo, formatValue } from '../../utils/format';
 import { IqfLiveLine } from '../../types';
 
 function haceTexto(minutos: number): string {
-  if (minutos < 1) return 'hace instantes';
-  if (minutos < 60) return `hace ${minutos} min`;
+  if (minutos < 1) return 'ahora';
+  if (minutos < 60) return `${minutos} min`;
   const horas = Math.floor(minutos / 60);
-  return `hace ${horas} h ${minutos % 60} min`;
-}
-
-function estadoLinea(linea: IqfLiveLine): string {
-  if (linea.activa) return 'En producción';
-  if (linea.cajas === 0) return 'Sin actividad hoy';
-  return `Detenida ${haceTexto(linea.minutosDesdeUltima)}`;
+  return `${horas}h ${minutos % 60}m`;
 }
 
 function LiveCard({ linea }: { linea: IqfLiveLine }) {
-  const color = linea.activa ? '#2e7d32' : '#94a3b8';
+  const active = linea.activa;
+  const color = active ? '#2e7d32' : '#94a3b8';
+
   return (
-    <Card sx={{ height: '100%', borderLeft: `4px solid ${color}` }}>
-      <CardContent sx={{ py: 0.9, px: 1.5, '&:last-child': { pb: 0.9 } }}>
-        <Stack direction="row" justifyContent="space-between" alignItems="center" mb={0.4} spacing={1}>
-          <Typography variant="subtitle2" fontWeight={800}>{linea.linea}</Typography>
+    <Card
+      sx={{
+        borderTop: `3px solid ${color}`,
+        bgcolor: active ? 'rgba(46,125,50,0.03)' : 'background.paper',
+        height: '100%',
+      }}
+    >
+      <CardContent sx={{ py: 1.25, px: 1.75, '&:last-child': { pb: 1.25 } }}>
+        <Stack direction="row" justifyContent="space-between" alignItems="center" mb={0.5} spacing={0.75}>
+          <Typography variant="body2" fontWeight={700} noWrap sx={{ maxWidth: 110 }} title={linea.linea}>
+            {linea.linea}
+          </Typography>
           <Chip
             size="small"
-            label={estadoLinea(linea)}
+            label={active ? 'ACTIVA' : linea.cajas === 0 ? 'SIN DATOS' : haceTexto(linea.minutosDesdeUltima)}
             sx={{
-              bgcolor: `${color}1a`,
+              bgcolor: `${color}18`,
               color,
-              fontWeight: 600,
-              height: 18,
-              '& .MuiChip-label': { px: 0.75, fontSize: 10 },
+              fontWeight: 700,
+              height: 16,
+              '& .MuiChip-label': { px: 0.6, fontSize: 9.5 },
             }}
           />
         </Stack>
 
-        <Typography variant="h6" fontWeight={800} sx={{ color: '#164a8b', lineHeight: 1.05 }}>
+        <Typography
+          variant="h6"
+          fontWeight={800}
+          sx={{ color: active ? '#164a8b' : 'text.secondary', lineHeight: 1.1 }}
+        >
           {formatValue(linea.libras)}
-          <Typography component="span" variant="caption" color="text.secondary" ml={0.75} fontSize={12}>
+          <Typography component="span" variant="caption" color="text.secondary" ml={0.5}>
             lbs
           </Typography>
         </Typography>
@@ -58,61 +65,62 @@ function LiveCard({ linea }: { linea: IqfLiveLine }) {
   );
 }
 
-/**
- * Contadores en tiempo real por línea IQF: acumulado del día de
- * producción, caja por caja según los registros de la torre de pesaje
- * (Seriales.Created). Se refresca automáticamente cada 30 minutos.
- */
 export default function IqfLiveCounters() {
   const { data, isLoading, isError, error, dataUpdatedAt } = useIqfLive();
 
   return (
     <Box>
-      <Stack direction="row" alignItems="center" spacing={0.75} mb={0.75} flexWrap="wrap" useFlexGap>
-        <BoltOutlinedIcon color="primary" sx={{ fontSize: 18 }} />
-        <Typography variant="subtitle2" fontWeight={800}>Producción IQF en Tiempo Real</Typography>
+      <Stack direction="row" alignItems="center" spacing={0.75} mb={0.9} flexWrap="wrap" useFlexGap>
+        <BoltOutlinedIcon color="primary" sx={{ fontSize: 16 }} />
+        <Typography variant="subtitle2" fontWeight={800} sx={{ fontSize: 13 }}>
+          Producción IQF en Tiempo Real
+        </Typography>
         <Chip
           size="small"
-          label="EN VIVO · 30 min"
+          label="EN VIVO"
           color="success"
           variant="outlined"
-          sx={{ fontWeight: 700, height: 20, '& .MuiChip-label': { fontSize: 10, px: 0.85 } }}
+          sx={{ fontWeight: 700, height: 18, '& .MuiChip-label': { fontSize: 9.5, px: 0.75 } }}
         />
         {data && data.dia !== '' && (
           <Typography variant="caption" color="text.secondary" sx={{ fontSize: 11 }}>
-            {formatPeriodo(data.dia)} · {new Date(dataUpdatedAt).toLocaleTimeString()}
+            {formatPeriodo(data.dia)} · actualizado {new Date(dataUpdatedAt).toLocaleTimeString()}
           </Typography>
         )}
       </Stack>
 
       {isLoading && (
-        <Grid container spacing={1}>
-          {[1, 2, 3].map((i) => (
-            <Grid item xs={12} sm={6} md={4} key={i}>
-              <Skeleton variant="rounded" height={82} />
-            </Grid>
+        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1 }}>
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} variant="rounded" height={68} />
           ))}
-        </Grid>
+        </Box>
       )}
 
       {isError && (
         <Alert severity="error" sx={{ py: 0.5 }}>
-          Error al cargar contadores: {error instanceof Error ? error.message : 'desconocido'}
+          Error al cargar contadores IQF: {error instanceof Error ? error.message : 'desconocido'}
         </Alert>
       )}
 
       {!isLoading && !isError && (data?.lineas.length ?? 0) === 0 && (
-        <Alert severity="info" sx={{ py: 0.5 }}>Sin producción IQF registrada para el turno seleccionado.</Alert>
+        <Alert severity="info" sx={{ py: 0.5 }}>
+          Sin producción IQF registrada para el turno seleccionado.
+        </Alert>
       )}
 
       {!isLoading && !isError && data && data.lineas.length > 0 && (
-        <Grid container spacing={1}>
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: `repeat(${data.lineas.length}, 1fr)`,
+            gap: 1,
+          }}
+        >
           {data.lineas.map((linea) => (
-            <Grid item xs={12} sm={6} md={4} key={linea.linea}>
-              <LiveCard linea={linea} />
-            </Grid>
+            <LiveCard key={linea.linea} linea={linea} />
           ))}
-        </Grid>
+        </Box>
       )}
     </Box>
   );

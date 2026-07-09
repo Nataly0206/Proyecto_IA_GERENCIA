@@ -8,24 +8,44 @@ services:
     ports:
       - "3002:3002"
     environment:
+      NODE_ENV: production
       PORT: 3002
-      CORS_ORIGIN: "*"
+      # Vacío por defecto: el frontend habla con el backend a través del
+      # proxy de nginx (mismo origen), así que CORS cross-origin no debería
+      # hacer falta en producción. Solo se define si hay un frontend en
+      # otro origen (ej. otro dominio) que necesite llamar a la API.
+      CORS_ORIGIN: ${CORS_ORIGIN:-}
+      # Clave obligatoria: el backend se niega a arrancar en producción sin
+      # ella (ver src/index.ts). Debe coincidir con VITE_API_KEY del frontend.
+      API_KEY: ${API_KEY:?API_KEY es obligatoria en producción}
       # SQL Server existente (fuera de este compose).
       # En Docker Desktop (Mac/Windows) use host.docker.internal para
       # apuntar a un SQL Server instalado en la máquina anfitriona.
       DB_SERVER: ${DB_SERVER:-host.docker.internal}
       DB_PORT: ${DB_PORT:-1433}
       DB_DATABASE: ${DB_DATABASE}
+      # IMPORTANTE: usar un login de solo lectura (NO "sa"), ver
+      # backend/sql/create_readonly_user.sql
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
       DB_ENCRYPT: ${DB_ENCRYPT:-false}
       DB_TRUST_SERVER_CERTIFICATE: ${DB_TRUST_SERVER_CERTIFICATE:-true}
+      AI_API_KEY: ${AI_API_KEY}
+      AI_BASE_URL: ${AI_BASE_URL:-https://opencode.ai/zen/go/v1}
+      AI_MODEL: ${AI_MODEL:-minimax-m3}
 
   frontend:
     build:
       context: ./frontend
       args:
         VITE_API_URL: /api
+        # Nota: por ser una SPA, esta clave queda visible en el bundle JS
+        # servido al navegador (Vite la incrusta en build time). Frena
+        # abuso automatizado/anónimo directo a la API, pero NO es secreta
+        # frente a un usuario que inspeccione el código fuente — no
+        # sustituye un login de usuarios real si se necesita control de
+        # acceso por persona.
+        VITE_API_KEY: ${API_KEY:?API_KEY es obligatoria en producción}
     container_name: dashboard-frontend
     restart: unless-stopped
     ports:

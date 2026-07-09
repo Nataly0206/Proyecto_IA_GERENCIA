@@ -3,8 +3,10 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 export const env = {
+  NODE_ENV: process.env.NODE_ENV ?? 'development',
   PORT: Number(process.env.PORT ?? 3002),
-  CORS_ORIGIN: process.env.CORS_ORIGIN ?? '*',
+  CORS_ORIGIN: process.env.CORS_ORIGIN ?? '',
+  API_KEY: process.env.API_KEY ?? '',
   DB_SERVER: process.env.DB_SERVER ?? 'localhost',
   DB_PORT: Number(process.env.DB_PORT ?? 1433),
   DB_DATABASE: process.env.DB_DATABASE ?? '',

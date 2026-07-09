@@ -178,15 +178,37 @@ const TOOLS = [
 /* Seguridad SQL                                                        */
 /* ------------------------------------------------------------------ */
 
+const FORBIDDEN_PATTERN =
+  /\b(INSERT|UPDATE|DELETE|MERGE|DROP|CREATE|ALTER|TRUNCATE|EXEC|EXECUTE|GRANT|REVOKE|DENY|BACKUP|RESTORE|SHUTDOWN|RECONFIGURE|KILL|DBCC|WAITFOR|BULK|OPENROWSET|OPENQUERY|OPENDATASOURCE|OPENXML|xp_\w*|sp_\w*)\b/i;
+
+/**
+ * Defensa en profundidad a nivel de aplicación. NO es el control de
+ * seguridad principal: el login de BD usado por este servicio debe tener
+ * permisos de solo SELECT sobre las vistas necesarias (ver
+ * backend/sql/create_readonly_user.sql). Aun si esta función tuviera un
+ * bypass, los permisos de BD deben impedir cualquier escritura.
+ */
 function isSafeQuery(sql: string): boolean {
-  const trimmed = sql.trim();
-  if (!/^SELECT\b/i.test(trimmed)) return false;
-  if (
-    /\b(INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|TRUNCATE|EXEC|EXECUTE|xp_|sp_execute|openrowset)\b/i.test(
-      trimmed,
-    )
-  )
-    return false;
+  // Elimina comentarios antes de analizar: evitan que texto útil para el
+  // filtro (o inyectado para "romper" el parseo humano) quede oculto.
+  const withoutComments = sql
+    .replace(/--.*$/gm, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+
+  const trimmed = withoutComments.trim();
+  if (!trimmed) return false;
+
+  // Solo una sentencia: se permite como mucho un ';' final, no dentro.
+  const withoutTrailingSemicolon = trimmed.replace(/;\s*$/, '');
+  if (withoutTrailingSemicolon.includes(';')) return false;
+
+  if (!/^SELECT\b/i.test(withoutTrailingSemicolon)) return false;
+  if (FORBIDDEN_PATTERN.test(withoutTrailingSemicolon)) return false;
+
+  // "SELECT ... INTO tabla FROM ..." crea una tabla nueva — no es DDL
+  // detectable por palabra clave, se bloquea aparte.
+  if (/\bSELECT\b[\s\S]*?\bINTO\b/i.test(withoutTrailingSemicolon)) return false;
+
   return true;
 }
 

@@ -3,37 +3,30 @@ import { env } from '../config/env';
 import { runQuery } from './sql.service';
 
 /* ------------------------------------------------------------------ */
-/* Tipos internos del protocolo Anthropic Messages                     */
+/* Tipos internos del protocolo OpenAI compatible de NVIDIA NIM        */
 /* ------------------------------------------------------------------ */
 
-interface TextBlock {
-  type: 'text';
-  text: string;
-}
-
-interface ToolUseBlock {
-  type: 'tool_use';
+interface OpenAiToolCall {
   id: string;
-  name: string;
-  input: Record<string, unknown>;
+  type: 'function';
+  function: {
+    name: string;
+    arguments: string;
+  };
 }
 
-interface ToolResultBlock {
-  type: 'tool_result';
-  tool_use_id: string;
-  content: string;
+interface OpenAiMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string | null;
+  tool_calls?: OpenAiToolCall[];
+  tool_call_id?: string;
 }
 
-type ContentBlock = TextBlock | ToolUseBlock;
-
-interface AnthropicMessage {
-  role: 'user' | 'assistant';
-  content: string | (ContentBlock | ToolResultBlock)[];
-}
-
-interface AnthropicResponse {
-  content: ContentBlock[];
-  stop_reason: 'end_turn' | 'tool_use' | 'max_tokens' | string;
+interface OpenAiResponse {
+  choices: Array<{
+    message: OpenAiMessage;
+    finish_reason: string;
+  }>;
 }
 
 /* ------------------------------------------------------------------ */
@@ -157,19 +150,22 @@ Estructura: {"config":{"id":"ai-1","type":"line","title":"Título","xField":"cam
 
 const TOOLS = [
   {
-    name: 'query_database',
-    description:
-      'Ejecuta una consulta SELECT de solo lectura en SQL Server (PlantaEmpacadora) y devuelve los resultados como JSON. Úsala para obtener los datos que necesitas graficar o analizar.',
-    input_schema: {
-      type: 'object' as const,
-      properties: {
-        sql: {
-          type: 'string',
-          description:
-            'Consulta SQL SELECT válida. Solo lectura — no uses INSERT, UPDATE, DELETE, DROP, CREATE, ALTER, TRUNCATE, EXEC ni xp_.',
+    type: 'function' as const,
+    function: {
+      name: 'query_database',
+      description:
+        'Ejecuta una consulta SELECT de solo lectura en SQL Server (PlantaEmpacadora) y devuelve los resultados como JSON. Úsala para obtener los datos que necesitas graficar o analizar.',
+      parameters: {
+        type: 'object' as const,
+        properties: {
+          sql: {
+            type: 'string',
+            description:
+              'Consulta SQL SELECT válida. Solo lectura — no uses INSERT, UPDATE, DELETE, DROP, CREATE, ALTER, TRUNCATE, EXEC ni xp_.',
+          },
         },
+        required: ['sql'],
       },
-      required: ['sql'],
     },
   },
 ];
@@ -261,39 +257,41 @@ export async function runAiChat(messages: ConversationMessage[]): Promise<AiResp
     return { message: 'El asistente IA no está configurado (AI_API_KEY faltante).', charts: [] };
   }
 
-  const anthropicMessages: AnthropicMessage[] = messages.map((m) => ({
-    role: m.role,
-    content: m.content,
-  }));
+  const openAiMessages: OpenAiMessage[] = [
+    { role: 'system', content: SYSTEM_PROMPT },
+    ...messages.map((m): OpenAiMessage => ({ role: m.role, content: m.content })),
+  ];
 
   for (let i = 0; i < MAX_TOOL_ITERATIONS; i++) {
-    const { data: response } = await axios.post<AnthropicResponse>(
-      `${env.AI_BASE_URL}/messages`,
+    const { data: response } = await axios.post<OpenAiResponse>(
+      `${env.AI_BASE_URL.replace(/\/$/, '')}/chat/completions`,
       {
         model: env.AI_MODEL,
         max_tokens: 4096,
-        system: SYSTEM_PROMPT,
-        messages: anthropicMessages,
+        temperature: 0.2,
+        stream: false,
+        messages: openAiMessages,
         tools: TOOLS,
+        tool_choice: 'auto',
       },
       {
         headers: {
-          'x-api-key': env.AI_API_KEY,
+          Authorization: `Bearer ${env.AI_API_KEY}`,
           'Content-Type': 'application/json',
-          'anthropic-version': '2023-06-01',
         },
         timeout: AI_TIMEOUT_MS,
       },
     );
 
-    const toolCalls = response.content.filter(
-      (b): b is ToolUseBlock => b.type === 'tool_use',
-    );
+    const assistantMessage = response.choices?.[0]?.message;
+    if (!assistantMessage) {
+      return { message: 'NVIDIA no devolvió una respuesta válida.', charts: [] };
+    }
+    const toolCalls = assistantMessage.tool_calls ?? [];
 
     // Sin herramientas → respuesta final
-    if (toolCalls.length === 0 || response.stop_reason !== 'tool_use') {
-      const textBlock = response.content.find((b): b is TextBlock => b.type === 'text');
-      const rawText = textBlock?.text ?? '';
+    if (toolCalls.length === 0) {
+      const rawText = assistantMessage.content ?? '';
 
       const parsed = extractJson(rawText);
       if (parsed) {
@@ -307,17 +305,19 @@ export async function runAiChat(messages: ConversationMessage[]): Promise<AiResp
     }
 
     // Añadir turno del asistente con las llamadas a herramienta
-    anthropicMessages.push({
+    openAiMessages.push({
       role: 'assistant',
-      content: response.content,
+      content: assistantMessage.content,
+      tool_calls: toolCalls,
     });
 
     // Ejecutar todas las herramientas en paralelo
-    const toolResults: ToolResultBlock[] = await Promise.all(
-      toolCalls.map(async (tc): Promise<ToolResultBlock> => {
+    const toolResults: OpenAiMessage[] = await Promise.all(
+      toolCalls.map(async (tc): Promise<OpenAiMessage> => {
         let content: string;
         try {
-          const sql = String((tc.input as { sql?: string }).sql ?? '').trim();
+          const args = JSON.parse(tc.function.arguments || '{}') as { sql?: unknown };
+          const sql = String(args.sql ?? '').trim();
           if (!sql) {
             content = JSON.stringify({ error: 'La consulta SQL está vacía.' });
           } else if (!isSafeQuery(sql)) {
@@ -334,15 +334,11 @@ export async function runAiChat(messages: ConversationMessage[]): Promise<AiResp
             error: err instanceof Error ? err.message : 'Error de base de datos.',
           });
         }
-        return { type: 'tool_result', tool_use_id: tc.id, content };
+        return { role: 'tool', tool_call_id: tc.id, content };
       }),
     );
 
-    // Devolver resultados como mensaje de usuario
-    anthropicMessages.push({
-      role: 'user',
-      content: toolResults,
-    });
+    openAiMessages.push(...toolResults);
   }
 
   return {

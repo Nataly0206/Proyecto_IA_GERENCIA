@@ -30,9 +30,11 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       DB_ENCRYPT: ${DB_ENCRYPT:-false}
       DB_TRUST_SERVER_CERTIFICATE: ${DB_TRUST_SERVER_CERTIFICATE:-true}
-      AI_API_KEY: ${AI_API_KEY}
-      AI_BASE_URL: ${AI_BASE_URL:-https://opencode.ai/zen/go/v1}
-      AI_MODEL: ${AI_MODEL:-minimax-m3}
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
+      # Compatibilidad temporal con instalaciones que aún usan este nombre.
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_BASE_URL: ${AI_BASE_URL:-https://integrate.api.nvidia.com/v1}
+      AI_MODEL: ${AI_MODEL:-nvidia/llama-3.3-nemotron-super-49b-v1.5}
 
   frontend:
     build:

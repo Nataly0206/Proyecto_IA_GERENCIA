@@ -130,6 +130,9 @@ Si SQL Server corre en la máquina anfitriona, `DB_SERVER=host.docker.internal`
 | `DB_USER` / `DB_PASSWORD`     | Credenciales SQL                     | —           |
 | `DB_ENCRYPT`                  | Conexión cifrada                     | `false`     |
 | `DB_TRUST_SERVER_CERTIFICATE` | Confiar en certificado               | `true`      |
+| `NVIDIA_API_KEY`              | Clave del API Catalog de NVIDIA      | —           |
+| `AI_BASE_URL`                 | URL base compatible con OpenAI       | `https://integrate.api.nvidia.com/v1` |
+| `AI_MODEL`                    | Modelo NVIDIA usado por el asistente | `nvidia/llama-3.3-nemotron-super-49b-v1.5` |
 
 ### Frontend (`frontend/.env`)
 

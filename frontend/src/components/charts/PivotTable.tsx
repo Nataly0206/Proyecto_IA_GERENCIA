@@ -61,6 +61,13 @@ export default function PivotTable({ config, data }: PivotTableProps) {
     if (totalWeight === 0) return null;
     return items.reduce((acc, c) => acc + c.value * c.weight, 0) / totalWeight;
   };
+  const aggregate = (items: Cell[]): number | null => {
+    if (items.length === 0) return null;
+    if (config.totalAggregation === 'sum') {
+      return items.reduce((acc, cell) => acc + cell.value, 0);
+    }
+    return weightedAvg(items);
+  };
 
   const rowCells = (periodo: string): Cell[] =>
     columnas.flatMap((col) => cells.get(`${periodo}|${col}`) ?? []);
@@ -96,7 +103,7 @@ export default function PivotTable({ config, data }: PivotTableProps) {
                 </TableCell>
               ))}
               <TableCell align="right" sx={{ fontWeight: 600 }}>
-                {renderValue(weightedAvg(rowCells(periodo)))}
+                {renderValue(aggregate(rowCells(periodo)))}
               </TableCell>
             </TableRow>
           ))}
@@ -104,12 +111,12 @@ export default function PivotTable({ config, data }: PivotTableProps) {
             <TableCell sx={TOTAL_SX}>Grand Total</TableCell>
             {columnas.map((col) => (
               <TableCell key={col} align="right" sx={TOTAL_SX}>
-                {renderValue(weightedAvg(colCells(col)))}
+                {renderValue(aggregate(colCells(col)))}
               </TableCell>
             ))}
             <TableCell align="right" sx={TOTAL_SX}>
               {renderValue(
-                weightedAvg(periodos.flatMap((periodo) => rowCells(periodo))),
+                aggregate(periodos.flatMap((periodo) => rowCells(periodo))),
               )}
             </TableCell>
           </TableRow>

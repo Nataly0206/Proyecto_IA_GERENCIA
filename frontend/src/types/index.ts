@@ -158,6 +158,8 @@ export interface ChartConfig {
   maxPeriods?: number;
   /** Campo de peso para promedios ponderados al totalizar (type "table") */
   weightField?: string;
+  /** Operación utilizada para los totales de una tabla pivote */
+  totalAggregation?: 'weightedAverage' | 'sum';
   /**
    * Vista alternativa de gráfica para widgets type "table": habilita el
    * selector Tabla/Gráfica y define el tipo de gráfica comparativa.

@@ -39,7 +39,9 @@ function LiveCard({ linea }: { linea: IqfLiveLine }) {
           </Typography>
           <Chip
             size="small"
-            label={active ? 'ACTIVA' : linea.cajas === 0 ? 'SIN DATOS' : haceTexto(linea.minutosDesdeUltima)}
+            label={`Último registro: ${
+              active ? 'ACTIVA' : linea.cajas === 0 ? 'SIN DATOS' : haceTexto(linea.minutosDesdeUltima)
+            }`}
             sx={{
               bgcolor: `${color}18`,
               color,

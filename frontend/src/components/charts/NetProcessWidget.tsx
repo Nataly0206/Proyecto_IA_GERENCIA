@@ -25,7 +25,7 @@ export default function NetProcessWidget({ height }: NetProcessWidgetProps) {
     if (granularidad === 'dia') {
       return {
         id: 'libras-netas-proceso-dia',
-        type: 'column',
+        type: 'table',
         title: BASE_TITLE,
         subtitle: `${BASE_SUBTITLE} — por día`,
         endpoint: 'libras-netas-proceso-dia',
@@ -33,6 +33,7 @@ export default function NetProcessWidget({ height }: NetProcessWidgetProps) {
         xLabel: 'Fecha',
         yField: 'libras',
         seriesField: 'proceso',
+        totalAggregation: 'sum',
         valueFormat: 'number',
         height,
       };
@@ -40,7 +41,7 @@ export default function NetProcessWidget({ height }: NetProcessWidgetProps) {
     if (granularidad === 'mes') {
       return {
         id: 'libras-netas-proceso-mes',
-        type: 'column',
+        type: 'table',
         title: BASE_TITLE,
         subtitle: `${BASE_SUBTITLE} — últimos 12 meses`,
         endpoint: 'libras-netas-proceso-mes',
@@ -48,6 +49,7 @@ export default function NetProcessWidget({ height }: NetProcessWidgetProps) {
         xLabel: 'Mes',
         yField: 'libras',
         seriesField: 'proceso',
+        totalAggregation: 'sum',
         valueFormat: 'number',
         height,
       };

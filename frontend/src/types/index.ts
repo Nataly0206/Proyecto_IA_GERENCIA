@@ -169,6 +169,8 @@ export interface ChartConfig {
   sort?: ChartSort;
   /** Formato de los valores en tooltips y ejes */
   valueFormat?: ValueFormat;
+  /** Muestra el valor directamente sobre cada punto o barra */
+  showDataLabels?: boolean;
   /** Paleta de colores personalizada */
   colors?: string[];
   /** Alto del gráfico en px */

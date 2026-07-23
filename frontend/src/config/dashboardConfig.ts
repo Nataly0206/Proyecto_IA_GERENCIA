@@ -36,6 +36,7 @@ export const dashboardWidgets: ChartConfig[] = [
     weightField: 'grupos',
     altChartType: 'line',
     valueFormat: 'decimal',
+    showDataLabels: true,
     gridSpan: { xs: 12, md: 6 },
   },
   {
@@ -52,6 +53,7 @@ export const dashboardWidgets: ChartConfig[] = [
     weightField: 'grupos',
     altChartType: 'column',
     valueFormat: 'decimal',
+    showDataLabels: true,
     gridSpan: { xs: 12, md: 6 },
   },
 ];

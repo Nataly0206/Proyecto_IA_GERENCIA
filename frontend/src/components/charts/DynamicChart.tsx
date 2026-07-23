@@ -110,11 +110,34 @@ export default function DynamicChart({ config, data }: DynamicChartProps) {
       bar: {
         horizontal: isHorizontal,
         borderRadius: 4,
-        columnWidth: '55%',
+        columnWidth: config.showDataLabels ? '46%' : '55%',
         barHeight: '70%',
+        dataLabels: {
+          position: isHorizontal ? 'center' : 'top',
+        },
       },
     },
-    dataLabels: { enabled: false },
+    dataLabels: {
+      enabled: Boolean(config.showDataLabels),
+      formatter: (value: number) => formatValue(Number(value), 'number'),
+      offsetY: isHorizontal ? 0 : -7,
+      style: {
+        fontSize: '9px',
+        fontWeight: 700,
+        colors: ['#334155'],
+      },
+      background: {
+        enabled: Boolean(config.showDataLabels),
+        backgroundColor: '#e2e8f0',
+        foreColor: '#1e293b',
+        borderRadius: 4,
+        padding: 3,
+        opacity: 1,
+        borderWidth: 1,
+        borderColor: '#cbd5e1',
+        dropShadow: { enabled: false },
+      },
+    },
     stroke: isLineLike
       ? { curve: 'smooth', width: 3 }
       : { show: true, width: 1, colors: ['transparent'] },
@@ -136,7 +159,15 @@ export default function DynamicChart({ config, data }: DynamicChartProps) {
           isHorizontal ? String(val) : tooltipFormatter(val),
       },
     },
-    grid: { borderColor: '#e2e8f0', strokeDashArray: 4, padding: { left: 8, right: 12 } },
+    grid: {
+      borderColor: '#e2e8f0',
+      strokeDashArray: 4,
+      padding: {
+        top: config.showDataLabels ? 14 : 0,
+        left: 8,
+        right: 12,
+      },
+    },
     legend: { show: series.length > 1, position: 'top', fontSize: '12px', fontWeight: 600 },
     tooltip: { y: { formatter: tooltipFormatter } },
     ...(isLineLike && { markers: { size: 4, hover: { size: 6 } } }),

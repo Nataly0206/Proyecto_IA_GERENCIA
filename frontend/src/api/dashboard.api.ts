@@ -17,9 +17,13 @@ function toParams(filters: DashboardFilters): Record<string, string> {
   return params;
 }
 
-export async function fetchIqfLive(turno: string): Promise<IqfLiveResponse> {
+export async function fetchIqfLive(turno: string, refresh = false): Promise<IqfLiveResponse> {
+  const params: Record<string, string> = {};
+  if (turno) params.turno = turno;
+  if (refresh) params.refresh = 'true';
+
   const { data } = await apiClient.get<IqfLiveResponse>('/dashboard/iqf-tiempo-real', {
-    params: turno ? { turno } : {},
+    params,
   });
   return data;
 }

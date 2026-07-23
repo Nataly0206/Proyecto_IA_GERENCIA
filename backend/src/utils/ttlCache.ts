@@ -10,11 +10,12 @@ export async function withTtlCache<T>(
   key: string,
   ttlMs: number,
   loader: () => Promise<T>,
+  forceRefresh = false,
 ): Promise<T> {
   const now = Date.now();
   const existing = cache.get(key) as CacheEntry<T> | undefined;
 
-  if (existing && existing.expiresAt > now) {
+  if (!forceRefresh && existing && existing.expiresAt > now) {
     if (existing.value !== undefined) return existing.value;
     if (existing.promise) return existing.promise;
   }

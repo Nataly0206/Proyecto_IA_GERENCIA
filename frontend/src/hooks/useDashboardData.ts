@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchIqfLive, fetchWidgetData } from '../api/dashboard.api';
 import { useFilters } from '../context/FiltersContext';
 import { DashboardEndpoint, DataRow, IqfLiveResponse } from '../types';
@@ -83,11 +83,13 @@ export function useWidgetData(endpoint: DashboardEndpoint) {
 
 export function useIqfLive() {
   const { filters } = useFilters();
+  const queryClient = useQueryClient();
+  const queryKey = ['dashboard', 'iqf-tiempo-real', filters.turno] as const;
   const cacheKey = browserCacheKey(['live', filters.turno]);
   const cached = readBrowserCache<IqfLiveResponse>(cacheKey, LIVE_REFRESH_INTERVAL_MS);
 
-  return useQuery<IqfLiveResponse>({
-    queryKey: ['dashboard', 'iqf-tiempo-real', filters.turno],
+  const query = useQuery<IqfLiveResponse>({
+    queryKey,
     queryFn: async () => {
       const data = await fetchIqfLive(filters.turno);
       writeBrowserCache(cacheKey, data);
@@ -99,4 +101,13 @@ export function useIqfLive() {
     refetchInterval: LIVE_REFRESH_INTERVAL_MS,
     refetchIntervalInBackground: true,
   });
+
+  const refreshNow = async (): Promise<IqfLiveResponse> => {
+    const data = await fetchIqfLive(filters.turno, true);
+    writeBrowserCache(cacheKey, data);
+    queryClient.setQueryData<IqfLiveResponse>(queryKey, data);
+    return data;
+  };
+
+  return { ...query, refreshNow };
 }

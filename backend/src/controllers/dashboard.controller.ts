@@ -92,11 +92,13 @@ export async function getIqfLibrasHoraMes(req: Request, res: Response): Promise<
 
 export async function getIqfTiempoReal(req: Request, res: Response): Promise<void> {
   const turno = req.query.turno ? String(req.query.turno) : undefined;
+  const forceRefresh = req.query.refresh === 'true';
   res.json(
     await withTtlCache(
       JSON.stringify(['iqf-tiempo-real', turno ?? '']),
       LIVE_CACHE_MS,
       () => dashboardService.getIqfTiempoReal(turno),
+      forceRefresh,
     ),
   );
 }

@@ -12,10 +12,12 @@ import {
   Typography,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
+import RefreshOutlinedIcon from '@mui/icons-material/RefreshOutlined';
 import TuneOutlinedIcon from '@mui/icons-material/TuneOutlined';
 import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
 import AiAssistantPanel from '../ai/AiAssistantPanel';
 import GlobalFilters from '../filters/GlobalFilters';
+import { useIqfLive } from '../../hooks/useDashboardData';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -24,6 +26,22 @@ interface DashboardLayoutProps {
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshFailed, setRefreshFailed] = useState(false);
+  const { refreshNow } = useIqfLive();
+
+  const handleRefresh = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    setRefreshFailed(false);
+    try {
+      await refreshNow();
+    } catch {
+      setRefreshFailed(true);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column', bgcolor: 'background.default' }}>
@@ -62,6 +80,41 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             </Typography>
           </Stack>
 
+          <Button
+            size="small"
+            variant="outlined"
+            color={refreshFailed ? 'error' : 'primary'}
+            startIcon={
+              <RefreshOutlinedIcon
+                sx={{
+                  fontSize: '15px !important',
+                  animation: isRefreshing ? 'refresh-spin 0.8s linear infinite' : 'none',
+                  '@keyframes refresh-spin': {
+                    from: { transform: 'rotate(0deg)' },
+                    to: { transform: 'rotate(360deg)' },
+                  },
+                }}
+              />
+            }
+            disabled={isRefreshing}
+            onClick={handleRefresh}
+            sx={{
+              fontSize: 12,
+              fontWeight: 700,
+              whiteSpace: 'nowrap',
+              borderColor: refreshFailed ? undefined : 'divider',
+              color: refreshFailed ? undefined : 'text.secondary',
+              '&:hover': refreshFailed
+                ? undefined
+                : { borderColor: 'primary.main', color: 'primary.main' },
+            }}
+          >
+            {isRefreshing
+              ? 'Actualizando…'
+              : refreshFailed
+                ? 'Error al actualizar'
+                : 'Actualizar ahora'}
+          </Button>
           <Button
             size="small"
             variant="outlined"

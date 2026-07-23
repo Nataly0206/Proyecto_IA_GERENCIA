@@ -18,4 +18,5 @@ export const env = {
   AI_API_KEY: process.env.NVIDIA_API_KEY ?? process.env.AI_API_KEY ?? '',
   AI_BASE_URL: process.env.AI_BASE_URL ?? 'https://integrate.api.nvidia.com/v1',
   AI_MODEL: process.env.AI_MODEL ?? 'nvidia/llama-3.3-nemotron-super-49b-v1.5',
+  AI_CONTEXT_PATH: process.env.AI_CONTEXT_PATH ?? '',
 };

@@ -49,6 +49,10 @@ Dashboard Gerencial/
 
 ## Endpoints de la API
 
+La trazabilidad completa de cada indicador —fuente SQL, columnas, fórmulas,
+filtros, cachés y contratos JSON— está en
+[`docs/DATA_LINEAGE.md`](docs/DATA_LINEAGE.md).
+
 Todos aceptan `fechaInicial`, `fechaFinal` (YYYY-MM-DD) y `turno` como query
 params. Por defecto se consultan los últimos 30 días.
 
@@ -133,6 +137,7 @@ Si SQL Server corre en la máquina anfitriona, `DB_SERVER=host.docker.internal`
 | `NVIDIA_API_KEY`              | Clave del API Catalog de NVIDIA      | —           |
 | `AI_BASE_URL`                 | URL base compatible con OpenAI       | `https://integrate.api.nvidia.com/v1` |
 | `AI_MODEL`                    | Modelo NVIDIA usado por el asistente | `nvidia/llama-3.3-nemotron-super-49b-v1.5` |
+| `AI_CONTEXT_PATH`             | Ruta del contexto Markdown de la BD  | Detección automática en desarrollo |
 
 ### Frontend (`frontend/.env`)
 

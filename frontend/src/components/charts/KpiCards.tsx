@@ -21,16 +21,24 @@ export default function KpiCards({ config, data }: KpiCardsProps) {
   const format = config.valueFormat ?? 'number';
   const colors = config.colors ?? CHART_COLORS;
 
-  // Fills full width: each proceso gets an equal column, no empty slots
-  const cols = Math.min(Math.max(rows.length, 1), 5);
+  // En escritorio todos los procesos ocupan una sola fila. En anchos
+  // menores se conserva la fila y se permite desplazamiento horizontal
+  // para que las tarjetas no pierdan legibilidad.
+  const cols = Math.max(rows.length, 1);
 
   return (
     <Box
       sx={{
         display: 'grid',
-        gridTemplateColumns: `repeat(${cols}, 1fr)`,
-        gap: 1.25,
+        gridTemplateColumns: {
+          xs: `repeat(${cols}, minmax(150px, 1fr))`,
+          lg: `repeat(${cols}, minmax(0, 1fr))`,
+        },
+        gap: 1,
         pt: 0.25,
+        pb: 0.25,
+        overflowX: 'auto',
+        scrollbarWidth: 'thin',
       }}
     >
       {rows.map((row, index) => {
@@ -46,9 +54,10 @@ export default function KpiCards({ config, data }: KpiCardsProps) {
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'center',
-              px: 2,
-              py: 1.5,
-              borderRadius: 2,
+              minWidth: 0,
+              px: { xs: 1.25, xl: 1.5 },
+              py: 1,
+              borderRadius: 1.5,
               bgcolor: 'background.paper',
               border: '1px solid',
               borderColor: 'divider',
@@ -65,8 +74,10 @@ export default function KpiCards({ config, data }: KpiCardsProps) {
               sx={{
                 color: 'text.secondary',
                 textTransform: 'uppercase',
-                letterSpacing: 0.6,
-                mb: 1,
+                letterSpacing: 0.35,
+                fontSize: 10.5,
+                lineHeight: 1.2,
+                mb: 0.65,
                 display: 'block',
               }}
               noWrap
@@ -77,7 +88,7 @@ export default function KpiCards({ config, data }: KpiCardsProps) {
 
             <Typography
               sx={{
-                fontSize: { xs: '1.25rem', md: '1.5rem' },
+                fontSize: { xs: '1.15rem', xl: '1.3rem' },
                 fontWeight: 800,
                 color: 'text.primary',
                 lineHeight: 1,
@@ -87,13 +98,19 @@ export default function KpiCards({ config, data }: KpiCardsProps) {
             </Typography>
             <Typography
               variant="caption"
-              sx={{ color: 'text.secondary', mt: 0.3, display: 'block', fontWeight: 500 }}
+              sx={{
+                color: 'text.secondary',
+                mt: 0.2,
+                display: 'block',
+                fontSize: 10.5,
+                fontWeight: 500,
+              }}
             >
               lbs netas
             </Typography>
 
             {porcentaje !== null && (
-              <Box mt={1.25}>
+              <Box mt={0.75}>
                 <LinearProgress
                   variant="determinate"
                   value={porcentaje}
@@ -101,11 +118,15 @@ export default function KpiCards({ config, data }: KpiCardsProps) {
                     height: 4,
                     borderRadius: 3,
                     bgcolor: `${color}20`,
-                    mb: 0.4,
+                    mb: 0.25,
                     '& .MuiLinearProgress-bar': { bgcolor: color, borderRadius: 3 },
                   }}
                 />
-                <Typography variant="caption" fontWeight={700} sx={{ color }}>
+                <Typography
+                  variant="caption"
+                  fontWeight={700}
+                  sx={{ color, fontSize: 10.5, lineHeight: 1.2 }}
+                >
                   {porcentaje.toFixed(1)}% del total
                 </Typography>
               </Box>

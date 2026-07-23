@@ -76,6 +76,12 @@ GRANT SELECT ON dbo.AV_Facturas                     TO dashboard_ia_readonly;
 GRANT SELECT ON dbo.AV_RecepcionLibras              TO dashboard_ia_readonly;
 GRANT SELECT ON dbo.AV_LotesRemision                TO dashboard_ia_readonly;
 GRANT SELECT ON dbo.AV_Items                        TO dashboard_ia_readonly;
+
+-- Procedimientos de lectura canónicos permitidos por el Asistente IA.
+GRANT EXECUTE ON dbo.a_Fill_Produccion_Diaria_lectura
+    TO dashboard_ia_readonly;
+GRANT EXECUTE ON dbo.a_Fill_Produccion_Diaria_lectura_dos
+    TO dashboard_ia_readonly;
 GO
 
 -- Verificación rápida (ejecutar como dashboard_ia_readonly o con

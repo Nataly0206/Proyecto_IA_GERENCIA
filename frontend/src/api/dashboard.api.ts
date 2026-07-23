@@ -42,7 +42,9 @@ export async function fetchWidgetData(
 export async function sendAiChat(history: AiMessage[]): Promise<AiChatResponse> {
   const messages = history.map((m) => ({ role: m.role, content: m.content }));
   const { data } = await apiClient.post<AiChatResponse>('/ai/chat', { messages }, {
-    timeout: 130_000,
+    // Una respuesta con herramientas necesita al menos dos llamadas al
+    // modelo (decidir consulta + interpretar resultados).
+    timeout: 300_000,
   });
   return data;
 }

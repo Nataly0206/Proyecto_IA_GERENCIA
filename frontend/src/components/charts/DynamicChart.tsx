@@ -139,7 +139,7 @@ export default function DynamicChart({ config, data }: DynamicChartProps) {
       },
     },
     stroke: isLineLike
-      ? { curve: 'smooth', width: 3 }
+      ? { show: true, curve: 'smooth', width: 3, colors }
       : { show: true, width: 1, colors: ['transparent'] },
     xaxis: {
       categories,
@@ -173,5 +173,13 @@ export default function DynamicChart({ config, data }: DynamicChartProps) {
     ...(isLineLike && { markers: { size: 4, hover: { size: 6 } } }),
   };
 
-  return <Chart options={options} series={series} type={apexType} height={height} />;
+  return (
+    <Chart
+      key={`${config.id}-${apexType}`}
+      options={options}
+      series={series}
+      type={apexType}
+      height={height}
+    />
+  );
 }

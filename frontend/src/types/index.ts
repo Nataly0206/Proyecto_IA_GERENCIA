@@ -165,6 +165,8 @@ export interface ChartConfig {
    * selector Tabla/Gráfica y define el tipo de gráfica comparativa.
    */
   altChartType?: Exclude<ChartType, 'table'>;
+  /** Vista adicional de tendencia sin reemplazar la gráfica principal */
+  trendChartType?: 'line' | 'area';
   /** Nombres legibles para cada serie (paralelo a yField) */
   seriesNames?: string[];
   /** Orden aplicado a los datos antes de graficar */

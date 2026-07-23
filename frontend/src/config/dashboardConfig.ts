@@ -52,6 +52,7 @@ export const dashboardWidgets: ChartConfig[] = [
     excludedSeriesValues: ['SAL'],
     weightField: 'grupos',
     altChartType: 'column',
+    trendChartType: 'line',
     valueFormat: 'decimal',
     showDataLabels: true,
     gridSpan: { xs: 12, md: 6 },

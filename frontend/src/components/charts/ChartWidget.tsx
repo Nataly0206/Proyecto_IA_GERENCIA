@@ -13,6 +13,7 @@ import {
 } from '@mui/material';
 import TableChartOutlinedIcon from '@mui/icons-material/TableChartOutlined';
 import InsertChartOutlinedIcon from '@mui/icons-material/InsertChartOutlined';
+import TimelineOutlinedIcon from '@mui/icons-material/TimelineOutlined';
 import { ChartConfig } from '../../types';
 import { useWidgetData } from '../../hooks/useDashboardData';
 import DynamicChart from './DynamicChart';
@@ -26,7 +27,7 @@ interface ChartWidgetProps {
   actions?: ReactNode;
 }
 
-type ViewMode = 'table' | 'chart';
+type ViewMode = 'table' | 'chart' | 'trend';
 
 /**
  * Tarjeta contenedora de un widget: resuelve los datos del endpoint
@@ -39,8 +40,11 @@ export default function ChartWidget({ config, actions }: ChartWidgetProps) {
   const [view, setView] = useState<ViewMode>('chart');
 
   const hasToggle = config.type === 'table' && Boolean(config.altChartType);
+  const hasTrend = hasToggle && Boolean(config.trendChartType);
   const effectiveConfig: ChartConfig =
-    hasToggle && view === 'chart' && config.altChartType
+    hasTrend && view === 'trend' && config.trendChartType
+      ? { ...config, type: config.trendChartType }
+      : hasToggle && view === 'chart' && config.altChartType
       ? { ...config, type: config.altChartType }
       : config;
   const seriesFilteredData =
@@ -114,6 +118,13 @@ export default function ChartWidget({ config, actions }: ChartWidgetProps) {
                     <InsertChartOutlinedIcon sx={{ fontSize: 14 }} />
                   </Tooltip>
                 </ToggleButton>
+                {hasTrend && (
+                  <ToggleButton value="trend" aria-label="Vista de tendencia">
+                    <Tooltip title="Gráfica de tendencia">
+                      <TimelineOutlinedIcon sx={{ fontSize: 14 }} />
+                    </Tooltip>
+                  </ToggleButton>
+                )}
               </ToggleButtonGroup>
             )}
           </Stack>

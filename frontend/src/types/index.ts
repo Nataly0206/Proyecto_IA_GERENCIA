@@ -154,6 +154,8 @@ export interface ChartConfig {
   seriesField?: string;
   /** Valores de serie que no deben mostrarse en la tabla/gráfica */
   excludedSeriesValues?: string[];
+  /** Cantidad máxima de períodos más recientes que se deben mostrar */
+  maxPeriods?: number;
   /** Campo de peso para promedios ponderados al totalizar (type "table") */
   weightField?: string;
   /**

@@ -43,7 +43,7 @@ export default function ChartWidget({ config, actions }: ChartWidgetProps) {
     hasToggle && view === 'chart' && config.altChartType
       ? { ...config, type: config.altChartType }
       : config;
-  const visibleData =
+  const seriesFilteredData =
     data && config.seriesField && config.excludedSeriesValues?.length
       ? data.filter(
           (row) => {
@@ -54,10 +54,35 @@ export default function ChartWidget({ config, actions }: ChartWidgetProps) {
           },
         )
       : data;
+  const visibleData =
+    seriesFilteredData && config.maxPeriods && config.maxPeriods > 0
+      ? (() => {
+          const recentPeriods = new Set(
+            Array.from(
+              new Set(
+                seriesFilteredData.map((row) => String(row[config.xField] ?? '')),
+              ),
+            )
+              .filter(Boolean)
+              .sort()
+              .slice(-config.maxPeriods),
+          );
+          return seriesFilteredData.filter((row) =>
+            recentPeriods.has(String(row[config.xField] ?? '')),
+          );
+        })()
+      : seriesFilteredData;
 
   return (
-    <Card sx={{ height: '100%' }}>
-      <CardContent sx={{ height: '100%', display: 'flex', flexDirection: 'column', p: '14px !important' }}>
+    <Card sx={{ height: effectiveConfig.type === 'cards' ? 'auto' : '100%' }}>
+      <CardContent
+        sx={{
+          height: effectiveConfig.type === 'cards' ? 'auto' : '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          p: '14px !important',
+        }}
+      >
         <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1.5} mb={1}>
           <Box sx={{ minWidth: 0 }}>
             <Typography variant="subtitle2" fontWeight={800} lineHeight={1.2} noWrap>

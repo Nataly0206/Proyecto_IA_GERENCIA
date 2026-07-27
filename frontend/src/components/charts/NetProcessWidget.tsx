@@ -64,6 +64,7 @@ export default function NetProcessWidget({ height }: NetProcessWidgetProps) {
       yField: 'libras',
       sort: { field: 'libras', direction: 'desc' },
       valueFormat: 'number',
+      showTotalCard: true,
       height,
     };
   }, [granularidad, height]);

@@ -156,6 +156,10 @@ export interface ChartConfig {
   excludedSeriesValues?: string[];
   /** Cantidad máxima de períodos más recientes que se deben mostrar */
   maxPeriods?: number;
+  /** En gráficas diarias, completa el eje con todas las fechas del filtro */
+  completeFilteredDateRange?: boolean;
+  /** Reduce automáticamente las etiquetas del eje según la amplitud del rango */
+  adaptiveDateTicks?: boolean;
   /** Campo de peso para promedios ponderados al totalizar (type "table") */
   weightField?: string;
   /** Operación utilizada para los totales de una tabla pivote */
@@ -177,6 +181,8 @@ export interface ChartConfig {
   showDataLabels?: boolean;
   /** Paleta de colores personalizada */
   colors?: string[];
+  /** Agrega al final una tarjeta con la suma de todos los valores */
+  showTotalCard?: boolean;
   /** Alto del gráfico en px */
   height?: number;
   /** Tamaño del widget en la grilla responsive */

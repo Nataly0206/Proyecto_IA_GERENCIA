@@ -4,6 +4,7 @@ import type { ApexOptions } from 'apexcharts';
 import { ChartConfig, ChartSort, DataRow } from '../../types';
 import { formatPeriodo, formatValue } from '../../utils/format';
 import { CHART_COLORS } from '../../theme';
+import { useFilters } from '../../context/FiltersContext';
 
 interface DynamicChartProps {
   config: ChartConfig;
@@ -23,6 +24,19 @@ const ISO_PERIOD = /^\d{4}-\d{2}(-\d{2})?$/;
 const labelOf = (value: string): string =>
   ISO_PERIOD.test(value) ? formatPeriodo(value) : value;
 
+function eachIsoDate(start: string, end: string): string[] {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end)) return [];
+
+  const current = new Date(`${start}T00:00:00Z`);
+  const last = new Date(`${end}T00:00:00Z`);
+  const dates: string[] = [];
+  while (current <= last && dates.length < 1_000) {
+    dates.push(current.toISOString().slice(0, 10));
+    current.setUTCDate(current.getUTCDate() + 1);
+  }
+  return dates;
+}
+
 /**
  * Renderiza cualquier gráfico a partir de una configuración JSON.
  * Si `seriesField` está definido, los datos se pivotean en una serie por
@@ -30,6 +44,7 @@ const labelOf = (value: string): string =>
  * comparativa. Es el único componente de gráficos del sistema.
  */
 export default function DynamicChart({ config, data }: DynamicChartProps) {
+  const { filters } = useFilters();
   const rows = useMemo(() => applySort(data, config.sort), [data, config.sort]);
 
   const colors = config.colors ?? CHART_COLORS;
@@ -69,7 +84,13 @@ export default function DynamicChart({ config, data }: DynamicChartProps) {
     // Pivot: una serie por cada valor de seriesField (gráfica comparativa)
     const seriesField = config.seriesField;
     const yField = Array.isArray(config.yField) ? config.yField[0] : config.yField;
-    const xValues = Array.from(new Set(rows.map((r) => String(r[config.xField] ?? '')))).sort();
+    const dataXValues = Array.from(
+      new Set(rows.map((r) => String(r[config.xField] ?? ''))),
+    ).sort();
+    const filteredDates = config.completeFilteredDateRange
+      ? eachIsoDate(filters.fechaInicial, filters.fechaFinal)
+      : [];
+    const xValues = filteredDates.length > 0 ? filteredDates : dataXValues;
     const seriesNames = Array.from(
       new Set(rows.map((r) => String(r[seriesField] ?? ''))),
     ).sort();
@@ -94,6 +115,13 @@ export default function DynamicChart({ config, data }: DynamicChartProps) {
   const isHorizontal = config.type === 'bar';
   const apexType = config.type === 'column' ? 'bar' : config.type;
   const isLineLike = config.type === 'line' || config.type === 'area';
+  const dateTickStep = config.adaptiveDateTicks
+    ? categories.length <= 14
+      ? 1
+      : categories.length <= 60
+        ? 5
+        : 10
+    : 1;
 
   // Importante: no incluir claves con valor `undefined` — el merge interno
   // de ApexCharts las toma literalmente y pisa sus defaults, lo que provoca
@@ -147,6 +175,14 @@ export default function DynamicChart({ config, data }: DynamicChartProps) {
         rotate: -45,
         trim: true,
         style: { fontSize: '12px', colors: '#64748b', fontWeight: 600 },
+        ...(!isHorizontal && dateTickStep > 1 && {
+          formatter: (value: string) => {
+            const index = categories.indexOf(value);
+            return index === 0 || index === categories.length - 1 || index % dateTickStep === 0
+              ? value
+              : '';
+          },
+        }),
         ...(isHorizontal && {
           formatter: (val: string) => tooltipFormatter(Number(val)),
         }),

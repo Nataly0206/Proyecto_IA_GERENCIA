@@ -16,8 +16,25 @@ function applySort(data: DataRow[], sort?: ChartConfig['sort']): DataRow[] {
 }
 
 export default function KpiCards({ config, data }: KpiCardsProps) {
-  const rows = useMemo(() => applySort(data, config.sort), [data, config.sort]);
   const yField = Array.isArray(config.yField) ? config.yField[0] : config.yField;
+  const rows = useMemo(() => {
+    const sortedRows = applySort(data, config.sort);
+    if (!config.showTotalCard) return sortedRows;
+
+    const total = sortedRows.reduce((sum, row) => {
+      const value = Number(row[yField] ?? 0);
+      return sum + (Number.isFinite(value) ? value : 0);
+    }, 0);
+
+    return [
+      ...sortedRows,
+      {
+        [config.xField]: 'TOTAL',
+        [yField]: total,
+        __isTotalCard: true,
+      },
+    ];
+  }, [data, config.sort, config.showTotalCard, config.xField, yField]);
   const format = config.valueFormat ?? 'number';
   const colors = config.colors ?? CHART_COLORS;
 
@@ -45,7 +62,8 @@ export default function KpiCards({ config, data }: KpiCardsProps) {
         const label = String(row[config.xField] ?? '');
         const value = Number(row[yField] ?? 0);
         const porcentaje = typeof row.porcentaje === 'number' ? (row.porcentaje as number) : null;
-        const color = colors[index % colors.length];
+        const isTotal = row.__isTotalCard === true;
+        const color = isTotal ? '#164a8b' : colors[index % colors.length];
 
         return (
           <Box
@@ -58,10 +76,10 @@ export default function KpiCards({ config, data }: KpiCardsProps) {
               px: { xs: 1.25, xl: 1.5 },
               py: 1,
               borderRadius: 1.5,
-              bgcolor: 'background.paper',
               border: '1px solid',
-              borderColor: 'divider',
+              borderColor: isTotal ? 'primary.main' : 'divider',
               borderTop: `3px solid ${color}`,
+              bgcolor: isTotal ? 'rgba(22, 74, 139, 0.06)' : 'background.paper',
               transition: 'box-shadow 0.15s ease',
               '&:hover': {
                 boxShadow: '0 6px 20px rgba(17,24,39,0.10)',
@@ -106,7 +124,7 @@ export default function KpiCards({ config, data }: KpiCardsProps) {
                 fontWeight: 500,
               }}
             >
-              lbs netas
+              {isTotal ? 'lbs netas en total' : 'lbs netas'}
             </Typography>
 
             {porcentaje !== null && (

@@ -8,7 +8,9 @@ services:
     container_name: dashboard-backend
     restart: unless-stopped
     ports:
-      - "3002:3002"
+      # Disponible para diagnóstico desde la misma máquina, no para toda
+      # la red local. Nginx accede por la red interna de Docker.
+      - "127.0.0.1:3002:3002"
     environment:
       NODE_ENV: production
       PORT: 3002

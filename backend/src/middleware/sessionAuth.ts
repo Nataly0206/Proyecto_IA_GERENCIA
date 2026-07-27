@@ -35,6 +35,9 @@ export function sessionAuth(req: Request, res: Response, next: NextFunction): vo
     res.status(401).json({ error: 'Sesión no válida. Inicia sesión nuevamente.' });
     return;
   }
+  // Los reportes contienen información gerencial y no deben persistir en
+  // cachés compartidos, historial intermedio de proxies ni disco del navegador.
+  res.setHeader('Cache-Control', 'private, no-store');
   next();
 }
 

@@ -10,6 +10,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import axios from 'axios';
 import { apiClient } from '../api/client';
 
 interface LoginPageProps {
@@ -29,8 +30,14 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     try {
       await apiClient.post('/auth/login', { password });
       onLogin();
-    } catch {
-      setError('Contraseña incorrecta. Verifica e intenta de nuevo.');
+    } catch (requestError) {
+      if (axios.isAxiosError(requestError) && requestError.response?.status === 401) {
+        setError('Contraseña incorrecta. Verifica e intenta de nuevo.');
+      } else if (axios.isAxiosError(requestError) && requestError.response?.status === 429) {
+        setError('Demasiados intentos. Espera unos minutos antes de volver a intentar.');
+      } else {
+        setError('No se pudo conectar con el servidor. Verifica que el backend esté encendido.');
+      }
       setPassword('');
     } finally {
       setLoading(false);

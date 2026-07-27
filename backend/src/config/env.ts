@@ -2,17 +2,26 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+function numberFromEnv(name: string, fallback: number, min: number, max: number): number {
+  const raw = process.env[name];
+  const value = raw === undefined || raw === '' ? fallback : Number(raw);
+  if (!Number.isFinite(value) || !Number.isInteger(value) || value < min || value > max) {
+    throw new Error(`${name} debe ser un entero entre ${min} y ${max}.`);
+  }
+  return value;
+}
+
 export const env = {
   NODE_ENV: process.env.NODE_ENV ?? 'development',
-  PORT: Number(process.env.PORT ?? 3002),
+  PORT: numberFromEnv('PORT', 3002, 1, 65535),
   CORS_ORIGIN: process.env.CORS_ORIGIN ?? '',
   API_KEY: process.env.API_KEY ?? '',
   LOGIN_PASSWORD: process.env.LOGIN_PASSWORD ?? '',
   SESSION_SECRET: process.env.SESSION_SECRET ?? '',
-  SESSION_HOURS: Number(process.env.SESSION_HOURS ?? 12),
+  SESSION_HOURS: numberFromEnv('SESSION_HOURS', 12, 1, 168),
   COOKIE_SECURE: (process.env.COOKIE_SECURE ?? 'false') === 'true',
   DB_SERVER: process.env.DB_SERVER ?? 'localhost',
-  DB_PORT: Number(process.env.DB_PORT ?? 1433),
+  DB_PORT: numberFromEnv('DB_PORT', 1433, 1, 65535),
   DB_DATABASE: process.env.DB_DATABASE ?? '',
   DB_USER: process.env.DB_USER ?? '',
   DB_PASSWORD: process.env.DB_PASSWORD ?? '',

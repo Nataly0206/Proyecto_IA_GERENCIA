@@ -5,6 +5,7 @@ import { ApiError } from '../middleware/errorHandler';
 import { withTtlCache } from '../utils/ttlCache';
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const TURN_REGEX = /^(?:A|B|Turno A|Turno B)$/i;
 const REPORT_CACHE_MS = 5 * 60 * 1000;
 const LIVE_CACHE_MS = 30 * 60 * 1000;
 
@@ -29,6 +30,9 @@ export function parseFilters(req: Request): DashboardFilters {
   }
 
   const turno = req.query.turno ? String(req.query.turno) : undefined;
+  if (turno && !TURN_REGEX.test(turno)) {
+    throw new ApiError(400, 'turno debe ser A, B, Turno A o Turno B');
+  }
 
   return { fechaInicial, fechaFinal, turno };
 }
@@ -92,6 +96,9 @@ export async function getIqfLibrasHoraMes(req: Request, res: Response): Promise<
 
 export async function getIqfTiempoReal(req: Request, res: Response): Promise<void> {
   const turno = req.query.turno ? String(req.query.turno) : undefined;
+  if (turno && !TURN_REGEX.test(turno)) {
+    throw new ApiError(400, 'turno debe ser A, B, Turno A o Turno B');
+  }
   const forceRefresh = req.query.refresh === 'true';
   res.json(
     await withTtlCache(

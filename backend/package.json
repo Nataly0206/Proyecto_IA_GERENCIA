@@ -4,7 +4,7 @@
   "description": "API Express para Dashboard Gerencial de Producción Camaronera (SQL Server)",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit"
@@ -23,7 +23,7 @@
     "@types/express": "^4.17.21",
     "@types/mssql": "^12.3.0",
     "@types/node": "^20.14.2",
-    "ts-node-dev": "^2.0.0",
+    "tsx": "^4.23.1",
     "typescript": "^5.4.5"
   }
 }

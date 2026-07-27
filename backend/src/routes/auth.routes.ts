@@ -18,20 +18,23 @@ const loginLimiter = rateLimit({
 });
 
 router.get('/status', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   res.json({ authenticated: hasValidSession(req) });
 });
 
 router.post('/login', loginLimiter, (req, res) => {
   const password = typeof req.body?.password === 'string' ? req.body.password : '';
-  if (!passwordMatches(password)) {
+  if (password.length > 256 || !passwordMatches(password)) {
     res.status(401).json({ error: 'Contraseña incorrecta.' });
     return;
   }
+  res.setHeader('Cache-Control', 'no-store');
   setSessionCookie(res);
   res.json({ authenticated: true });
 });
 
 router.post('/logout', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   clearSessionCookie(res);
   res.json({ authenticated: false });
 });

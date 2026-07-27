@@ -31,9 +31,13 @@ export async function fetchIqfLive(turno: string, refresh = false): Promise<IqfL
 export async function fetchWidgetData(
   endpoint: DashboardEndpoint,
   filters: DashboardFilters,
+  refresh = false,
 ): Promise<DataRow[]> {
   const { data } = await apiClient.get<DataRow[]>(`/dashboard/${endpoint}`, {
-    params: toParams(filters),
+    params: {
+      ...toParams(filters),
+      ...(refresh ? { refresh: 'true' } : {}),
+    },
   });
   return data;
 }

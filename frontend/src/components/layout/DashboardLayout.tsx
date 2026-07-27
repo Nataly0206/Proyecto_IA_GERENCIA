@@ -18,7 +18,7 @@ import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
 import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
 import AiAssistantPanel from '../ai/AiAssistantPanel';
 import GlobalFilters from '../filters/GlobalFilters';
-import { useIqfLive } from '../../hooks/useDashboardData';
+import { useRefreshDashboard } from '../../hooks/useDashboardData';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -30,14 +30,14 @@ export default function DashboardLayout({ children, onLogout }: DashboardLayoutP
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshFailed, setRefreshFailed] = useState(false);
-  const { refreshNow } = useIqfLive();
+  const refreshDashboard = useRefreshDashboard();
 
   const handleRefresh = async () => {
     if (isRefreshing) return;
     setIsRefreshing(true);
     setRefreshFailed(false);
     try {
-      await refreshNow();
+      await refreshDashboard();
     } catch {
       setRefreshFailed(true);
     } finally {
@@ -51,9 +51,15 @@ export default function DashboardLayout({ children, onLogout }: DashboardLayoutP
         <Toolbar
           variant="dense"
           disableGutters
-          sx={{ px: { xs: 2, md: 3 }, minHeight: 46, gap: 1.5 }}
+          sx={{
+            px: { xs: 1.5, sm: 2, md: 3 },
+            py: { xs: 1, sm: 0 },
+            minHeight: 46,
+            gap: { xs: 0.75, sm: 1.5 },
+            flexWrap: { xs: 'wrap', sm: 'nowrap' },
+          }}
         >
-          <Stack direction="row" alignItems="center" spacing={1} sx={{ flexGrow: 1 }}>
+          <Stack direction="row" alignItems="center" spacing={1} sx={{ flexGrow: 1, minWidth: { xs: 'calc(100% - 38px)', sm: 180 } }}>
             <Box
               sx={{
                 width: 6,
@@ -66,7 +72,7 @@ export default function DashboardLayout({ children, onLogout }: DashboardLayoutP
             <Typography
               variant="subtitle1"
               fontWeight={800}
-              sx={{ letterSpacing: 0, color: 'text.primary' }}
+              sx={{ letterSpacing: 0, color: 'text.primary', fontSize: { xs: 17, sm: 16 }, whiteSpace: 'nowrap' }}
             >
               Dashboard Gerencial
             </Typography>
@@ -101,6 +107,10 @@ export default function DashboardLayout({ children, onLogout }: DashboardLayoutP
             disabled={isRefreshing}
             onClick={handleRefresh}
             sx={{
+              order: { xs: 2, sm: 'initial' },
+              flex: { xs: 1, sm: 'initial' },
+              minWidth: 0,
+              px: { xs: 1, sm: 1.25 },
               fontSize: 12,
               fontWeight: 700,
               whiteSpace: 'nowrap',
@@ -123,6 +133,10 @@ export default function DashboardLayout({ children, onLogout }: DashboardLayoutP
             startIcon={<TuneOutlinedIcon sx={{ fontSize: '15px !important' }} />}
             onClick={() => setFiltersOpen(true)}
             sx={{
+              order: { xs: 2, sm: 'initial' },
+              flex: { xs: 1, sm: 'initial' },
+              minWidth: 0,
+              px: { xs: 1, sm: 1.25 },
               fontSize: 12,
               fontWeight: 700,
               borderColor: 'divider',
@@ -137,20 +151,20 @@ export default function DashboardLayout({ children, onLogout }: DashboardLayoutP
             variant="contained"
             startIcon={<SmartToyOutlinedIcon sx={{ fontSize: '15px !important' }} />}
             onClick={() => setAiPanelOpen(true)}
-            sx={{ fontSize: 12, fontWeight: 700, boxShadow: 'none' }}
+            sx={{ order: { xs: 2, sm: 'initial' }, flex: { xs: 1, sm: 'initial' }, minWidth: 0, px: { xs: 1, sm: 1.25 }, fontSize: 12, fontWeight: 700, boxShadow: 'none' }}
           >
             Asistente IA
           </Button>
-          <IconButton size="small" onClick={onLogout} aria-label="Cerrar sesión" title="Cerrar sesión">
+          <IconButton size="small" onClick={onLogout} aria-label="Cerrar sesión" title="Cerrar sesión" sx={{ order: { xs: 1, sm: 'initial' } }}>
             <LogoutOutlinedIcon fontSize="small" />
           </IconButton>
         </Toolbar>
       </AppBar>
 
-      <Box sx={{ flex: 1, overflow: 'hidden' }}>
+      <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
         <Container
           maxWidth={false}
-          sx={{ height: '100%', px: { xs: 1.5, md: 2.5 }, py: { xs: 1, md: 1.25 } }}
+          sx={{ height: '100%', px: { xs: 1.25, sm: 1.5, md: 2.5 }, py: { xs: 1.25, md: 1.25 } }}
         >
           {children}
         </Container>

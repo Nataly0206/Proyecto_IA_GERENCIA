@@ -3,11 +3,9 @@ import { fetchIqfLive, fetchWidgetData } from '../api/dashboard.api';
 import { useFilters } from '../context/FiltersContext';
 import { DashboardEndpoint, DataRow, IqfLiveResponse } from '../types';
 
-/** Actualización automática cada 5 minutos */
+/** Todo el dashboard se actualiza automáticamente cada 5 minutos */
 export const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-
-/** Los contadores en vivo se refrescan cada 30 minutos */
-export const LIVE_REFRESH_INTERVAL_MS = 30 * 60 * 1000;
+export const LIVE_REFRESH_INTERVAL_MS = REFRESH_INTERVAL_MS;
 
 interface BrowserCacheEntry<T> {
   updatedAt: number;
@@ -78,6 +76,7 @@ export function useWidgetData(endpoint: DashboardEndpoint) {
     initialDataUpdatedAt: cached?.updatedAt,
     staleTime: REFRESH_INTERVAL_MS,
     refetchInterval: REFRESH_INTERVAL_MS,
+    refetchIntervalInBackground: true,
   });
 }
 
@@ -110,4 +109,50 @@ export function useIqfLive() {
   };
 
   return { ...query, refreshNow };
+}
+
+/** Fuerza una lectura nueva de todos los widgets visibles y contadores. */
+export function useRefreshDashboard() {
+  const { filters } = useFilters();
+  const queryClient = useQueryClient();
+
+  return async (): Promise<void> => {
+    const activeQueries = queryClient.getQueryCache().findAll({
+      queryKey: ['dashboard'],
+      type: 'active',
+    });
+    const endpoints = Array.from(
+      new Set(
+        activeQueries
+          .map((query) => query.queryKey[1])
+          .filter(
+            (endpoint): endpoint is DashboardEndpoint =>
+              typeof endpoint === 'string' && endpoint !== 'iqf-tiempo-real',
+          ),
+      ),
+    );
+
+    const liveKey = ['dashboard', 'iqf-tiempo-real', filters.turno] as const;
+    const liveCacheKey = browserCacheKey(['live', filters.turno]);
+
+    await Promise.all([
+      fetchIqfLive(filters.turno, true).then((data) => {
+        writeBrowserCache(liveCacheKey, data);
+        queryClient.setQueryData<IqfLiveResponse>(liveKey, data);
+      }),
+      ...endpoints.map(async (endpoint) => {
+        const data = await fetchWidgetData(endpoint, filters, true);
+        const queryKey = ['dashboard', endpoint, filters] as const;
+        const cacheKey = browserCacheKey([
+          'widget',
+          endpoint,
+          filters.fechaInicial,
+          filters.fechaFinal,
+          filters.turno,
+        ]);
+        writeBrowserCache(cacheKey, data);
+        queryClient.setQueryData<DataRow[]>(queryKey, data);
+      }),
+    ]);
+  };
 }

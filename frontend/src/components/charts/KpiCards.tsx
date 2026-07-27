@@ -48,14 +48,14 @@ export default function KpiCards({ config, data }: KpiCardsProps) {
       sx={{
         display: 'grid',
         gridTemplateColumns: {
-          xs: `repeat(${cols}, minmax(150px, 1fr))`,
+          xs: 'repeat(2, minmax(0, 1fr))',
+          sm: `repeat(${Math.min(cols, 3)}, minmax(0, 1fr))`,
           lg: `repeat(${cols}, minmax(0, 1fr))`,
         },
         gap: 1,
         pt: 0.25,
         pb: 0.25,
-        overflowX: 'auto',
-        scrollbarWidth: 'thin',
+        overflow: 'visible',
       }}
     >
       {rows.map((row, index) => {
@@ -81,6 +81,7 @@ export default function KpiCards({ config, data }: KpiCardsProps) {
               borderTop: `3px solid ${color}`,
               bgcolor: isTotal ? 'rgba(22, 74, 139, 0.06)' : 'background.paper',
               transition: 'box-shadow 0.15s ease',
+              minHeight: { xs: 118, sm: 104 },
               '&:hover': {
                 boxShadow: '0 6px 20px rgba(17,24,39,0.10)',
               },

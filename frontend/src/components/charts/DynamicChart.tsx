@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useMediaQuery, useTheme } from '@mui/material';
 import Chart from 'react-apexcharts';
 import type { ApexOptions } from 'apexcharts';
 import { ChartConfig, ChartSort, DataRow } from '../../types';
@@ -44,6 +45,8 @@ function eachIsoDate(start: string, end: string): string[] {
  * comparativa. Es el único componente de gráficos del sistema.
  */
 export default function DynamicChart({ config, data }: DynamicChartProps) {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { filters } = useFilters();
   const rows = useMemo(() => applySort(data, config.sort), [data, config.sort]);
 
@@ -150,7 +153,7 @@ export default function DynamicChart({ config, data }: DynamicChartProps) {
       formatter: (value: number) => formatValue(Number(value), 'number'),
       offsetY: isHorizontal ? 0 : -7,
       style: {
-        fontSize: '9px',
+        fontSize: isMobile ? '8px' : '9px',
         fontWeight: 700,
         colors: ['#334155'],
       },
@@ -172,9 +175,9 @@ export default function DynamicChart({ config, data }: DynamicChartProps) {
     xaxis: {
       categories,
       labels: {
-        rotate: -45,
+        rotate: isMobile ? -60 : -45,
         trim: true,
-        style: { fontSize: '12px', colors: '#64748b', fontWeight: 600 },
+        style: { fontSize: isMobile ? '10px' : '12px', colors: '#64748b', fontWeight: 600 },
         ...(!isHorizontal && dateTickStep > 1 && {
           formatter: (value: string) => {
             const index = categories.indexOf(value);
@@ -190,7 +193,7 @@ export default function DynamicChart({ config, data }: DynamicChartProps) {
     },
     yaxis: {
       labels: {
-        style: { colors: '#64748b', fontSize: '12px', fontWeight: 600 },
+        style: { colors: '#64748b', fontSize: isMobile ? '10px' : '12px', fontWeight: 600 },
         formatter: (val: number) =>
           isHorizontal ? String(val) : tooltipFormatter(val),
       },
@@ -200,11 +203,17 @@ export default function DynamicChart({ config, data }: DynamicChartProps) {
       strokeDashArray: 4,
       padding: {
         top: config.showDataLabels ? 14 : 0,
-        left: 8,
-        right: 12,
+        left: isMobile ? 0 : 8,
+        right: isMobile ? 4 : 12,
       },
     },
-    legend: { show: series.length > 1, position: 'top', fontSize: '12px', fontWeight: 600 },
+    legend: {
+      show: series.length > 1,
+      position: 'top',
+      fontSize: isMobile ? '11px' : '12px',
+      fontWeight: 600,
+      itemMargin: { horizontal: isMobile ? 6 : 10, vertical: 3 },
+    },
     tooltip: { y: { formatter: tooltipFormatter } },
     ...(isLineLike && { markers: { size: 4, hover: { size: 6 } } }),
   };

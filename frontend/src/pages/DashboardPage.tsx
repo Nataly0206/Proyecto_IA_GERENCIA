@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Box, Stack } from '@mui/material';
+import { Box, Stack, useMediaQuery, useTheme } from '@mui/material';
 import ChartWidget from '../components/charts/ChartWidget';
 import NetProcessWidget from '../components/charts/NetProcessWidget';
 import IqfLiveCounters from '../components/live/IqfLiveCounters';
@@ -14,6 +14,8 @@ const GRID_ROW_GAP = 16;    // spacing={2}
 const CARD_CHROME = 96;     // cardcontent padding + title block + margin
 
 export default function DashboardPage() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const topRef = useRef<HTMLDivElement>(null);
   const netProcessRef = useRef<HTMLDivElement>(null);
   const [heights, setHeights] = useState({ netas: 320, iqf: 240 });
@@ -31,8 +33,8 @@ export default function DashboardPage() {
         netProcessH -
         GRID_ROW_GAP;
       setHeights({
-        netas: Math.max(220, Math.floor(window.innerHeight * 0.32)),
-        iqf: Math.max(160, availableForIqf - CARD_CHROME),
+        netas: isMobile ? 340 : Math.max(220, Math.floor(window.innerHeight * 0.32)),
+        iqf: isMobile ? 320 : Math.max(160, availableForIqf - CARD_CHROME),
       });
     };
     calc();
@@ -44,7 +46,7 @@ export default function DashboardPage() {
       window.removeEventListener('resize', calc);
       ro.disconnect();
     };
-  }, []);
+  }, [isMobile]);
 
   return (
     <Stack
@@ -67,7 +69,8 @@ export default function DashboardPage() {
           display: 'grid',
           gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'repeat(2, minmax(0, 1fr))' },
           gridTemplateRows: { xs: 'auto auto auto', md: 'auto minmax(0, 1fr)' },
-          gap: 2,
+          gap: { xs: 1.5, md: 2 },
+          pb: { xs: 1.5, md: 0 },
           overflow: { xs: 'visible', md: 'hidden' },
         }}
       >
@@ -77,10 +80,24 @@ export default function DashboardPage() {
         >
           <NetProcessWidget height={heights.netas} />
         </Box>
-        <Box sx={{ minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        <Box
+          sx={{
+            minWidth: 0,
+            minHeight: { xs: 'auto', md: 0 },
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
           <ChartWidget config={{ ...iqfDiario, height: heights.iqf }} />
         </Box>
-        <Box sx={{ minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        <Box
+          sx={{
+            minWidth: 0,
+            minHeight: { xs: 'auto', md: 0 },
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
           <ChartWidget config={{ ...iqfMensual, height: heights.iqf }} />
         </Box>
       </Box>

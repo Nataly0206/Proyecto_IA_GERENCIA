@@ -33,8 +33,8 @@ function LiveCard({ linea }: { linea: IqfLiveLine }) {
       }}
     >
       <CardContent sx={{ py: 1.25, px: 1.75, '&:last-child': { pb: 1.25 } }}>
-        <Stack direction="row" justifyContent="space-between" alignItems="center" mb={0.5} spacing={0.75}>
-          <Typography variant="body2" fontWeight={700} noWrap sx={{ maxWidth: 110 }} title={linea.linea}>
+        <Stack direction="row" justifyContent="space-between" alignItems="center" mb={0.5} spacing={0.5}>
+          <Typography variant="body2" fontWeight={700} noWrap sx={{ minWidth: 0 }} title={linea.linea}>
             {linea.linea}
           </Typography>
           <Chip
@@ -43,11 +43,12 @@ function LiveCard({ linea }: { linea: IqfLiveLine }) {
               active ? 'ACTIVA' : linea.cajas === 0 ? 'SIN DATOS' : haceTexto(linea.minutosDesdeUltima)
             }`}
             sx={{
+              maxWidth: { xs: 92, sm: 'none' },
               bgcolor: `${color}18`,
               color,
               fontWeight: 700,
               height: 16,
-              '& .MuiChip-label': { px: 0.6, fontSize: 9.5 },
+              '& .MuiChip-label': { px: 0.6, fontSize: 9.5, overflow: 'hidden', textOverflow: 'ellipsis' },
             }}
           />
         </Stack>
@@ -85,7 +86,7 @@ export default function IqfLiveCounters() {
           sx={{ fontWeight: 700, height: 18, '& .MuiChip-label': { fontSize: 9.5, px: 0.75 } }}
         />
         {data && data.dia !== '' && (
-          <Typography variant="caption" color="text.secondary" sx={{ fontSize: 11 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: 11, flexBasis: { xs: '100%', sm: 'auto' }, pl: { xs: 2.75, sm: 0 } }}>
             {formatPeriodo(data.dia)} · actualizado {new Date(dataUpdatedAt).toLocaleTimeString()}
           </Typography>
         )}
@@ -115,8 +116,12 @@ export default function IqfLiveCounters() {
         <Box
           sx={{
             display: 'grid',
-            gridTemplateColumns: `repeat(${data.lineas.length}, 1fr)`,
+            gridTemplateColumns: {
+              xs: 'repeat(2, minmax(0, 1fr))',
+              sm: `repeat(${data.lineas.length}, minmax(0, 1fr))`,
+            },
             gap: 1,
+            '& > :last-child:nth-of-type(odd)': { gridColumn: { xs: '1 / -1', sm: 'auto' } },
           }}
         >
           {data.lineas.map((linea) => (

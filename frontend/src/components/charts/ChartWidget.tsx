@@ -76,20 +76,24 @@ export default function ChartWidget({ config, actions }: ChartWidgetProps) {
           );
         })()
       : seriesFilteredData;
+  const widgetHeight =
+    effectiveConfig.type === 'cards'
+      ? 'auto'
+      : { xs: 'auto', md: '100%' };
 
   return (
-    <Card sx={{ height: effectiveConfig.type === 'cards' ? 'auto' : '100%' }}>
+    <Card sx={{ height: widgetHeight, minHeight: 0 }}>
       <CardContent
         sx={{
-          height: effectiveConfig.type === 'cards' ? 'auto' : '100%',
+          height: widgetHeight,
           display: 'flex',
           flexDirection: 'column',
           p: '14px !important',
         }}
       >
-        <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1.5} mb={1}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} spacing={{ xs: 1, sm: 1.5 }} mb={1}>
           <Box sx={{ minWidth: 0 }}>
-            <Typography variant="subtitle2" fontWeight={800} lineHeight={1.2} noWrap>
+            <Typography variant="subtitle2" fontWeight={800} lineHeight={1.2} sx={{ whiteSpace: { sm: 'nowrap' }, fontSize: { xs: 15, sm: 14 } }}>
               {config.title}
             </Typography>
             {config.subtitle && (
@@ -98,7 +102,7 @@ export default function ChartWidget({ config, actions }: ChartWidgetProps) {
               </Typography>
             )}
           </Box>
-          <Stack direction="row" spacing={1} alignItems="center" sx={{ flexShrink: 0 }}>
+          <Stack direction="row" spacing={1} alignItems="center" justifyContent={{ xs: 'flex-end', sm: 'initial' }} sx={{ flexShrink: 0 }}>
             {actions}
             {hasToggle && (
               <ToggleButtonGroup

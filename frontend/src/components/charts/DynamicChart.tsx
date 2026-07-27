@@ -126,6 +126,26 @@ export default function DynamicChart({ config, data }: DynamicChartProps) {
         ? 5
         : 10
     : 1;
+  const showMarkerAt = (index: number): boolean =>
+    index === 0 ||
+    index === categories.length - 1 ||
+    index % dateTickStep === 0;
+  const adaptiveDiscreteMarkers =
+    isLineLike && config.adaptiveDateTicks && dateTickStep > 1
+      ? series.flatMap((item, seriesIndex) =>
+          item.data.flatMap((value, dataPointIndex) =>
+            value !== null && showMarkerAt(dataPointIndex)
+              ? [{
+                  seriesIndex,
+                  dataPointIndex,
+                  fillColor: colors[seriesIndex % colors.length],
+                  strokeColor: '#ffffff',
+                  size: 4,
+                }]
+              : [],
+          ),
+        )
+      : undefined;
 
   // Importante: no incluir claves con valor `undefined` — el merge interno
   // de ApexCharts las toma literalmente y pisa sus defaults, lo que provoca
@@ -216,7 +236,15 @@ export default function DynamicChart({ config, data }: DynamicChartProps) {
       itemMargin: { horizontal: isMobile ? 6 : 10, vertical: 3 },
     },
     tooltip: { y: { formatter: tooltipFormatter } },
-    ...(isLineLike && { markers: { size: 4, hover: { size: 6 } } }),
+    ...(isLineLike && {
+      markers: config.adaptiveDateTicks && dateTickStep > 1
+        ? {
+            size: 0,
+            discrete: adaptiveDiscreteMarkers,
+            hover: { size: 6 },
+          }
+        : { size: 4, hover: { size: 6 } },
+    }),
   };
 
   return (

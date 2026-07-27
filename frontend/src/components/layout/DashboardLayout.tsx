@@ -15,15 +15,17 @@ import CloseIcon from '@mui/icons-material/Close';
 import RefreshOutlinedIcon from '@mui/icons-material/RefreshOutlined';
 import TuneOutlinedIcon from '@mui/icons-material/TuneOutlined';
 import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
+import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
 import AiAssistantPanel from '../ai/AiAssistantPanel';
 import GlobalFilters from '../filters/GlobalFilters';
 import { useIqfLive } from '../../hooks/useDashboardData';
 
 interface DashboardLayoutProps {
   children: ReactNode;
+  onLogout: () => void;
 }
 
-export default function DashboardLayout({ children }: DashboardLayoutProps) {
+export default function DashboardLayout({ children, onLogout }: DashboardLayoutProps) {
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -139,6 +141,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           >
             Asistente IA
           </Button>
+          <IconButton size="small" onClick={onLogout} aria-label="Cerrar sesión" title="Cerrar sesión">
+            <LogoutOutlinedIcon fontSize="small" />
+          </IconButton>
         </Toolbar>
       </AppBar>
 

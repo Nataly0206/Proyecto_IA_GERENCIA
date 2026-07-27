@@ -128,6 +128,10 @@ Si SQL Server corre en la máquina anfitriona, `DB_SERVER=host.docker.internal`
 | ----------------------------- | ------------------------------------ | ----------- |
 | `PORT`                        | Puerto de la API                     | `3002`      |
 | `CORS_ORIGIN`                 | Orígenes permitidos (coma-separados) | `*`         |
+| `LOGIN_PASSWORD`              | Contraseña de acceso al dashboard    | Obligatoria |
+| `SESSION_SECRET`              | Secreto de firma (mín. 32 caracteres)| Obligatoria |
+| `SESSION_HOURS`               | Duración de la sesión                | `12`        |
+| `COOKIE_SECURE`               | Cookie solo por HTTPS                | `false`     |
 | `DB_SERVER`                   | Host de SQL Server                   | `localhost` |
 | `DB_PORT`                     | Puerto de SQL Server                 | `1433`      |
 | `DB_DATABASE`                 | Base de datos                        | —           |
@@ -144,6 +148,16 @@ Si SQL Server corre en la máquina anfitriona, `DB_SERVER=host.docker.internal`
 | Variable       | Descripción         | Default |
 | -------------- | ------------------- | ------- |
 | `VITE_API_URL` | URL base de la API  | `/api`  |
+
+La contraseña y el secreto de sesión se configuran solamente en el backend;
+nunca deben usar el prefijo `VITE_`, ya que esas variables quedan visibles en
+el navegador. Para generar un secreto seguro:
+
+```bash
+openssl rand -hex 32
+```
+
+En producción con HTTPS, configure `COOKIE_SECURE=true`.
 
 ## Diseño para la Fase 2 (Asistente IA)
 

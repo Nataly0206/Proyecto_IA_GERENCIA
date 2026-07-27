@@ -6,13 +6,17 @@ import { env } from './config/env';
 import { closePool } from './config/db';
 import dashboardRoutes from './routes/dashboard.routes';
 import aiRoutes from './routes/ai.routes';
+import authRoutes from './routes/auth.routes';
 import { errorHandler, notFound } from './middleware/errorHandler';
-import { apiKeyAuth } from './middleware/apiKeyAuth';
+import { sessionAuth } from './middleware/sessionAuth';
 
 // Fail-closed: en producción no se arranca sin API_KEY, para no exponer
 // la API (y por tanto la BD real vía el asistente IA) sin autenticación.
-if (env.NODE_ENV === 'production' && !env.API_KEY) {
-  throw new Error('API_KEY es obligatoria cuando NODE_ENV=production.');
+if (!env.LOGIN_PASSWORD) {
+  throw new Error('LOGIN_PASSWORD es obligatoria para proteger el dashboard.');
+}
+if (!env.SESSION_SECRET || env.SESSION_SECRET.length < 32) {
+  throw new Error('SESSION_SECRET es obligatoria y debe tener al menos 32 caracteres.');
 }
 
 const app = express();
@@ -23,6 +27,7 @@ const allowedOrigins = env.CORS_ORIGIN.split(',').map((o) => o.trim()).filter(Bo
 app.use(
   cors({
     origin: allowedOrigins.length > 0 ? allowedOrigins : false,
+    credentials: true,
   }),
 );
 
@@ -48,8 +53,9 @@ app.get('/api/health', (_req, res) => {
 });
 
 app.use('/api', generalLimiter);
-app.use('/api/dashboard', apiKeyAuth, dashboardRoutes);
-app.use('/api/ai', apiKeyAuth, aiLimiter, aiRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/dashboard', sessionAuth, dashboardRoutes);
+app.use('/api/ai', sessionAuth, aiLimiter, aiRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

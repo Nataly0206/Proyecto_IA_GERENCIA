@@ -1,0 +1,89 @@
+import { FormEvent, useState } from 'react';
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
+import {
+  Alert,
+  Box,
+  Button,
+  CircularProgress,
+  Paper,
+  Stack,
+  TextField,
+  Typography,
+} from '@mui/material';
+import { apiClient } from '../api/client';
+
+interface LoginPageProps {
+  onLogin: () => void;
+}
+
+export default function LoginPage({ onLogin }: LoginPageProps) {
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!password || loading) return;
+    setLoading(true);
+    setError('');
+    try {
+      await apiClient.post('/auth/login', { password });
+      onLogin();
+    } catch {
+      setError('Contraseña incorrecta. Verifica e intenta de nuevo.');
+      setPassword('');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Box
+      sx={{
+        minHeight: '100vh',
+        display: 'grid',
+        placeItems: 'center',
+        bgcolor: 'background.default',
+        px: 2,
+      }}
+    >
+      <Paper elevation={0} sx={{ width: '100%', maxWidth: 420, p: { xs: 3, sm: 5 }, border: 1, borderColor: 'divider' }}>
+        <Stack component="form" spacing={3} onSubmit={handleSubmit}>
+          <Box
+            sx={{
+              width: 48,
+              height: 48,
+              display: 'grid',
+              placeItems: 'center',
+              borderRadius: 2,
+              bgcolor: 'primary.main',
+              color: 'primary.contrastText',
+            }}
+          >
+            <LockOutlinedIcon />
+          </Box>
+          <Box>
+            <Typography variant="h5" fontWeight={800}>Dashboard Gerencial</Typography>
+            <Typography color="text.secondary" sx={{ mt: 0.75 }}>
+              Ingresa la contraseña para continuar.
+            </Typography>
+          </Box>
+          {error && <Alert severity="error">{error}</Alert>}
+          <TextField
+            autoFocus
+            fullWidth
+            label="Contraseña"
+            type="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            autoComplete="current-password"
+            disabled={loading}
+          />
+          <Button type="submit" size="large" variant="contained" disabled={!password || loading}>
+            {loading ? <CircularProgress size={24} color="inherit" /> : 'Entrar'}
+          </Button>
+        </Stack>
+      </Paper>
+    </Box>
+  );
+}

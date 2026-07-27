@@ -47,7 +47,7 @@ function eachIsoDate(start: string, end: string): string[] {
 export default function DynamicChart({ config, data }: DynamicChartProps) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const { filters } = useFilters();
+  const { filters, showChartValues } = useFilters();
   const rows = useMemo(() => applySort(data, config.sort), [data, config.sort]);
 
   const colors = config.colors ?? CHART_COLORS;
@@ -118,6 +118,7 @@ export default function DynamicChart({ config, data }: DynamicChartProps) {
   const isHorizontal = config.type === 'bar';
   const apexType = config.type === 'column' ? 'bar' : config.type;
   const isLineLike = config.type === 'line' || config.type === 'area';
+  const displayDataLabels = Boolean(config.showDataLabels && showChartValues);
   const dateTickStep = config.adaptiveDateTicks
     ? categories.length <= 14
       ? 1
@@ -141,7 +142,7 @@ export default function DynamicChart({ config, data }: DynamicChartProps) {
       bar: {
         horizontal: isHorizontal,
         borderRadius: 4,
-        columnWidth: config.showDataLabels ? '46%' : '55%',
+        columnWidth: displayDataLabels ? '46%' : '55%',
         barHeight: '70%',
         dataLabels: {
           position: isHorizontal ? 'center' : 'top',
@@ -149,7 +150,7 @@ export default function DynamicChart({ config, data }: DynamicChartProps) {
       },
     },
     dataLabels: {
-      enabled: Boolean(config.showDataLabels),
+      enabled: displayDataLabels,
       formatter: (value: number) => formatValue(Number(value), 'number'),
       offsetY: isHorizontal ? 0 : -7,
       style: {
@@ -158,7 +159,7 @@ export default function DynamicChart({ config, data }: DynamicChartProps) {
         colors: ['#334155'],
       },
       background: {
-        enabled: Boolean(config.showDataLabels),
+        enabled: displayDataLabels,
         backgroundColor: '#e2e8f0',
         foreColor: '#1e293b',
         borderRadius: 4,
@@ -202,7 +203,7 @@ export default function DynamicChart({ config, data }: DynamicChartProps) {
       borderColor: '#e2e8f0',
       strokeDashArray: 4,
       padding: {
-        top: config.showDataLabels ? 14 : 0,
+        top: displayDataLabels ? 14 : 0,
         left: isMobile ? 0 : 8,
         right: isMobile ? 4 : 12,
       },

@@ -4,6 +4,8 @@ import { DashboardFilters } from '../types';
 
 interface FiltersContextValue {
   filters: DashboardFilters;
+  showChartValues: boolean;
+  setShowChartValues: (show: boolean) => void;
   setFilters: (filters: DashboardFilters) => void;
   updateFilter: <K extends keyof DashboardFilters>(key: K, value: DashboardFilters[K]) => void;
   resetFilters: () => void;
@@ -19,15 +21,18 @@ const FiltersContext = createContext<FiltersContextValue | null>(null);
 
 export function FiltersProvider({ children }: { children: ReactNode }) {
   const [filters, setFilters] = useState<DashboardFilters>(buildDefaultFilters);
+  const [showChartValues, setShowChartValues] = useState(true);
 
   const value = useMemo<FiltersContextValue>(
     () => ({
       filters,
+      showChartValues,
+      setShowChartValues,
       setFilters,
       updateFilter: (key, val) => setFilters((prev) => ({ ...prev, [key]: val })),
       resetFilters: () => setFilters(buildDefaultFilters()),
     }),
-    [filters],
+    [filters, showChartValues],
   );
 
   return <FiltersContext.Provider value={value}>{children}</FiltersContext.Provider>;

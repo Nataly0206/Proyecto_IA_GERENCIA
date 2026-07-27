@@ -1,4 +1,14 @@
-import { Button, Divider, MenuItem, Stack, TextField } from '@mui/material';
+import {
+  Button,
+  Checkbox,
+  Divider,
+  FormControlLabel,
+  FormGroup,
+  MenuItem,
+  Stack,
+  TextField,
+  Typography,
+} from '@mui/material';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import { useFilters } from '../../context/FiltersContext';
 import { TURNOS } from '../../types';
@@ -9,7 +19,13 @@ import { TURNOS } from '../../types';
  * una ventana fija de 12 meses (solo le afecta el filtro de turno).
  */
 export default function GlobalFilters() {
-  const { filters, updateFilter, resetFilters } = useFilters();
+  const {
+    filters,
+    showChartValues,
+    setShowChartValues,
+    updateFilter,
+    resetFilters,
+  } = useFilters();
 
   return (
     <Stack spacing={2.25}>
@@ -48,6 +64,30 @@ export default function GlobalFilters() {
           </MenuItem>
         ))}
       </TextField>
+
+      <Divider />
+
+      <FormGroup>
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={showChartValues}
+              onChange={(event) => setShowChartValues(event.target.checked)}
+            />
+          }
+          label={
+            <Stack spacing={0.25}>
+              <Typography variant="body2" fontWeight={700}>
+                Mostrar valores en las gráficas
+              </Typography>
+              <Typography variant="caption" color="text.secondary" lineHeight={1.25}>
+                Muestra los números sobre los puntos y las barras.
+              </Typography>
+            </Stack>
+          }
+          sx={{ alignItems: 'flex-start', m: 0, '& .MuiCheckbox-root': { pt: 0 } }}
+        />
+      </FormGroup>
 
       <Divider />
 

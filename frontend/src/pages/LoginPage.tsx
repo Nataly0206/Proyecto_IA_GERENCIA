@@ -12,27 +12,29 @@ import {
 } from '@mui/material';
 import axios from 'axios';
 import { apiClient } from '../api/client';
+import { AuthUser } from '../types/auth';
 
 interface LoginPageProps {
-  onLogin: () => void;
+  onLogin: (user: AuthUser) => void;
 }
 
 export default function LoginPage({ onLogin }: LoginPageProps) {
   const [password, setPassword] = useState('');
+  const [usuario, setUsuario] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!password || loading) return;
+    if (!usuario || !password || loading) return;
     setLoading(true);
     setError('');
     try {
-      await apiClient.post('/auth/login', { password });
-      onLogin();
+      const { data } = await apiClient.post<{ user: AuthUser }>('/auth/login', { usuario, password });
+      onLogin(data.user);
     } catch (requestError) {
       if (axios.isAxiosError(requestError) && requestError.response?.status === 401) {
-        setError('Contraseña incorrecta. Verifica e intenta de nuevo.');
+        setError('Usuario o contraseña incorrectos. Verifica e intenta de nuevo.');
       } else if (axios.isAxiosError(requestError) && requestError.response?.status === 429) {
         setError('Demasiados intentos. Espera unos minutos antes de volver a intentar.');
       } else {
@@ -72,12 +74,20 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           <Box>
             <Typography variant="h5" fontWeight={800}>Dashboard Gerencial</Typography>
             <Typography color="text.secondary" sx={{ mt: 0.75 }}>
-              Ingresa la contraseña para continuar.
+              Ingresa tus credenciales para continuar.
             </Typography>
           </Box>
           {error && <Alert severity="error">{error}</Alert>}
           <TextField
             autoFocus
+            fullWidth
+            label="Usuario o correo"
+            value={usuario}
+            onChange={(event) => setUsuario(event.target.value)}
+            autoComplete="username"
+            disabled={loading}
+          />
+          <TextField
             fullWidth
             label="Contraseña"
             type="password"
@@ -86,7 +96,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
             autoComplete="current-password"
             disabled={loading}
           />
-          <Button type="submit" size="large" variant="contained" disabled={!password || loading}>
+          <Button type="submit" size="large" variant="contained" disabled={!usuario || !password || loading}>
             {loading ? <CircularProgress size={24} color="inherit" /> : 'Entrar'}
           </Button>
         </Stack>

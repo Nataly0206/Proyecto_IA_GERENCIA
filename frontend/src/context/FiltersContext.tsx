@@ -18,10 +18,30 @@ const buildDefaultFilters = (): DashboardFilters => ({
 });
 
 const FiltersContext = createContext<FiltersContextValue | null>(null);
+const SHOW_CHART_VALUES_STORAGE_KEY = 'dashboard.showChartValues';
+
+function readStoredShowChartValues(): boolean {
+  try {
+    const stored = window.localStorage.getItem(SHOW_CHART_VALUES_STORAGE_KEY);
+    return stored === null ? true : stored === 'true';
+  } catch {
+    return true;
+  }
+}
 
 export function FiltersProvider({ children }: { children: ReactNode }) {
   const [filters, setFilters] = useState<DashboardFilters>(buildDefaultFilters);
-  const [showChartValues, setShowChartValues] = useState(true);
+  const [showChartValues, setShowChartValuesState] = useState(readStoredShowChartValues);
+
+  const setShowChartValues = (show: boolean) => {
+    setShowChartValuesState(show);
+    try {
+      window.localStorage.setItem(SHOW_CHART_VALUES_STORAGE_KEY, String(show));
+    } catch {
+      // La preferencia sigue funcionando durante la sesión si el navegador
+      // bloquea el almacenamiento local.
+    }
+  };
 
   const value = useMemo<FiltersContextValue>(
     () => ({

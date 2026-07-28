@@ -128,7 +128,8 @@ Si SQL Server corre en la máquina anfitriona, `DB_SERVER=host.docker.internal`
 | ----------------------------- | ------------------------------------ | ----------- |
 | `PORT`                        | Puerto de la API                     | `3002`      |
 | `CORS_ORIGIN`                 | Orígenes permitidos (coma-separados) | `*`         |
-| `LOGIN_PASSWORD`              | Contraseña de acceso al dashboard    | Obligatoria |
+| `LOGIN_PASSWORD`              | Contraseña inicial del administrador | Obligatoria |
+| `ADMIN_USER` / `ADMIN_NAME` / `ADMIN_EMAIL` | Cuenta administradora inicial | `admin` |
 | `SESSION_SECRET`              | Secreto de firma (mín. 32 caracteres)| Obligatoria |
 | `SESSION_HOURS`               | Duración de la sesión                | `12`        |
 | `COOKIE_SECURE`               | Cookie solo por HTTPS                | `false`     |
@@ -138,6 +139,10 @@ Si SQL Server corre en la máquina anfitriona, `DB_SERVER=host.docker.internal`
 | `DB_USER` / `DB_PASSWORD`     | Credenciales SQL                     | —           |
 | `DB_ENCRYPT`                  | Conexión cifrada                     | `false`     |
 | `DB_TRUST_SERVER_CERTIFICATE` | Confiar en certificado               | `true`      |
+| `AUTH_DB_*`                   | Conexión SQL con escritura para usuarios/sesiones; usa `DB_*` si se omite | — |
+| `MAIL_HOST` / `MAIL_PORT`     | Servidor que envía accesos temporales | — |
+| `MAIL_USERNAME` / `MAIL_PASSWORD` | Credenciales del servidor SMTP   | — |
+| `MAIL_FROM_ADDRESS` / `MAIL_FROM_NAME` | Remitente de los correos     | — |
 | `NVIDIA_API_KEY`              | Clave del API Catalog de NVIDIA      | —           |
 | `AI_BASE_URL`                 | URL base compatible con OpenAI       | `https://integrate.api.nvidia.com/v1` |
 | `AI_MODEL`                    | Modelo NVIDIA usado por el asistente | `nvidia/llama-3.3-nemotron-super-49b-v1.5` |
@@ -149,7 +154,7 @@ Si SQL Server corre en la máquina anfitriona, `DB_SERVER=host.docker.internal`
 | -------------- | ------------------- | ------- |
 | `VITE_API_URL` | URL base de la API  | `/api`  |
 
-La contraseña y el secreto de sesión se configuran solamente en el backend;
+Las contraseñas y la configuración de correo se configuran solamente en el backend;
 nunca deben usar el prefijo `VITE_`, ya que esas variables quedan visibles en
 el navegador. Para generar un secreto seguro:
 
@@ -158,6 +163,33 @@ openssl rand -hex 32
 ```
 
 En producción con HTTPS, configure `COOKIE_SECURE=true`.
+
+## Migración de usuarios
+
+La autenticación se guarda en una base SQL Server separada. Por defecto se
+llama `DashboardGerencialAuth`; el nombre puede cambiarse con
+`AUTH_DB_DATABASE`. La cuenta configurada en `AUTH_DB_USER` debe tener permiso
+para crear esa base en la primera ejecución y permisos de lectura/escritura
+sobre ella.
+
+En desarrollo:
+
+```bash
+cd backend
+npm run migrate
+```
+
+En producción con Docker, después de construir la imagen y antes de iniciar
+el servicio:
+
+```bash
+docker compose run --rm backend npm run migrate:prod
+docker compose up -d
+```
+
+La migración es repetible: solo aplica versiones pendientes. También crea el
+administrador inicial cuando todavía no hay usuarios. Sus credenciales son
+`ADMIN_USER` (por defecto `admin`) y `LOGIN_PASSWORD`.
 
 ## Diseño para la Fase 2 (Asistente IA)
 

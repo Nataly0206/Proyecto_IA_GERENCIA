@@ -16,6 +16,9 @@ import RefreshOutlinedIcon from '@mui/icons-material/RefreshOutlined';
 import TuneOutlinedIcon from '@mui/icons-material/TuneOutlined';
 import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
 import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
+import PeopleOutlineIcon from '@mui/icons-material/PeopleOutline';
+import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined';
+import { AuthUser } from '../../types/auth';
 import AiAssistantPanel from '../ai/AiAssistantPanel';
 import GlobalFilters from '../filters/GlobalFilters';
 import { useRefreshDashboard } from '../../hooks/useDashboardData';
@@ -23,9 +26,12 @@ import { useRefreshDashboard } from '../../hooks/useDashboardData';
 interface DashboardLayoutProps {
   children: ReactNode;
   onLogout: () => void;
+  user: AuthUser;
+  currentView: 'dashboard' | 'users';
+  onViewChange: (view: 'dashboard' | 'users') => void;
 }
 
-export default function DashboardLayout({ children, onLogout }: DashboardLayoutProps) {
+export default function DashboardLayout({ children, onLogout, user, currentView, onViewChange }: DashboardLayoutProps) {
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -87,6 +93,15 @@ export default function DashboardLayout({ children, onLogout }: DashboardLayoutP
               ESF Seafood
             </Typography>
           </Stack>
+          <Button
+            size="small"
+            color="inherit"
+            startIcon={currentView === 'dashboard' ? <PeopleOutlineIcon /> : <DashboardOutlinedIcon />}
+            onClick={() => onViewChange(currentView === 'dashboard' ? 'users' : 'dashboard')}
+            sx={{ display: user.esAdministrador ? 'inline-flex' : 'none', fontWeight: 700 }}
+          >
+            {currentView === 'dashboard' ? 'Usuarios' : 'Dashboard'}
+          </Button>
 
           <Button
             size="small"

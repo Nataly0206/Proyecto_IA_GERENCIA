@@ -7,8 +7,11 @@ import { closePool } from './config/db';
 import dashboardRoutes from './routes/dashboard.routes';
 import aiRoutes from './routes/ai.routes';
 import authRoutes from './routes/auth.routes';
+import usersRoutes from './routes/users.routes';
 import { errorHandler, notFound } from './middleware/errorHandler';
-import { sessionAuth } from './middleware/sessionAuth';
+import { changedPasswordAuth, sessionAuth } from './middleware/sessionAuth';
+import { assertAuthDatabaseReady } from './services/auth.service';
+import { closeAuthPool } from './config/authDb';
 
 // Fail-closed: en producción no se arranca sin API_KEY, para no exponer
 // la API (y por tanto la BD real vía el asistente IA) sin autenticación.
@@ -69,26 +72,37 @@ app.get('/api/health', (_req, res) => {
 
 app.use('/api', generalLimiter);
 app.use('/api/auth', authRoutes);
-app.use('/api/dashboard', sessionAuth, dashboardRoutes);
-app.use('/api/ai', sessionAuth, aiLimiter, aiRoutes);
+app.use('/api/users', usersRoutes);
+app.use('/api/dashboard', sessionAuth, changedPasswordAuth, dashboardRoutes);
+app.use('/api/ai', sessionAuth, changedPasswordAuth, aiLimiter, aiRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
 
-const server = app.listen(env.PORT, () => {
-  console.log(`[api] Dashboard API escuchando en http://localhost:${env.PORT}`);
-});
+let server: ReturnType<typeof app.listen>;
 
-// Reduce la ventana para ataques de conexiones lentas sin limitar las
-// consultas legítimas a SQL/IA, que tienen sus propios timeouts.
-server.headersTimeout = 15_000;
-server.requestTimeout = 310_000;
-server.keepAliveTimeout = 5_000;
+async function start(): Promise<void> {
+  await assertAuthDatabaseReady();
+  server = app.listen(env.PORT, () => {
+    console.log(`[api] Dashboard API escuchando en http://localhost:${env.PORT}`);
+  });
+  // Reduce la ventana para ataques de conexiones lentas sin limitar las
+  // consultas legítimas a SQL/IA, que tienen sus propios timeouts.
+  server.headersTimeout = 15_000;
+  server.requestTimeout = 310_000;
+  server.keepAliveTimeout = 5_000;
+}
+
+start().catch((error) => {
+  console.error('[api] No se pudo iniciar:', error);
+  process.exit(1);
+});
 
 const shutdown = async (): Promise<void> => {
   console.log('[api] Cerrando servidor...');
-  server.close();
+  server?.close();
   await closePool();
+  await closeAuthPool();
   process.exit(0);
 };
 

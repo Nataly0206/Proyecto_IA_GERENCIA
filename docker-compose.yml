@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   backend:
     build:
@@ -11,35 +9,15 @@ services:
       # Disponible para diagnóstico desde la misma máquina, no para toda
       # la red local. Nginx accede por la red interna de Docker.
       - "127.0.0.1:3002:3002"
+    env_file:
+      - ./backend/.env
     environment:
       NODE_ENV: production
       PORT: 3002
-      # Vacío por defecto: el frontend habla con el backend a través del
-      # proxy de nginx (mismo origen), así que CORS cross-origin no debería
-      # hacer falta en producción. Solo se define si hay un frontend en
-      # otro origen (ej. otro dominio) que necesite llamar a la API.
-      CORS_ORIGIN: ${CORS_ORIGIN:-}
-      LOGIN_PASSWORD: ${LOGIN_PASSWORD:?LOGIN_PASSWORD es obligatoria}
-      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET es obligatoria}
-      SESSION_HOURS: ${SESSION_HOURS:-12}
-      COOKIE_SECURE: ${COOKIE_SECURE:-false}
-      # SQL Server existente (fuera de este compose).
-      # En Docker Desktop (Mac/Windows) use host.docker.internal para
-      # apuntar a un SQL Server instalado en la máquina anfitriona.
-      DB_SERVER: ${DB_SERVER:-host.docker.internal}
-      DB_PORT: ${DB_PORT:-1433}
-      DB_DATABASE: ${DB_DATABASE}
-      # IMPORTANTE: usar un login de solo lectura (NO "sa"), ver
-      # backend/sql/create_readonly_user.sql
-      DB_USER: ${DB_USER}
-      DB_PASSWORD: ${DB_PASSWORD}
-      DB_ENCRYPT: ${DB_ENCRYPT:-false}
-      DB_TRUST_SERVER_CERTIFICATE: ${DB_TRUST_SERVER_CERTIFICATE:-true}
-      NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
-      # Compatibilidad temporal con instalaciones que aún usan este nombre.
-      AI_API_KEY: ${AI_API_KEY:-}
-      AI_BASE_URL: ${AI_BASE_URL:-https://integrate.api.nvidia.com/v1}
-      AI_MODEL: ${AI_MODEL:-nvidia/llama-3.3-nemotron-super-49b-v1.5}
+      # En backend/.env se usa localhost para desarrollo. Desde un contenedor
+      # el SQL Server publicado por Docker se alcanza mediante el host.
+      DB_SERVER: ${DOCKER_DB_SERVER:-host.docker.internal}
+      AUTH_DB_SERVER: ${DOCKER_AUTH_DB_SERVER:-host.docker.internal}
       AI_CONTEXT_PATH: /app/docs/Documentacion_Completa_BD_STB.md
 
   frontend:

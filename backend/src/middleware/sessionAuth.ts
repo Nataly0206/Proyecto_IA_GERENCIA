@@ -1,20 +1,15 @@
-import crypto from 'crypto';
 import { NextFunction, Request, Response } from 'express';
 import { env } from '../config/env';
+import {
+  AuthUser,
+  createSession,
+  deleteSession,
+  findSessionUser,
+} from '../services/auth.service';
 
 const COOKIE_NAME = 'dashboard_session';
 
-function timingSafeEqual(a: string, b: string): boolean {
-  const left = Buffer.from(a);
-  const right = Buffer.from(b);
-  return left.length === right.length && crypto.timingSafeEqual(left, right);
-}
-
-function sign(value: string): string {
-  return crypto.createHmac('sha256', env.SESSION_SECRET).update(value).digest('base64url');
-}
-
-function readCookie(req: Request): string {
+export function readSessionCookie(req: Request): string {
   const cookies = req.header('cookie') ?? '';
   for (const part of cookies.split(';')) {
     const [name, ...value] = part.trim().split('=');
@@ -23,31 +18,49 @@ function readCookie(req: Request): string {
   return '';
 }
 
-export function hasValidSession(req: Request): boolean {
-  const [expiresAt, signature] = readCookie(req).split('.');
-  if (!expiresAt || !signature || !/^\d+$/.test(expiresAt)) return false;
-  if (Number(expiresAt) <= Date.now()) return false;
-  return timingSafeEqual(signature, sign(expiresAt));
+export async function getSessionUser(req: Request): Promise<AuthUser | null> {
+  return findSessionUser(readSessionCookie(req));
 }
 
-export function sessionAuth(req: Request, res: Response, next: NextFunction): void {
-  if (!hasValidSession(req)) {
-    res.status(401).json({ error: 'Sesión no válida. Inicia sesión nuevamente.' });
+export async function sessionAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const user = await getSessionUser(req);
+    if (!user) {
+      res.status(401).json({ error: 'Sesión no válida. Inicia sesión nuevamente.' });
+      return;
+    }
+    res.locals.authUser = user;
+    res.setHeader('Cache-Control', 'private, no-store');
+    next();
+  } catch (error) {
+    next(error);
+  }
+}
+
+export function adminAuth(_req: Request, res: Response, next: NextFunction): void {
+  const user = res.locals.authUser as AuthUser | undefined;
+  if (!user?.esAdministrador) {
+    res.status(403).json({ error: 'No tienes permiso para administrar usuarios.' });
     return;
   }
-  // Los reportes contienen información gerencial y no deben persistir en
-  // cachés compartidos, historial intermedio de proxies ni disco del navegador.
-  res.setHeader('Cache-Control', 'private, no-store');
   next();
 }
 
-export function passwordMatches(password: string): boolean {
-  return Boolean(password) && timingSafeEqual(password, env.LOGIN_PASSWORD);
+export function changedPasswordAuth(_req: Request, res: Response, next: NextFunction): void {
+  const user = res.locals.authUser as AuthUser | undefined;
+  if (user?.debeCambiarPassword) {
+    res.status(403).json({
+      error: 'Debes cambiar tu contraseña temporal antes de continuar.',
+      code: 'PASSWORD_CHANGE_REQUIRED',
+    });
+    return;
+  }
+  next();
 }
 
-export function setSessionCookie(res: Response): void {
-  const expiresAt = String(Date.now() + env.SESSION_HOURS * 60 * 60 * 1000);
-  res.cookie(COOKIE_NAME, `${expiresAt}.${sign(expiresAt)}`, {
+export async function setSessionCookie(res: Response, userId: string): Promise<void> {
+  const token = await createSession(userId);
+  res.cookie(COOKIE_NAME, token, {
     httpOnly: true,
     secure: env.COOKIE_SECURE,
     sameSite: 'strict',
@@ -56,7 +69,8 @@ export function setSessionCookie(res: Response): void {
   });
 }
 
-export function clearSessionCookie(res: Response): void {
+export async function clearSession(req: Request, res: Response): Promise<void> {
+  await deleteSession(readSessionCookie(req));
   res.clearCookie(COOKIE_NAME, {
     httpOnly: true,
     secure: env.COOKIE_SECURE,

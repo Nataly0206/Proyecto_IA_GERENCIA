@@ -83,14 +83,14 @@ export function useWidgetData(endpoint: DashboardEndpoint) {
 export function useIqfLive() {
   const { filters } = useFilters();
   const queryClient = useQueryClient();
-  const queryKey = ['dashboard', 'iqf-tiempo-real', filters.turno] as const;
-  const cacheKey = browserCacheKey(['live', filters.turno]);
+  const queryKey = ['dashboard', 'iqf-tiempo-real', filters] as const;
+  const cacheKey = browserCacheKey(['live', filters.fechaInicial, filters.fechaFinal, filters.turno]);
   const cached = readBrowserCache<IqfLiveResponse>(cacheKey, LIVE_REFRESH_INTERVAL_MS);
 
   const query = useQuery<IqfLiveResponse>({
     queryKey,
     queryFn: async () => {
-      const data = await fetchIqfLive(filters.turno);
+      const data = await fetchIqfLive(filters);
       writeBrowserCache(cacheKey, data);
       return data;
     },
@@ -102,7 +102,7 @@ export function useIqfLive() {
   });
 
   const refreshNow = async (): Promise<IqfLiveResponse> => {
-    const data = await fetchIqfLive(filters.turno, true);
+    const data = await fetchIqfLive(filters, true);
     writeBrowserCache(cacheKey, data);
     queryClient.setQueryData<IqfLiveResponse>(queryKey, data);
     return data;
@@ -132,11 +132,11 @@ export function useRefreshDashboard() {
       ),
     );
 
-    const liveKey = ['dashboard', 'iqf-tiempo-real', filters.turno] as const;
-    const liveCacheKey = browserCacheKey(['live', filters.turno]);
+    const liveKey = ['dashboard', 'iqf-tiempo-real', filters] as const;
+    const liveCacheKey = browserCacheKey(['live', filters.fechaInicial, filters.fechaFinal, filters.turno]);
 
     await Promise.all([
-      fetchIqfLive(filters.turno, true).then((data) => {
+      fetchIqfLive(filters, true).then((data) => {
         writeBrowserCache(liveCacheKey, data);
         queryClient.setQueryData<IqfLiveResponse>(liveKey, data);
       }),

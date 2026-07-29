@@ -2,8 +2,6 @@ import sql from 'mssql';
 import { runQuery } from './sql.service';
 import {
   IQF_DAILY_RATE_QUERY,
-  IQF_LIVE_DAY_QUERY,
-  IQF_LIVE_LINES_QUERY,
   IQF_LIVE_QUERY,
   NET_FROZEN_BY_PROCESS_DAILY_QUERY,
   NET_FROZEN_BY_PROCESS_QUERY,
@@ -221,77 +219,27 @@ export async function getIqfLibrasHoraMes(
 /* Contadores IQF en tiempo real (acumulado del día de producción)     */
 /* ------------------------------------------------------------------ */
 
-/** "A" / "Turno A" → "Turno A" (formato almacenado en la base) */
-function normalizeTurnoDb(turno?: string): string | null {
-  if (!turno) return null;
-  const limpio = turno.trim();
-  return /^turno/i.test(limpio) ? limpio : `Turno ${limpio.toUpperCase()}`;
-}
-
-/** Tarjeta en cero para líneas del catálogo sin producción en el día */
-const lineaSinActividad = (linea: string) => ({
-  linea,
-  libras: 0,
-  cajas: 0,
-  librasUltimaHora: 0,
-  librasPorHora: 0,
-  primeraCaja: '',
-  ultimaCaja: '',
-  minutosDesdeUltima: -1,
-  activa: false,
-});
-
-export async function getIqfTiempoReal(turno?: string): Promise<IqfLiveResponse> {
-  const diaRows = await runQuery(IQF_LIVE_DAY_QUERY, []);
-  const dia = diaRows.length > 0 ? pickString(diaRows[0], 'Dia') : '';
-  if (dia === '') {
-    return { dia: '', actualizado: new Date().toISOString(), lineas: [] };
-  }
-
-  const [catalogoRows, rows] = await Promise.all([
-    runQuery(IQF_LIVE_LINES_QUERY, []),
-    runQuery(IQF_LIVE_QUERY, [
-      { name: 'Dia', type: sql.Date, value: dia },
-      { name: 'Turno', type: sql.VarChar, value: normalizeTurnoDb(turno) },
-    ]),
-  ]);
-
-  const conDatos = new Map(
-    rows.map((row) => {
-      const libras = pickNumber(row, 'Libras');
-      const minutosTrabajados = pickNumber(row, 'MinutosTrabajados');
-      const minutosDesdeUltima = pickNumber(row, 'MinutosDesdeUltima');
-      const linea = pickString(row, 'Linea');
-      return [
-        linea,
-        {
-          linea,
-          libras: round2(libras),
-          cajas: pickNumber(row, 'Cajas'),
-          librasUltimaHora: round2(pickNumber(row, 'LibrasUltimaHora')),
-          // Con menos de 10 minutos de ventana la extrapolación a lbs/hora
-          // no es representativa; se reporta 0 y el frontend muestra "—".
-          librasPorHora:
-            minutosTrabajados >= 10 ? round2(libras / (minutosTrabajados / 60)) : 0,
-          primeraCaja: pickString(row, 'PrimeraCaja'),
-          ultimaCaja: pickString(row, 'UltimaCaja'),
-          minutosDesdeUltima,
-          activa: minutosDesdeUltima <= 15,
-        },
-      ] as const;
-    }),
+export async function getIqfTiempoReal(filters: DashboardFilters): Promise<IqfLiveResponse> {
+  const rows = await runQuery(
+    IQF_LIVE_QUERY,
+    dateParams(filters.fechaInicial, filters.fechaFinal),
   );
-
-  // Catálogo (últimos 60 días) + cualquier línea con datos hoy que no
-  // esté en el catálogo: siempre se muestran todas, en cero si no produjeron.
-  const nombres = new Set<string>(
-    catalogoRows.map((r) => pickString(r, 'Linea')).filter((n) => n !== ''),
-  );
-  for (const linea of conDatos.keys()) nombres.add(linea);
-
-  const lineas = Array.from(nombres)
-    .sort()
-    .map((nombre) => conDatos.get(nombre) ?? lineaSinActividad(nombre));
+  const dia = rows.length > 0
+    ? pickString(rows[0], 'Dia')
+    : filters.fechaFinal;
+  const lineas = rows
+    .map((row) => ({
+      linea: pickString(row, 'Linea'),
+      libras: round2(pickNumber(row, 'Libras')),
+      cajas: 0,
+      librasUltimaHora: 0,
+      librasPorHora: 0,
+      primeraCaja: '',
+      ultimaCaja: '',
+      minutosDesdeUltima: -1,
+      activa: pickNumber(row, 'Libras') > 0,
+    }))
+    .filter((linea) => linea.linea !== '');
 
   return { dia, actualizado: new Date().toISOString(), lineas };
 }

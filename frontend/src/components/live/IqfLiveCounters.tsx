@@ -13,22 +13,14 @@ import { useIqfLive } from '../../hooks/useDashboardData';
 import { formatPeriodo, formatValue } from '../../utils/format';
 import { IqfLiveLine } from '../../types';
 
-function haceTexto(minutos: number): string {
-  if (minutos < 1) return 'ahora';
-  if (minutos < 60) return `${minutos} min`;
-  const horas = Math.floor(minutos / 60);
-  return `${horas}h ${minutos % 60}m`;
-}
-
 function LiveCard({ linea }: { linea: IqfLiveLine }) {
-  const active = linea.activa;
-  const color = active ? '#2e7d32' : '#94a3b8';
+  const color = linea.libras > 0 ? '#2e7d32' : '#94a3b8';
 
   return (
     <Card
       sx={{
         borderTop: `3px solid ${color}`,
-        bgcolor: active ? 'rgba(46,125,50,0.03)' : 'background.paper',
+        bgcolor: linea.libras > 0 ? 'rgba(46,125,50,0.03)' : 'background.paper',
         height: '100%',
       }}
     >
@@ -37,26 +29,12 @@ function LiveCard({ linea }: { linea: IqfLiveLine }) {
           <Typography variant="body2" fontWeight={700} noWrap sx={{ minWidth: 0 }} title={linea.linea}>
             {linea.linea}
           </Typography>
-          <Chip
-            size="small"
-            label={`Último registro: ${
-              active ? 'ACTIVA' : linea.cajas === 0 ? 'SIN DATOS' : haceTexto(linea.minutosDesdeUltima)
-            }`}
-            sx={{
-              maxWidth: { xs: 92, sm: 'none' },
-              bgcolor: `${color}18`,
-              color,
-              fontWeight: 700,
-              height: 16,
-              '& .MuiChip-label': { px: 0.6, fontSize: 9.5, overflow: 'hidden', textOverflow: 'ellipsis' },
-            }}
-          />
         </Stack>
 
         <Typography
           variant="h6"
           fontWeight={800}
-          sx={{ color: active ? '#164a8b' : 'text.secondary', lineHeight: 1.1 }}
+          sx={{ color: linea.libras > 0 ? '#164a8b' : 'text.secondary', lineHeight: 1.1 }}
         >
           {formatValue(linea.libras)}
           <Typography component="span" variant="caption" color="text.secondary" ml={0.5}>

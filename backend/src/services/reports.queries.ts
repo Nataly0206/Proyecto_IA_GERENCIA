@@ -53,78 +53,31 @@ GROUP BY a.NombreTipoProceso, a.Turno, CAST(a.DiaProduccion2024 AS DATE)
 `;
 
 /**
- * Día de producción más reciente con actividad IQF (la planta puede
- * cruzar medianoche, por eso no se asume la fecha calendario).
- */
-export const IQF_LIVE_DAY_QUERY = `
-SELECT MAX(pd.DiaProduccion2024) AS Dia
-FROM dbo.AV_Produccion_Diaria_2020 pd
-WHERE pd.fkTipo < 4
-  AND pd.CategoriaLinea LIKE '%IQF%'
-  AND pd.DiaProduccion2024 <= CAST(GETDATE() AS DATE)
-`;
-
-/**
- * Catálogo de líneas IQF principales (con actividad en los últimos 60
- * días). Estas tarjetas se muestran siempre, en cero si la línea no ha
- * producido en el día en curso. Las variantes de salmuera ("... SAL")
- * no van en el catálogo: su tarjeta aparece solo si registran cajas hoy.
- */
-export const IQF_LIVE_LINES_QUERY = `
-SELECT DISTINCT pd.CategoriaLinea COLLATE Modern_Spanish_CI_AS AS Linea
-FROM dbo.AV_Produccion_Diaria_2020 pd
-WHERE pd.DiaProduccion2024 >= DATEADD(DAY, -60, GETDATE())
-  AND pd.fkTipo < 4
-  AND pd.CategoriaLinea LIKE '%IQF%'
-`;
-
-/**
- * Contadores en tiempo real por línea IQF para un día de producción:
- * cada fila de la vista es una caja pesada en la torre (Seriales.Created
- * = FechaHoraTorre), por lo que el acumulado refleja la producción al
- * instante. Une las líneas directas y las salmueras asignadas a equipo
- * IQF (mismo universo de los reportes). Los tiempos se devuelven
- * formateados en SQL (hora local del servidor de BD) para evitar
- * desfases de zona horaria en el driver.
+ * Libras producidas por contador IQF para un único día. Si hoy pertenece
+ * al rango filtrado se muestra hoy; para consultas históricas se muestra
+ * solamente la fecha final, nunca el acumulado de varios días.
  */
 export const IQF_LIVE_QUERY = `
+DECLARE @Dia date =
+  CASE
+    WHEN CAST(GETDATE() AS date) BETWEEN @Fecha_Inicial AND @Fecha_Final
+      THEN CAST(GETDATE() AS date)
+    ELSE @Fecha_Final
+  END;
+
 SELECT
-  x.Linea,
-  COUNT(*) AS Cajas,
-  SUM(x.PesoLibras) AS Libras,
-  SUM(CASE WHEN x.FechaHoraTorre >= DATEADD(MINUTE, -60, GETDATE()) THEN x.PesoLibras ELSE 0 END)
-    AS LibrasUltimaHora,
-  CONVERT(VARCHAR(5), MIN(x.FechaHoraTorre), 108) AS PrimeraCaja,
-  CONVERT(VARCHAR(5), MAX(x.FechaHoraTorre), 108) AS UltimaCaja,
-  DATEDIFF(MINUTE, MIN(x.FechaHoraTorre), MAX(x.FechaHoraTorre)) AS MinutosTrabajados,
-  DATEDIFF(MINUTE, MAX(x.FechaHoraTorre), GETDATE()) AS MinutosDesdeUltima
-FROM (
-  SELECT
-    pd.CategoriaLinea COLLATE Modern_Spanish_CI_AS AS Linea,
-    pd.PesoLibras,
-    pd.FechaHoraTorre
-  FROM dbo.AV_Produccion_Diaria_2020 pd
-  WHERE pd.DiaProduccion2024 = @Dia
-    AND pd.fkTipo < 4
-    AND pd.CategoriaLinea LIKE '%IQF%'
-    AND (@Turno IS NULL OR pd.Turno = @Turno)
-
-  UNION ALL
-
-  SELECT
-    ei.NombreIQF COLLATE Modern_Spanish_CI_AS,
-    pd.PesoLibras,
-    pd.FechaHoraTorre
-  FROM dbo.AV_Produccion_Diaria_2020 pd
-  INNER JOIN dbo.EquiposIQF ei
-    ON pd.EquipoIQF = ei.IDequipo
-  WHERE pd.DiaProduccion2024 = @Dia
-    AND pd.fkTipo < 4
-    AND pd.EquipoIQF > 0
-    AND (@Turno IS NULL OR pd.Turno = @Turno)
-) x
-GROUP BY x.Linea
-ORDER BY x.Linea
+  CONVERT(varchar(10), @Dia, 23) AS Dia,
+  a.LineaEquipoIQF COLLATE Modern_Spanish_CI_AS AS Linea,
+  SUM(a.PesoLibras) AS Libras
+FROM dbo.AV_Produccion_Diaria_2020 AS a
+LEFT JOIN dbo.OPship AS o
+  ON a.OrdenProduccion = o.OrdenProduccion
+WHERE a.DiaProduccion2024 >= @Dia
+  AND a.DiaProduccion2024 < DATEADD(DAY, 1, @Dia)
+  AND a.fkTipo < 4
+  AND a.LineaEquipoIQF IS NOT NULL
+GROUP BY a.LineaEquipoIQF
+ORDER BY a.LineaEquipoIQF;
 `;
 
 /**

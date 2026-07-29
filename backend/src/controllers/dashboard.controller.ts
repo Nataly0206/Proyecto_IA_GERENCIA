@@ -7,7 +7,7 @@ import { withTtlCache } from '../utils/ttlCache';
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 const TURN_REGEX = /^(?:A|B|Turno A|Turno B)$/i;
 const REPORT_CACHE_MS = 5 * 60 * 1000;
-const LIVE_CACHE_MS = 30 * 60 * 1000;
+const LIVE_CACHE_MS = 60 * 1000;
 
 const formatDate = (date: Date): string => date.toISOString().slice(0, 10);
 
@@ -105,16 +105,13 @@ export async function getIqfLibrasHoraMes(req: Request, res: Response): Promise<
 }
 
 export async function getIqfTiempoReal(req: Request, res: Response): Promise<void> {
-  const turno = req.query.turno ? String(req.query.turno) : undefined;
-  if (turno && !TURN_REGEX.test(turno)) {
-    throw new ApiError(400, 'turno debe ser A, B, Turno A o Turno B');
-  }
+  const filters = parseFilters(req);
   const forceRefresh = req.query.refresh === 'true';
   res.json(
     await withTtlCache(
-      JSON.stringify(['iqf-tiempo-real', turno ?? '']),
+      JSON.stringify(['iqf-tiempo-real', filters]),
       LIVE_CACHE_MS,
-      () => dashboardService.getIqfTiempoReal(turno),
+      () => dashboardService.getIqfTiempoReal(filters),
       forceRefresh,
     ),
   );

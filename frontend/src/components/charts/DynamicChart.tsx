@@ -13,7 +13,7 @@ interface DynamicChartProps {
 }
 
 interface AxisPoint {
-  x: string;
+  x: string | number;
   y: number;
 }
 
@@ -138,9 +138,9 @@ export default function DynamicChart({ config, data }: DynamicChartProps) {
       if (config.visibleDatePointsOnly) {
         return {
           name,
-          data: xValues.flatMap((x): AxisPoint[] => {
+          data: xValues.flatMap((x, index): AxisPoint[] => {
             const value = cell.get(`${x}|${name}`);
-            return value === undefined ? [] : [{ x: labelOf(x), y: value }];
+            return value === undefined ? [] : [{ x: index, y: value }];
           }),
         };
       }
@@ -232,25 +232,45 @@ export default function DynamicChart({ config, data }: DynamicChartProps) {
     stroke: isLineLike
       ? { show: true, curve: config.lineCurve ?? 'smooth', width: 3, colors }
       : { show: true, width: 1, colors: ['transparent'] },
-    xaxis: {
-      categories,
-      labels: {
-        rotate: isMobile ? -60 : -45,
-        trim: true,
-        style: { fontSize: isMobile ? '10px' : '12px', colors: '#64748b', fontWeight: 600 },
-        ...(!isHorizontal && dateTickStep > 1 && {
-          formatter: (value: string) => {
-            const index = categories.indexOf(value);
-            return index === 0 || index === categories.length - 1 || index % dateTickStep === 0
-              ? value
-              : '';
+    xaxis: config.visibleDatePointsOnly
+      ? {
+          type: 'numeric',
+          min: 0,
+          max: Math.max(categories.length - 1, 0),
+          tickAmount: Math.max(categories.length - 1, 1),
+          labels: {
+            rotate: isMobile ? -60 : -45,
+            trim: true,
+            style: {
+              fontSize: isMobile ? '10px' : '12px',
+              colors: '#64748b',
+              fontWeight: 600,
+            },
+            formatter: (value: string) => {
+              const index = Math.round(Number(value));
+              return categories[index] ?? '';
+            },
           },
-        }),
-        ...(isHorizontal && {
-          formatter: (val: string) => tooltipFormatter(Number(val)),
-        }),
-      },
-    },
+        }
+      : {
+          categories,
+          labels: {
+            rotate: isMobile ? -60 : -45,
+            trim: true,
+            style: { fontSize: isMobile ? '10px' : '12px', colors: '#64748b', fontWeight: 600 },
+            ...(!isHorizontal && dateTickStep > 1 && {
+              formatter: (value: string) => {
+                const index = categories.indexOf(value);
+                return index === 0 || index === categories.length - 1 || index % dateTickStep === 0
+                  ? value
+                  : '';
+              },
+            }),
+            ...(isHorizontal && {
+              formatter: (val: string) => tooltipFormatter(Number(val)),
+            }),
+          },
+        },
     yaxis: {
       labels: {
         style: { colors: '#64748b', fontSize: isMobile ? '10px' : '12px', fontWeight: 600 },
@@ -274,7 +294,14 @@ export default function DynamicChart({ config, data }: DynamicChartProps) {
       fontWeight: 600,
       itemMargin: { horizontal: isMobile ? 6 : 10, vertical: 3 },
     },
-    tooltip: { y: { formatter: tooltipFormatter } },
+    tooltip: {
+      ...(config.visibleDatePointsOnly && {
+        x: {
+          formatter: (value: number) => categories[Math.round(value)] ?? '',
+        },
+      }),
+      y: { formatter: tooltipFormatter },
+    },
     ...(isLineLike && {
       markers: config.showAllDataMarkers
         ? { size: 4, hover: { size: 6 } }

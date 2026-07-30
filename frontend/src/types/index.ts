@@ -160,6 +160,8 @@ export interface ChartConfig {
   completeFilteredDateRange?: boolean;
   /** Reduce automáticamente las etiquetas del eje según la amplitud del rango */
   adaptiveDateTicks?: boolean;
+  /** Grafica únicamente las fechas elegidas por el muestreo adaptativo del eje */
+  visibleDatePointsOnly?: boolean;
   /** Forma de unir observaciones en gráficas de línea */
   lineCurve?: 'straight' | 'smooth' | 'stepline';
   /** Muestra un marcador por cada observación aunque se reduzcan las etiquetas del eje */

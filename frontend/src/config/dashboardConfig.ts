@@ -33,6 +33,7 @@ export const dashboardWidgets: ChartConfig[] = [
     seriesField: 'linea',
     excludedSeriesValues: ['SAL'],
     adaptiveDateTicks: true,
+    visibleDatePointsOnly: true,
     lineCurve: 'straight',
     showAllDataMarkers: true,
     weightField: 'grupos',

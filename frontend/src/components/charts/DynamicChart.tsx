@@ -38,6 +38,23 @@ function eachIsoDate(start: string, end: string): string[] {
   return dates;
 }
 
+function adaptiveStepFor(count: number): number {
+  if (count <= 14) return 1;
+  if (count <= 60) return 5;
+  return 10;
+}
+
+function visibleDatePoints(values: string[]): string[] {
+  const step = adaptiveStepFor(values.length);
+  if (step === 1) return values;
+  return values.filter(
+    (_value, index) =>
+      index === 0 ||
+      index === values.length - 1 ||
+      index % step === 0,
+  );
+}
+
 /**
  * Renderiza cualquier gráfico a partir de una configuración JSON.
  * Si `seriesField` está definido, los datos se pivotean en una serie por
@@ -93,7 +110,10 @@ export default function DynamicChart({ config, data }: DynamicChartProps) {
     const filteredDates = config.completeFilteredDateRange
       ? eachIsoDate(filters.fechaInicial, filters.fechaFinal)
       : [];
-    const xValues = filteredDates.length > 0 ? filteredDates : dataXValues;
+    const allXValues = filteredDates.length > 0 ? filteredDates : dataXValues;
+    const xValues = config.visibleDatePointsOnly
+      ? visibleDatePoints(allXValues)
+      : allXValues;
     const seriesNames = Array.from(
       new Set(rows.map((r) => String(r[seriesField] ?? ''))),
     ).sort();
@@ -120,11 +140,7 @@ export default function DynamicChart({ config, data }: DynamicChartProps) {
   const isLineLike = config.type === 'line' || config.type === 'area';
   const displayDataLabels = Boolean(config.showDataLabels && showChartValues);
   const dateTickStep = config.adaptiveDateTicks
-    ? categories.length <= 14
-      ? 1
-      : categories.length <= 60
-        ? 5
-        : 10
+    ? adaptiveStepFor(categories.length)
     : 1;
   const showMarkerAt = (index: number): boolean =>
     index === 0 ||

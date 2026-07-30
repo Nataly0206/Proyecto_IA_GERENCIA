@@ -2,6 +2,7 @@ import sql from 'mssql';
 import { runQuery } from './sql.service';
 import {
   IQF_DAILY_RATE_QUERY,
+  IQF_LIVE_LINES_QUERY,
   IQF_LIVE_QUERY,
   NET_FROZEN_BY_PROCESS_DAILY_QUERY,
   NET_FROZEN_BY_PROCESS_QUERY,
@@ -220,26 +221,50 @@ export async function getIqfLibrasHoraMes(
 /* ------------------------------------------------------------------ */
 
 export async function getIqfTiempoReal(filters: DashboardFilters): Promise<IqfLiveResponse> {
-  const rows = await runQuery(
-    IQF_LIVE_QUERY,
-    dateParams(filters.fechaInicial, filters.fechaFinal),
+  const [catalogoRows, rows] = await Promise.all([
+    runQuery(IQF_LIVE_LINES_QUERY, dateParams(filters.fechaInicial, filters.fechaFinal)),
+    runQuery(IQF_LIVE_QUERY, dateParams(filters.fechaInicial, filters.fechaFinal)),
+  ]);
+  const dia = pickString(catalogoRows[0] ?? rows[0] ?? {}, 'Dia') || filters.fechaFinal;
+  const conDatos = new Map(
+    rows.map((row) => {
+      const linea = pickString(row, 'Linea');
+      const minutosDesdeUltima = pickNumber(row, 'MinutosDesdeUltima');
+      return [
+        linea,
+        {
+          linea,
+          libras: round2(pickNumber(row, 'Libras')),
+          cajas: 0,
+          librasUltimaHora: 0,
+          librasPorHora: 0,
+          primeraCaja: '',
+          ultimaCaja: pickString(row, 'UltimaCaja'),
+          minutosDesdeUltima,
+          activa: minutosDesdeUltima >= 0 && minutosDesdeUltima <= 15,
+        },
+      ] as const;
+    }),
   );
-  const dia = rows.length > 0
-    ? pickString(rows[0], 'Dia')
-    : filters.fechaFinal;
-  const lineas = rows
-    .map((row) => ({
-      linea: pickString(row, 'Linea'),
-      libras: round2(pickNumber(row, 'Libras')),
+  const nombres = new Set(
+    catalogoRows.map((row) => pickString(row, 'Linea')).filter(Boolean),
+  );
+  for (const linea of conDatos.keys()) {
+    if (linea) nombres.add(linea);
+  }
+  const lineas = Array.from(nombres)
+    .sort()
+    .map((linea) => conDatos.get(linea) ?? {
+      linea,
+      libras: 0,
       cajas: 0,
       librasUltimaHora: 0,
       librasPorHora: 0,
       primeraCaja: '',
       ultimaCaja: '',
       minutosDesdeUltima: -1,
-      activa: pickNumber(row, 'Libras') > 0,
-    }))
-    .filter((linea) => linea.linea !== '');
+      activa: false,
+    });
 
   return { dia, actualizado: new Date().toISOString(), lineas };
 }

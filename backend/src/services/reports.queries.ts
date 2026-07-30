@@ -68,7 +68,13 @@ DECLARE @Dia date =
 SELECT
   CONVERT(varchar(10), @Dia, 23) AS Dia,
   a.LineaEquipoIQF COLLATE Modern_Spanish_CI_AS AS Linea,
-  SUM(a.PesoLibras) AS Libras
+  SUM(a.PesoLibras) AS Libras,
+  CONVERT(varchar(5), MAX(a.FechaHoraTorre), 108) AS UltimaCaja,
+  CASE
+    WHEN @Dia = CAST(GETDATE() AS date)
+      THEN DATEDIFF(MINUTE, MAX(a.FechaHoraTorre), GETDATE())
+    ELSE -1
+  END AS MinutosDesdeUltima
 FROM dbo.AV_Produccion_Diaria_2020 AS a
 LEFT JOIN dbo.OPship AS o
   ON a.OrdenProduccion = o.OrdenProduccion
@@ -78,6 +84,29 @@ WHERE a.DiaProduccion2024 >= @Dia
   AND a.LineaEquipoIQF IS NOT NULL
 GROUP BY a.LineaEquipoIQF
 ORDER BY a.LineaEquipoIQF;
+`;
+
+/**
+ * Catálogo reciente de contadores. Permite conservar la tarjeta en cero
+ * cuando un IQF todavía no registra producción en el día consultado.
+ */
+export const IQF_LIVE_LINES_QUERY = `
+DECLARE @Dia date =
+  CASE
+    WHEN CAST(GETDATE() AS date) BETWEEN @Fecha_Inicial AND @Fecha_Final
+      THEN CAST(GETDATE() AS date)
+    ELSE @Fecha_Final
+  END;
+
+SELECT DISTINCT
+  CONVERT(varchar(10), @Dia, 23) AS Dia,
+  a.LineaEquipoIQF COLLATE Modern_Spanish_CI_AS AS Linea
+FROM dbo.AV_Produccion_Diaria_2020 AS a
+WHERE a.DiaProduccion2024 >= DATEADD(DAY, -60, @Dia)
+  AND a.DiaProduccion2024 < DATEADD(DAY, 1, @Dia)
+  AND a.fkTipo < 4
+  AND a.LineaEquipoIQF IS NOT NULL
+ORDER BY Linea;
 `;
 
 /**

@@ -29,6 +29,23 @@ function LiveCard({ linea }: { linea: IqfLiveLine }) {
           <Typography variant="body2" fontWeight={700} noWrap sx={{ minWidth: 0 }} title={linea.linea}>
             {linea.linea}
           </Typography>
+          <Chip
+            size="small"
+            label={linea.ultimaCaja ? `Última lectura: ${linea.ultimaCaja}` : 'Sin lectura hoy'}
+            sx={{
+              maxWidth: { xs: 124, sm: 'none' },
+              bgcolor: `${color}18`,
+              color,
+              fontWeight: 700,
+              height: 18,
+              '& .MuiChip-label': {
+                px: 0.7,
+                fontSize: 9.5,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              },
+            }}
+          />
         </Stack>
 
         <Typography

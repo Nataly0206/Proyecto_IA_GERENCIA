@@ -12,6 +12,15 @@ interface DynamicChartProps {
   data: DataRow[];
 }
 
+interface AxisPoint {
+  x: string;
+  y: number;
+}
+
+type ChartSeries =
+  | { name: string; data: (number | null)[] }
+  | { name: string; data: AxisPoint[] };
+
 function applySort(data: DataRow[], sort?: ChartSort): DataRow[] {
   if (!sort) return data;
   const dir = sort.direction === 'asc' ? 1 : -1;
@@ -98,7 +107,7 @@ export default function DynamicChart({ config, data }: DynamicChartProps) {
 
   /* ---- Gráficos de ejes (bar / column / line / area) ---- */
   let categories: string[];
-  let series: { name: string; data: (number | null)[] }[];
+  let series: ChartSeries[];
 
   if (config.seriesField) {
     // Pivot: una serie por cada valor de seriesField (gráfica comparativa)
@@ -122,10 +131,24 @@ export default function DynamicChart({ config, data }: DynamicChartProps) {
       cell.set(`${String(r[config.xField])}|${String(r[seriesField])}`, Number(r[yField] ?? 0));
     }
     categories = xValues.map(labelOf);
-    series = seriesNames.map((name) => ({
-      name,
-      data: xValues.map((x) => cell.get(`${x}|${name}`) ?? null),
-    }));
+    series = seriesNames.map((name): ChartSeries => {
+      // En la gráfica diaria se omiten por completo las fechas sin valor
+      // para esta línea. Así ApexCharts conecta sus observaciones reales
+      // y no crea etiquetas "0" para espacios que en realidad son nulos.
+      if (config.visibleDatePointsOnly) {
+        return {
+          name,
+          data: xValues.flatMap((x): AxisPoint[] => {
+            const value = cell.get(`${x}|${name}`);
+            return value === undefined ? [] : [{ x: labelOf(x), y: value }];
+          }),
+        };
+      }
+      return {
+        name,
+        data: xValues.map((x) => cell.get(`${x}|${name}`) ?? null),
+      };
+    });
   } else {
     const yFields = Array.isArray(config.yField) ? config.yField : [config.yField];
     categories = rows.map((r) => labelOf(String(r[config.xField] ?? '')));

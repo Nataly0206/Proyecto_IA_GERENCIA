@@ -191,7 +191,7 @@ export default function DynamicChart({ config, data }: DynamicChartProps) {
       },
     },
     stroke: isLineLike
-      ? { show: true, curve: 'smooth', width: 3, colors }
+      ? { show: true, curve: config.lineCurve ?? 'smooth', width: 3, colors }
       : { show: true, width: 1, colors: ['transparent'] },
     xaxis: {
       categories,
@@ -237,7 +237,9 @@ export default function DynamicChart({ config, data }: DynamicChartProps) {
     },
     tooltip: { y: { formatter: tooltipFormatter } },
     ...(isLineLike && {
-      markers: config.adaptiveDateTicks && dateTickStep > 1
+      markers: config.showAllDataMarkers
+        ? { size: 4, hover: { size: 6 } }
+        : config.adaptiveDateTicks && dateTickStep > 1
         ? {
             size: 0,
             discrete: adaptiveDiscreteMarkers,

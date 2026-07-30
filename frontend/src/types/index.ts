@@ -160,6 +160,10 @@ export interface ChartConfig {
   completeFilteredDateRange?: boolean;
   /** Reduce automáticamente las etiquetas del eje según la amplitud del rango */
   adaptiveDateTicks?: boolean;
+  /** Forma de unir observaciones en gráficas de línea */
+  lineCurve?: 'straight' | 'smooth' | 'stepline';
+  /** Muestra un marcador por cada observación aunque se reduzcan las etiquetas del eje */
+  showAllDataMarkers?: boolean;
   /** Campo de peso para promedios ponderados al totalizar (type "table") */
   weightField?: string;
   /** Operación utilizada para los totales de una tabla pivote */

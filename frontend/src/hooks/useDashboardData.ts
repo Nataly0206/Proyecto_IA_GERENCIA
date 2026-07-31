@@ -84,33 +84,27 @@ export function useWidgetData(endpoint: DashboardEndpoint) {
 }
 
 export function useIqfLive() {
-  const { filters } = useFilters();
-  const filtersAreValid = !getDateFilterError(filters);
   const queryClient = useQueryClient();
-  const queryKey = ['dashboard', 'iqf-tiempo-real', filters] as const;
-  const cacheKey = browserCacheKey(['live', filters.fechaInicial, filters.fechaFinal, filters.turno]);
+  const queryKey = ['dashboard', 'iqf-tiempo-real'] as const;
+  const cacheKey = browserCacheKey(['live', 'current']);
   const cached = readBrowserCache<IqfLiveResponse>(cacheKey, LIVE_REFRESH_INTERVAL_MS);
 
   const query = useQuery<IqfLiveResponse>({
     queryKey,
     queryFn: async () => {
-      const data = await fetchIqfLive(filters);
+      const data = await fetchIqfLive();
       writeBrowserCache(cacheKey, data);
       return data;
     },
     initialData: cached?.data,
     initialDataUpdatedAt: cached?.updatedAt,
-    enabled: filtersAreValid,
     staleTime: LIVE_REFRESH_INTERVAL_MS,
     refetchInterval: LIVE_REFRESH_INTERVAL_MS,
     refetchIntervalInBackground: true,
   });
 
   const refreshNow = async (): Promise<IqfLiveResponse> => {
-    if (!filtersAreValid) {
-      throw new Error(getDateFilterError(filters));
-    }
-    const data = await fetchIqfLive(filters, true);
+    const data = await fetchIqfLive(true);
     writeBrowserCache(cacheKey, data);
     queryClient.setQueryData<IqfLiveResponse>(queryKey, data);
     return data;
@@ -143,11 +137,11 @@ export function useRefreshDashboard() {
       ),
     );
 
-    const liveKey = ['dashboard', 'iqf-tiempo-real', filters] as const;
-    const liveCacheKey = browserCacheKey(['live', filters.fechaInicial, filters.fechaFinal, filters.turno]);
+    const liveKey = ['dashboard', 'iqf-tiempo-real'] as const;
+    const liveCacheKey = browserCacheKey(['live', 'current']);
 
     await Promise.all([
-      fetchIqfLive(filters, true).then((data) => {
+      fetchIqfLive(true).then((data) => {
         writeBrowserCache(liveCacheKey, data);
         queryClient.setQueryData<IqfLiveResponse>(liveKey, data);
       }),

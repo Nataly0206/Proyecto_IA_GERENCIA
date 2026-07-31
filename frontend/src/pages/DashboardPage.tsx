@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { Box, Paper, Stack, Typography, useMediaQuery, useTheme } from '@mui/material';
+import { Box, Collapse, IconButton, Paper, Stack, Tooltip, Typography, useMediaQuery, useTheme } from '@mui/material';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import TuneOutlinedIcon from '@mui/icons-material/TuneOutlined';
 import ChartWidget from '../components/charts/ChartWidget';
 import NetProcessWidget from '../components/charts/NetProcessWidget';
 import IqfLiveCounters from '../components/live/IqfLiveCounters';
@@ -21,6 +24,7 @@ export default function DashboardPage() {
   const topRef = useRef<HTMLDivElement>(null);
   const netProcessRef = useRef<HTMLDivElement>(null);
   const [heights, setHeights] = useState({ netas: 320, iqf: 240 });
+  const [filtersOpen, setFiltersOpen] = useState(true);
 
   useEffect(() => {
     const calc = () => {
@@ -66,12 +70,54 @@ export default function DashboardPage() {
       <Paper
         ref={filtersRef}
         elevation={0}
-        sx={{ p: 1.25, border: 1, borderColor: 'divider', flexShrink: 0 }}
+        sx={{
+          px: { xs: 1.5, sm: 1.75 },
+          py: 1.25,
+          border: 1,
+          borderColor: 'divider',
+          flexShrink: 0,
+          overflow: 'hidden',
+        }}
       >
-        <Typography variant="caption" color="text.secondary" fontWeight={800} sx={{ display: 'block', mb: 0.75 }}>
-          Filtros del dashboard
-        </Typography>
-        <GlobalFilters />
+        <Box sx={{ display: 'flex', alignItems: 'center', minHeight: 32, gap: 1 }}>
+          <Box
+            sx={{
+              width: 30,
+              height: 30,
+              display: 'grid',
+              placeItems: 'center',
+              borderRadius: 1,
+              bgcolor: 'rgba(22, 74, 139, 0.08)',
+              color: 'primary.main',
+            }}
+          >
+            <TuneOutlinedIcon sx={{ fontSize: 18 }} />
+          </Box>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography variant="subtitle2" color="text.primary" fontWeight={800}>
+              Filtros del dashboard
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>
+              Ajusta el período y turno de los reportes
+            </Typography>
+          </Box>
+          <Tooltip title={filtersOpen ? 'Ocultar filtros' : 'Mostrar filtros'}>
+            <IconButton
+              size="small"
+              onClick={() => setFiltersOpen((open) => !open)}
+              aria-label={filtersOpen ? 'Ocultar filtros' : 'Mostrar filtros'}
+              aria-expanded={filtersOpen}
+              sx={{ color: 'text.secondary' }}
+            >
+              {filtersOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+            </IconButton>
+          </Tooltip>
+        </Box>
+        <Collapse in={filtersOpen}>
+          <Box sx={{ pt: 1.25 }}>
+            <GlobalFilters />
+          </Box>
+        </Collapse>
       </Paper>
 
       <div ref={topRef}>

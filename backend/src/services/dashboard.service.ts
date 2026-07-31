@@ -220,12 +220,12 @@ export async function getIqfLibrasHoraMes(
 /* Contadores IQF en tiempo real (acumulado del día de producción)     */
 /* ------------------------------------------------------------------ */
 
-export async function getIqfTiempoReal(filters: DashboardFilters): Promise<IqfLiveResponse> {
+export async function getIqfTiempoReal(): Promise<IqfLiveResponse> {
   const [catalogoRows, rows] = await Promise.all([
-    runQuery(IQF_LIVE_LINES_QUERY, dateParams(filters.fechaInicial, filters.fechaFinal)),
-    runQuery(IQF_LIVE_QUERY, dateParams(filters.fechaInicial, filters.fechaFinal)),
+    runQuery(IQF_LIVE_LINES_QUERY, []),
+    runQuery(IQF_LIVE_QUERY, []),
   ]);
-  const dia = pickString(catalogoRows[0] ?? rows[0] ?? {}, 'Dia') || filters.fechaFinal;
+  const dia = pickString(catalogoRows[0] ?? rows[0] ?? {}, 'Dia') || formatDate(new Date());
   const conDatos = new Map(
     rows.map((row) => {
       const linea = pickString(row, 'Linea');

@@ -58,12 +58,7 @@ GROUP BY a.NombreTipoProceso, a.Turno, CAST(a.DiaProduccion2024 AS DATE)
  * solamente la fecha final, nunca el acumulado de varios días.
  */
 export const IQF_LIVE_QUERY = `
-DECLARE @Dia date =
-  CASE
-    WHEN CAST(GETDATE() AS date) BETWEEN @Fecha_Inicial AND @Fecha_Final
-      THEN CAST(GETDATE() AS date)
-    ELSE @Fecha_Final
-  END;
+DECLARE @Dia date = CAST(GETDATE() AS date);
 
 SELECT
   CONVERT(varchar(10), @Dia, 23) AS Dia,
@@ -91,12 +86,7 @@ ORDER BY a.LineaEquipoIQF;
  * cuando un IQF todavía no registra producción en el día consultado.
  */
 export const IQF_LIVE_LINES_QUERY = `
-DECLARE @Dia date =
-  CASE
-    WHEN CAST(GETDATE() AS date) BETWEEN @Fecha_Inicial AND @Fecha_Final
-      THEN CAST(GETDATE() AS date)
-    ELSE @Fecha_Final
-  END;
+DECLARE @Dia date = CAST(GETDATE() AS date);
 
 SELECT DISTINCT
   CONVERT(varchar(10), @Dia, 23) AS Dia,

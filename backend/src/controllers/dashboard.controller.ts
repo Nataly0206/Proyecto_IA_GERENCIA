@@ -117,13 +117,12 @@ export async function getIqfLibrasHoraMes(req: Request, res: Response): Promise<
 }
 
 export async function getIqfTiempoReal(req: Request, res: Response): Promise<void> {
-  const filters = parseFilters(req);
   const forceRefresh = req.query.refresh === 'true';
   res.json(
     await withTtlCache(
-      JSON.stringify(['iqf-tiempo-real', filters]),
+      'iqf-tiempo-real:current',
       LIVE_CACHE_MS,
-      () => dashboardService.getIqfTiempoReal(filters),
+      () => dashboardService.getIqfTiempoReal(),
       forceRefresh,
     ),
   );

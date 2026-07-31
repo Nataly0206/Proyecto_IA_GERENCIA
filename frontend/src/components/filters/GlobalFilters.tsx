@@ -3,7 +3,6 @@ import {
   Button,
   Checkbox,
   FormControlLabel,
-  FormGroup,
   MenuItem,
   TextField,
   Typography,
@@ -37,11 +36,12 @@ export default function GlobalFilters() {
       sx={{
         display: 'grid',
         gridTemplateColumns: {
-          xs: '1fr 1fr',
-          sm: 'minmax(145px, 1fr) minmax(145px, 1fr) minmax(120px, .75fr) auto auto',
+          xs: 'minmax(0, 1fr)',
+          sm: 'repeat(2, minmax(0, 1fr))',
+          md: 'minmax(150px, 1fr) minmax(150px, 1fr) minmax(130px, .8fr) auto',
         },
-        gap: 1,
-        alignItems: 'center',
+        gap: { xs: 1.25, md: 1 },
+        alignItems: 'start',
       }}
     >
       <TextField
@@ -86,7 +86,14 @@ export default function GlobalFilters() {
         ))}
       </TextField>
 
-      <FormGroup>
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: 'minmax(0, 1fr) minmax(0, 1fr)', sm: 'repeat(2, auto)' },
+          gap: 1,
+          gridColumn: { xs: '1', sm: '1 / -1', md: 'auto' },
+        }}
+      >
         <FormControlLabel
           control={
             <Checkbox
@@ -102,21 +109,29 @@ export default function GlobalFilters() {
           }
           sx={{
             height: 40,
+            minWidth: 0,
             alignItems: 'center',
             m: 0,
+            px: 0.75,
+            border: 1,
+            borderColor: 'divider',
+            borderRadius: 1,
+            justifyContent: 'center',
+            bgcolor: 'background.paper',
             '& .MuiCheckbox-root': { color: 'primary.main' },
+            '& .MuiFormControlLabel-label': { lineHeight: 1 },
           }}
         />
-      </FormGroup>
 
-      <Button
-        variant="outlined"
-        startIcon={<RestartAltIcon />}
-        onClick={resetFilters}
-        sx={{ height: 40, whiteSpace: 'nowrap' }}
-      >
-        Limpiar
-      </Button>
+        <Button
+          variant="outlined"
+          startIcon={<RestartAltIcon />}
+          onClick={resetFilters}
+          sx={{ height: 40, minWidth: 0, whiteSpace: 'nowrap' }}
+        >
+          Limpiar
+        </Button>
+      </Box>
     </Box>
   );
 }

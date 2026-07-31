@@ -50,7 +50,7 @@ export default function DashboardLayout({
 }: DashboardLayoutProps) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);

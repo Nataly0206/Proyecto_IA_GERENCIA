@@ -23,9 +23,9 @@ const SHOW_CHART_VALUES_STORAGE_KEY = 'dashboard.showChartValues';
 function readStoredShowChartValues(): boolean {
   try {
     const stored = window.localStorage.getItem(SHOW_CHART_VALUES_STORAGE_KEY);
-    return stored === null ? true : stored === 'true';
+    return stored === null ? false : stored === 'true';
   } catch {
-    return true;
+    return false;
   }
 }
 

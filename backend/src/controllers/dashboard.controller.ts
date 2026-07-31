@@ -11,6 +11,18 @@ const LIVE_CACHE_MS = 60 * 1000;
 
 const formatDate = (date: Date): string => date.toISOString().slice(0, 10);
 
+function isValidDate(value: string): boolean {
+  if (!DATE_REGEX.test(value)) return false;
+
+  const [year, month, day] = value.split('-').map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return (
+    parsed.getUTCFullYear() === year &&
+    parsed.getUTCMonth() === month - 1 &&
+    parsed.getUTCDate() === day
+  );
+}
+
 /**
  * Lee y valida los filtros globales desde el query string.
  * Por defecto: últimos 30 días y todos los turnos.
@@ -22,8 +34,8 @@ export function parseFilters(req: Request): DashboardFilters {
   const fechaInicial = String(req.query.fechaInicial ?? formatDate(thirtyDaysAgo));
   const fechaFinal = String(req.query.fechaFinal ?? formatDate(today));
 
-  if (!DATE_REGEX.test(fechaInicial) || !DATE_REGEX.test(fechaFinal)) {
-    throw new ApiError(400, 'fechaInicial y fechaFinal deben tener formato YYYY-MM-DD');
+  if (!isValidDate(fechaInicial) || !isValidDate(fechaFinal)) {
+    throw new ApiError(400, 'fechaInicial y fechaFinal deben ser fechas válidas en formato YYYY-MM-DD');
   }
   if (fechaInicial > fechaFinal) {
     throw new ApiError(400, 'fechaInicial no puede ser mayor que fechaFinal');

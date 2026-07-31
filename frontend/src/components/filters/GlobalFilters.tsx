@@ -1,17 +1,17 @@
 import {
+  Box,
   Button,
   Checkbox,
-  Divider,
   FormControlLabel,
   FormGroup,
   MenuItem,
-  Stack,
   TextField,
   Typography,
 } from '@mui/material';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import { useFilters } from '../../context/FiltersContext';
 import { TURNOS } from '../../types';
+import { getDateFilterError, isValidIsoDate } from '../../utils/dateFilters';
 
 /**
  * Barra de filtros globales. Los reportes reaccionan a estos valores a
@@ -26,27 +26,48 @@ export default function GlobalFilters() {
     updateFilter,
     resetFilters,
   } = useFilters();
+  const dateError = getDateFilterError(filters);
+  const initialDateError =
+    !isValidIsoDate(filters.fechaInicial) || filters.fechaInicial > filters.fechaFinal;
+  const finalDateError =
+    !isValidIsoDate(filters.fechaFinal) || filters.fechaInicial > filters.fechaFinal;
 
   return (
-    <Stack spacing={2.25}>
+    <Box
+      sx={{
+        display: 'grid',
+        gridTemplateColumns: {
+          xs: '1fr 1fr',
+          sm: 'minmax(145px, 1fr) minmax(145px, 1fr) minmax(120px, .75fr) auto auto',
+        },
+        gap: 1,
+        alignItems: 'center',
+      }}
+    >
       <TextField
-        label="Fecha Inicial"
+        label="Desde"
         type="date"
         size="small"
         fullWidth
         value={filters.fechaInicial}
         onChange={(e) => updateFilter('fechaInicial', e.target.value)}
         InputLabelProps={{ shrink: true }}
+        inputProps={{ max: filters.fechaFinal || undefined }}
+        error={initialDateError}
+        helperText={initialDateError ? dateError : undefined}
       />
 
       <TextField
-        label="Fecha Final"
+        label="Hasta"
         type="date"
         size="small"
         fullWidth
         value={filters.fechaFinal}
         onChange={(e) => updateFilter('fechaFinal', e.target.value)}
         InputLabelProps={{ shrink: true }}
+        inputProps={{ min: filters.fechaInicial || undefined }}
+        error={finalDateError}
+        helperText={finalDateError && !initialDateError ? dateError : undefined}
       />
 
       <TextField
@@ -65,40 +86,37 @@ export default function GlobalFilters() {
         ))}
       </TextField>
 
-      <Divider />
-
       <FormGroup>
         <FormControlLabel
           control={
             <Checkbox
+              size="small"
               checked={showChartValues}
               onChange={(event) => setShowChartValues(event.target.checked)}
             />
           }
           label={
-            <Stack spacing={0.25}>
-              <Typography variant="body2" fontWeight={700}>
-                Mostrar valores en las gráficas
-              </Typography>
-              <Typography variant="caption" color="text.secondary" lineHeight={1.25}>
-                Muestra los números sobre los puntos y las barras.
-              </Typography>
-            </Stack>
+            <Typography variant="button" color="primary" whiteSpace="nowrap">
+              Ver valores
+            </Typography>
           }
-          sx={{ alignItems: 'flex-start', m: 0, '& .MuiCheckbox-root': { pt: 0 } }}
+          sx={{
+            height: 40,
+            alignItems: 'center',
+            m: 0,
+            '& .MuiCheckbox-root': { color: 'primary.main' },
+          }}
         />
       </FormGroup>
-
-      <Divider />
 
       <Button
         variant="outlined"
         startIcon={<RestartAltIcon />}
         onClick={resetFilters}
-        sx={{ alignSelf: 'flex-start' }}
+        sx={{ height: 40, whiteSpace: 'nowrap' }}
       >
-        Limpiar filtros
+        Limpiar
       </Button>
-    </Stack>
+    </Box>
   );
 }

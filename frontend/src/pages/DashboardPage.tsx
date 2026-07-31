@@ -1,21 +1,23 @@
 import { useEffect, useRef, useState } from 'react';
-import { Box, Stack, useMediaQuery, useTheme } from '@mui/material';
+import { Box, Paper, Stack, Typography, useMediaQuery, useTheme } from '@mui/material';
 import ChartWidget from '../components/charts/ChartWidget';
 import NetProcessWidget from '../components/charts/NetProcessWidget';
 import IqfLiveCounters from '../components/live/IqfLiveCounters';
 import { dashboardWidgets } from '../config/dashboardConfig';
+import GlobalFilters from '../components/filters/GlobalFilters';
 
 const [, iqfDiario, iqfMensual] = dashboardWidgets;
 
 const APP_BAR = 46;
 const CONTAINER_PY = 20;   // py: 1.25 top + bottom
-const STACK_GAP = 12;       // spacing={1.5}
+const STACK_GAPS = 24;      // dos espacios de spacing={1.5}
 const GRID_ROW_GAP = 16;    // spacing={2}
 const CARD_CHROME = 96;     // cardcontent padding + title block + margin
 
 export default function DashboardPage() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const filtersRef = useRef<HTMLDivElement>(null);
   const topRef = useRef<HTMLDivElement>(null);
   const netProcessRef = useRef<HTMLDivElement>(null);
   const [heights, setHeights] = useState({ netas: 320, iqf: 240 });
@@ -23,13 +25,15 @@ export default function DashboardPage() {
   useEffect(() => {
     const calc = () => {
       const topH = topRef.current?.offsetHeight ?? 0;
+      const filtersH = filtersRef.current?.offsetHeight ?? 0;
       const netProcessH = netProcessRef.current?.offsetHeight ?? 0;
       const availableForIqf =
         window.innerHeight -
         APP_BAR -
         CONTAINER_PY -
+        filtersH -
         topH -
-        STACK_GAP -
+        STACK_GAPS -
         netProcessH -
         GRID_ROW_GAP;
       setHeights({
@@ -40,6 +44,7 @@ export default function DashboardPage() {
     calc();
     window.addEventListener('resize', calc);
     const ro = new ResizeObserver(calc);
+    if (filtersRef.current) ro.observe(filtersRef.current);
     if (topRef.current) ro.observe(topRef.current);
     if (netProcessRef.current) ro.observe(netProcessRef.current);
     return () => {
@@ -55,9 +60,20 @@ export default function DashboardPage() {
         height: '100%',
         minHeight: 0,
         overflowY: { xs: 'auto', md: 'hidden' },
-        overflowX: 'hidden',
+      overflowX: 'hidden',
       }}
     >
+      <Paper
+        ref={filtersRef}
+        elevation={0}
+        sx={{ p: 1.25, border: 1, borderColor: 'divider', flexShrink: 0 }}
+      >
+        <Typography variant="caption" color="text.secondary" fontWeight={800} sx={{ display: 'block', mb: 0.75 }}>
+          Filtros del dashboard
+        </Typography>
+        <GlobalFilters />
+      </Paper>
+
       <div ref={topRef}>
         <IqfLiveCounters />
       </div>

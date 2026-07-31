@@ -7,20 +7,27 @@ import {
   Divider,
   Drawer,
   IconButton,
+  List,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
   Stack,
   Toolbar,
+  Tooltip,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
-import CloseIcon from '@mui/icons-material/Close';
+import MenuIcon from '@mui/icons-material/Menu';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import RefreshOutlinedIcon from '@mui/icons-material/RefreshOutlined';
-import TuneOutlinedIcon from '@mui/icons-material/TuneOutlined';
 import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
 import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
 import PeopleOutlineIcon from '@mui/icons-material/PeopleOutline';
 import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined';
+import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
 import { AuthUser } from '../../types/auth';
 import AiAssistantPanel from '../ai/AiAssistantPanel';
-import GlobalFilters from '../filters/GlobalFilters';
 import { useRefreshDashboard } from '../../hooks/useDashboardData';
 
 interface DashboardLayoutProps {
@@ -31,9 +38,21 @@ interface DashboardLayoutProps {
   onViewChange: (view: 'dashboard' | 'users') => void;
 }
 
-export default function DashboardLayout({ children, onLogout, user, currentView, onViewChange }: DashboardLayoutProps) {
+const SIDEBAR_OPEN = 196;
+const SIDEBAR_CLOSED = 64;
+
+export default function DashboardLayout({
+  children,
+  onLogout,
+  user,
+  currentView,
+  onViewChange,
+}: DashboardLayoutProps) {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
-  const [filtersOpen, setFiltersOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshFailed, setRefreshFailed] = useState(false);
   const refreshDashboard = useRefreshDashboard();
@@ -51,163 +70,156 @@ export default function DashboardLayout({ children, onLogout, user, currentView,
     }
   };
 
+  const navigate = (view: 'dashboard' | 'users') => {
+    onViewChange(view);
+    setMobileMenuOpen(false);
+  };
+
+  const navContent = (expanded: boolean) => (
+    <Stack sx={{ height: '100%' }}>
+      <Box sx={{ px: expanded ? 2 : 1, py: 1.5 }}>
+        <Typography
+          variant="overline"
+          color="text.secondary"
+          sx={{ display: expanded ? 'block' : 'none', fontSize: 10, fontWeight: 800 }}
+        >
+          Navegación
+        </Typography>
+      </Box>
+      <List sx={{ px: 1, pt: 0 }}>
+        <Tooltip title={expanded ? '' : 'Dashboard'} placement="right">
+          <ListItemButton
+            selected={currentView === 'dashboard'}
+            onClick={() => navigate('dashboard')}
+            sx={{ minHeight: 42, px: 1.25, borderRadius: 1, mb: 0.5 }}
+          >
+            <ListItemIcon sx={{ minWidth: expanded ? 36 : 0, justifyContent: 'center' }}>
+              <DashboardOutlinedIcon fontSize="small" />
+            </ListItemIcon>
+            {expanded && <ListItemText primary="Dashboard" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
+          </ListItemButton>
+        </Tooltip>
+        {user.esAdministrador && (
+          <Tooltip title={expanded ? '' : 'Usuarios'} placement="right">
+            <ListItemButton
+              selected={currentView === 'users'}
+              onClick={() => navigate('users')}
+              sx={{ minHeight: 42, px: 1.25, borderRadius: 1 }}
+            >
+              <ListItemIcon sx={{ minWidth: expanded ? 36 : 0, justifyContent: 'center' }}>
+                <PeopleOutlineIcon fontSize="small" />
+              </ListItemIcon>
+              {expanded && <ListItemText primary="Usuarios" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
+            </ListItemButton>
+          </Tooltip>
+        )}
+      </List>
+      <Box sx={{ flex: 1 }} />
+      <Divider />
+      <Stack spacing={0.25} sx={{ p: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, px: 1.25, py: 1 }}>
+          <PersonOutlineIcon color="action" fontSize="small" />
+          {expanded && (
+            <Box sx={{ minWidth: 0 }}>
+              <Typography variant="body2" fontWeight={700} noWrap>{user.nombre}</Typography>
+              <Typography variant="caption" color="text.secondary" noWrap>{user.usuario}</Typography>
+            </Box>
+          )}
+        </Box>
+        <Tooltip title={expanded ? '' : 'Cerrar sesión'} placement="right">
+          <ListItemButton onClick={onLogout} sx={{ minHeight: 40, px: 1.25, borderRadius: 1 }}>
+            <ListItemIcon sx={{ minWidth: expanded ? 36 : 0, justifyContent: 'center' }}>
+              <LogoutOutlinedIcon fontSize="small" />
+            </ListItemIcon>
+            {expanded && <ListItemText primary="Cerrar sesión" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
+          </ListItemButton>
+        </Tooltip>
+      </Stack>
+    </Stack>
+  );
+
+  const desktopWidth = sidebarOpen ? SIDEBAR_OPEN : SIDEBAR_CLOSED;
+
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column', bgcolor: 'background.default' }}>
       <AppBar position="static" elevation={0}>
-        <Toolbar
-          variant="dense"
-          disableGutters
-          sx={{
-            px: { xs: 1.5, sm: 2, md: 3 },
-            py: { xs: 1, sm: 0 },
-            minHeight: 46,
-            gap: { xs: 0.75, sm: 1.5 },
-            flexWrap: { xs: 'wrap', sm: 'nowrap' },
-          }}
-        >
-          <Stack direction="row" alignItems="center" spacing={1} sx={{ flexGrow: 1, minWidth: { xs: 'calc(100% - 38px)', sm: 180 } }}>
-            <Box
-              sx={{
-                width: 6,
-                height: 22,
-                borderRadius: 1,
-                bgcolor: 'primary.main',
-                flexShrink: 0,
-              }}
-            />
-            <Typography
-              variant="subtitle1"
-              fontWeight={800}
-              sx={{ letterSpacing: 0, color: 'text.primary', fontSize: { xs: 17, sm: 16 }, whiteSpace: 'nowrap' }}
-            >
+        <Toolbar variant="dense" sx={{ px: { xs: 1.25, md: 2 }, minHeight: 46, gap: 1 }}>
+          <IconButton
+            size="small"
+            onClick={() => isMobile ? setMobileMenuOpen(true) : setSidebarOpen((open) => !open)}
+            aria-label="Alternar navegación"
+          >
+            {sidebarOpen && !isMobile ? <ChevronLeftIcon /> : <MenuIcon />}
+          </IconButton>
+          <Stack direction="row" alignItems="center" spacing={1} sx={{ flex: 1, minWidth: 0 }}>
+            <Box sx={{ width: 6, height: 22, borderRadius: 1, bgcolor: 'primary.main' }} />
+            <Typography variant="subtitle1" fontWeight={800} noWrap>
               Dashboard Gerencial
             </Typography>
-            <Typography
-              variant="caption"
-              sx={{
-                color: 'text.secondary',
-                fontWeight: 600,
-                display: { xs: 'none', sm: 'block' },
-              }}
-            >
+            <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ display: { xs: 'none', sm: 'block' } }}>
               ESF Seafood
             </Typography>
           </Stack>
-          <Button
-            size="small"
-            color="inherit"
-            startIcon={currentView === 'dashboard' ? <PeopleOutlineIcon /> : <DashboardOutlinedIcon />}
-            onClick={() => onViewChange(currentView === 'dashboard' ? 'users' : 'dashboard')}
-            sx={{ display: user.esAdministrador ? 'inline-flex' : 'none', fontWeight: 700 }}
-          >
-            {currentView === 'dashboard' ? 'Usuarios' : 'Dashboard'}
-          </Button>
-
-          <Button
-            size="small"
-            variant="outlined"
-            color={refreshFailed ? 'error' : 'primary'}
-            startIcon={
-              <RefreshOutlinedIcon
-                sx={{
-                  fontSize: '15px !important',
-                  animation: isRefreshing ? 'refresh-spin 0.8s linear infinite' : 'none',
-                  '@keyframes refresh-spin': {
-                    from: { transform: 'rotate(0deg)' },
-                    to: { transform: 'rotate(360deg)' },
-                  },
-                }}
-              />
-            }
-            disabled={isRefreshing}
-            onClick={handleRefresh}
-            sx={{
-              order: { xs: 2, sm: 'initial' },
-              flex: { xs: 1, sm: 'initial' },
-              minWidth: 0,
-              px: { xs: 1, sm: 1.25 },
-              fontSize: 12,
-              fontWeight: 700,
-              whiteSpace: 'nowrap',
-              borderColor: refreshFailed ? undefined : 'divider',
-              color: refreshFailed ? undefined : 'text.secondary',
-              '&:hover': refreshFailed
-                ? undefined
-                : { borderColor: 'primary.main', color: 'primary.main' },
-            }}
-          >
-            {isRefreshing
-              ? 'Actualizando…'
-              : refreshFailed
-                ? 'Error al actualizar'
-                : 'Actualizar ahora'}
-          </Button>
-          <Button
-            size="small"
-            variant="outlined"
-            startIcon={<TuneOutlinedIcon sx={{ fontSize: '15px !important' }} />}
-            onClick={() => setFiltersOpen(true)}
-            sx={{
-              order: { xs: 2, sm: 'initial' },
-              flex: { xs: 1, sm: 'initial' },
-              minWidth: 0,
-              px: { xs: 1, sm: 1.25 },
-              fontSize: 12,
-              fontWeight: 700,
-              borderColor: 'divider',
-              color: 'text.secondary',
-              '&:hover': { borderColor: 'primary.main', color: 'primary.main' },
-            }}
-          >
-            Filtros
-          </Button>
+          {currentView === 'dashboard' && (
+            <Button
+              size="small"
+              variant="outlined"
+              color={refreshFailed ? 'error' : 'primary'}
+              startIcon={<RefreshOutlinedIcon sx={{ animation: isRefreshing ? 'spin .8s linear infinite' : 'none', '@keyframes spin': { to: { transform: 'rotate(360deg)' } } }} />}
+              disabled={isRefreshing}
+              onClick={handleRefresh}
+              sx={{ borderColor: 'divider', color: refreshFailed ? undefined : 'text.secondary', display: { xs: 'none', sm: 'inline-flex' } }}
+            >
+              {isRefreshing ? 'Actualizando…' : 'Actualizar'}
+            </Button>
+          )}
           <Button
             size="small"
             variant="contained"
-            startIcon={<SmartToyOutlinedIcon sx={{ fontSize: '15px !important' }} />}
+            startIcon={<SmartToyOutlinedIcon />}
             onClick={() => setAiPanelOpen(true)}
-            sx={{ order: { xs: 2, sm: 'initial' }, flex: { xs: 1, sm: 'initial' }, minWidth: 0, px: { xs: 1, sm: 1.25 }, fontSize: 12, fontWeight: 700, boxShadow: 'none' }}
+            sx={{ boxShadow: 'none' }}
           >
-            Asistente IA
+            <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Asistente IA</Box>
+            <Box component="span" sx={{ display: { xs: 'inline', sm: 'none' } }}>IA</Box>
           </Button>
-          <IconButton size="small" onClick={onLogout} aria-label="Cerrar sesión" title="Cerrar sesión" sx={{ order: { xs: 1, sm: 'initial' } }}>
-            <LogoutOutlinedIcon fontSize="small" />
-          </IconButton>
         </Toolbar>
       </AppBar>
 
-      <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
-        <Container
-          maxWidth={false}
-          sx={{ height: '100%', px: { xs: 1.25, sm: 1.5, md: 2.5 }, py: { xs: 1.25, md: 1.25 } }}
-        >
-          {children}
-        </Container>
+      <Box sx={{ flex: 1, minHeight: 0, display: 'flex' }}>
+        {!isMobile && (
+          <Box
+            component="aside"
+            sx={{
+              width: desktopWidth,
+              flexShrink: 0,
+              borderRight: 1,
+              borderColor: 'divider',
+              bgcolor: 'background.paper',
+              transition: theme.transitions.create('width', { duration: theme.transitions.duration.shorter }),
+              overflow: 'hidden',
+            }}
+          >
+            {navContent(sidebarOpen)}
+          </Box>
+        )}
+        <Box component="main" sx={{ flex: 1, minWidth: 0, minHeight: 0 }}>
+          <Container
+            maxWidth={false}
+            sx={{ height: '100%', px: { xs: 1.25, sm: 1.5, md: 2 }, py: 1.25 }}
+          >
+            {children}
+          </Container>
+        </Box>
       </Box>
 
       <Drawer
-        anchor="right"
-        open={filtersOpen}
-        onClose={() => setFiltersOpen(false)}
-        PaperProps={{
-          sx: {
-            width: { xs: '100%', sm: 360 },
-            p: 2.5,
-            bgcolor: 'background.paper',
-          },
-        }}
+        anchor="left"
+        open={isMobile && mobileMenuOpen}
+        onClose={() => setMobileMenuOpen(false)}
+        PaperProps={{ sx: { width: 248 } }}
       >
-        <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2.5}>
-          <Stack direction="row" alignItems="center" spacing={1}>
-            <TuneOutlinedIcon color="primary" fontSize="small" />
-            <Typography variant="subtitle1" fontWeight={700}>Filtros del dashboard</Typography>
-          </Stack>
-          <IconButton size="small" onClick={() => setFiltersOpen(false)} aria-label="Cerrar filtros">
-            <CloseIcon fontSize="small" />
-          </IconButton>
-        </Stack>
-        <Divider sx={{ mb: 2.5 }} />
-        <GlobalFilters />
+        {navContent(true)}
       </Drawer>
 
       <AiAssistantPanel open={aiPanelOpen} onClose={() => setAiPanelOpen(false)} />

@@ -13,14 +13,18 @@ import { useIqfLive } from '../../hooks/useDashboardData';
 import { formatPeriodo, formatValue } from '../../utils/format';
 import { IqfLiveLine } from '../../types';
 
-function LiveCard({ linea }: { linea: IqfLiveLine }) {
-  const color = linea.libras > 0 ? '#2e7d32' : '#94a3b8';
+function LiveCard({ linea, total = false }: { linea: IqfLiveLine; total?: boolean }) {
+  const color = total ? '#164a8b' : linea.libras > 0 ? '#2e7d32' : '#94a3b8';
 
   return (
     <Card
       sx={{
         borderTop: `3px solid ${color}`,
-        bgcolor: linea.libras > 0 ? 'rgba(46,125,50,0.03)' : 'background.paper',
+        bgcolor: total
+          ? 'rgba(22,74,139,0.06)'
+          : linea.libras > 0
+            ? 'rgba(46,125,50,0.03)'
+            : 'background.paper',
         height: '100%',
       }}
     >
@@ -31,7 +35,13 @@ function LiveCard({ linea }: { linea: IqfLiveLine }) {
           </Typography>
           <Chip
             size="small"
-            label={linea.ultimaCaja ? `Última lectura: ${linea.ultimaCaja}` : 'Sin lectura hoy'}
+            label={
+              total
+                ? 'IQF 1 + IQF 2 + IQF 3'
+                : linea.ultimaCaja
+                  ? `Última lectura: ${linea.ultimaCaja}`
+                  : 'Sin lectura hoy'
+            }
             sx={{
               maxWidth: { xs: 124, sm: 'none' },
               bgcolor: `${color}18`,
@@ -65,6 +75,10 @@ function LiveCard({ linea }: { linea: IqfLiveLine }) {
 
 export default function IqfLiveCounters() {
   const { data, isLoading, isError, error, dataUpdatedAt } = useIqfLive();
+  const totalIqf =
+    data?.lineas
+      .filter((linea) => /\bIQF\s*[-#]?\s*[123]\b/i.test(linea.linea))
+      .reduce((total, linea) => total + linea.libras, 0) ?? 0;
 
   return (
     <Box>
@@ -113,7 +127,7 @@ export default function IqfLiveCounters() {
             display: 'grid',
             gridTemplateColumns: {
               xs: 'repeat(2, minmax(0, 1fr))',
-              sm: `repeat(${data.lineas.length}, minmax(0, 1fr))`,
+              sm: `repeat(${data.lineas.length + 1}, minmax(0, 1fr))`,
             },
             gap: 1,
             '& > :last-child:nth-of-type(odd)': { gridColumn: { xs: '1 / -1', sm: 'auto' } },
@@ -122,6 +136,20 @@ export default function IqfLiveCounters() {
           {data.lineas.map((linea) => (
             <LiveCard key={linea.linea} linea={linea} />
           ))}
+          <LiveCard
+            total
+            linea={{
+              linea: 'Total IQF',
+              libras: totalIqf,
+              cajas: 0,
+              librasUltimaHora: 0,
+              librasPorHora: 0,
+              primeraCaja: '',
+              ultimaCaja: '',
+              minutosDesdeUltima: -1,
+              activa: false,
+            }}
+          />
         </Box>
       )}
     </Box>

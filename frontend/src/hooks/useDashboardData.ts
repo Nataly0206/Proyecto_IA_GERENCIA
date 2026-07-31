@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchIqfLive, fetchWidgetData } from '../api/dashboard.api';
 import { useFilters } from '../context/FiltersContext';
 import { DashboardEndpoint, DataRow, IqfLiveResponse } from '../types';
+import { getDateFilterError } from '../utils/dateFilters';
 
 /** Todo el dashboard se actualiza automáticamente cada 5 minutos */
 export const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
@@ -56,6 +57,7 @@ function writeBrowserCache<T>(key: string, data: T): void {
 
 export function useWidgetData(endpoint: DashboardEndpoint) {
   const { filters } = useFilters();
+  const filtersAreValid = !getDateFilterError(filters);
   const cacheKey = browserCacheKey([
     'widget',
     endpoint,
@@ -74,6 +76,7 @@ export function useWidgetData(endpoint: DashboardEndpoint) {
     },
     initialData: cached?.data,
     initialDataUpdatedAt: cached?.updatedAt,
+    enabled: filtersAreValid,
     staleTime: REFRESH_INTERVAL_MS,
     refetchInterval: REFRESH_INTERVAL_MS,
     refetchIntervalInBackground: true,
@@ -82,6 +85,7 @@ export function useWidgetData(endpoint: DashboardEndpoint) {
 
 export function useIqfLive() {
   const { filters } = useFilters();
+  const filtersAreValid = !getDateFilterError(filters);
   const queryClient = useQueryClient();
   const queryKey = ['dashboard', 'iqf-tiempo-real', filters] as const;
   const cacheKey = browserCacheKey(['live', filters.fechaInicial, filters.fechaFinal, filters.turno]);
@@ -96,12 +100,16 @@ export function useIqfLive() {
     },
     initialData: cached?.data,
     initialDataUpdatedAt: cached?.updatedAt,
+    enabled: filtersAreValid,
     staleTime: LIVE_REFRESH_INTERVAL_MS,
     refetchInterval: LIVE_REFRESH_INTERVAL_MS,
     refetchIntervalInBackground: true,
   });
 
   const refreshNow = async (): Promise<IqfLiveResponse> => {
+    if (!filtersAreValid) {
+      throw new Error(getDateFilterError(filters));
+    }
     const data = await fetchIqfLive(filters, true);
     writeBrowserCache(cacheKey, data);
     queryClient.setQueryData<IqfLiveResponse>(queryKey, data);
@@ -117,6 +125,9 @@ export function useRefreshDashboard() {
   const queryClient = useQueryClient();
 
   return async (): Promise<void> => {
+    const filterError = getDateFilterError(filters);
+    if (filterError) throw new Error(filterError);
+
     const activeQueries = queryClient.getQueryCache().findAll({
       queryKey: ['dashboard'],
       type: 'active',

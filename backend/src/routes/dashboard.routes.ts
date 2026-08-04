@@ -18,5 +18,8 @@ router.get('/pelado-por-estilo', pelado, asyncHandler(controller.getPeladoPorEst
 router.get('/pelado-por-estilo-dia', pelado, asyncHandler(controller.getPeladoPorEstiloDia));
 router.get('/pelado-por-estilo-mes', pelado, asyncHandler(controller.getPeladoPorEstiloMes));
 router.get('/pelado-tiempo-real', pelado, asyncHandler(controller.getPeladoTiempoReal));
+router.get('/pelado-personal', pelado, asyncHandler(controller.getPeladoPersonal));
+router.get('/pelado-personal-dia', pelado, asyncHandler(controller.getPeladoPersonalDia));
+router.get('/pelado-personal-mes', pelado, asyncHandler(controller.getPeladoPersonalMes));
 
 export default router;

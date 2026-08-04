@@ -12,6 +12,7 @@ import { errorHandler, notFound } from './middleware/errorHandler';
 import { changedPasswordAuth, requirePermission, sessionAuth } from './middleware/sessionAuth';
 import { assertAuthDatabaseReady } from './services/auth.service';
 import { closeAuthPool } from './config/authDb';
+import { closeStbPool } from './config/stbDb';
 
 // Fail-closed: en producción no se arranca sin API_KEY, para no exponer
 // la API (y por tanto la BD real vía el asistente IA) sin autenticación.
@@ -103,6 +104,7 @@ const shutdown = async (): Promise<void> => {
   server?.close();
   await closePool();
   await closeAuthPool();
+  await closeStbPool();
   process.exit(0);
 };
 

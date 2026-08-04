@@ -5,6 +5,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import TuneOutlinedIcon from '@mui/icons-material/TuneOutlined';
 import ChartWidget from '../components/charts/ChartWidget';
 import PeladoStyleWidget from '../components/charts/PeladoStyleWidget';
+import PeladoPersonalWidget from '../components/charts/PeladoPersonalWidget';
 import PeladoLiveCounters from '../components/live/PeladoLiveCounters';
 import { peladoWidgets } from '../config/dashboardConfig';
 import GlobalFilters from '../components/filters/GlobalFilters';
@@ -138,9 +139,10 @@ export default function PeladoPage() {
       >
         <Box
           ref={styleRef}
-          sx={{ gridColumn: '1 / -1', minWidth: 0 }}
+          sx={{ gridColumn: '1 / -1', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1.5 }}
         >
           <PeladoStyleWidget height={heights.estilo} />
+          <PeladoPersonalWidget height={280} />
         </Box>
         <Box
           sx={{

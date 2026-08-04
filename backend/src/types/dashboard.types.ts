@@ -98,3 +98,23 @@ export interface PeladoLiveResponse {
    */
   ordenesActivas: number;
 }
+
+/**
+ * Personal y pago real de pelado (fuente: STB_data.dbo.V_PagosxPeladoIndividualPBI).
+ * `empleados` = headcount real (COUNT DISTINCT IdEmpleado), a diferencia
+ * del proxy `ordenesActivas` de PeladoLiveResponse.
+ */
+export interface PeladoPersonalRow {
+  empleados: number;
+  libras: number;
+  valor: number;
+}
+
+/** Celda del reporte de personal de pelado, agrupada por período (día o mes). */
+export interface PeladoPersonalPeriodRow {
+  /** "YYYY-MM-DD" para diario, "YYYY-MM" para mensual */
+  periodo: string;
+  empleados: number;
+  libras: number;
+  valor: number;
+}

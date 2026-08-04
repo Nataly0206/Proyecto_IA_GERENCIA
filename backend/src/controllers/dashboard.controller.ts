@@ -179,3 +179,43 @@ export async function getPeladoTiempoReal(req: Request, res: Response): Promise<
     ),
   );
 }
+
+export async function getPeladoPersonal(req: Request, res: Response): Promise<void> {
+  const filters = parseFilters(req);
+  const forceRefresh = req.query.refresh === 'true';
+  res.json(
+    await withTtlCache(
+      JSON.stringify(['pelado-personal', filters]),
+      REPORT_CACHE_MS,
+      () => dashboardService.getPeladoPersonal(filters),
+      forceRefresh,
+    ),
+  );
+}
+
+export async function getPeladoPersonalDia(req: Request, res: Response): Promise<void> {
+  const filters = parseFilters(req);
+  const forceRefresh = req.query.refresh === 'true';
+  res.json(
+    await withTtlCache(
+      JSON.stringify(['pelado-personal-dia', filters]),
+      REPORT_CACHE_MS,
+      () => dashboardService.getPeladoPersonalDia(filters),
+      forceRefresh,
+    ),
+  );
+}
+
+export async function getPeladoPersonalMes(req: Request, res: Response): Promise<void> {
+  const filters = parseFilters(req);
+  const meses = Math.min(Math.max(Number(req.query.meses) || 12, 1), 36);
+  const forceRefresh = req.query.refresh === 'true';
+  res.json(
+    await withTtlCache(
+      JSON.stringify(['pelado-personal-mes', filters.turno ?? '', meses]),
+      REPORT_CACHE_MS,
+      () => dashboardService.getPeladoPersonalMes(filters, meses),
+      forceRefresh,
+    ),
+  );
+}

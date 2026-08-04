@@ -53,7 +53,10 @@ export type DashboardEndpoint =
   | 'iqf-libras-hora-mes'
   | 'pelado-por-estilo'
   | 'pelado-por-estilo-dia'
-  | 'pelado-por-estilo-mes';
+  | 'pelado-por-estilo-mes'
+  | 'pelado-personal'
+  | 'pelado-personal-dia'
+  | 'pelado-personal-mes';
 
 /** Contador en vivo de una línea IQF (día de producción en curso) */
 export interface IqfLiveLine {
@@ -107,6 +110,25 @@ export interface PeladoLiveResponse {
    * en planta disponible en la base de datos).
    */
   ordenesActivas: number;
+}
+
+/**
+ * Personal y pago real de pelado (fuente: STB_data.dbo.V_PagosxPeladoIndividualPBI).
+ * `empleados` = headcount real (personas distintas), a diferencia del
+ * proxy `ordenesActivas` de PeladoLiveResponse.
+ */
+export interface PeladoPersonalRow extends DataRow {
+  empleados: number;
+  libras: number;
+  valor: number;
+}
+
+/** Personal y pago de pelado, agrupado por período (día o mes) */
+export interface PeladoPersonalPeriodRow extends DataRow {
+  periodo: string; // "YYYY-MM-DD" diario, "YYYY-MM" mensual
+  empleados: number;
+  libras: number;
+  valor: number;
 }
 
 /* ------------------------------------------------------------------ */

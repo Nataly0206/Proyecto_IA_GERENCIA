@@ -1,5 +1,6 @@
 import sql from 'mssql';
 import { runQuery } from './sql.service';
+import { runStbQuery } from './stb.service';
 import {
   IQF_DAILY_RATE_QUERY,
   IQF_LIVE_LINES_QUERY,
@@ -12,6 +13,7 @@ import {
   PELADO_LIVE_QUERY,
   PELADO_LIVE_STYLES_QUERY,
 } from './reports.queries';
+import { PELADO_PERSONAL_DAILY_QUERY } from './stb.queries';
 import { matchesTurno, pickNumber, pickString } from '../utils/rows';
 import {
   DashboardFilters,
@@ -20,6 +22,8 @@ import {
   NetProcessPeriodRow,
   NetProcessRow,
   PeladoLiveResponse,
+  PeladoPersonalPeriodRow,
+  PeladoPersonalRow,
   PeladoStylePeriodRow,
   PeladoStyleRow,
 } from '../types/dashboard.types';
@@ -416,4 +420,103 @@ export async function getPeladoTiempoReal(): Promise<PeladoLiveResponse> {
   const ordenesActivas = pickNumber(ordenesRows[0] ?? {}, 'OrdenesActivas');
 
   return { dia, actualizado: new Date().toISOString(), estilos, ordenesActivas };
+}
+
+/* ------------------------------------------------------------------ */
+/* Personal de pelado: headcount y pago reales (fuente STB_data,       */
+/* vista V_PagosxPeladoIndividualPBI) — distinto de ordenesActivas,    */
+/* que es un proxy de actividad sobre PlantaEmpacadora.                */
+/* ------------------------------------------------------------------ */
+
+interface PeladoPersonalGroup {
+  dia: string;
+  turno: string;
+  idEmpleado: number;
+  libras: number;
+  valor: number;
+}
+
+async function fetchPeladoPersonalGroups(
+  fechaInicial: string,
+  fechaFinal: string,
+): Promise<PeladoPersonalGroup[]> {
+  const rows = await runStbQuery(
+    PELADO_PERSONAL_DAILY_QUERY,
+    dateParams(fechaInicial, fechaFinal),
+  );
+  return rows
+    .map((row) => ({
+      dia: pickString(row, 'Dia'),
+      turno: pickString(row, 'Turno'),
+      idEmpleado: pickNumber(row, 'IdEmpleado'),
+      libras: pickNumber(row, 'Libras'),
+      valor: pickNumber(row, 'Valor'),
+    }))
+    .filter((g) => g.dia !== '' && g.idEmpleado > 0);
+}
+
+function aggregatePeladoPersonalByPeriod(
+  groups: PeladoPersonalGroup[],
+  turno: string | undefined,
+  periodOf: (dia: string) => string,
+): PeladoPersonalPeriodRow[] {
+  const map = new Map<
+    string,
+    { periodo: string; libras: number; valor: number; empleados: Set<number> }
+  >();
+  for (const g of groups) {
+    if (turno && !matchesTurno(g.turno, turno)) continue;
+    const periodo = periodOf(g.dia);
+    const acc = map.get(periodo) ?? { periodo, libras: 0, valor: 0, empleados: new Set<number>() };
+    acc.libras += g.libras;
+    acc.valor += g.valor;
+    acc.empleados.add(g.idEmpleado);
+    map.set(periodo, acc);
+  }
+  return Array.from(map.values())
+    .map((c) => ({
+      periodo: c.periodo,
+      empleados: c.empleados.size,
+      libras: round2(c.libras),
+      valor: round2(c.valor),
+    }))
+    .sort((a, b) => a.periodo.localeCompare(b.periodo));
+}
+
+/**
+ * Headcount, libras y pago de pelado, totalizados sobre el rango de fechas
+ * filtrado. Devuelve un arreglo de 0 o 1 filas (igual convención `DataRow[]`
+ * que el resto de los endpoints de reporte) en vez de un objeto suelto.
+ */
+export async function getPeladoPersonal(filters: DashboardFilters): Promise<PeladoPersonalRow[]> {
+  const groups = await fetchPeladoPersonalGroups(filters.fechaInicial, filters.fechaFinal);
+  const filtered = groups.filter((g) => !filters.turno || matchesTurno(g.turno, filters.turno));
+  if (filtered.length === 0) return [];
+  const empleados = new Set(filtered.map((g) => g.idEmpleado));
+  const libras = filtered.reduce((acc, g) => acc + g.libras, 0);
+  const valor = filtered.reduce((acc, g) => acc + g.valor, 0);
+  return [{ empleados: empleados.size, libras: round2(libras), valor: round2(valor) }];
+}
+
+/** Headcount, libras y pago de pelado, por día, dentro del rango de fechas filtrado. */
+export async function getPeladoPersonalDia(
+  filters: DashboardFilters,
+): Promise<PeladoPersonalPeriodRow[]> {
+  const groups = await fetchPeladoPersonalGroups(filters.fechaInicial, filters.fechaFinal);
+  return aggregatePeladoPersonalByPeriod(groups, filters.turno, (dia) => dia);
+}
+
+/**
+ * Headcount, libras y pago de pelado, por mes. Usa una ventana de meses
+ * calendario que termina hoy (independiente del filtro de fechas), igual
+ * que el resto de los reportes mensuales del dashboard.
+ */
+export async function getPeladoPersonalMes(
+  filters: DashboardFilters,
+  meses: number,
+): Promise<PeladoPersonalPeriodRow[]> {
+  const hoy = new Date();
+  const inicio = new Date(hoy.getFullYear(), hoy.getMonth() - (meses - 1), 1);
+  const groups = await fetchPeladoPersonalGroups(formatDate(inicio), formatDate(hoy));
+  return aggregatePeladoPersonalByPeriod(groups, filters.turno, (dia) => dia.slice(0, 7));
 }

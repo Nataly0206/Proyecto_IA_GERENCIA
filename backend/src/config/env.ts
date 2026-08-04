@@ -44,6 +44,22 @@ export const env = {
     (process.env.AUTH_DB_TRUST_SERVER_CERTIFICATE
       ?? process.env.DB_TRUST_SERVER_CERTIFICATE
       ?? 'true') === 'true',
+  STB_DB_SERVER: process.env.STB_DB_SERVER ?? process.env.DB_SERVER ?? 'localhost',
+  STB_DB_PORT: numberFromEnv(
+    'STB_DB_PORT',
+    numberFromEnv('DB_PORT', 1433, 1, 65535),
+    1,
+    65535,
+  ),
+  STB_DB_DATABASE: process.env.STB_DB_DATABASE ?? 'STB_data',
+  STB_DB_USER: process.env.STB_DB_USER ?? process.env.DB_USER ?? '',
+  STB_DB_PASSWORD: process.env.STB_DB_PASSWORD ?? process.env.DB_PASSWORD ?? '',
+  STB_DB_ENCRYPT:
+    (process.env.STB_DB_ENCRYPT ?? process.env.DB_ENCRYPT ?? 'false') === 'true',
+  STB_DB_TRUST_SERVER_CERTIFICATE:
+    (process.env.STB_DB_TRUST_SERVER_CERTIFICATE
+      ?? process.env.DB_TRUST_SERVER_CERTIFICATE
+      ?? 'true') === 'true',
   ADMIN_USER: process.env.ADMIN_USER ?? 'admin',
   ADMIN_NAME: process.env.ADMIN_NAME ?? 'Administrador',
   ADMIN_EMAIL: process.env.ADMIN_EMAIL ?? process.env.MAIL_FROM_ADDRESS ?? 'admin@localhost',

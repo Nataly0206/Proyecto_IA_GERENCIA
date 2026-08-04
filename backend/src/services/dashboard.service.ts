@@ -7,13 +7,15 @@ import {
   IQF_LIVE_QUERY,
   NET_FROZEN_BY_PROCESS_DAILY_QUERY,
   NET_FROZEN_BY_PROCESS_QUERY,
-  PELADO_BY_STYLE_DAILY_QUERY,
-  PELADO_BY_STYLE_QUERY,
   PELADO_LIVE_ORDENES_ACTIVAS_QUERY,
   PELADO_LIVE_QUERY,
   PELADO_LIVE_STYLES_QUERY,
 } from './reports.queries';
-import { PELADO_PERSONAL_DAILY_QUERY } from './stb.queries';
+import {
+  PELADO_BY_DIMENSION_DAILY_QUERY,
+  PELADO_BY_DIMENSION_QUERY,
+  PELADO_PERSONAL_DAILY_QUERY,
+} from './stb.queries';
 import { matchesTurno, pickNumber, pickString } from '../utils/rows';
 import {
   DashboardFilters,
@@ -26,6 +28,8 @@ import {
   PeladoPersonalRow,
   PeladoStylePeriodRow,
   PeladoStyleRow,
+  PeladoTallaPeriodRow,
+  PeladoTallaRow,
 } from '../types/dashboard.types';
 
 function dateParams(fechaInicial: string, fechaFinal: string) {
@@ -282,78 +286,120 @@ export async function getIqfTiempoReal(): Promise<IqfLiveResponse> {
 }
 
 /* ------------------------------------------------------------------ */
-/* Reporte de pelado: libras por estilo (mismo patrón que "libras       */
-/* netas por proceso", acotado a los tipos de proceso pelado)          */
+/* Reporte de pelado: libras por Estilo o por Talla (fuente STB_data,   */
+/* vista V_PagosxPeladoIndividualPBI — datos reales de asignación de   */
+/* libras, no producción). Un mismo fetch trae ambas dimensiones; cada  */
+/* endpoint agrega por la que le corresponde, sumando la otra.          */
 /* ------------------------------------------------------------------ */
 
-export async function getPeladoPorEstilo(
-  filters: DashboardFilters,
-): Promise<PeladoStyleRow[]> {
-  const rows = await runQuery(
-    PELADO_BY_STYLE_QUERY,
-    dateParams(filters.fechaInicial, filters.fechaFinal),
-  );
+interface PeladoDimensionGroup {
+  turno: string;
+  estilo: string;
+  talla: string;
+  libras: number;
+}
 
-  const porEstilo = new Map<string, number>();
-  for (const row of rows) {
-    const estilo = pickString(row, 'Estilo');
-    if (estilo === '') continue;
-    if (filters.turno && !matchesTurno(pickString(row, 'Turno'), filters.turno)) continue;
-    porEstilo.set(estilo, (porEstilo.get(estilo) ?? 0) + pickNumber(row, 'Libras'));
+async function fetchPeladoDimensionGroups(
+  fechaInicial: string,
+  fechaFinal: string,
+): Promise<PeladoDimensionGroup[]> {
+  const rows = await runStbQuery(PELADO_BY_DIMENSION_QUERY, dateParams(fechaInicial, fechaFinal));
+  return rows.map((row) => ({
+    turno: pickString(row, 'Turno'),
+    estilo: pickString(row, 'Estilo'),
+    talla: pickString(row, 'Talla'),
+    libras: pickNumber(row, 'Libras'),
+  }));
+}
+
+function aggregateDimensionTotal(
+  groups: PeladoDimensionGroup[],
+  turno: string | undefined,
+  field: 'estilo' | 'talla',
+): { valor: string; libras: number; porcentaje: number }[] {
+  const porValor = new Map<string, number>();
+  for (const g of groups) {
+    if (turno && !matchesTurno(g.turno, turno)) continue;
+    const valor = g[field];
+    if (valor === '') continue;
+    porValor.set(valor, (porValor.get(valor) ?? 0) + g.libras);
   }
-
-  const total = Array.from(porEstilo.values()).reduce((acc, v) => acc + v, 0);
-  return Array.from(porEstilo.entries())
-    .map(([estilo, libras]) => ({
-      estilo,
+  const total = Array.from(porValor.values()).reduce((acc, v) => acc + v, 0);
+  return Array.from(porValor.entries())
+    .map(([valor, libras]) => ({
+      valor,
       libras: round2(libras),
       porcentaje: total > 0 ? round2((libras / total) * 100) : 0,
     }))
     .sort((a, b) => b.libras - a.libras);
 }
 
-async function fetchPeladoGroups(
+/** Libras peladas por estilo, totalizadas sobre el rango de fechas filtrado. */
+export async function getPeladoPorEstilo(filters: DashboardFilters): Promise<PeladoStyleRow[]> {
+  const groups = await fetchPeladoDimensionGroups(filters.fechaInicial, filters.fechaFinal);
+  return aggregateDimensionTotal(groups, filters.turno, 'estilo')
+    .map(({ valor, libras, porcentaje }) => ({ estilo: valor, libras, porcentaje }));
+}
+
+/** Libras peladas por talla, totalizadas sobre el rango de fechas filtrado. */
+export async function getPeladoPorTalla(filters: DashboardFilters): Promise<PeladoTallaRow[]> {
+  const groups = await fetchPeladoDimensionGroups(filters.fechaInicial, filters.fechaFinal);
+  return aggregateDimensionTotal(groups, filters.turno, 'talla')
+    .map(({ valor, libras, porcentaje }) => ({ talla: valor, libras, porcentaje }));
+}
+
+interface PeladoDimensionDailyGroup extends PeladoDimensionGroup {
+  dia: string;
+}
+
+async function fetchPeladoDimensionDailyGroups(
   fechaInicial: string,
   fechaFinal: string,
-  turno?: string,
-): Promise<{ dia: string; estilo: string; libras: number }[]> {
-  const rows = await runQuery(
-    PELADO_BY_STYLE_DAILY_QUERY,
+): Promise<PeladoDimensionDailyGroup[]> {
+  const rows = await runStbQuery(
+    PELADO_BY_DIMENSION_DAILY_QUERY,
     dateParams(fechaInicial, fechaFinal),
   );
   return rows
-    .filter((row) => !turno || matchesTurno(pickString(row, 'Turno'), turno))
     .map((row) => ({
       dia: pickString(row, 'Dia'),
+      turno: pickString(row, 'Turno'),
       estilo: pickString(row, 'Estilo'),
+      talla: pickString(row, 'Talla'),
       libras: pickNumber(row, 'Libras'),
     }))
-    .filter((g) => g.dia !== '' && g.estilo !== '');
+    .filter((g) => g.dia !== '');
 }
 
-function aggregatePeladoByPeriod(
-  groups: { dia: string; estilo: string; libras: number }[],
+function aggregateDimensionByPeriod(
+  groups: PeladoDimensionDailyGroup[],
+  turno: string | undefined,
+  field: 'estilo' | 'talla',
   periodOf: (dia: string) => string,
-): PeladoStylePeriodRow[] {
-  const map = new Map<string, { periodo: string; estilo: string; libras: number }>();
+): { periodo: string; valor: string; libras: number }[] {
+  const map = new Map<string, { periodo: string; valor: string; libras: number }>();
   for (const g of groups) {
+    if (turno && !matchesTurno(g.turno, turno)) continue;
+    const valor = g[field];
+    if (valor === '') continue;
     const periodo = periodOf(g.dia);
-    const key = `${periodo}|${g.estilo}`;
-    const acc = map.get(key) ?? { periodo, estilo: g.estilo, libras: 0 };
+    const key = `${periodo}|${valor}`;
+    const acc = map.get(key) ?? { periodo, valor, libras: 0 };
     acc.libras += g.libras;
     map.set(key, acc);
   }
   return Array.from(map.values())
-    .map((c) => ({ periodo: c.periodo, estilo: c.estilo, libras: round2(c.libras) }))
-    .sort((a, b) => a.periodo.localeCompare(b.periodo) || a.estilo.localeCompare(b.estilo));
+    .map((c) => ({ periodo: c.periodo, valor: c.valor, libras: round2(c.libras) }))
+    .sort((a, b) => a.periodo.localeCompare(b.periodo) || a.valor.localeCompare(b.valor));
 }
 
 /** Libras peladas por estilo, por día, dentro del rango de fechas filtrado. */
 export async function getPeladoPorEstiloDia(
   filters: DashboardFilters,
 ): Promise<PeladoStylePeriodRow[]> {
-  const groups = await fetchPeladoGroups(filters.fechaInicial, filters.fechaFinal, filters.turno);
-  return aggregatePeladoByPeriod(groups, (dia) => dia);
+  const groups = await fetchPeladoDimensionDailyGroups(filters.fechaInicial, filters.fechaFinal);
+  return aggregateDimensionByPeriod(groups, filters.turno, 'estilo', (dia) => dia)
+    .map(({ periodo, valor, libras }) => ({ periodo, estilo: valor, libras }));
 }
 
 /**
@@ -367,8 +413,30 @@ export async function getPeladoPorEstiloMes(
 ): Promise<PeladoStylePeriodRow[]> {
   const hoy = new Date();
   const inicio = new Date(hoy.getFullYear(), hoy.getMonth() - (meses - 1), 1);
-  const groups = await fetchPeladoGroups(formatDate(inicio), formatDate(hoy), filters.turno);
-  return aggregatePeladoByPeriod(groups, (dia) => dia.slice(0, 7));
+  const groups = await fetchPeladoDimensionDailyGroups(formatDate(inicio), formatDate(hoy));
+  return aggregateDimensionByPeriod(groups, filters.turno, 'estilo', (dia) => dia.slice(0, 7))
+    .map(({ periodo, valor, libras }) => ({ periodo, estilo: valor, libras }));
+}
+
+/** Libras peladas por talla, por día, dentro del rango de fechas filtrado. */
+export async function getPeladoPorTallaDia(
+  filters: DashboardFilters,
+): Promise<PeladoTallaPeriodRow[]> {
+  const groups = await fetchPeladoDimensionDailyGroups(filters.fechaInicial, filters.fechaFinal);
+  return aggregateDimensionByPeriod(groups, filters.turno, 'talla', (dia) => dia)
+    .map(({ periodo, valor, libras }) => ({ periodo, talla: valor, libras }));
+}
+
+/** Libras peladas por talla, por mes (misma ventana que getPeladoPorEstiloMes). */
+export async function getPeladoPorTallaMes(
+  filters: DashboardFilters,
+  meses: number,
+): Promise<PeladoTallaPeriodRow[]> {
+  const hoy = new Date();
+  const inicio = new Date(hoy.getFullYear(), hoy.getMonth() - (meses - 1), 1);
+  const groups = await fetchPeladoDimensionDailyGroups(formatDate(inicio), formatDate(hoy));
+  return aggregateDimensionByPeriod(groups, filters.turno, 'talla', (dia) => dia.slice(0, 7))
+    .map(({ periodo, valor, libras }) => ({ periodo, talla: valor, libras }));
 }
 
 /* ------------------------------------------------------------------ */

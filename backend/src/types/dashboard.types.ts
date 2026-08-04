@@ -75,6 +75,20 @@ export interface PeladoStylePeriodRow {
   libras: number;
 }
 
+export interface PeladoTallaRow {
+  talla: string;
+  libras: number;
+  porcentaje: number;
+}
+
+/** Celda del reporte de libras peladas por talla, agrupada por período (día o mes). */
+export interface PeladoTallaPeriodRow {
+  /** "YYYY-MM-DD" para diario, "YYYY-MM" para mensual */
+  periodo: string;
+  talla: string;
+  libras: number;
+}
+
 /** Contador en vivo de un estilo pelado (día de producción en curso) */
 export interface PeladoLiveStyle {
   estilo: string;

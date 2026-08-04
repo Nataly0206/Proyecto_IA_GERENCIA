@@ -108,44 +108,6 @@ ORDER BY Linea;
 const PELADO_TIPOS_PROCESO = `'IQF PEELED', 'IQF COOK PEELED', 'PD BLOCK', 'FRESH PEELED'`;
 
 /**
- * Libras peladas por estilo final, para un rango de fechas. Misma fuente
- * y filtros base que `NET_FROZEN_BY_PROCESS_QUERY` (libras netas),
- * acotado a los tipos de proceso pelado.
- */
-export const PELADO_BY_STYLE_QUERY = `
-SELECT
-  a.EstiloFinal AS Estilo,
-  a.Turno,
-  SUM(a.PesoLibras) AS Libras
-FROM dbo.AV_Produccion_Diaria_Resumen a
-WHERE CAST(a.DiaProduccion2024 AS DATE) BETWEEN @Fecha_Inicial AND @Fecha_Final
-  AND a.VaEjecutivo = 1
-  AND a.ProcesadaPlanta = 1
-  AND a.fkTipo NOT IN (2, 4)
-  AND a.NombreTipoProceso IN (${PELADO_TIPOS_PROCESO})
-GROUP BY a.EstiloFinal, a.Turno
-`;
-
-/**
- * Misma definición que PELADO_BY_STYLE_QUERY, con el día de producción
- * incluido para agrupar por día o por mes (vista "Día" / "Mensual").
- */
-export const PELADO_BY_STYLE_DAILY_QUERY = `
-SELECT
-  a.EstiloFinal AS Estilo,
-  a.Turno,
-  CAST(a.DiaProduccion2024 AS DATE) AS Dia,
-  SUM(a.PesoLibras) AS Libras
-FROM dbo.AV_Produccion_Diaria_Resumen a
-WHERE CAST(a.DiaProduccion2024 AS DATE) BETWEEN @Fecha_Inicial AND @Fecha_Final
-  AND a.VaEjecutivo = 1
-  AND a.ProcesadaPlanta = 1
-  AND a.fkTipo NOT IN (2, 4)
-  AND a.NombreTipoProceso IN (${PELADO_TIPOS_PROCESO})
-GROUP BY a.EstiloFinal, a.Turno, CAST(a.DiaProduccion2024 AS DATE)
-`;
-
-/**
  * Libras peladas por estilo para el día en curso. Misma lógica y fuente
  * (torre/`FechaHoraTorre`) que `IQF_LIVE_QUERY`, agrupada por
  * `EstiloFinal` en vez de por línea IQF.

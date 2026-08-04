@@ -54,6 +54,9 @@ export type DashboardEndpoint =
   | 'pelado-por-estilo'
   | 'pelado-por-estilo-dia'
   | 'pelado-por-estilo-mes'
+  | 'pelado-por-talla'
+  | 'pelado-por-talla-dia'
+  | 'pelado-por-talla-mes'
   | 'pelado-personal'
   | 'pelado-personal-dia'
   | 'pelado-personal-mes';
@@ -91,31 +94,23 @@ export interface PeladoStylePeriodRow extends DataRow {
   libras: number;
 }
 
-/** Contador en vivo de un estilo pelado (día de producción en curso) */
-export interface PeladoLiveStyle {
-  estilo: string;
+/** Libras peladas por talla (fuente: STB_data) */
+export interface PeladoTallaRow extends DataRow {
+  talla: string;
   libras: number;
-  ultimaCaja: string;
-  minutosDesdeUltima: number;
-  activo: boolean;
+  porcentaje: number;
 }
 
-export interface PeladoLiveResponse {
-  dia: string; // YYYY-MM-DD del día de producción mostrado
-  actualizado: string; // ISO timestamp de la lectura
-  estilos: PeladoLiveStyle[];
-  /**
-   * Órdenes de producción con lectura en los últimos 15 minutos, como
-   * aproximación indirecta de actividad (no hay conteo real de personal
-   * en planta disponible en la base de datos).
-   */
-  ordenesActivas: number;
+/** Libras peladas por talla, agrupadas por período (día o mes) */
+export interface PeladoTallaPeriodRow extends DataRow {
+  periodo: string; // "YYYY-MM-DD" diario, "YYYY-MM" mensual
+  talla: string;
+  libras: number;
 }
 
 /**
  * Personal y pago real de pelado (fuente: STB_data.dbo.V_PagosxPeladoIndividualPBI).
- * `empleados` = headcount real (personas distintas), a diferencia del
- * proxy `ordenesActivas` de PeladoLiveResponse.
+ * `empleados` = headcount real (personas distintas).
  */
 export interface PeladoPersonalRow extends DataRow {
   empleados: number;

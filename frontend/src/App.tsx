@@ -18,10 +18,36 @@ const PERMISO_POR_VISTA: Record<DashboardView, Permiso> = {
   users: 'usuarios',
 };
 
+const VIEW_STORAGE_KEY = 'dashboard-current-view';
+
+function readStoredView(): DashboardView | null {
+  try {
+    const value = localStorage.getItem(VIEW_STORAGE_KEY);
+    return value === 'dashboard' || value === 'pelado' || value === 'users' ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function persistView(view: DashboardView | null): void {
+  try {
+    if (view) localStorage.setItem(VIEW_STORAGE_KEY, view);
+  } catch {
+    // localStorage puede no estar disponible (modo privado, cuota llena); no es crítico.
+  }
+}
+
 /** Primera vista a la que el usuario tiene acceso, en orden de prioridad. */
 function defaultView(user: AuthUser): DashboardView | null {
   return (Object.keys(PERMISO_POR_VISTA) as DashboardView[])
     .find((view) => tienePermiso(user, PERMISO_POR_VISTA[view])) ?? null;
+}
+
+/** Vista guardada de la sesión anterior si el usuario todavía tiene acceso; si no, la primera disponible. */
+function resolveView(user: AuthUser): DashboardView | null {
+  const stored = readStoredView();
+  if (stored && tienePermiso(user, PERMISO_POR_VISTA[stored])) return stored;
+  return defaultView(user);
 }
 
 function SinAcceso() {
@@ -47,7 +73,7 @@ export default function App() {
         const user = data.user ? normalizeAuthUser(data.user) : null;
         setAuthenticated(data.authenticated);
         setUser(user);
-        if (user) setCurrentView(defaultView(user));
+        if (user) setCurrentView(resolveView(user));
       })
       .catch(() => setAuthenticated(false));
   }, []);
@@ -68,7 +94,7 @@ export default function App() {
     const normalized = normalizeAuthUser(loggedUser);
     setUser(normalized);
     setAuthenticated(true);
-    setCurrentView(defaultView(normalized));
+    setCurrentView(resolveView(normalized));
   }} />;
   if (user.debeCambiarPassword) {
     return <ChangePasswordPage onLogout={logout} onChanged={() => setUser({ ...user, debeCambiarPassword: false })} />;
@@ -82,7 +108,10 @@ export default function App() {
         onLogout={logout}
         user={user}
         currentView={view}
-        onViewChange={setCurrentView}
+        onViewChange={(next) => {
+          setCurrentView(next);
+          persistView(next);
+        }}
       >
         {view === 'users' ? (
           <UsersPage />

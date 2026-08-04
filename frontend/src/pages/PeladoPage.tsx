@@ -6,7 +6,6 @@ import TuneOutlinedIcon from '@mui/icons-material/TuneOutlined';
 import ChartWidget from '../components/charts/ChartWidget';
 import PeladoStyleWidget from '../components/charts/PeladoStyleWidget';
 import PeladoPersonalWidget from '../components/charts/PeladoPersonalWidget';
-import PeladoLiveCounters from '../components/live/PeladoLiveCounters';
 import { peladoWidgets } from '../config/dashboardConfig';
 import GlobalFilters from '../components/filters/GlobalFilters';
 
@@ -22,14 +21,12 @@ export default function PeladoPage() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const filtersRef = useRef<HTMLDivElement>(null);
-  const topRef = useRef<HTMLDivElement>(null);
   const styleRef = useRef<HTMLDivElement>(null);
   const [heights, setHeights] = useState({ estilo: 320, tendencia: 240 });
   const [filtersOpen, setFiltersOpen] = useState(true);
 
   useEffect(() => {
     const calc = () => {
-      const topH = topRef.current?.offsetHeight ?? 0;
       const filtersH = filtersRef.current?.offsetHeight ?? 0;
       const styleH = styleRef.current?.offsetHeight ?? 0;
       const availableForTendencia =
@@ -37,7 +34,6 @@ export default function PeladoPage() {
         APP_BAR -
         CONTAINER_PY -
         filtersH -
-        topH -
         STACK_GAPS -
         styleH -
         GRID_ROW_GAP;
@@ -50,7 +46,6 @@ export default function PeladoPage() {
     window.addEventListener('resize', calc);
     const ro = new ResizeObserver(calc);
     if (filtersRef.current) ro.observe(filtersRef.current);
-    if (topRef.current) ro.observe(topRef.current);
     if (styleRef.current) ro.observe(styleRef.current);
     return () => {
       window.removeEventListener('resize', calc);
@@ -120,10 +115,6 @@ export default function PeladoPage() {
           </Box>
         </Collapse>
       </Paper>
-
-      <div ref={topRef}>
-        <PeladoLiveCounters />
-      </div>
 
       <Box
         sx={{

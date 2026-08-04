@@ -25,17 +25,21 @@ import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
 import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
 import PeopleOutlineIcon from '@mui/icons-material/PeopleOutline';
 import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined';
+import ContentCutOutlinedIcon from '@mui/icons-material/ContentCutOutlined';
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
 import { AuthUser } from '../../types/auth';
 import AiAssistantPanel from '../ai/AiAssistantPanel';
 import { useRefreshDashboard } from '../../hooks/useDashboardData';
+import { tienePermiso } from '../../config/permissions';
+
+export type DashboardView = 'dashboard' | 'pelado' | 'users';
 
 interface DashboardLayoutProps {
   children: ReactNode;
   onLogout: () => void;
   user: AuthUser;
-  currentView: 'dashboard' | 'users';
-  onViewChange: (view: 'dashboard' | 'users') => void;
+  currentView: DashboardView | null;
+  onViewChange: (view: DashboardView) => void;
 }
 
 const SIDEBAR_OPEN = 196;
@@ -70,7 +74,7 @@ export default function DashboardLayout({
     }
   };
 
-  const navigate = (view: 'dashboard' | 'users') => {
+  const navigate = (view: DashboardView) => {
     onViewChange(view);
     setMobileMenuOpen(false);
   };
@@ -87,19 +91,35 @@ export default function DashboardLayout({
         </Typography>
       </Box>
       <List sx={{ px: 1, pt: 0 }}>
-        <Tooltip title={expanded ? '' : 'Dashboard'} placement="right">
-          <ListItemButton
-            selected={currentView === 'dashboard'}
-            onClick={() => navigate('dashboard')}
-            sx={{ minHeight: 42, px: 1.25, borderRadius: 1, mb: 0.5 }}
-          >
-            <ListItemIcon sx={{ minWidth: expanded ? 36 : 0, justifyContent: 'center' }}>
-              <DashboardOutlinedIcon fontSize="small" />
-            </ListItemIcon>
-            {expanded && <ListItemText primary="Dashboard" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
-          </ListItemButton>
-        </Tooltip>
-        {user.esAdministrador && (
+        {tienePermiso(user, 'iqf') && (
+          <Tooltip title={expanded ? '' : 'IQF'} placement="right">
+            <ListItemButton
+              selected={currentView === 'dashboard'}
+              onClick={() => navigate('dashboard')}
+              sx={{ minHeight: 42, px: 1.25, borderRadius: 1, mb: 0.5 }}
+            >
+              <ListItemIcon sx={{ minWidth: expanded ? 36 : 0, justifyContent: 'center' }}>
+                <DashboardOutlinedIcon fontSize="small" />
+              </ListItemIcon>
+              {expanded && <ListItemText primary="IQF" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
+            </ListItemButton>
+          </Tooltip>
+        )}
+        {tienePermiso(user, 'pelado') && (
+          <Tooltip title={expanded ? '' : 'Pelado'} placement="right">
+            <ListItemButton
+              selected={currentView === 'pelado'}
+              onClick={() => navigate('pelado')}
+              sx={{ minHeight: 42, px: 1.25, borderRadius: 1, mb: 0.5 }}
+            >
+              <ListItemIcon sx={{ minWidth: expanded ? 36 : 0, justifyContent: 'center' }}>
+                <ContentCutOutlinedIcon fontSize="small" />
+              </ListItemIcon>
+              {expanded && <ListItemText primary="Pelado" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
+            </ListItemButton>
+          </Tooltip>
+        )}
+        {tienePermiso(user, 'usuarios') && (
           <Tooltip title={expanded ? '' : 'Usuarios'} placement="right">
             <ListItemButton
               selected={currentView === 'users'}
@@ -173,16 +193,18 @@ export default function DashboardLayout({
               {isRefreshing ? 'Actualizando…' : 'Actualizar'}
             </Button>
           )}
-          <Button
-            size="small"
-            variant="contained"
-            startIcon={<SmartToyOutlinedIcon />}
-            onClick={() => setAiPanelOpen(true)}
-            sx={{ boxShadow: 'none' }}
-          >
-            <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Asistente IA</Box>
-            <Box component="span" sx={{ display: { xs: 'inline', sm: 'none' } }}>IA</Box>
-          </Button>
+          {tienePermiso(user, 'asistente_ia') && (
+            <Button
+              size="small"
+              variant="contained"
+              startIcon={<SmartToyOutlinedIcon />}
+              onClick={() => setAiPanelOpen(true)}
+              sx={{ boxShadow: 'none' }}
+            >
+              <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Asistente IA</Box>
+              <Box component="span" sx={{ display: { xs: 'inline', sm: 'none' } }}>IA</Box>
+            </Button>
+          )}
         </Toolbar>
       </AppBar>
 

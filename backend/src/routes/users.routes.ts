@@ -1,16 +1,22 @@
 import { Router } from 'express';
 import sql from 'mssql';
-import { adminAuth, changedPasswordAuth, sessionAuth } from '../middleware/sessionAuth';
+import { changedPasswordAuth, requirePermission, sessionAuth } from '../middleware/sessionAuth';
 import {
   createUser,
   deleteUser,
   generateTemporaryPassword,
+  getUserById,
   listUsers,
+  setActivo,
+  updatePermisos,
 } from '../services/auth.service';
 import { sendTemporaryPassword } from '../services/mail.service';
+import { Permiso, esPermisoValido } from '../types/permissions';
+
+const GUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
 const router = Router();
-router.use(sessionAuth, changedPasswordAuth, adminAuth);
+router.use(sessionAuth, changedPasswordAuth, requirePermission('usuarios'));
 
 router.get('/', async (_req, res, next) => {
   try {
@@ -38,8 +44,14 @@ router.post('/', async (req, res, next) => {
       res.status(400).json({ error: 'Ingresa un correo electrónico válido.' });
       return;
     }
+    const permisosInput = Array.isArray(req.body?.permisos) ? req.body.permisos : [];
+    if (!permisosInput.every(esPermisoValido)) {
+      res.status(400).json({ error: 'Uno o más permisos no son válidos.' });
+      return;
+    }
+    const permisos = Array.from(new Set(permisosInput)) as Permiso[];
     const temporaryPassword = generateTemporaryPassword();
-    const user = await createUser({ usuario, nombre, correo }, temporaryPassword);
+    const user = await createUser({ usuario, nombre, correo }, temporaryPassword, permisos);
     createdUserId = user.id;
     await sendTemporaryPassword({ usuario: user.usuario, nombre: user.nombre, correo: user.correo }, temporaryPassword);
     res.status(201).json({ message: 'Usuario creado y correo de acceso enviado.', user });
@@ -49,6 +61,71 @@ router.post('/', async (req, res, next) => {
       res.status(409).json({ error: 'El usuario o correo ya está registrado.' });
       return;
     }
+    next(error);
+  }
+});
+
+router.patch('/:id/permisos', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!GUID_REGEX.test(id)) {
+      res.status(400).json({ error: 'Id de usuario inválido.' });
+      return;
+    }
+    const permisosInput = Array.isArray(req.body?.permisos) ? req.body.permisos : [];
+    if (!permisosInput.every(esPermisoValido)) {
+      res.status(400).json({ error: 'Uno o más permisos no son válidos.' });
+      return;
+    }
+    const target = await getUserById(id);
+    if (!target) {
+      res.status(404).json({ error: 'Usuario no encontrado.' });
+      return;
+    }
+    if (target.esAdministrador) {
+      res.status(400).json({ error: 'Los administradores tienen acceso total; sus permisos no se pueden editar.' });
+      return;
+    }
+    const permisos = Array.from(new Set(permisosInput)) as Permiso[];
+    await updatePermisos(id, permisos);
+    res.json({ user: { ...target, permisos } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch('/:id/activo', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!GUID_REGEX.test(id)) {
+      res.status(400).json({ error: 'Id de usuario inválido.' });
+      return;
+    }
+    if (typeof req.body?.activo !== 'boolean') {
+      res.status(400).json({ error: 'El campo activo debe ser verdadero o falso.' });
+      return;
+    }
+    const activo = req.body.activo as boolean;
+    if (!activo && id === res.locals.authUser.id) {
+      res.status(400).json({ error: 'No puedes inactivar tu propio usuario.' });
+      return;
+    }
+    const target = await getUserById(id);
+    if (!target) {
+      res.status(404).json({ error: 'Usuario no encontrado.' });
+      return;
+    }
+    if (target.esAdministrador) {
+      res.status(400).json({ error: 'No se puede inactivar a un administrador.' });
+      return;
+    }
+    const updated = await setActivo(id, activo);
+    if (!updated) {
+      res.status(404).json({ error: 'Usuario no encontrado.' });
+      return;
+    }
+    res.json({ user: { ...target, activo } });
+  } catch (error) {
     next(error);
   }
 });

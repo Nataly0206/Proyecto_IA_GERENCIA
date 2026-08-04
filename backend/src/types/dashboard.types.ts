@@ -60,3 +60,41 @@ export interface IqfRateRow {
   grupos: number;
   librasPorHora: number;
 }
+
+export interface PeladoStyleRow {
+  estilo: string;
+  libras: number;
+  porcentaje: number;
+}
+
+/** Celda del reporte de libras peladas por estilo, agrupada por período (día o mes). */
+export interface PeladoStylePeriodRow {
+  /** "YYYY-MM-DD" para diario, "YYYY-MM" para mensual */
+  periodo: string;
+  estilo: string;
+  libras: number;
+}
+
+/** Contador en vivo de un estilo pelado (día de producción en curso) */
+export interface PeladoLiveStyle {
+  estilo: string;
+  libras: number;
+  ultimaCaja: string;
+  minutosDesdeUltima: number;
+  /** true si registró producción en los últimos 15 minutos */
+  activo: boolean;
+}
+
+export interface PeladoLiveResponse {
+  /** Día de producción mostrado (YYYY-MM-DD) */
+  dia: string;
+  /** Timestamp ISO de esta lectura */
+  actualizado: string;
+  estilos: PeladoLiveStyle[];
+  /**
+   * Órdenes de producción con lectura en los últimos 15 minutos, como
+   * aproximación indirecta de actividad (no hay conteo real de personal
+   * en planta disponible en la base de datos).
+   */
+  ordenesActivas: number;
+}

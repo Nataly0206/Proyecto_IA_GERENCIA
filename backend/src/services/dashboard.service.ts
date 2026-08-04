@@ -6,6 +6,11 @@ import {
   IQF_LIVE_QUERY,
   NET_FROZEN_BY_PROCESS_DAILY_QUERY,
   NET_FROZEN_BY_PROCESS_QUERY,
+  PELADO_BY_STYLE_DAILY_QUERY,
+  PELADO_BY_STYLE_QUERY,
+  PELADO_LIVE_ORDENES_ACTIVAS_QUERY,
+  PELADO_LIVE_QUERY,
+  PELADO_LIVE_STYLES_QUERY,
 } from './reports.queries';
 import { matchesTurno, pickNumber, pickString } from '../utils/rows';
 import {
@@ -14,6 +19,9 @@ import {
   IqfRateRow,
   NetProcessPeriodRow,
   NetProcessRow,
+  PeladoLiveResponse,
+  PeladoStylePeriodRow,
+  PeladoStyleRow,
 } from '../types/dashboard.types';
 
 function dateParams(fechaInicial: string, fechaFinal: string) {
@@ -267,4 +275,145 @@ export async function getIqfTiempoReal(): Promise<IqfLiveResponse> {
     });
 
   return { dia, actualizado: new Date().toISOString(), lineas };
+}
+
+/* ------------------------------------------------------------------ */
+/* Reporte de pelado: libras por estilo (mismo patrón que "libras       */
+/* netas por proceso", acotado a los tipos de proceso pelado)          */
+/* ------------------------------------------------------------------ */
+
+export async function getPeladoPorEstilo(
+  filters: DashboardFilters,
+): Promise<PeladoStyleRow[]> {
+  const rows = await runQuery(
+    PELADO_BY_STYLE_QUERY,
+    dateParams(filters.fechaInicial, filters.fechaFinal),
+  );
+
+  const porEstilo = new Map<string, number>();
+  for (const row of rows) {
+    const estilo = pickString(row, 'Estilo');
+    if (estilo === '') continue;
+    if (filters.turno && !matchesTurno(pickString(row, 'Turno'), filters.turno)) continue;
+    porEstilo.set(estilo, (porEstilo.get(estilo) ?? 0) + pickNumber(row, 'Libras'));
+  }
+
+  const total = Array.from(porEstilo.values()).reduce((acc, v) => acc + v, 0);
+  return Array.from(porEstilo.entries())
+    .map(([estilo, libras]) => ({
+      estilo,
+      libras: round2(libras),
+      porcentaje: total > 0 ? round2((libras / total) * 100) : 0,
+    }))
+    .sort((a, b) => b.libras - a.libras);
+}
+
+async function fetchPeladoGroups(
+  fechaInicial: string,
+  fechaFinal: string,
+  turno?: string,
+): Promise<{ dia: string; estilo: string; libras: number }[]> {
+  const rows = await runQuery(
+    PELADO_BY_STYLE_DAILY_QUERY,
+    dateParams(fechaInicial, fechaFinal),
+  );
+  return rows
+    .filter((row) => !turno || matchesTurno(pickString(row, 'Turno'), turno))
+    .map((row) => ({
+      dia: pickString(row, 'Dia'),
+      estilo: pickString(row, 'Estilo'),
+      libras: pickNumber(row, 'Libras'),
+    }))
+    .filter((g) => g.dia !== '' && g.estilo !== '');
+}
+
+function aggregatePeladoByPeriod(
+  groups: { dia: string; estilo: string; libras: number }[],
+  periodOf: (dia: string) => string,
+): PeladoStylePeriodRow[] {
+  const map = new Map<string, { periodo: string; estilo: string; libras: number }>();
+  for (const g of groups) {
+    const periodo = periodOf(g.dia);
+    const key = `${periodo}|${g.estilo}`;
+    const acc = map.get(key) ?? { periodo, estilo: g.estilo, libras: 0 };
+    acc.libras += g.libras;
+    map.set(key, acc);
+  }
+  return Array.from(map.values())
+    .map((c) => ({ periodo: c.periodo, estilo: c.estilo, libras: round2(c.libras) }))
+    .sort((a, b) => a.periodo.localeCompare(b.periodo) || a.estilo.localeCompare(b.estilo));
+}
+
+/** Libras peladas por estilo, por día, dentro del rango de fechas filtrado. */
+export async function getPeladoPorEstiloDia(
+  filters: DashboardFilters,
+): Promise<PeladoStylePeriodRow[]> {
+  const groups = await fetchPeladoGroups(filters.fechaInicial, filters.fechaFinal, filters.turno);
+  return aggregatePeladoByPeriod(groups, (dia) => dia);
+}
+
+/**
+ * Libras peladas por estilo, por mes. Usa una ventana de meses calendario
+ * que termina hoy (independiente del filtro de fechas), igual que el
+ * resto de los reportes mensuales del dashboard.
+ */
+export async function getPeladoPorEstiloMes(
+  filters: DashboardFilters,
+  meses: number,
+): Promise<PeladoStylePeriodRow[]> {
+  const hoy = new Date();
+  const inicio = new Date(hoy.getFullYear(), hoy.getMonth() - (meses - 1), 1);
+  const groups = await fetchPeladoGroups(formatDate(inicio), formatDate(hoy), filters.turno);
+  return aggregatePeladoByPeriod(groups, (dia) => dia.slice(0, 7));
+}
+
+/* ------------------------------------------------------------------ */
+/* Contadores de pelado en tiempo real (acumulado del día de           */
+/* producción). No hay conteo real de personal en planta en la base    */
+/* de datos (el módulo legado CodigosBin/MovimientosInvProceso está    */
+/* vacío); `ordenesActivas` se usa como aproximación indirecta.        */
+/* ------------------------------------------------------------------ */
+
+export async function getPeladoTiempoReal(): Promise<PeladoLiveResponse> {
+  const [catalogoRows, rows, ordenesRows] = await Promise.all([
+    runQuery(PELADO_LIVE_STYLES_QUERY, []),
+    runQuery(PELADO_LIVE_QUERY, []),
+    runQuery(PELADO_LIVE_ORDENES_ACTIVAS_QUERY, []),
+  ]);
+  const dia = pickString(catalogoRows[0] ?? rows[0] ?? {}, 'Dia') || formatDate(new Date());
+  const conDatos = new Map(
+    rows.map((row) => {
+      const estilo = pickString(row, 'Estilo');
+      const minutosDesdeUltima = pickNumber(row, 'MinutosDesdeUltima');
+      return [
+        estilo,
+        {
+          estilo,
+          libras: round2(pickNumber(row, 'Libras')),
+          ultimaCaja: pickString(row, 'UltimaCaja'),
+          minutosDesdeUltima,
+          activo: minutosDesdeUltima >= 0 && minutosDesdeUltima <= 15,
+        },
+      ] as const;
+    }),
+  );
+  const nombres = new Set(
+    catalogoRows.map((row) => pickString(row, 'Estilo')).filter(Boolean),
+  );
+  for (const estilo of conDatos.keys()) {
+    if (estilo) nombres.add(estilo);
+  }
+  const estilos = Array.from(nombres)
+    .sort()
+    .map((estilo) => conDatos.get(estilo) ?? {
+      estilo,
+      libras: 0,
+      ultimaCaja: '',
+      minutosDesdeUltima: -1,
+      activo: false,
+    });
+
+  const ordenesActivas = pickNumber(ordenesRows[0] ?? {}, 'OrdenesActivas');
+
+  return { dia, actualizado: new Date().toISOString(), estilos, ordenesActivas };
 }

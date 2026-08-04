@@ -61,3 +61,45 @@ export const dashboardWidgets: ChartConfig[] = [
     gridSpan: { xs: 12, md: 6 },
   },
 ];
+
+/**
+ * Definición declarativa del reporte de pelado (libras por estilo).
+ * Mismo patrón que `dashboardWidgets`: objetos ChartConfig serializables
+ * que <DynamicChart /> renderiza sin lógica específica de dominio.
+ */
+export const peladoWidgets: ChartConfig[] = [
+  {
+    id: 'pelado-por-estilo-dia',
+    type: 'table',
+    title: 'Libras Peladas por Estilo — Diario',
+    subtitle: 'Rango de fechas seleccionado',
+    endpoint: 'pelado-por-estilo-dia',
+    xField: 'periodo',
+    xLabel: 'Fecha',
+    yField: 'libras',
+    seriesField: 'estilo',
+    totalAggregation: 'sum',
+    adaptiveDateTicks: true,
+    visibleDatePointsOnly: true,
+    lineCurve: 'straight',
+    altChartType: 'line',
+    valueFormat: 'number',
+    gridSpan: { xs: 12, md: 6 },
+  },
+  {
+    id: 'pelado-por-estilo-mes',
+    type: 'table',
+    title: 'Libras Peladas por Estilo — Mensual',
+    subtitle: 'Últimos 12 meses (independiente del filtro de fechas)',
+    endpoint: 'pelado-por-estilo-mes',
+    xField: 'periodo',
+    xLabel: 'Mes',
+    yField: 'libras',
+    seriesField: 'estilo',
+    totalAggregation: 'sum',
+    altChartType: 'column',
+    trendChartType: 'line',
+    valueFormat: 'number',
+    gridSpan: { xs: 12, md: 6 },
+  },
+];

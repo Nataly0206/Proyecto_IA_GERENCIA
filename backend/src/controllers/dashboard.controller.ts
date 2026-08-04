@@ -127,3 +127,55 @@ export async function getIqfTiempoReal(req: Request, res: Response): Promise<voi
     ),
   );
 }
+
+export async function getPeladoPorEstilo(req: Request, res: Response): Promise<void> {
+  const filters = parseFilters(req);
+  const forceRefresh = req.query.refresh === 'true';
+  res.json(
+    await withTtlCache(
+      JSON.stringify(['pelado-por-estilo', filters]),
+      REPORT_CACHE_MS,
+      () => dashboardService.getPeladoPorEstilo(filters),
+      forceRefresh,
+    ),
+  );
+}
+
+export async function getPeladoPorEstiloDia(req: Request, res: Response): Promise<void> {
+  const filters = parseFilters(req);
+  const forceRefresh = req.query.refresh === 'true';
+  res.json(
+    await withTtlCache(
+      JSON.stringify(['pelado-por-estilo-dia', filters]),
+      REPORT_CACHE_MS,
+      () => dashboardService.getPeladoPorEstiloDia(filters),
+      forceRefresh,
+    ),
+  );
+}
+
+export async function getPeladoPorEstiloMes(req: Request, res: Response): Promise<void> {
+  const filters = parseFilters(req);
+  const meses = Math.min(Math.max(Number(req.query.meses) || 12, 1), 36);
+  const forceRefresh = req.query.refresh === 'true';
+  res.json(
+    await withTtlCache(
+      JSON.stringify(['pelado-por-estilo-mes', filters.turno ?? '', meses]),
+      REPORT_CACHE_MS,
+      () => dashboardService.getPeladoPorEstiloMes(filters, meses),
+      forceRefresh,
+    ),
+  );
+}
+
+export async function getPeladoTiempoReal(req: Request, res: Response): Promise<void> {
+  const forceRefresh = req.query.refresh === 'true';
+  res.json(
+    await withTtlCache(
+      'pelado-tiempo-real:current',
+      LIVE_CACHE_MS,
+      () => dashboardService.getPeladoTiempoReal(),
+      forceRefresh,
+    ),
+  );
+}

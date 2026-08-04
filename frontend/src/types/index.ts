@@ -50,7 +50,10 @@ export type DashboardEndpoint =
   | 'libras-netas-proceso-dia'
   | 'libras-netas-proceso-mes'
   | 'iqf-libras-hora-dia'
-  | 'iqf-libras-hora-mes';
+  | 'iqf-libras-hora-mes'
+  | 'pelado-por-estilo'
+  | 'pelado-por-estilo-dia'
+  | 'pelado-por-estilo-mes';
 
 /** Contador en vivo de una línea IQF (día de producción en curso) */
 export interface IqfLiveLine {
@@ -69,6 +72,41 @@ export interface IqfLiveResponse {
   dia: string; // YYYY-MM-DD del día de producción mostrado
   actualizado: string; // ISO timestamp de la lectura
   lineas: IqfLiveLine[];
+}
+
+/** Libras peladas por estilo (PD, PPV, PPV-FR, PPV-UK, COOK, etc.) */
+export interface PeladoStyleRow extends DataRow {
+  estilo: string;
+  libras: number;
+  porcentaje: number;
+}
+
+/** Libras peladas por estilo, agrupadas por período (día o mes) */
+export interface PeladoStylePeriodRow extends DataRow {
+  periodo: string; // "YYYY-MM-DD" diario, "YYYY-MM" mensual
+  estilo: string;
+  libras: number;
+}
+
+/** Contador en vivo de un estilo pelado (día de producción en curso) */
+export interface PeladoLiveStyle {
+  estilo: string;
+  libras: number;
+  ultimaCaja: string;
+  minutosDesdeUltima: number;
+  activo: boolean;
+}
+
+export interface PeladoLiveResponse {
+  dia: string; // YYYY-MM-DD del día de producción mostrado
+  actualizado: string; // ISO timestamp de la lectura
+  estilos: PeladoLiveStyle[];
+  /**
+   * Órdenes de producción con lectura en los últimos 15 minutos, como
+   * aproximación indirecta de actividad (no hay conteo real de personal
+   * en planta disponible en la base de datos).
+   */
+  ordenesActivas: number;
 }
 
 /* ------------------------------------------------------------------ */

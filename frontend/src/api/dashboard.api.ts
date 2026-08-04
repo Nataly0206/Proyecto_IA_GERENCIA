@@ -6,6 +6,7 @@ import {
   DashboardFilters,
   DataRow,
   IqfLiveResponse,
+  PeladoLiveResponse,
 } from '../types';
 
 function toParams(filters: DashboardFilters): Record<string, string> {
@@ -19,6 +20,13 @@ function toParams(filters: DashboardFilters): Record<string, string> {
 
 export async function fetchIqfLive(refresh = false): Promise<IqfLiveResponse> {
   const { data } = await apiClient.get<IqfLiveResponse>('/dashboard/iqf-tiempo-real', {
+    params: refresh ? { refresh: 'true' } : undefined,
+  });
+  return data;
+}
+
+export async function fetchPeladoLive(refresh = false): Promise<PeladoLiveResponse> {
+  const { data } = await apiClient.get<PeladoLiveResponse>('/dashboard/pelado-tiempo-real', {
     params: refresh ? { refresh: 'true' } : undefined,
   });
   return data;

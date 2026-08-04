@@ -92,6 +92,24 @@ async function migrate(): Promise<void> {
         `);
       console.log(`[migrate] Usuario administrador creado: ${env.ADMIN_USER}`);
     }
+
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT 1 FROM dbo.dashboard_migraciones WHERE version = 2)
+      BEGIN
+        CREATE TABLE dbo.dashboard_usuarios_permisos (
+          usuario_id UNIQUEIDENTIFIER NOT NULL,
+          permiso NVARCHAR(50) NOT NULL,
+          creado_en DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+          CONSTRAINT PK_dashboard_usuarios_permisos PRIMARY KEY (usuario_id, permiso),
+          CONSTRAINT FK_dashboard_usuarios_permisos_usuario
+            FOREIGN KEY (usuario_id) REFERENCES dbo.dashboard_usuarios(id) ON DELETE CASCADE
+        );
+
+        INSERT INTO dbo.dashboard_migraciones (version, nombre)
+        VALUES (2, N'crear permisos por usuario');
+      END;
+    `);
+
     console.log(`[migrate] Base [${databaseName}] lista y actualizada.`);
   } finally {
     await pool.close();

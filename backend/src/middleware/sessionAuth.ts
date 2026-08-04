@@ -6,6 +6,7 @@ import {
   deleteSession,
   findSessionUser,
 } from '../services/auth.service';
+import { Permiso } from '../types/permissions';
 
 const COOKIE_NAME = 'dashboard_session';
 
@@ -37,13 +38,19 @@ export async function sessionAuth(req: Request, res: Response, next: NextFunctio
   }
 }
 
-export function adminAuth(_req: Request, res: Response, next: NextFunction): void {
-  const user = res.locals.authUser as AuthUser | undefined;
-  if (!user?.esAdministrador) {
-    res.status(403).json({ error: 'No tienes permiso para administrar usuarios.' });
-    return;
-  }
-  next();
+/**
+ * Exige un permiso de la vista (o `es_administrador`, que da acceso a
+ * todo). Se usa a nivel de ruta: `requirePermission('pelado')`.
+ */
+export function requirePermission(permiso: Permiso) {
+  return (_req: Request, res: Response, next: NextFunction): void => {
+    const user = res.locals.authUser as AuthUser | undefined;
+    if (!user?.esAdministrador && !user?.permisos.includes(permiso)) {
+      res.status(403).json({ error: 'No tienes permiso para acceder a esta sección.' });
+      return;
+    }
+    next();
+  };
 }
 
 export function changedPasswordAuth(_req: Request, res: Response, next: NextFunction): void {

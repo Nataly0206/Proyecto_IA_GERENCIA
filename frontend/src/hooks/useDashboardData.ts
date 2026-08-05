@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchIqfLive, fetchWidgetData } from '../api/dashboard.api';
+import { fetchIqfLive, fetchPeladoLibrasHoy, fetchWidgetData } from '../api/dashboard.api';
 import { useFilters } from '../context/FiltersContext';
-import { DashboardEndpoint, DataRow, IqfLiveResponse } from '../types';
+import { DashboardEndpoint, DataRow, IqfLiveResponse, PeladoLibrasHoyResponse } from '../types';
 import { getDateFilterError } from '../utils/dateFilters';
 
 /** Todo el dashboard se actualiza automáticamente cada 5 minutos */
@@ -113,6 +113,36 @@ export function useIqfLive() {
   return { ...query, refreshNow };
 }
 
+export function usePeladoLibrasHoy() {
+  const queryClient = useQueryClient();
+  const queryKey = ['dashboard', 'pelado-libras-hoy'] as const;
+  const cacheKey = browserCacheKey(['pelado-libras-hoy', 'current']);
+  const cached = readBrowserCache<PeladoLibrasHoyResponse>(cacheKey, LIVE_REFRESH_INTERVAL_MS);
+
+  const query = useQuery<PeladoLibrasHoyResponse>({
+    queryKey,
+    queryFn: async () => {
+      const data = await fetchPeladoLibrasHoy();
+      writeBrowserCache(cacheKey, data);
+      return data;
+    },
+    initialData: cached?.data,
+    initialDataUpdatedAt: cached?.updatedAt,
+    staleTime: LIVE_REFRESH_INTERVAL_MS,
+    refetchInterval: LIVE_REFRESH_INTERVAL_MS,
+    refetchIntervalInBackground: true,
+  });
+
+  const refreshNow = async (): Promise<PeladoLibrasHoyResponse> => {
+    const data = await fetchPeladoLibrasHoy(true);
+    writeBrowserCache(cacheKey, data);
+    queryClient.setQueryData<PeladoLibrasHoyResponse>(queryKey, data);
+    return data;
+  };
+
+  return { ...query, refreshNow };
+}
+
 /** Fuerza una lectura nueva de todos los widgets visibles y contadores. */
 export function useRefreshDashboard() {
   const { filters } = useFilters();
@@ -126,7 +156,7 @@ export function useRefreshDashboard() {
       queryKey: ['dashboard'],
       type: 'active',
     });
-    const liveEndpoints = new Set(['iqf-tiempo-real']);
+    const liveEndpoints = new Set(['iqf-tiempo-real', 'pelado-libras-hoy']);
     const endpoints = Array.from(
       new Set(
         activeQueries
@@ -140,11 +170,17 @@ export function useRefreshDashboard() {
 
     const liveKey = ['dashboard', 'iqf-tiempo-real'] as const;
     const liveCacheKey = browserCacheKey(['live', 'current']);
+    const peladoLiveKey = ['dashboard', 'pelado-libras-hoy'] as const;
+    const peladoLiveCacheKey = browserCacheKey(['pelado-libras-hoy', 'current']);
 
     await Promise.all([
       fetchIqfLive(true).then((data) => {
         writeBrowserCache(liveCacheKey, data);
         queryClient.setQueryData<IqfLiveResponse>(liveKey, data);
+      }),
+      fetchPeladoLibrasHoy(true).then((data) => {
+        writeBrowserCache(peladoLiveCacheKey, data);
+        queryClient.setQueryData<PeladoLibrasHoyResponse>(peladoLiveKey, data);
       }),
       ...endpoints.map(async (endpoint) => {
         const data = await fetchWidgetData(endpoint, filters, true);

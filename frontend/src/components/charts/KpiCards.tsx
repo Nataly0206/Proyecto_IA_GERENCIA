@@ -125,7 +125,7 @@ export default function KpiCards({ config, data }: KpiCardsProps) {
                 fontWeight: 500,
               }}
             >
-              {isTotal ? 'lbs netas en total' : 'lbs netas'}
+              {isTotal ? `${config.unitLabel ?? 'lbs netas'} en total` : config.unitLabel ?? 'lbs netas'}
             </Typography>
 
             {porcentaje !== null && (

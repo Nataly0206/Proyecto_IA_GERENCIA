@@ -220,6 +220,18 @@ export async function getPeladoTiempoReal(req: Request, res: Response): Promise<
   );
 }
 
+export async function getPeladoLibrasHoy(req: Request, res: Response): Promise<void> {
+  const forceRefresh = req.query.refresh === 'true';
+  res.json(
+    await withTtlCache(
+      'pelado-libras-hoy:current',
+      LIVE_CACHE_MS,
+      () => dashboardService.getPeladoLibrasHoy(),
+      forceRefresh,
+    ),
+  );
+}
+
 export async function getPeladoPersonal(req: Request, res: Response): Promise<void> {
   const filters = parseFilters(req);
   const forceRefresh = req.query.refresh === 'true';

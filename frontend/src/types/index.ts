@@ -126,6 +126,19 @@ export interface PeladoPersonalPeriodRow extends DataRow {
   valor: number;
 }
 
+/** Libras peladas hoy por estilo (fuente: STB_data.dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS) */
+export interface PeladoLibrasHoyEstilo {
+  estilo: string;
+  libras: number;
+}
+
+export interface PeladoLibrasHoyResponse {
+  dia: string; // YYYY-MM-DD, siempre hoy
+  actualizado: string; // ISO timestamp de la lectura
+  estilos: PeladoLibrasHoyEstilo[];
+  total: number;
+}
+
 /* ------------------------------------------------------------------ */
 /* Configuración dinámica de gráficos (contrato para el Agente IA)     */
 /*                                                                     */
@@ -244,6 +257,8 @@ export interface ChartConfig {
   colors?: string[];
   /** Agrega al final una tarjeta con la suma de todos los valores */
   showTotalCard?: boolean;
+  /** Etiqueta de unidad mostrada bajo el valor en type "cards" (default: "lbs netas") */
+  unitLabel?: string;
   /** Alto del gráfico en px */
   height?: number;
   /** Tamaño del widget en la grilla responsive */

@@ -14,6 +14,9 @@ import {
 import {
   PELADO_BY_DIMENSION_DAILY_QUERY,
   PELADO_BY_DIMENSION_QUERY,
+  PELADO_LIBRAS_HOY_ESTILOS_FALLBACK_QUERY,
+  PELADO_LIBRAS_HOY_ESTILOS_QUERY,
+  PELADO_LIBRAS_HOY_QUERY,
   PELADO_PERSONAL_DAILY_QUERY,
 } from './stb.queries';
 import { matchesTurno, pickNumber, pickString } from '../utils/rows';
@@ -23,6 +26,7 @@ import {
   IqfRateRow,
   NetProcessPeriodRow,
   NetProcessRow,
+  PeladoLibrasHoyResponse,
   PeladoLiveResponse,
   PeladoPersonalPeriodRow,
   PeladoPersonalRow,
@@ -488,6 +492,39 @@ export async function getPeladoTiempoReal(): Promise<PeladoLiveResponse> {
   const ordenesActivas = pickNumber(ordenesRows[0] ?? {}, 'OrdenesActivas');
 
   return { dia, actualizado: new Date().toISOString(), estilos, ordenesActivas };
+}
+
+/* ------------------------------------------------------------------ */
+/* Libras peladas hoy por estilo (fuente STB_data,                     */
+/* PES_ASIGNACION_LIBRAS_EMPLEADOS) — siempre día actual, calculado en  */
+/* SQL con GETDATE(), independiente de los filtros globales de fecha.   */
+/* ------------------------------------------------------------------ */
+
+export async function getPeladoLibrasHoy(): Promise<PeladoLibrasHoyResponse> {
+  const [catalogRows, rows] = await Promise.all([
+    runStbQuery(PELADO_LIBRAS_HOY_ESTILOS_QUERY, []),
+    runStbQuery(PELADO_LIBRAS_HOY_QUERY, []),
+  ]);
+  if (catalogRows.length === 0) {
+    catalogRows.push(...(await runStbQuery(PELADO_LIBRAS_HOY_ESTILOS_FALLBACK_QUERY, [])));
+  }
+  const librasPorEstilo = new Map<string, number>();
+  for (const row of rows) {
+    const estilo = pickString(row, 'Estilo') || 'Sin estilo';
+    librasPorEstilo.set(estilo, round2(pickNumber(row, 'Libras')));
+  }
+  const nombres = new Set(
+    catalogRows.map((row) => pickString(row, 'Estilo')).filter(Boolean),
+  );
+  for (const estilo of librasPorEstilo.keys()) nombres.add(estilo);
+
+  const estilos = Array.from(nombres)
+    .sort()
+    .map((estilo) => ({ estilo, libras: librasPorEstilo.get(estilo) ?? 0 }))
+    .sort((a, b) => b.libras - a.libras);
+  const total = round2(estilos.reduce((acc, e) => acc + e.libras, 0));
+
+  return { dia: formatDate(new Date()), actualizado: new Date().toISOString(), estilos, total };
 }
 
 /* ------------------------------------------------------------------ */

@@ -132,3 +132,18 @@ export interface PeladoPersonalPeriodRow {
   libras: number;
   valor: number;
 }
+
+/** Libras peladas hoy por estilo (fuente: STB_data.dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS). */
+export interface PeladoLibrasHoyEstilo {
+  estilo: string;
+  libras: number;
+}
+
+export interface PeladoLibrasHoyResponse {
+  /** Día mostrado (YYYY-MM-DD), siempre hoy */
+  dia: string;
+  /** Timestamp ISO de esta lectura */
+  actualizado: string;
+  estilos: PeladoLibrasHoyEstilo[];
+  total: number;
+}

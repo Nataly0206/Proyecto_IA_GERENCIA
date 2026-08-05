@@ -125,3 +125,28 @@ LEFT JOIN dbo.PES_ESTILOS D
 WHERE D.NOMBRE IS NOT NULL
 ORDER BY D.NOMBRE
 `;
+
+/**
+ * Libras peladas por estilo, totalizadas sobre un rango de fechas.
+ * Fuente: asignación real de libras por empleado
+ * (`PES_ASIGNACION_LIBRAS_EMPLEADOS` + `_DET`), igual que
+ * `PELADO_LIBRAS_HOY_QUERY` — reemplaza la vista `V_PagosxPeladoIndividualPBI`,
+ * que subcuenta libras respecto a las tablas base.
+ * Equivalente a los subtotales por estilo de un `GROUP BY ROLLUP(Estilo, Fecha)`,
+ * sin desglosar por día porque este reporte solo necesita el total del rango.
+ */
+export const PELADO_POR_ESTILO_RANGO_QUERY = `
+SELECT
+  D.NOMBRE AS Estilo,
+  SUM(b.LIBRAS) AS Libras
+FROM dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS a
+INNER JOIN dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS_DET b
+  ON a.ID_ASIGNACION_LIBRAS_EMPLEADO = b.ID_ASIGNACION_LIBRAS_EMPLEADO
+LEFT JOIN dbo.PES_ASIGNACION_RECIPIENTES_LINEAS c
+  ON b.ID_ASIGNACION_RECIPIENTE_LINEA = c.ID_ASIGNACION_RECIPIENTE_LINEA
+LEFT JOIN dbo.PES_ESTILOS D
+  ON c.ID_ESTILO = D.ID_ESTILO
+WHERE a.FECHA BETWEEN @Fecha_Inicial AND @Fecha_Final
+GROUP BY D.NOMBRE
+ORDER BY D.NOMBRE
+`;

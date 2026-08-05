@@ -18,6 +18,7 @@ import {
   PELADO_LIBRAS_HOY_ESTILOS_QUERY,
   PELADO_LIBRAS_HOY_QUERY,
   PELADO_PERSONAL_DAILY_QUERY,
+  PELADO_POR_ESTILO_RANGO_QUERY,
 } from './stb.queries';
 import { matchesTurno, pickNumber, pickString } from '../utils/rows';
 import {
@@ -338,11 +339,29 @@ function aggregateDimensionTotal(
     .sort((a, b) => b.libras - a.libras);
 }
 
-/** Libras peladas por estilo, totalizadas sobre el rango de fechas filtrado. */
+/**
+ * Libras peladas por estilo, totalizadas sobre el rango de fechas filtrado.
+ * Fuente: asignación real de libras por empleado (`PES_ASIGNACION_LIBRAS_EMPLEADOS`),
+ * no la vista `V_PagosxPeladoIndividualPBI` que usan `getPeladoPorTalla` y los
+ * reportes por período — esa vista subcuenta libras respecto a las tablas base.
+ */
 export async function getPeladoPorEstilo(filters: DashboardFilters): Promise<PeladoStyleRow[]> {
-  const groups = await fetchPeladoDimensionGroups(filters.fechaInicial, filters.fechaFinal);
-  return aggregateDimensionTotal(groups, filters.turno, 'estilo')
-    .map(({ valor, libras, porcentaje }) => ({ estilo: valor, libras, porcentaje }));
+  const rows = await runStbQuery(
+    PELADO_POR_ESTILO_RANGO_QUERY,
+    dateParams(filters.fechaInicial, filters.fechaFinal),
+  );
+  const estilos = rows.map((row) => ({
+    estilo: pickString(row, 'Estilo') || 'Sin estilo',
+    libras: round2(pickNumber(row, 'Libras')),
+  }));
+  const total = estilos.reduce((acc, e) => acc + e.libras, 0);
+  return estilos
+    .map(({ estilo, libras }) => ({
+      estilo,
+      libras,
+      porcentaje: total > 0 ? round2((libras / total) * 100) : 0,
+    }))
+    .sort((a, b) => b.libras - a.libras);
 }
 
 /** Libras peladas por talla, totalizadas sobre el rango de fechas filtrado. */

@@ -7,6 +7,7 @@ import {
   DataRow,
   IqfLiveResponse,
   PeladoLibrasHoyResponse,
+  PeladoPorSalaResponse,
 } from '../types';
 
 function toParams(filters: DashboardFilters): Record<string, string> {
@@ -27,6 +28,13 @@ export async function fetchIqfLive(refresh = false): Promise<IqfLiveResponse> {
 
 export async function fetchPeladoLibrasHoy(refresh = false): Promise<PeladoLibrasHoyResponse> {
   const { data } = await apiClient.get<PeladoLibrasHoyResponse>('/dashboard/pelado-libras-hoy', {
+    params: refresh ? { refresh: 'true' } : undefined,
+  });
+  return data;
+}
+
+export async function fetchPeladoPorSala(refresh = false): Promise<PeladoPorSalaResponse> {
+  const { data } = await apiClient.get<PeladoPorSalaResponse>('/dashboard/pelado-por-sala', {
     params: refresh ? { refresh: 'true' } : undefined,
   });
   return data;

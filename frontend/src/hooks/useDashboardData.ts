@@ -1,7 +1,13 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchIqfLive, fetchPeladoLibrasHoy, fetchWidgetData } from '../api/dashboard.api';
+import { fetchIqfLive, fetchPeladoLibrasHoy, fetchPeladoPorSala, fetchWidgetData } from '../api/dashboard.api';
 import { useFilters } from '../context/FiltersContext';
-import { DashboardEndpoint, DataRow, IqfLiveResponse, PeladoLibrasHoyResponse } from '../types';
+import {
+  DashboardEndpoint,
+  DataRow,
+  IqfLiveResponse,
+  PeladoLibrasHoyResponse,
+  PeladoPorSalaResponse,
+} from '../types';
 import { getDateFilterError } from '../utils/dateFilters';
 
 /** Todo el dashboard se actualiza automáticamente cada 5 minutos */
@@ -143,6 +149,36 @@ export function usePeladoLibrasHoy() {
   return { ...query, refreshNow };
 }
 
+export function usePeladoPorSala() {
+  const queryClient = useQueryClient();
+  const queryKey = ['dashboard', 'pelado-por-sala'] as const;
+  const cacheKey = browserCacheKey(['pelado-por-sala', 'current']);
+  const cached = readBrowserCache<PeladoPorSalaResponse>(cacheKey, LIVE_REFRESH_INTERVAL_MS);
+
+  const query = useQuery<PeladoPorSalaResponse>({
+    queryKey,
+    queryFn: async () => {
+      const data = await fetchPeladoPorSala();
+      writeBrowserCache(cacheKey, data);
+      return data;
+    },
+    initialData: cached?.data,
+    initialDataUpdatedAt: cached?.updatedAt,
+    staleTime: LIVE_REFRESH_INTERVAL_MS,
+    refetchInterval: LIVE_REFRESH_INTERVAL_MS,
+    refetchIntervalInBackground: true,
+  });
+
+  const refreshNow = async (): Promise<PeladoPorSalaResponse> => {
+    const data = await fetchPeladoPorSala(true);
+    writeBrowserCache(cacheKey, data);
+    queryClient.setQueryData<PeladoPorSalaResponse>(queryKey, data);
+    return data;
+  };
+
+  return { ...query, refreshNow };
+}
+
 /** Fuerza una lectura nueva de todos los widgets visibles y contadores. */
 export function useRefreshDashboard() {
   const { filters } = useFilters();
@@ -156,7 +192,7 @@ export function useRefreshDashboard() {
       queryKey: ['dashboard'],
       type: 'active',
     });
-    const liveEndpoints = new Set(['iqf-tiempo-real', 'pelado-libras-hoy']);
+    const liveEndpoints = new Set(['iqf-tiempo-real', 'pelado-libras-hoy', 'pelado-por-sala']);
     const endpoints = Array.from(
       new Set(
         activeQueries
@@ -172,6 +208,8 @@ export function useRefreshDashboard() {
     const liveCacheKey = browserCacheKey(['live', 'current']);
     const peladoLiveKey = ['dashboard', 'pelado-libras-hoy'] as const;
     const peladoLiveCacheKey = browserCacheKey(['pelado-libras-hoy', 'current']);
+    const peladoPorSalaKey = ['dashboard', 'pelado-por-sala'] as const;
+    const peladoPorSalaCacheKey = browserCacheKey(['pelado-por-sala', 'current']);
 
     await Promise.all([
       fetchIqfLive(true).then((data) => {
@@ -181,6 +219,10 @@ export function useRefreshDashboard() {
       fetchPeladoLibrasHoy(true).then((data) => {
         writeBrowserCache(peladoLiveCacheKey, data);
         queryClient.setQueryData<PeladoLibrasHoyResponse>(peladoLiveKey, data);
+      }),
+      fetchPeladoPorSala(true).then((data) => {
+        writeBrowserCache(peladoPorSalaCacheKey, data);
+        queryClient.setQueryData<PeladoPorSalaResponse>(peladoPorSalaKey, data);
       }),
       ...endpoints.map(async (endpoint) => {
         const data = await fetchWidgetData(endpoint, filters, true);

@@ -19,6 +19,8 @@ import {
   PELADO_LIBRAS_HOY_QUERY,
   PELADO_PERSONAL_DAILY_QUERY,
   PELADO_POR_ESTILO_RANGO_QUERY,
+  PELADO_POR_SALA_ACTIVOS_QUERY,
+  PELADO_POR_SALA_HOY_QUERY,
 } from './stb.queries';
 import { matchesTurno, pickNumber, pickString } from '../utils/rows';
 import {
@@ -31,6 +33,7 @@ import {
   PeladoLiveResponse,
   PeladoPersonalPeriodRow,
   PeladoPersonalRow,
+  PeladoPorSalaResponse,
   PeladoStylePeriodRow,
   PeladoStyleRow,
   PeladoTallaPeriodRow,
@@ -544,6 +547,40 @@ export async function getPeladoLibrasHoy(): Promise<PeladoLibrasHoyResponse> {
   const total = round2(estilos.reduce((acc, e) => acc + e.libras, 0));
 
   return { dia: formatDate(new Date()), actualizado: new Date().toISOString(), estilos, total };
+}
+
+/* ------------------------------------------------------------------ */
+/* Actividad de pelado por sala (fuente STB_data, PES_SALAS +          */
+/* DCP_LINEAS + PES_ASIGNACION_LIBRAS_EMPLEADOS) — combina acumulado    */
+/* del día con personas activas en los últimos 30 minutos.             */
+/* ------------------------------------------------------------------ */
+
+export async function getPeladoPorSala(): Promise<PeladoPorSalaResponse> {
+  const [hoyRows, activosRows] = await Promise.all([
+    runStbQuery(PELADO_POR_SALA_HOY_QUERY, []),
+    runStbQuery(PELADO_POR_SALA_ACTIVOS_QUERY, []),
+  ]);
+
+  const activosPorSala = new Map(
+    activosRows.map((row) => [pickString(row, 'NOMBRE_SALA'), row] as const),
+  );
+
+  const salas = hoyRows
+    .map((row) => {
+      const sala = pickString(row, 'NOMBRE_SALA');
+      const activos = activosPorSala.get(sala);
+      return {
+        sala,
+        personasActivas: activos ? pickNumber(activos, 'PersonasActivas') : 0,
+        librasUltimos30Min: activos ? round2(pickNumber(activos, 'LibrasUltimos30Min')) : 0,
+        librasPeladasHoy: round2(pickNumber(row, 'LibrasPeladasHoy')),
+        pagoAcumuladoHoy: round2(pickNumber(row, 'PagoAcumuladoHoy')),
+        empleadosRegistrandoHoy: pickNumber(row, 'EmpleadosRegistrando'),
+      };
+    })
+    .sort((a, b) => b.librasPeladasHoy - a.librasPeladasHoy);
+
+  return { dia: formatDate(new Date()), actualizado: new Date().toISOString(), salas };
 }
 
 /* ------------------------------------------------------------------ */

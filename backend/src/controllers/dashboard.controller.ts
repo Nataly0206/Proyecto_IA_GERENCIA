@@ -232,6 +232,18 @@ export async function getPeladoLibrasHoy(req: Request, res: Response): Promise<v
   );
 }
 
+export async function getPeladoPorSala(req: Request, res: Response): Promise<void> {
+  const forceRefresh = req.query.refresh === 'true';
+  res.json(
+    await withTtlCache(
+      'pelado-por-sala:current',
+      LIVE_CACHE_MS,
+      () => dashboardService.getPeladoPorSala(),
+      forceRefresh,
+    ),
+  );
+}
+
 export async function getPeladoPersonal(req: Request, res: Response): Promise<void> {
   const filters = parseFilters(req);
   const forceRefresh = req.query.refresh === 'true';

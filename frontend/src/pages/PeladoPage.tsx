@@ -5,6 +5,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import TuneOutlinedIcon from '@mui/icons-material/TuneOutlined';
 import GlobalFilters from '../components/filters/GlobalFilters';
 import PeladoLibrasHoyCards from '../components/live/PeladoLibrasHoyCards';
+import PeladoPorSalaTable from '../components/live/PeladoPorSalaTable';
 import PeladoEstiloWidget from '../components/charts/PeladoEstiloWidget';
 
 export default function PeladoPage() {
@@ -73,6 +74,7 @@ export default function PeladoPage() {
       </Paper>
 
       <PeladoLibrasHoyCards />
+      <PeladoPorSalaTable />
       <PeladoEstiloWidget />
     </Stack>
   );

@@ -147,3 +147,25 @@ export interface PeladoLibrasHoyResponse {
   estilos: PeladoLibrasHoyEstilo[];
   total: number;
 }
+
+/**
+ * Actividad de pelado por sala (fuente: STB_data, PES_SALAS + DCP_LINEAS +
+ * PES_ASIGNACION_LIBRAS_EMPLEADOS). `personasActivas` y `librasUltimos30Min`
+ * usan una ventana de los últimos 30 minutos; el resto es acumulado del día.
+ */
+export interface PeladoSalaRow {
+  sala: string;
+  personasActivas: number;
+  librasUltimos30Min: number;
+  librasPeladasHoy: number;
+  pagoAcumuladoHoy: number;
+  empleadosRegistrandoHoy: number;
+}
+
+export interface PeladoPorSalaResponse {
+  /** Día mostrado (YYYY-MM-DD), siempre hoy */
+  dia: string;
+  /** Timestamp ISO de esta lectura */
+  actualizado: string;
+  salas: PeladoSalaRow[];
+}

@@ -150,3 +150,52 @@ WHERE a.FECHA BETWEEN @Fecha_Inicial AND @Fecha_Final
 GROUP BY D.NOMBRE
 ORDER BY D.NOMBRE
 `;
+
+/**
+ * Libras peladas por sala, acumulado del día en curso (todas las salas,
+ * incluye las que no registran producción hoy). Fuente: asignación real
+ * de libras por empleado (`PES_ASIGNACION_LIBRAS_EMPLEADOS` + `_DET`),
+ * resuelta a sala vía `DCP_LINEAS.ID_SALA`.
+ */
+export const PELADO_POR_SALA_HOY_QUERY = `
+;WITH HoyDet AS (
+    SELECT d.ID_LINEA_ACTUAL, d.LIBRAS, d.VALOR, d.ID_EMPLEADO_LINEA
+    FROM dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS_DET d
+    JOIN dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS h ON h.ID_ASIGNACION_LIBRAS_EMPLEADO = d.ID_ASIGNACION_LIBRAS_EMPLEADO
+    WHERE h.FECHA = CAST(GETDATE() AS DATE)
+      AND d.ANULADO = 0
+)
+SELECT
+  s.NOMBRE_SALA,
+  ISNULL(SUM(hd.LIBRAS), 0) AS LibrasPeladasHoy,
+  ISNULL(SUM(hd.VALOR), 0) AS PagoAcumuladoHoy,
+  COUNT(DISTINCT hd.ID_EMPLEADO_LINEA) AS EmpleadosRegistrando
+FROM dbo.PES_SALAS s
+LEFT JOIN dbo.DCP_LINEAS l ON l.ID_SALA = s.ID_SALA
+LEFT JOIN HoyDet hd ON hd.ID_LINEA_ACTUAL = l.ID_LINEA
+GROUP BY s.NOMBRE_SALA
+`;
+
+/**
+ * Personas activas ahora mismo por sala: empleados distintos con registro
+ * en los últimos 30 minutos (todas las salas, incluye 0). Misma fuente y
+ * join que `PELADO_POR_SALA_HOY_QUERY`, con ventana de tiempo adicional.
+ */
+export const PELADO_POR_SALA_ACTIVOS_QUERY = `
+;WITH Activos AS (
+    SELECT d.ID_LINEA_ACTUAL, d.LIBRAS, d.ID_EMPLEADO_LINEA
+    FROM dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS_DET d
+    JOIN dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS h ON h.ID_ASIGNACION_LIBRAS_EMPLEADO = d.ID_ASIGNACION_LIBRAS_EMPLEADO
+    WHERE h.FECHA = CAST(GETDATE() AS DATE)
+      AND d.ANULADO = 0
+      AND DATEADD(SECOND, DATEDIFF(SECOND, 0, d.HORA), CAST(h.FECHA AS DATETIME)) >= DATEADD(MINUTE, -30, GETDATE())
+)
+SELECT
+  s.NOMBRE_SALA,
+  ISNULL(COUNT(DISTINCT a.ID_EMPLEADO_LINEA), 0) AS PersonasActivas,
+  ISNULL(SUM(a.LIBRAS), 0) AS LibrasUltimos30Min
+FROM dbo.PES_SALAS s
+LEFT JOIN dbo.DCP_LINEAS l ON l.ID_SALA = s.ID_SALA
+LEFT JOIN Activos a ON a.ID_LINEA_ACTUAL = l.ID_LINEA
+GROUP BY s.NOMBRE_SALA
+`;

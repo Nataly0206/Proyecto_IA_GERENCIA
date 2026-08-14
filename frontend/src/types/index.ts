@@ -139,6 +139,26 @@ export interface PeladoLibrasHoyResponse {
   total: number;
 }
 
+/**
+ * Actividad de pelado por sala (fuente: STB_data). `personasActivas` y
+ * `librasUltimos30Min` son de los últimos 30 minutos; el resto es
+ * acumulado del día.
+ */
+export interface PeladoSalaRow {
+  sala: string;
+  personasActivas: number;
+  librasUltimos30Min: number;
+  librasPeladasHoy: number;
+  pagoAcumuladoHoy: number;
+  empleadosRegistrandoHoy: number;
+}
+
+export interface PeladoPorSalaResponse {
+  dia: string; // YYYY-MM-DD, siempre hoy
+  actualizado: string; // ISO timestamp de la lectura
+  salas: PeladoSalaRow[];
+}
+
 /* ------------------------------------------------------------------ */
 /* Configuración dinámica de gráficos (contrato para el Agente IA)     */
 /*                                                                     */

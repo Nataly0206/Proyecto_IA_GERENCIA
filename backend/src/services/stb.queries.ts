@@ -152,34 +152,54 @@ ORDER BY D.NOMBRE
 `;
 
 /**
- * Libras peladas por sala, acumulado del día en curso (todas las salas,
- * incluye las que no registran producción hoy). Fuente: asignación real
- * de libras por empleado (`PES_ASIGNACION_LIBRAS_EMPLEADOS` + `_DET`),
- * resuelta a sala vía `DCP_LINEAS.ID_SALA`.
+ * Libras peladas por sala, acumulado del día en curso (solo SALA #1 a
+ * SALA #6). Combina las dos fuentes de pago de pelado: individual
+ * (`PES_ASIGNACION_LIBRAS_EMPLEADOS` + `_DET`, resuelta a sala vía
+ * `DCP_LINEAS.ID_SALA` y a empleado vía `PES_EMPLEADOS_LINEAS`) y
+ * grupal (`DCP_PagosGrupales` + `DCP_PagosGrupalesDetalle`, con las
+ * libras del pago repartidas entre los empleados del grupo).
  */
 export const PELADO_POR_SALA_HOY_QUERY = `
 ;WITH HoyDet AS (
-    SELECT d.ID_LINEA_ACTUAL, d.LIBRAS, d.VALOR, d.ID_EMPLEADO_LINEA
+    SELECT l.ID_SALA, d.LIBRAS, d.VALOR, k.ID_EMPLEADO
     FROM dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS_DET d
     JOIN dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS h ON h.ID_ASIGNACION_LIBRAS_EMPLEADO = d.ID_ASIGNACION_LIBRAS_EMPLEADO
+    JOIN dbo.DCP_LINEAS l ON l.ID_LINEA = d.ID_LINEA_ACTUAL
+    JOIN dbo.PES_EMPLEADOS_LINEAS k ON k.ID_EMPLEADOS_LINEA = d.ID_EMPLEADO_LINEA
     WHERE h.FECHA = CAST(GETDATE() AS DATE)
       AND d.ANULADO = 0
+),
+GrupalCab AS (
+    SELECT IdPagoPG, IdSala, Libras / NULLIF(CantEmpleados, 0) AS LibrasPorPersona
+    FROM dbo.DCP_PagosGrupales
+    WHERE Fecha = CAST(GETDATE() AS DATE)
+),
+GrupalHoy AS (
+    SELECT c.IdSala AS ID_SALA, c.LibrasPorPersona AS LIBRAS, d.Valor AS VALOR, d.IdEmpleado AS ID_EMPLEADO
+    FROM GrupalCab c
+    JOIN dbo.DCP_PagosGrupalesDetalle d ON d.IdPagoPG = c.IdPagoPG
+),
+TodoHoy AS (
+    SELECT * FROM HoyDet
+    UNION ALL
+    SELECT * FROM GrupalHoy
 )
 SELECT
   s.NOMBRE_SALA,
-  ISNULL(SUM(hd.LIBRAS), 0) AS LibrasPeladasHoy,
-  ISNULL(SUM(hd.VALOR), 0) AS PagoAcumuladoHoy,
-  COUNT(DISTINCT hd.ID_EMPLEADO_LINEA) AS EmpleadosRegistrando
+  ISNULL(SUM(t.LIBRAS), 0) AS LibrasPeladasHoy,
+  ISNULL(SUM(t.VALOR), 0) AS PagoAcumuladoHoy,
+  COUNT(DISTINCT t.ID_EMPLEADO) AS EmpleadosRegistrando
 FROM dbo.PES_SALAS s
-LEFT JOIN dbo.DCP_LINEAS l ON l.ID_SALA = s.ID_SALA
-LEFT JOIN HoyDet hd ON hd.ID_LINEA_ACTUAL = l.ID_LINEA
+LEFT JOIN TodoHoy t ON t.ID_SALA = s.ID_SALA
+WHERE s.NOMBRE_SALA IN ('SALA #1','SALA #2','SALA #3','SALA #4','SALA #5','SALA #6')
 GROUP BY s.NOMBRE_SALA
 `;
 
 /**
  * Personas activas ahora mismo por sala: empleados distintos con registro
- * en los últimos 30 minutos (todas las salas, incluye 0). Misma fuente y
- * join que `PELADO_POR_SALA_HOY_QUERY`, con ventana de tiempo adicional.
+ * en los últimos 30 minutos (solo SALA #1 a SALA #6, misma restricción
+ * que `PELADO_POR_SALA_HOY_QUERY`). Solo cubre pelado individual — los
+ * pagos grupales no tienen hora de registro para medir actividad reciente.
  */
 export const PELADO_POR_SALA_ACTIVOS_QUERY = `
 ;WITH Activos AS (
@@ -197,5 +217,6 @@ SELECT
 FROM dbo.PES_SALAS s
 LEFT JOIN dbo.DCP_LINEAS l ON l.ID_SALA = s.ID_SALA
 LEFT JOIN Activos a ON a.ID_LINEA_ACTUAL = l.ID_LINEA
+WHERE s.NOMBRE_SALA IN ('SALA #1','SALA #2','SALA #3','SALA #4','SALA #5','SALA #6')
 GROUP BY s.NOMBRE_SALA
 `;

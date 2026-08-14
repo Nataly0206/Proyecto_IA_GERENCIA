@@ -74,8 +74,8 @@ export default function PeladoPage() {
       </Paper>
 
       <PeladoLibrasHoyCards />
-      <PeladoPorSalaTable />
       <PeladoEstiloWidget />
+      <PeladoPorSalaTable />
     </Stack>
   );
 }

@@ -110,6 +110,35 @@ async function migrate(): Promise<void> {
       END;
     `);
 
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT 1 FROM dbo.dashboard_migraciones WHERE version = 3)
+      BEGIN
+        INSERT INTO dbo.dashboard_usuarios_permisos (usuario_id, permiso)
+        SELECT u.id, N'inventario'
+        FROM dbo.dashboard_usuarios u
+        WHERE u.es_administrador = 0
+          AND EXISTS (
+            SELECT 1 FROM dbo.dashboard_usuarios_permisos p
+            WHERE p.usuario_id = u.id AND p.permiso = N'iqf'
+          )
+          AND EXISTS (
+            SELECT 1 FROM dbo.dashboard_usuarios_permisos p
+            WHERE p.usuario_id = u.id AND p.permiso = N'pelado'
+          )
+          AND EXISTS (
+            SELECT 1 FROM dbo.dashboard_usuarios_permisos p
+            WHERE p.usuario_id = u.id AND p.permiso = N'usuarios'
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM dbo.dashboard_usuarios_permisos p
+            WHERE p.usuario_id = u.id AND p.permiso = N'inventario'
+          );
+
+        INSERT INTO dbo.dashboard_migraciones (version, nombre)
+        VALUES (3, N'agregar permiso de inventario');
+      END;
+    `);
+
     console.log(`[migrate] Base [${databaseName}] lista y actualizada.`);
   } finally {
     await pool.close();

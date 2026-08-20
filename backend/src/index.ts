@@ -8,6 +8,7 @@ import dashboardRoutes from './routes/dashboard.routes';
 import aiRoutes from './routes/ai.routes';
 import authRoutes from './routes/auth.routes';
 import usersRoutes from './routes/users.routes';
+import inventoryRoutes from './routes/inventory.routes';
 import { errorHandler, notFound } from './middleware/errorHandler';
 import { changedPasswordAuth, requirePermission, sessionAuth } from './middleware/sessionAuth';
 import { assertAuthDatabaseReady } from './services/auth.service';
@@ -74,6 +75,7 @@ app.get('/api/health', (_req, res) => {
 app.use('/api', generalLimiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', usersRoutes);
+app.use('/api/inventory', sessionAuth, changedPasswordAuth, requirePermission('inventario'), inventoryRoutes);
 app.use('/api/dashboard', sessionAuth, changedPasswordAuth, dashboardRoutes);
 app.use('/api/ai', sessionAuth, changedPasswordAuth, requirePermission('asistente_ia'), aiLimiter, aiRoutes);
 

@@ -4,7 +4,7 @@
  * acceso a todo y no se otorga desde la UI). Cada vista nueva del
  * dashboard debe agregar su clave aquí para poder gatearse.
  */
-export const PERMISOS = ['usuarios', 'iqf', 'pelado', 'asistente_ia'] as const;
+export const PERMISOS = ['usuarios', 'iqf', 'pelado', 'inventario', 'asistente_ia'] as const;
 
 export type Permiso = (typeof PERMISOS)[number];
 

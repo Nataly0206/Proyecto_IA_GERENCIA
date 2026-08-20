@@ -4,7 +4,7 @@
  * usuario con `esAdministrador = true` tiene acceso a todo sin
  * importar esta lista.
  */
-export const PERMISOS = ['usuarios', 'iqf', 'pelado', 'asistente_ia'] as const;
+export const PERMISOS = ['usuarios', 'iqf', 'pelado', 'inventario', 'asistente_ia'] as const;
 
 export type Permiso = (typeof PERMISOS)[number];
 
@@ -12,6 +12,7 @@ export const PERMISO_LABELS: Record<Permiso, string> = {
   usuarios: 'Usuarios',
   iqf: 'IQF',
   pelado: 'Pelado',
+  inventario: 'Inventario',
   asistente_ia: 'Asistente IA',
 };
 

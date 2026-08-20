@@ -7,6 +7,7 @@ import PeladoPage from './pages/PeladoPage';
 import LoginPage from './pages/LoginPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
 import UsersPage from './pages/UsersPage';
+import InventoryPage from './pages/InventoryPage';
 import { FiltersProvider } from './context/FiltersContext';
 import { apiClient } from './api/client';
 import { AuthUser, normalizeAuthUser } from './types/auth';
@@ -16,6 +17,7 @@ const PERMISO_POR_VISTA: Record<DashboardView, Permiso> = {
   dashboard: 'iqf',
   pelado: 'pelado',
   users: 'usuarios',
+  inventory: 'inventario',
 };
 
 const VIEW_STORAGE_KEY = 'dashboard-current-view';
@@ -23,7 +25,7 @@ const VIEW_STORAGE_KEY = 'dashboard-current-view';
 function readStoredView(): DashboardView | null {
   try {
     const value = localStorage.getItem(VIEW_STORAGE_KEY);
-    return value === 'dashboard' || value === 'pelado' || value === 'users' ? value : null;
+    return value === 'dashboard' || value === 'pelado' || value === 'users' || value === 'inventory' ? value : null;
   } catch {
     return null;
   }
@@ -113,7 +115,9 @@ export default function App() {
           persistView(next);
         }}
       >
-        {view === 'users' ? (
+        {view === 'inventory' ? (
+          <InventoryPage userId={user.id} />
+        ) : view === 'users' ? (
           <UsersPage />
         ) : view === 'pelado' ? (
           <PeladoPage />

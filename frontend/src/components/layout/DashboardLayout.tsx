@@ -27,12 +27,13 @@ import PeopleOutlineIcon from '@mui/icons-material/PeopleOutline';
 import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined';
 import ContentCutOutlinedIcon from '@mui/icons-material/ContentCutOutlined';
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
+import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import { AuthUser } from '../../types/auth';
 import AiAssistantPanel from '../ai/AiAssistantPanel';
 import { useRefreshDashboard } from '../../hooks/useDashboardData';
 import { tienePermiso } from '../../config/permissions';
 
-export type DashboardView = 'dashboard' | 'pelado' | 'users';
+export type DashboardView = 'dashboard' | 'pelado' | 'inventory' | 'users';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -116,6 +117,20 @@ export default function DashboardLayout({
                 <ContentCutOutlinedIcon fontSize="small" />
               </ListItemIcon>
               {expanded && <ListItemText primary="Pelado" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
+            </ListItemButton>
+          </Tooltip>
+        )}
+        {tienePermiso(user, 'inventario') && (
+          <Tooltip title={expanded ? '' : 'Inventario'} placement="right">
+            <ListItemButton
+              selected={currentView === 'inventory'}
+              onClick={() => navigate('inventory')}
+              sx={{ minHeight: 42, px: 1.25, borderRadius: 1, mb: 0.5 }}
+            >
+              <ListItemIcon sx={{ minWidth: expanded ? 36 : 0, justifyContent: 'center' }}>
+                <Inventory2OutlinedIcon fontSize="small" />
+              </ListItemIcon>
+              {expanded && <ListItemText primary="Inventario" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
             </ListItemButton>
           </Tooltip>
         )}

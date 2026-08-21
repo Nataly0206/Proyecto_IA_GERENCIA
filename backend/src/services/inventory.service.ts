@@ -42,6 +42,7 @@ export async function getInventory(): Promise<InventoryItem[]> {
       INNER JOIN dbo.AV_LotesRemision lr ON lr.IdLoteRemision = op.FkLoteRemision
       INNER JOIN dbo.AV_Items i ON i.IdItem = op.FkItem
       INNER JOIN dbo.Masteres m ON m.IdMaster = s.FkMaster
+      INNER JOIN dbo.Localidades l ON l.IdLocalidad = m.FkLocalidad
       WHERE m.FkEnvio IS NULL
         AND op.FechaProduccion > CAST('2017-07-27' AS DATE)
         AND op.FkTipo < 4
@@ -69,6 +70,8 @@ export async function getInventory(): Promise<InventoryItem[]> {
       INNER JOIN dbo.OrdenesProduccion op ON op.IdOrdenProduccion = s.FkOrdenProduccion
       INNER JOIN dbo.AV_Items i ON i.IdItem = op.FkItem
       INNER JOIN dbo.AV_LotesRemision lr ON lr.IdLoteRemision = op.FkLoteRemision
+      INNER JOIN dbo.Freezers f ON f.IdFreezer = s.FkFreezer
+      INNER JOIN dbo.Torres t ON t.IdTorre = s.FkTorre
       WHERE s.FkMaster IS NULL
     )
     SELECT NombreCliente, NoOrdenCompra, CodigoExterno, CAST(FechaProduccion AS date) AS FechaProduccion,

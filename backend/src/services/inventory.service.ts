@@ -3,6 +3,7 @@ import { runQuery } from './sql.service';
 
 export interface InventoryItem {
   nombreCliente: string;
+  nombreClientePrincipal: string;
   noOrdenCompra: string;
   codigoExterno: string;
   fechaProduccion: string;
@@ -23,6 +24,7 @@ export async function getInventory(): Promise<InventoryItem[]> {
     WITH inventario AS (
       SELECT
         lr.Empresa AS NombreCliente,
+        COALESCE(NULLIF(cp.NombreCliente, ''), lr.Empresa) AS NombreClientePrincipal,
         op.NoOrdenCompra,
         op.CodigoExterno,
         op.FechaProduccion,
@@ -43,6 +45,8 @@ export async function getInventory(): Promise<InventoryItem[]> {
       INNER JOIN dbo.AV_Items i ON i.IdItem = op.FkItem
       INNER JOIN dbo.Masteres m ON m.IdMaster = s.FkMaster
       INNER JOIN dbo.Localidades l ON l.IdLocalidad = m.FkLocalidad
+      INNER JOIN dbo.Empresas e ON e.IDEmpresa = lr.IDEmpresa
+      LEFT JOIN dbo.ClientesProduccion cp ON cp.IDCliente = e.fkClienteProduccion
       WHERE m.FkEnvio IS NULL
         AND op.FechaProduccion > CAST('2017-07-27' AS DATE)
         AND op.FkTipo < 4
@@ -52,6 +56,7 @@ export async function getInventory(): Promise<InventoryItem[]> {
 
       SELECT
         lr.Empresa AS NombreCliente,
+        COALESCE(NULLIF(cp.NombreCliente, ''), lr.Empresa) AS NombreClientePrincipal,
         op.NoOrdenCompra,
         op.CodigoExterno,
         op.FechaProduccion,
@@ -73,21 +78,24 @@ export async function getInventory(): Promise<InventoryItem[]> {
       INNER JOIN dbo.AV_LotesRemision lr ON lr.IdLoteRemision = op.FkLoteRemision
       INNER JOIN dbo.Freezers f ON f.IdFreezer = s.FkFreezer
       INNER JOIN dbo.Torres t ON t.IdTorre = s.FkTorre
+      INNER JOIN dbo.Empresas e ON e.IDEmpresa = lr.IDEmpresa
+      LEFT JOIN dbo.ClientesProduccion cp ON cp.IDCliente = e.fkClienteProduccion
       WHERE s.FkMaster IS NULL
         AND op.NoOrdenCompra <> ''
     )
-    SELECT NombreCliente, NoOrdenCompra, CodigoExterno, CAST(FechaProduccion AS date) AS FechaProduccion,
+    SELECT NombreCliente, NombreClientePrincipal, NoOrdenCompra, CodigoExterno, CAST(FechaProduccion AS date) AS FechaProduccion,
       CodigoItem, EstiloFinal, NombreItem, Marca, Talla, Empaque, TipoItem, Disponibilidad,
       SUM(PesoKilos) AS PesoKilos,
       SUM(CantidadSerial) AS CantidadSerial
     FROM inventario
-    GROUP BY NombreCliente, NoOrdenCompra, CodigoExterno, CAST(FechaProduccion AS date),
+    GROUP BY NombreCliente, NombreClientePrincipal, NoOrdenCompra, CodigoExterno, CAST(FechaProduccion AS date),
       CodigoItem, EstiloFinal, NombreItem, Marca, Talla, Empaque, TipoItem, Disponibilidad
     ORDER BY NombreCliente, NombreItem;
   `, []);
 
   return rows.map((row) => ({
     nombreCliente: pickString(row, 'NombreCliente') || 'Sin cliente',
+    nombreClientePrincipal: pickString(row, 'NombreClientePrincipal') || 'Sin cliente principal',
     noOrdenCompra: pickString(row, 'NoOrdenCompra') || 'Sin orden',
     codigoExterno: pickString(row, 'CodigoExterno') || 'Sin código externo',
     fechaProduccion: pickString(row, 'FechaProduccion') || 'Sin fecha',

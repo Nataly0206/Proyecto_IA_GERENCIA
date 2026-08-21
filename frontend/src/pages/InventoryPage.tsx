@@ -11,7 +11,8 @@ import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import { apiClient } from '../api/client';
 
 const DIMENSIONS = {
-  nombreCliente: 'Nombre cliente', noOrdenCompra: 'N.º orden compra', codigoExterno: 'Código externo',
+  nombreCliente: 'Nombre cliente', nombreClientePrincipal: 'Nombre cliente principal',
+  noOrdenCompra: 'N.º orden compra', codigoExterno: 'Código externo',
   fechaProduccion: 'Fecha producción', codigoItem: 'Código item', estiloFinal: 'Estilo final',
   nombreItem: 'Nombre item', marca: 'Marca', talla: 'Talla', empaque: 'Empaque',
   tipoItem: 'Tipo item', disponibilidad: 'Disponibilidad',
@@ -20,10 +21,19 @@ type Dimension = keyof typeof DIMENSIONS;
 type InventoryItem = Record<Dimension, string> & { pesoKilos: number; cantidadSerial: number };
 type Filters = Partial<Record<Dimension, string[]>>;
 type AggregateRow = Record<Dimension, string> & { pesoKilos: number; cantidadSerial: number };
+type DisplayRow =
+  | { type: 'detail'; row: AggregateRow; key: string }
+  | { type: 'subtotal'; field: Dimension; label: string; pesoKilos: number; cantidadSerial: number; key: string };
 
 const DEFAULT_ROWS: Dimension[] = ['nombreCliente', 'estiloFinal', 'nombreItem'];
 const DEFAULT_FILTERS: Filters = {
   nombreCliente: ['FRANCIA DP 2026 FRESCO', 'LFF UK 2026 FRESCO'],
+};
+const CLIENT_NAME_MIGRATIONS: Record<string, string> = {
+  'FRANCIA DP': 'FRANCIA DP 2026 FRESCO',
+  'LFF UK': 'LFF UK 2026 FRESCO',
+  'LABEYRIE FINE FOODS FRANCE': 'FRANCIA DP 2026 FRESCO',
+  'LYONS SEAFOODS LTD': 'LFF UK 2026 FRESCO',
 };
 const PREFERENCES_KEY = 'inventory-preferences';
 const formatKilos = (value: number) => value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -59,7 +69,9 @@ function readPreferences(userId: string): { rowFields: Dimension[]; filters: Fil
     if (parsed.filters && typeof parsed.filters === 'object') {
       for (const [field, values] of Object.entries(parsed.filters)) {
         if (field in DIMENSIONS && Array.isArray(values)) {
-          filters[field as Dimension] = values.filter((value): value is string => typeof value === 'string');
+          filters[field as Dimension] = values
+            .filter((value): value is string => typeof value === 'string')
+            .map((value) => field === 'nombreCliente' ? CLIENT_NAME_MIGRATIONS[value] ?? value : value);
         }
       }
     }
@@ -105,20 +117,32 @@ export default function InventoryPage({ userId }: { userId: string }) {
     (Object.entries(filters) as [Dimension, string[]][]).every(([field, values]) => !values?.length || values.includes(item[field])),
   ), [items, filters]);
   const rows = useMemo(() => aggregate(filteredItems, rowFields), [filteredItems, rowFields]);
-  const clientSections = useMemo(() => {
-    if (!rowFields.includes('nombreCliente')) return [{ client: '', rows, pesoKilos: 0, cantidadSerial: 0 }];
-    const sections = new Map<string, AggregateRow[]>();
-    for (const row of rows) {
-      const clientRows = sections.get(row.nombreCliente) ?? [];
-      clientRows.push(row);
-      sections.set(row.nombreCliente, clientRows);
-    }
-    return Array.from(sections, ([client, clientRows]) => ({
-      client,
-      rows: clientRows,
-      pesoKilos: clientRows.reduce((sum, row) => sum + row.pesoKilos, 0),
-      cantidadSerial: clientRows.reduce((sum, row) => sum + row.cantidadSerial, 0),
-    })).sort((a, b) => a.client.localeCompare(b.client));
+  const displayRows = useMemo<DisplayRow[]>(() => {
+    const subtotalFields = rowFields.filter((field) =>
+      field === 'nombreCliente' || field === 'nombreClientePrincipal' || field === 'estiloFinal');
+    const result: DisplayRow[] = [];
+    rows.forEach((row, rowIndex) => {
+      const detailKey = rowFields.map((field) => row[field]).join('|');
+      result.push({ type: 'detail', row, key: `detail-${detailKey}-${rowIndex}` });
+      const next = rows[rowIndex + 1];
+      [...subtotalFields].reverse().forEach((field) => {
+        const fieldIndex = rowFields.indexOf(field);
+        const prefix = rowFields.slice(0, fieldIndex + 1);
+        const groupEnds = !next || prefix.some((prefixField) => next[prefixField] !== row[prefixField]);
+        if (!groupEnds) return;
+        const groupRows = rows.filter((candidate) =>
+          prefix.every((prefixField) => candidate[prefixField] === row[prefixField]));
+        result.push({
+          type: 'subtotal',
+          field,
+          label: row[field],
+          pesoKilos: groupRows.reduce((sum, item) => sum + item.pesoKilos, 0),
+          cantidadSerial: groupRows.reduce((sum, item) => sum + item.cantidadSerial, 0),
+          key: `subtotal-${field}-${prefix.map((prefixField) => row[prefixField]).join('|')}`,
+        });
+      });
+    });
+    return result;
   }, [rows, rowFields]);
   const totalPeso = filteredItems.reduce((sum, item) => sum + item.pesoKilos, 0);
   const totalSerial = filteredItems.reduce((sum, item) => sum + item.cantidadSerial, 0);
@@ -182,10 +206,9 @@ export default function InventoryPage({ userId }: { userId: string }) {
             {rowFields.map((field) => <TableCell key={field} sx={{ minWidth: 160, fontWeight: 800 }}><Stack direction="row" alignItems="center" spacing={.25}><span>{DIMENSIONS[field]}</span><Tooltip title="Filtrar"><IconButton size="small" color={(filters[field]?.length ?? 0) > 0 ? 'primary' : 'default'} onClick={(e) => openFilter(e, field)} sx={{ p: .4 }}><FilterListIcon sx={{ fontSize: 17 }} /></IconButton></Tooltip></Stack></TableCell>)}
             <TableCell align="right" sx={{ minWidth: 120, fontWeight: 800 }}>Peso kilos</TableCell><TableCell align="right" sx={{ minWidth: 120, fontWeight: 800 }}>Cantidad serial</TableCell>
           </TableRow></TableHead><TableBody>
-            {clientSections.flatMap((section) => [
-              ...section.rows.map((row, index) => <TableRow key={`${section.client}-${rowFields.map((field) => row[field]).join('|')}-${index}`} hover>{rowFields.map((field) => <TableCell key={field}>{row[field]}</TableCell>)}<TableCell align="right">{formatKilos(row.pesoKilos)}</TableCell><TableCell align="right">{formatSerials(row.cantidadSerial)}</TableCell></TableRow>),
-              section.client && <TableRow key={`subtotal-${section.client}`} sx={{ bgcolor: 'rgba(22, 74, 139, 0.07)', '& td': { fontWeight: 800, borderTop: '2px solid', borderBottom: '2px solid', borderColor: 'primary.main', textDecoration: 'underline', textUnderlineOffset: '3px' } }}><TableCell colSpan={rowFields.length}>Subtotal {section.client}</TableCell><TableCell align="right">{formatKilos(section.pesoKilos)}</TableCell><TableCell align="right">{formatSerials(section.cantidadSerial)}</TableCell></TableRow>,
-            ])}
+            {displayRows.map((displayRow) => displayRow.type === 'detail'
+              ? <TableRow key={displayRow.key} hover>{rowFields.map((field) => <TableCell key={field}>{displayRow.row[field]}</TableCell>)}<TableCell align="right">{formatKilos(displayRow.row.pesoKilos)}</TableCell><TableCell align="right">{formatSerials(displayRow.row.cantidadSerial)}</TableCell></TableRow>
+              : <TableRow key={displayRow.key} sx={{ bgcolor: displayRow.field === 'estiloFinal' ? 'rgba(15, 118, 110, 0.07)' : 'rgba(22, 74, 139, 0.07)', '& td': { fontWeight: 800, borderTop: '2px solid', borderBottom: '2px solid', borderColor: displayRow.field === 'estiloFinal' ? 'secondary.main' : 'primary.main' } }}><TableCell colSpan={rowFields.length}>Subtotal {DIMENSIONS[displayRow.field]}: {displayRow.label}</TableCell><TableCell align="right">{formatKilos(displayRow.pesoKilos)}</TableCell><TableCell align="right">{formatSerials(displayRow.cantidadSerial)}</TableCell></TableRow>)}
             <TableRow sx={{ bgcolor: 'primary.main', '& td': { color: 'primary.contrastText', fontWeight: 800, borderTop: '3px double', borderBottom: '3px double', borderColor: 'primary.contrastText', textDecoration: 'underline', textUnderlineOffset: '3px' } }}><TableCell colSpan={rowFields.length}>Gran total</TableCell><TableCell align="right">{formatKilos(totalPeso)}</TableCell><TableCell align="right">{formatSerials(totalSerial)}</TableCell></TableRow>
           </TableBody></Table>}
       </TableContainer>

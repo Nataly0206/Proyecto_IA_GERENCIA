@@ -46,6 +46,7 @@ export async function getInventory(): Promise<InventoryItem[]> {
       WHERE m.FkEnvio IS NULL
         AND op.FechaProduccion > CAST('2017-07-27' AS DATE)
         AND op.FkTipo < 4
+        AND op.NoOrdenCompra <> ''
 
       UNION ALL
 
@@ -73,6 +74,7 @@ export async function getInventory(): Promise<InventoryItem[]> {
       INNER JOIN dbo.Freezers f ON f.IdFreezer = s.FkFreezer
       INNER JOIN dbo.Torres t ON t.IdTorre = s.FkTorre
       WHERE s.FkMaster IS NULL
+        AND op.NoOrdenCompra <> ''
     )
     SELECT NombreCliente, NoOrdenCompra, CodigoExterno, CAST(FechaProduccion AS date) AS FechaProduccion,
       CodigoItem, EstiloFinal, NombreItem, Marca, Talla, Empaque, TipoItem, Disponibilidad,

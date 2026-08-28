@@ -8,24 +8,50 @@ import LoginPage from './pages/LoginPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
 import UsersPage from './pages/UsersPage';
 import InventoryPage from './pages/InventoryPage';
+import CompraMateriaPrimaPage from './pages/CompraMateriaPrimaPage';
+import RecepcionPage from './pages/RecepcionPage';
+import DescabezadoPage from './pages/DescabezadoPage';
+import ClasificadoPage from './pages/ClasificadoPage';
+import ExportacionesPage from './pages/ExportacionesPage';
 import { FiltersProvider } from './context/FiltersContext';
 import { apiClient } from './api/client';
 import { AuthUser, normalizeAuthUser } from './types/auth';
 import { Permiso, tienePermiso } from './config/permissions';
 
 const PERMISO_POR_VISTA: Record<DashboardView, Permiso> = {
+  'compra-materia-prima': 'compra_materia_prima',
+  recepcion: 'recepcion',
+  descabezado: 'descabezado',
+  clasificado: 'clasificado',
   dashboard: 'iqf',
   pelado: 'pelado',
+  exportaciones: 'exportaciones',
   users: 'usuarios',
   inventory: 'inventario',
 };
+
+const VIEW_ORDER: DashboardView[] = [
+  'compra-materia-prima',
+  'recepcion',
+  'descabezado',
+  'clasificado',
+  'pelado',
+  'dashboard',
+  'exportaciones',
+  'inventory',
+  'users',
+];
+
+function canAccessView(user: AuthUser, view: DashboardView): boolean {
+  return tienePermiso(user, PERMISO_POR_VISTA[view]);
+}
 
 const VIEW_STORAGE_KEY = 'dashboard-current-view';
 
 function readStoredView(): DashboardView | null {
   try {
     const value = localStorage.getItem(VIEW_STORAGE_KEY);
-    return value === 'dashboard' || value === 'pelado' || value === 'users' || value === 'inventory' ? value : null;
+    return VIEW_ORDER.includes(value as DashboardView) ? value as DashboardView : null;
   } catch {
     return null;
   }
@@ -41,14 +67,13 @@ function persistView(view: DashboardView | null): void {
 
 /** Primera vista a la que el usuario tiene acceso, en orden de prioridad. */
 function defaultView(user: AuthUser): DashboardView | null {
-  return (Object.keys(PERMISO_POR_VISTA) as DashboardView[])
-    .find((view) => tienePermiso(user, PERMISO_POR_VISTA[view])) ?? null;
+  return VIEW_ORDER.find((view) => canAccessView(user, view)) ?? null;
 }
 
 /** Vista guardada de la sesión anterior si el usuario todavía tiene acceso; si no, la primera disponible. */
 function resolveView(user: AuthUser): DashboardView | null {
   const stored = readStoredView();
-  if (stored && tienePermiso(user, PERMISO_POR_VISTA[stored])) return stored;
+  if (stored && canAccessView(user, stored)) return stored;
   return defaultView(user);
 }
 
@@ -102,7 +127,7 @@ export default function App() {
     return <ChangePasswordPage onLogout={logout} onChanged={() => setUser({ ...user, debeCambiarPassword: false })} />;
   }
 
-  const view = currentView && tienePermiso(user, PERMISO_POR_VISTA[currentView]) ? currentView : defaultView(user);
+  const view = currentView && canAccessView(user, currentView) ? currentView : defaultView(user);
 
   return (
     <FiltersProvider>
@@ -115,10 +140,26 @@ export default function App() {
           persistView(next);
         }}
       >
-        {view === 'inventory' ? (
+        {view === 'compra-materia-prima' ? (
+          <CompraMateriaPrimaPage />
+        ) : view === 'recepcion' ? (
+          <RecepcionPage />
+        ) : view === 'descabezado' ? (
+          <DescabezadoPage />
+        ) : view === 'clasificado' ? (
+          <ClasificadoPage />
+        ) : view === 'exportaciones' ? (
+          <ExportacionesPage />
+        ) : view === 'inventory' ? (
           <InventoryPage userId={user.id} />
         ) : view === 'users' ? (
-          <UsersPage />
+          <UsersPage
+            currentUserId={user.id}
+            onCurrentUserUpdated={(updatedUser) => {
+              setUser(updatedUser);
+              setCurrentView(resolveView(updatedUser));
+            }}
+          />
         ) : view === 'pelado' ? (
           <PeladoPage />
         ) : view === 'dashboard' ? (

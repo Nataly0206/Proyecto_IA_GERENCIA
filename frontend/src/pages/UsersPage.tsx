@@ -157,7 +157,12 @@ function EditPermisosDialog({ user, onClose, onSaved }: {
   );
 }
 
-export default function UsersPage() {
+interface UsersPageProps {
+  currentUserId: string;
+  onCurrentUserUpdated: (user: AuthUser) => void;
+}
+
+export default function UsersPage({ currentUserId, onCurrentUserUpdated }: UsersPageProps) {
   const [users, setUsers] = useState<AuthUser[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [listError, setListError] = useState('');
@@ -174,6 +179,7 @@ export default function UsersPage() {
   }, []);
 
   const upsertUser = (updated: AuthUser) => {
+    if (updated.id === currentUserId) onCurrentUserUpdated(updated);
     setUsers((current) => {
       const exists = current.some((u) => u.id === updated.id);
       const next = exists ? current.map((u) => (u.id === updated.id ? updated : u)) : [...current, updated];

@@ -24,16 +24,30 @@ import RefreshOutlinedIcon from '@mui/icons-material/RefreshOutlined';
 import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
 import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
 import PeopleOutlineIcon from '@mui/icons-material/PeopleOutline';
-import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined';
 import ContentCutOutlinedIcon from '@mui/icons-material/ContentCutOutlined';
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
+import ShoppingCartOutlinedIcon from '@mui/icons-material/ShoppingCartOutlined';
+import MoveToInboxOutlinedIcon from '@mui/icons-material/MoveToInboxOutlined';
+import SetMealOutlinedIcon from '@mui/icons-material/SetMealOutlined';
+import SortOutlinedIcon from '@mui/icons-material/SortOutlined';
+import AcUnitOutlinedIcon from '@mui/icons-material/AcUnitOutlined';
+import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined';
 import { AuthUser } from '../../types/auth';
 import AiAssistantPanel from '../ai/AiAssistantPanel';
 import { useRefreshDashboard } from '../../hooks/useDashboardData';
 import { tienePermiso } from '../../config/permissions';
 
-export type DashboardView = 'dashboard' | 'pelado' | 'inventory' | 'users';
+export type DashboardView =
+  | 'compra-materia-prima'
+  | 'recepcion'
+  | 'descabezado'
+  | 'clasificado'
+  | 'pelado'
+  | 'dashboard'
+  | 'exportaciones'
+  | 'inventory'
+  | 'users';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -92,18 +106,60 @@ export default function DashboardLayout({
         </Typography>
       </Box>
       <List sx={{ px: 1, pt: 0 }}>
-        {tienePermiso(user, 'iqf') && (
-          <Tooltip title={expanded ? '' : 'IQF'} placement="right">
-            <ListItemButton
-              selected={currentView === 'dashboard'}
-              onClick={() => navigate('dashboard')}
-              sx={{ minHeight: 42, px: 1.25, borderRadius: 1, mb: 0.5 }}
-            >
-              <ListItemIcon sx={{ minWidth: expanded ? 36 : 0, justifyContent: 'center' }}>
-                <DashboardOutlinedIcon fontSize="small" />
-              </ListItemIcon>
-              {expanded && <ListItemText primary="IQF" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
-            </ListItemButton>
+        {tienePermiso(user, 'compra_materia_prima') && (
+          <Tooltip title={expanded ? '' : 'Compra de materia Prima'} placement="right">
+          <ListItemButton
+            selected={currentView === 'compra-materia-prima'}
+            onClick={() => navigate('compra-materia-prima')}
+            sx={{ minHeight: 42, px: 1.25, borderRadius: 1, mb: 0.5 }}
+          >
+            <ListItemIcon sx={{ minWidth: expanded ? 36 : 0, justifyContent: 'center' }}>
+              <ShoppingCartOutlinedIcon fontSize="small" />
+            </ListItemIcon>
+            {expanded && <ListItemText primary="Compra de materia Prima" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
+          </ListItemButton>
+          </Tooltip>
+        )}
+        {tienePermiso(user, 'recepcion') && (
+          <Tooltip title={expanded ? '' : 'Recepción'} placement="right">
+          <ListItemButton
+            selected={currentView === 'recepcion'}
+            onClick={() => navigate('recepcion')}
+            sx={{ minHeight: 42, px: 1.25, borderRadius: 1, mb: 0.5 }}
+          >
+            <ListItemIcon sx={{ minWidth: expanded ? 36 : 0, justifyContent: 'center' }}>
+              <MoveToInboxOutlinedIcon fontSize="small" />
+            </ListItemIcon>
+            {expanded && <ListItemText primary="Recepción" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
+          </ListItemButton>
+          </Tooltip>
+        )}
+        {tienePermiso(user, 'descabezado') && (
+          <Tooltip title={expanded ? '' : 'Descabezado'} placement="right">
+          <ListItemButton
+            selected={currentView === 'descabezado'}
+            onClick={() => navigate('descabezado')}
+            sx={{ minHeight: 42, px: 1.25, borderRadius: 1, mb: 0.5 }}
+          >
+            <ListItemIcon sx={{ minWidth: expanded ? 36 : 0, justifyContent: 'center' }}>
+              <SetMealOutlinedIcon fontSize="small" />
+            </ListItemIcon>
+            {expanded && <ListItemText primary="Descabezado" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
+          </ListItemButton>
+          </Tooltip>
+        )}
+        {tienePermiso(user, 'clasificado') && (
+          <Tooltip title={expanded ? '' : 'Clasificado'} placement="right">
+          <ListItemButton
+            selected={currentView === 'clasificado'}
+            onClick={() => navigate('clasificado')}
+            sx={{ minHeight: 42, px: 1.25, borderRadius: 1, mb: 0.5 }}
+          >
+            <ListItemIcon sx={{ minWidth: expanded ? 36 : 0, justifyContent: 'center' }}>
+              <SortOutlinedIcon fontSize="small" />
+            </ListItemIcon>
+            {expanded && <ListItemText primary="Clasificado" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
+          </ListItemButton>
           </Tooltip>
         )}
         {tienePermiso(user, 'pelado') && (
@@ -118,6 +174,34 @@ export default function DashboardLayout({
               </ListItemIcon>
               {expanded && <ListItemText primary="Pelado" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
             </ListItemButton>
+          </Tooltip>
+        )}
+        {tienePermiso(user, 'iqf') && (
+          <Tooltip title={expanded ? '' : 'IQF'} placement="right">
+            <ListItemButton
+              selected={currentView === 'dashboard'}
+              onClick={() => navigate('dashboard')}
+              sx={{ minHeight: 42, px: 1.25, borderRadius: 1, mb: 0.5 }}
+            >
+              <ListItemIcon sx={{ minWidth: expanded ? 36 : 0, justifyContent: 'center' }}>
+                <AcUnitOutlinedIcon fontSize="small" />
+              </ListItemIcon>
+              {expanded && <ListItemText primary="IQF" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
+            </ListItemButton>
+          </Tooltip>
+        )}
+        {tienePermiso(user, 'exportaciones') && (
+          <Tooltip title={expanded ? '' : 'Exportaciones'} placement="right">
+          <ListItemButton
+            selected={currentView === 'exportaciones'}
+            onClick={() => navigate('exportaciones')}
+            sx={{ minHeight: 42, px: 1.25, borderRadius: 1, mb: 0.5 }}
+          >
+            <ListItemIcon sx={{ minWidth: expanded ? 36 : 0, justifyContent: 'center' }}>
+              <LocalShippingOutlinedIcon fontSize="small" />
+            </ListItemIcon>
+            {expanded && <ListItemText primary="Exportaciones" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
+          </ListItemButton>
           </Tooltip>
         )}
         {tienePermiso(user, 'inventario') && (

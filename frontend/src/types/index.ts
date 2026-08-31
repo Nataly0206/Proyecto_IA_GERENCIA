@@ -59,7 +59,25 @@ export type DashboardEndpoint =
   | 'pelado-por-talla-mes'
   | 'pelado-personal'
   | 'pelado-personal-dia'
-  | 'pelado-personal-mes';
+  | 'pelado-personal-mes'
+  | 'recepcion-por-finca'
+  | 'recepcion-por-finca-dia'
+  | 'recepcion-por-finca-mes'
+  | 'descabezado-por-dia'
+  | 'descabezado-por-dia-mes'
+  | 'clasificado-por-maquina'
+  | 'clasificado-por-maquina-dia'
+  | 'clasificado-por-maquina-mes'
+  | 'clasificado-por-talla'
+  | 'clasificado-por-talla-dia'
+  | 'clasificado-por-talla-mes'
+  | 'exportaciones-por-estilo'
+  | 'exportaciones-contenedores'
+  | 'exportaciones-por-cliente-dia'
+  | 'exportaciones-por-cliente-mes'
+  | 'compra-mp-ordenes'
+  | 'compra-mp-por-proveedor'
+  | 'compra-mp-por-proveedor-mes';
 
 /** Contador en vivo de una línea IQF (día de producción en curso) */
 export interface IqfLiveLine {
@@ -158,6 +176,62 @@ export interface PeladoPorSalaResponse {
   actualizado: string; // ISO timestamp de la lectura
   salas: PeladoSalaRow[];
 }
+
+/* ------------------------------------------------------------------ */
+/* Contadores "en vivo" de los módulos de proceso                      */
+/* ------------------------------------------------------------------ */
+
+export interface RecepcionResumen {
+  dia: string;
+  actualizado: string;
+  librasRecibidasHoy: number;
+  remisionesHoy: number;
+  librasPendientesProcesar: number;
+  fincasActivasHoy: number;
+}
+
+export interface DescabezadoResumen {
+  dia: string;
+  actualizado: string;
+  librasDescabezadasHoy: number;
+  pagoHoy: number;
+  empleadosHoy: number;
+  librasPendientesDescabezar: number;
+}
+
+export interface ClasificadoResumen {
+  dia: string;
+  actualizado: string;
+  librasClasificadasHoy: number;
+  binsHoy: number;
+  inventarioLibras: number;
+  inventarioBins: number;
+}
+
+export interface ExportacionesResumen {
+  semanaInicio: string;
+  semanaFin: string;
+  actualizado: string;
+  contenedoresSemana: number;
+  contenedoresFrancia: number;
+  contenedoresUK: number;
+  librasSemana: number;
+}
+
+export interface CompraMpResumen {
+  actualizado: string;
+  ordenesPendientes: number;
+  ordenesTotales: number;
+  kgFaltantes: number;
+  masteresFaltantes: number;
+}
+
+export type ProcesoResumen =
+  | RecepcionResumen
+  | DescabezadoResumen
+  | ClasificadoResumen
+  | ExportacionesResumen
+  | CompraMpResumen;
 
 /* ------------------------------------------------------------------ */
 /* Configuración dinámica de gráficos (contrato para el Agente IA)     */

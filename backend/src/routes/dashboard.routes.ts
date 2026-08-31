@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import * as controller from '../controllers/dashboard.controller';
+import * as procesos from '../controllers/procesos.controller';
 import { asyncHandler } from '../middleware/errorHandler';
 import { requirePermission } from '../middleware/sessionAuth';
 
@@ -7,6 +8,11 @@ const router = Router();
 
 const iqf = requirePermission('iqf');
 const pelado = requirePermission('pelado');
+const recepcion = requirePermission('recepcion');
+const descabezado = requirePermission('descabezado');
+const clasificado = requirePermission('clasificado');
+const exportaciones = requirePermission('exportaciones');
+const compraMp = requirePermission('compra_materia_prima');
 
 router.get('/libras-netas-proceso', iqf, asyncHandler(controller.getLibrasNetasPorProceso));
 router.get('/libras-netas-proceso-dia', iqf, asyncHandler(controller.getLibrasNetasPorProcesoDia));
@@ -26,5 +32,38 @@ router.get('/pelado-por-sala', pelado, asyncHandler(controller.getPeladoPorSala)
 router.get('/pelado-personal', pelado, asyncHandler(controller.getPeladoPersonal));
 router.get('/pelado-personal-dia', pelado, asyncHandler(controller.getPeladoPersonalDia));
 router.get('/pelado-personal-mes', pelado, asyncHandler(controller.getPeladoPersonalMes));
+
+/* Recepción */
+router.get('/recepcion-resumen', recepcion, asyncHandler(procesos.getRecepcionResumen));
+router.get('/recepcion-por-finca', recepcion, asyncHandler(procesos.getRecepcionPorFinca));
+router.get('/recepcion-por-finca-dia', recepcion, asyncHandler(procesos.getRecepcionPorFincaDia));
+router.get('/recepcion-por-finca-mes', recepcion, asyncHandler(procesos.getRecepcionPorFincaMes));
+
+/* Descabezado */
+router.get('/descabezado-resumen', descabezado, asyncHandler(procesos.getDescabezadoResumen));
+router.get('/descabezado-por-dia', descabezado, asyncHandler(procesos.getDescabezadoPorDia));
+router.get('/descabezado-por-dia-mes', descabezado, asyncHandler(procesos.getDescabezadoPorDiaMes));
+
+/* Clasificado */
+router.get('/clasificado-resumen', clasificado, asyncHandler(procesos.getClasificadoResumen));
+router.get('/clasificado-por-maquina', clasificado, asyncHandler(procesos.getClasificadoPorMaquina));
+router.get('/clasificado-por-maquina-dia', clasificado, asyncHandler(procesos.getClasificadoPorMaquinaDia));
+router.get('/clasificado-por-maquina-mes', clasificado, asyncHandler(procesos.getClasificadoPorMaquinaMes));
+router.get('/clasificado-por-talla', clasificado, asyncHandler(procesos.getClasificadoPorTalla));
+router.get('/clasificado-por-talla-dia', clasificado, asyncHandler(procesos.getClasificadoPorTallaDia));
+router.get('/clasificado-por-talla-mes', clasificado, asyncHandler(procesos.getClasificadoPorTallaMes));
+
+/* Exportaciones */
+router.get('/exportaciones-resumen', exportaciones, asyncHandler(procesos.getExportacionesResumen));
+router.get('/exportaciones-por-estilo', exportaciones, asyncHandler(procesos.getExportacionesPorEstilo));
+router.get('/exportaciones-contenedores', exportaciones, asyncHandler(procesos.getExportacionesContenedores));
+router.get('/exportaciones-por-cliente-dia', exportaciones, asyncHandler(procesos.getExportacionesPorClienteDia));
+router.get('/exportaciones-por-cliente-mes', exportaciones, asyncHandler(procesos.getExportacionesPorClienteMes));
+
+/* Compra de materia prima */
+router.get('/compra-mp-resumen', compraMp, asyncHandler(procesos.getCompraMpResumen));
+router.get('/compra-mp-ordenes', compraMp, asyncHandler(procesos.getCompraMpOrdenes));
+router.get('/compra-mp-por-proveedor', compraMp, asyncHandler(procesos.getCompraMpPorProveedor));
+router.get('/compra-mp-por-proveedor-mes', compraMp, asyncHandler(procesos.getCompraMpPorProveedorMes));
 
 export default router;

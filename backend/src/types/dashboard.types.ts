@@ -169,3 +169,57 @@ export interface PeladoPorSalaResponse {
   actualizado: string;
   salas: PeladoSalaRow[];
 }
+
+/* ------------------------------------------------------------------ */
+/* Módulos de proceso: contadores "en vivo" (día / semana actual)      */
+/* ------------------------------------------------------------------ */
+
+/** Recepción de camarón de finca — contadores del día en curso. */
+export interface RecepcionResumen {
+  dia: string;
+  actualizado: string;
+  librasRecibidasHoy: number;
+  remisionesHoy: number;
+  librasPendientesProcesar: number;
+  fincasActivasHoy: number;
+}
+
+/** Descabezado — contadores del día en curso. */
+export interface DescabezadoResumen {
+  dia: string;
+  actualizado: string;
+  librasDescabezadasHoy: number;
+  pagoHoy: number;
+  empleadosHoy: number;
+  librasPendientesDescabezar: number;
+}
+
+/** Clasificado — contadores del día en curso e inventario disponible. */
+export interface ClasificadoResumen {
+  dia: string;
+  actualizado: string;
+  librasClasificadasHoy: number;
+  binsHoy: number;
+  inventarioLibras: number;
+  inventarioBins: number;
+}
+
+/** Exportaciones — contadores de la semana en curso (lunes a domingo). */
+export interface ExportacionesResumen {
+  semanaInicio: string;
+  semanaFin: string;
+  actualizado: string;
+  contenedoresSemana: number;
+  contenedoresFrancia: number;
+  contenedoresUK: number;
+  librasSemana: number;
+}
+
+/** Compra de materia prima — avance de órdenes de compra de exportación. */
+export interface CompraMpResumen {
+  actualizado: string;
+  ordenesPendientes: number;
+  ordenesTotales: number;
+  kgFaltantes: number;
+  masteresFaltantes: number;
+}

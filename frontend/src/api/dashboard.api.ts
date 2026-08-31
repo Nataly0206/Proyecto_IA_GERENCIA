@@ -40,6 +40,25 @@ export async function fetchPeladoPorSala(refresh = false): Promise<PeladoPorSala
   return data;
 }
 
+/** Endpoints "en vivo" de los módulos de proceso (contadores del día o
+ *  la semana en curso, sin filtros). */
+export type ProcesoResumenEndpoint =
+  | 'recepcion-resumen'
+  | 'descabezado-resumen'
+  | 'clasificado-resumen'
+  | 'exportaciones-resumen'
+  | 'compra-mp-resumen';
+
+export async function fetchProcesoResumen<T>(
+  endpoint: ProcesoResumenEndpoint,
+  refresh = false,
+): Promise<T> {
+  const { data } = await apiClient.get<T>(`/dashboard/${endpoint}`, {
+    params: refresh ? { refresh: 'true' } : undefined,
+  });
+  return data;
+}
+
 export async function fetchWidgetData(
   endpoint: DashboardEndpoint,
   filters: DashboardFilters,

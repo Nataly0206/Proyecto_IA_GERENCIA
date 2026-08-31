@@ -1,5 +1,12 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchIqfLive, fetchPeladoLibrasHoy, fetchPeladoPorSala, fetchWidgetData } from '../api/dashboard.api';
+import {
+  fetchIqfLive,
+  fetchPeladoLibrasHoy,
+  fetchPeladoPorSala,
+  fetchProcesoResumen,
+  fetchWidgetData,
+  ProcesoResumenEndpoint,
+} from '../api/dashboard.api';
 import { useFilters } from '../context/FiltersContext';
 import {
   DashboardEndpoint,
@@ -179,6 +186,50 @@ export function usePeladoPorSala() {
   return { ...query, refreshNow };
 }
 
+/**
+ * Contador "en vivo" de un módulo de proceso (Recepción, Descabezado,
+ * Clasificado, Exportaciones, Compra MP). Mismo patrón que `useIqfLive`:
+ * refresco automático cada 5 min + caché de navegador, y `refreshNow`
+ * para el botón "Actualizar".
+ */
+export function useProcesoResumen<T>(endpoint: ProcesoResumenEndpoint) {
+  const queryClient = useQueryClient();
+  const queryKey = ['dashboard', endpoint] as const;
+  const cacheKey = browserCacheKey([endpoint, 'current']);
+  const cached = readBrowserCache<T>(cacheKey, LIVE_REFRESH_INTERVAL_MS);
+
+  const query = useQuery<T>({
+    queryKey,
+    queryFn: async () => {
+      const data = await fetchProcesoResumen<T>(endpoint);
+      writeBrowserCache(cacheKey, data);
+      return data;
+    },
+    initialData: cached?.data,
+    initialDataUpdatedAt: cached?.updatedAt,
+    staleTime: LIVE_REFRESH_INTERVAL_MS,
+    refetchInterval: LIVE_REFRESH_INTERVAL_MS,
+    refetchIntervalInBackground: true,
+  });
+
+  const refreshNow = async (): Promise<T> => {
+    const data = await fetchProcesoResumen<T>(endpoint, true);
+    writeBrowserCache(cacheKey, data);
+    queryClient.setQueryData<T>(queryKey, data);
+    return data;
+  };
+
+  return { ...query, refreshNow };
+}
+
+const PROCESO_RESUMEN_ENDPOINTS: ProcesoResumenEndpoint[] = [
+  'recepcion-resumen',
+  'descabezado-resumen',
+  'clasificado-resumen',
+  'exportaciones-resumen',
+  'compra-mp-resumen',
+];
+
 /** Fuerza una lectura nueva de todos los widgets visibles y contadores. */
 export function useRefreshDashboard() {
   const { filters } = useFilters();
@@ -192,7 +243,12 @@ export function useRefreshDashboard() {
       queryKey: ['dashboard'],
       type: 'active',
     });
-    const liveEndpoints = new Set(['iqf-tiempo-real', 'pelado-libras-hoy', 'pelado-por-sala']);
+    const liveEndpoints = new Set<string>([
+      'iqf-tiempo-real',
+      'pelado-libras-hoy',
+      'pelado-por-sala',
+      ...PROCESO_RESUMEN_ENDPOINTS,
+    ]);
     const endpoints = Array.from(
       new Set(
         activeQueries
@@ -202,6 +258,9 @@ export function useRefreshDashboard() {
               typeof endpoint === 'string' && !liveEndpoints.has(endpoint),
           ),
       ),
+    );
+    const activeResumenEndpoints = PROCESO_RESUMEN_ENDPOINTS.filter((endpoint) =>
+      activeQueries.some((query) => query.queryKey[1] === endpoint),
     );
 
     const liveKey = ['dashboard', 'iqf-tiempo-real'] as const;
@@ -236,6 +295,11 @@ export function useRefreshDashboard() {
         ]);
         writeBrowserCache(cacheKey, data);
         queryClient.setQueryData<DataRow[]>(queryKey, data);
+      }),
+      ...activeResumenEndpoints.map(async (endpoint) => {
+        const data = await fetchProcesoResumen(endpoint, true);
+        writeBrowserCache(browserCacheKey([endpoint, 'current']), data);
+        queryClient.setQueryData(['dashboard', endpoint], data);
       }),
     ]);
   };

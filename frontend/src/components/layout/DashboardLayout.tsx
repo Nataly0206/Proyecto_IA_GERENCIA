@@ -279,7 +279,7 @@ export default function DashboardLayout({
               ESF Seafood
             </Typography>
           </Stack>
-          {(currentView === 'dashboard' || currentView === 'pelado') && (
+          {currentView !== null && currentView !== 'users' && currentView !== 'inventory' && (
             <Button
               size="small"
               variant="outlined"

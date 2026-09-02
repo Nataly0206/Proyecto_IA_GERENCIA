@@ -14,7 +14,7 @@ import {
 import TableChartOutlinedIcon from '@mui/icons-material/TableChartOutlined';
 import InsertChartOutlinedIcon from '@mui/icons-material/InsertChartOutlined';
 import TimelineOutlinedIcon from '@mui/icons-material/TimelineOutlined';
-import { ChartConfig } from '../../types';
+import { ChartConfig, DataRow } from '../../types';
 import { useWidgetData } from '../../hooks/useDashboardData';
 import DynamicChart from './DynamicChart';
 import PivotTable from './PivotTable';
@@ -25,6 +25,12 @@ interface ChartWidgetProps {
   config: ChartConfig;
   /** Controles adicionales mostrados en la cabecera, junto al selector tabla/gráfica */
   actions?: ReactNode;
+  /**
+   * Transforma las filas ya fetcheadas antes de renderizarlas — para
+   * reutilizar el mismo endpoint con una vista derivada (p. ej. un factor
+   * de conversión) sin duplicar la consulta ni el fetch.
+   */
+  transform?: (data: DataRow[]) => DataRow[];
 }
 
 type ViewMode = 'table' | 'chart' | 'trend';
@@ -35,7 +41,7 @@ type ViewMode = 'table' | 'chart' | 'trend';
  * DynamicChart. Si el config declara `altChartType`, muestra un selector
  * para alternar entre vista de tabla y gráfica comparativa.
  */
-export default function ChartWidget({ config, actions }: ChartWidgetProps) {
+export default function ChartWidget({ config, actions, transform }: ChartWidgetProps) {
   const { data, isLoading, isError, error } = useWidgetData(config.endpoint);
   const [view, setView] = useState<ViewMode>('chart');
 
@@ -76,6 +82,7 @@ export default function ChartWidget({ config, actions }: ChartWidgetProps) {
           );
         })()
       : seriesFilteredData;
+  const transformedData = visibleData && transform ? transform(visibleData) : visibleData;
   const isCards = effectiveConfig.type === 'cards';
   const widgetHeight = isCards ? 'auto' : { xs: 'auto', md: '100%' };
 
@@ -158,13 +165,13 @@ export default function ChartWidget({ config, actions }: ChartWidgetProps) {
           </Alert>
         )}
 
-        {!isLoading && !isError && (visibleData?.length ?? 0) === 0 && (
+        {!isLoading && !isError && (transformedData?.length ?? 0) === 0 && (
           <Alert severity="info" sx={{ mt: 2 }}>
             Sin datos para los filtros seleccionados.
           </Alert>
         )}
 
-        {!isLoading && !isError && visibleData && visibleData.length > 0 && (
+        {!isLoading && !isError && transformedData && transformedData.length > 0 && (
           <ErrorBoundary label="Error al renderizar el widget">
             {/* Solo table/chart viven en un Card de altura fija (height: '100%' en
                 md+) donde flex:1 + minHeight:0 reparte el espacio restante para
@@ -174,13 +181,13 @@ export default function ChartWidget({ config, actions }: ChartWidgetProps) {
                 invisible, montado bajo el siguiente widget). Por eso "cards" usa
                 un Box sin flex, que simplemente crece con su contenido. */}
             {isCards ? (
-              <KpiCards config={effectiveConfig} data={visibleData} />
+              <KpiCards config={effectiveConfig} data={transformedData} />
             ) : (
               <Box sx={{ flex: 1, minHeight: 0 }}>
                 {effectiveConfig.type === 'table' ? (
-                  <PivotTable config={effectiveConfig} data={visibleData} />
+                  <PivotTable config={effectiveConfig} data={transformedData} />
                 ) : (
-                  <DynamicChart config={effectiveConfig} data={visibleData} />
+                  <DynamicChart config={effectiveConfig} data={transformedData} />
                 )}
               </Box>
             )}

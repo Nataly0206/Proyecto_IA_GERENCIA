@@ -262,7 +262,7 @@ export const compraMpWidgets: ChartConfig[] = [
   {
     id: 'compra-mp-por-proveedor',
     type: 'cards',
-    title: 'Materia Prima por Proveedor',
+    title: 'Materia Prima por Proveedor WSO',
     subtitle: 'Rango de fechas del filtro — fuente: AV_MateriaPrima',
     endpoint: 'compra-mp-por-proveedor',
     xField: 'proveedor',

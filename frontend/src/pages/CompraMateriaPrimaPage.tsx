@@ -1,22 +1,40 @@
-import { Box, Stack } from '@mui/material';
+import { useState } from 'react';
+import { Box, Button, Stack } from '@mui/material';
 import ShoppingCartOutlinedIcon from '@mui/icons-material/ShoppingCartOutlined';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
+import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
 import ProcessFilters from '../components/filters/ProcessFilters';
 import ResumenCards from '../components/live/ResumenCards';
 import ChartWidget from '../components/charts/ChartWidget';
 import MateriaPrimaProveedorWidget from '../components/charts/MateriaPrimaProveedorWidget';
 import GroupedItemsTable from '../components/charts/GroupedItemsTable';
 import { useProcesoResumen } from '../hooks/useDashboardData';
-import { CompraMpResumen } from '../types';
+import { ChartConfig, CompraMpResumen, DataRow } from '../types';
 import { formatPeriodo } from '../utils/format';
 import { compraMpWidgets } from '../config/dashboardConfig';
 
 const [porProveedor] = compraMpWidgets;
 const TABLE_H = 460;
 
+/** "Entero" = equivalente en libras de camarón entero antes de pelar/limpiar.
+ *  WSO (whole shell-on, lo que se recibe) rinde ~65% del peso entero, así
+ *  que el entero equivalente es WSO ÷ 0.65. */
+const WSO_A_ENTERO_FACTOR = 0.65;
+const porProveedorEntero: ChartConfig = {
+  ...porProveedor,
+  id: 'compra-mp-por-proveedor-entero',
+  title: 'Materia Prima por Proveedor Entero',
+  subtitle: 'Equivalente en libras enteras (WSO ÷ 0.65) · rango de fechas del filtro',
+  unitLabel: 'lbs enteras (equiv.)',
+};
+const toEntero = (rows: DataRow[]): DataRow[] =>
+  rows.map((r) => ({ ...r, libras: Number(r.libras ?? 0) / WSO_A_ENTERO_FACTOR }));
+
 export default function CompraMateriaPrimaPage({ userId }: { userId: string }) {
   const { data, isLoading, isError, error, dataUpdatedAt } =
     useProcesoResumen<CompraMpResumen>('compra-mp-resumen');
+  const [showDetalle, setShowDetalle] = useState(false);
 
   const semana =
     data && data.semanaInicio
@@ -52,15 +70,32 @@ export default function CompraMateriaPrimaPage({ userId }: { userId: string }) {
         ]}
       />
 
-      <ChartWidget config={porProveedor} />
-
-      <GroupedItemsTable
-        title="Materia Prima por Proveedor e Item"
-        subtitle="Tipo, proveedor e item · rango de fechas del filtro · fuente: AV_MateriaPrima"
-        icon={<Inventory2OutlinedIcon color="primary" sx={{ fontSize: 16 }} />}
-        endpoint="compra-mp-por-item"
-        emptyText="Sin materia prima registrada en el rango seleccionado."
+      <ChartWidget
+        config={porProveedor}
+        actions={
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={showDetalle ? <VisibilityOffOutlinedIcon sx={{ fontSize: 16 }} /> : <VisibilityOutlinedIcon sx={{ fontSize: 16 }} />}
+            onClick={() => setShowDetalle((v) => !v)}
+            sx={{ fontSize: 11, fontWeight: 700, py: 0.4 }}
+          >
+            {showDetalle ? 'Ocultar Detalle' : 'Ver Detalle'}
+          </Button>
+        }
       />
+
+      {showDetalle && (
+        <GroupedItemsTable
+          title="Materia Prima por Proveedor e Item"
+          subtitle="Tipo, proveedor e item · rango de fechas del filtro · fuente: AV_MateriaPrima"
+          icon={<Inventory2OutlinedIcon color="primary" sx={{ fontSize: 16 }} />}
+          endpoint="compra-mp-por-item"
+          emptyText="Sin materia prima registrada en el rango seleccionado."
+        />
+      )}
+
+      <ChartWidget config={porProveedorEntero} transform={toEntero} />
 
       <Box sx={{ height: TABLE_H, flexShrink: 0 }}>
         <MateriaPrimaProveedorWidget userId={userId} height={TABLE_H} />

@@ -17,7 +17,7 @@ import { getDateFilterError, isValidIsoDate } from '../../utils/dateFilters';
  * través del FiltersContext + React Query. Nota: el reporte mensual usa
  * una ventana fija de 12 meses (solo le afecta el filtro de turno).
  */
-export default function GlobalFilters() {
+export default function GlobalFilters({ hideTurno = false }: { hideTurno?: boolean }) {
   const {
     filters,
     showChartValues,
@@ -38,7 +38,9 @@ export default function GlobalFilters() {
         gridTemplateColumns: {
           xs: 'minmax(0, 1fr)',
           sm: 'repeat(2, minmax(0, 1fr))',
-          md: 'minmax(150px, 1fr) minmax(150px, 1fr) minmax(130px, .8fr) auto',
+          md: hideTurno
+            ? 'minmax(150px, 1fr) minmax(150px, 1fr) auto'
+            : 'minmax(150px, 1fr) minmax(150px, 1fr) minmax(130px, .8fr) auto',
         },
         gap: { xs: 1.25, md: 1 },
         alignItems: 'start',
@@ -70,21 +72,23 @@ export default function GlobalFilters() {
         helperText={finalDateError && !initialDateError ? dateError : undefined}
       />
 
-      <TextField
-        label="Turno"
-        select
-        size="small"
-        fullWidth
-        value={filters.turno}
-        onChange={(e) => updateFilter('turno', e.target.value)}
-      >
-        <MenuItem value="">Todos</MenuItem>
-        {TURNOS.map((turno) => (
-          <MenuItem key={turno} value={turno}>
-            Turno {turno}
-          </MenuItem>
-        ))}
-      </TextField>
+      {!hideTurno && (
+        <TextField
+          label="Turno"
+          select
+          size="small"
+          fullWidth
+          value={filters.turno}
+          onChange={(e) => updateFilter('turno', e.target.value)}
+        >
+          <MenuItem value="">Todos</MenuItem>
+          {TURNOS.map((turno) => (
+            <MenuItem key={turno} value={turno}>
+              Turno {turno}
+            </MenuItem>
+          ))}
+        </TextField>
+      )}
 
       <Box
         sx={{

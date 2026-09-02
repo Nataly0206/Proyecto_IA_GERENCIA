@@ -23,7 +23,17 @@ export interface WidgetColumn {
   align?: 'left' | 'right';
   /** 'periodo' formatea fechas ISO; los ValueFormat formatean números. */
   format?: ValueFormat | 'periodo' | 'text';
+  /**
+   * Fila de totales al pie. `'sum'` suma la columna; `{ ratio: [num, den] }`
+   * calcula una razón ponderada (Σnum ÷ Σden), escalada a porcentaje cuando
+   * la columna usa formato `'percent'`. Si ninguna columna define `total`,
+   * no se dibuja fila de totales.
+   */
+  total?: 'sum' | { ratio: [string, string] };
 }
+
+const numericFormat = (f: WidgetColumn['format']): ValueFormat =>
+  f && f !== 'periodo' && f !== 'text' ? f : 'number';
 
 interface WidgetDataTableProps {
   title: string;
@@ -89,6 +99,21 @@ export default function WidgetDataTable({
       setSortDir('desc');
     }
   };
+
+  const totals = useMemo(() => {
+    if (!columns.some((c) => c.total)) return null;
+    const sum = (key: string) => rows.reduce((acc, r) => acc + (Number(r[key]) || 0), 0);
+    const out: Record<string, number> = {};
+    for (const col of columns) {
+      if (col.total === 'sum') out[col.key] = sum(col.key);
+      else if (col.total && typeof col.total === 'object') {
+        const den = sum(col.total.ratio[1]);
+        const ratio = den > 0 ? sum(col.total.ratio[0]) / den : 0;
+        out[col.key] = col.format === 'percent' ? ratio * 100 : ratio;
+      }
+    }
+    return out;
+  }, [rows, columns]);
 
   return (
     <Box>
@@ -158,6 +183,33 @@ export default function WidgetDataTable({
                   ))}
                 </TableRow>
               ))}
+              {totals && (
+                <TableRow
+                  sx={{
+                    '& td': {
+                      fontWeight: 800,
+                      bgcolor: '#f1f5f9',
+                      color: '#172033',
+                      borderTop: '2px solid rgba(148, 163, 184, 0.45)',
+                      position: 'sticky',
+                      bottom: 0,
+                    },
+                  }}
+                >
+                  {columns.map((col, idx) => (
+                    <TableCell
+                      key={col.key}
+                      align={col.align ?? (col.format && col.format !== 'text' && col.format !== 'periodo' ? 'right' : 'left')}
+                    >
+                      {idx === 0
+                        ? 'Total'
+                        : col.key in totals
+                          ? formatValue(totals[col.key], numericFormat(col.format))
+                          : ''}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </TableContainer>

@@ -33,10 +33,14 @@ import SetMealOutlinedIcon from '@mui/icons-material/SetMealOutlined';
 import SortOutlinedIcon from '@mui/icons-material/SortOutlined';
 import AcUnitOutlinedIcon from '@mui/icons-material/AcUnitOutlined';
 import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import DataObjectIcon from '@mui/icons-material/DataObject';
 import { AuthUser } from '../../types/auth';
 import AiAssistantPanel from '../ai/AiAssistantPanel';
 import { useRefreshDashboard } from '../../hooks/useDashboardData';
 import { tienePermiso } from '../../config/permissions';
+import PageHelpDialog from './PageHelpDialog';
+import PageDevDetailsDialog from './PageDevDetailsDialog';
 
 export type DashboardView =
   | 'compra-materia-prima'
@@ -74,6 +78,8 @@ export default function DashboardLayout({
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshFailed, setRefreshFailed] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [devDetailsOpen, setDevDetailsOpen] = useState(false);
   const refreshDashboard = useRefreshDashboard();
 
   const handleRefresh = async () => {
@@ -292,6 +298,30 @@ export default function DashboardLayout({
               {isRefreshing ? 'Actualizando…' : 'Actualizar'}
             </Button>
           )}
+          {currentView !== null && (
+            <Tooltip title="¿Qué muestra esta página?">
+              <IconButton
+                size="small"
+                onClick={() => setHelpOpen(true)}
+                aria-label="Abrir ayuda de esta página"
+                sx={{ color: 'text.secondary' }}
+              >
+                <HelpOutlineIcon />
+              </IconButton>
+            </Tooltip>
+          )}
+          {currentView !== null && tienePermiso(user, 'detalles_desarrollador') && (
+            <Tooltip title="Detalles de desarrollador (tablas, vistas, fórmulas)">
+              <IconButton
+                size="small"
+                onClick={() => setDevDetailsOpen(true)}
+                aria-label="Abrir detalles de desarrollador de esta página"
+                sx={{ color: 'text.secondary' }}
+              >
+                <DataObjectIcon />
+              </IconButton>
+            </Tooltip>
+          )}
           {tienePermiso(user, 'asistente_ia') && (
             <Button
               size="small"
@@ -344,6 +374,12 @@ export default function DashboardLayout({
       </Drawer>
 
       <AiAssistantPanel open={aiPanelOpen} onClose={() => setAiPanelOpen(false)} />
+      {currentView !== null && (
+        <PageHelpDialog view={currentView} open={helpOpen} onClose={() => setHelpOpen(false)} />
+      )}
+      {currentView !== null && tienePermiso(user, 'detalles_desarrollador') && (
+        <PageDevDetailsDialog view={currentView} open={devDetailsOpen} onClose={() => setDevDetailsOpen(false)} />
+      )}
     </Box>
   );
 }

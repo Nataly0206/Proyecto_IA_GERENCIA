@@ -15,6 +15,7 @@ export const PERMISOS = [
   'inventario',
   'usuarios',
   'asistente_ia',
+  'detalles_desarrollador',
 ] as const;
 
 export type Permiso = (typeof PERMISOS)[number];

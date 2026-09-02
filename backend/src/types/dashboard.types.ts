@@ -188,20 +188,23 @@ export interface RecepcionResumen {
 export interface DescabezadoResumen {
   dia: string;
   actualizado: string;
-  librasDescabezadasHoy: number;
-  pagoHoy: number;
-  empleadosHoy: number;
-  librasPendientesDescabezar: number;
+  librasDescabezadasDia: number;
+  personasDia: number;
+  /** Talla / rango con más libras del día (texto, no cantidad). */
+  gramajePromedio: string;
+  /** Pago a destajo por libra: SUM(VALOR) / SUM(LIBRAS) del día. */
+  costoPorLibra: number;
 }
 
-/** Clasificado — contadores del día en curso e inventario disponible. */
+/** Clasificado — libras clasificadas del día, la semana y el mes en curso. */
 export interface ClasificadoResumen {
   dia: string;
   actualizado: string;
+  semanaInicio: string;
+  semanaFin: string;
   librasClasificadasHoy: number;
-  binsHoy: number;
-  inventarioLibras: number;
-  inventarioBins: number;
+  librasClasificadasSemana: number;
+  librasClasificadasMes: number;
 }
 
 /** Exportaciones — contadores de la semana en curso (lunes a domingo). */
@@ -209,17 +212,23 @@ export interface ExportacionesResumen {
   semanaInicio: string;
   semanaFin: string;
   actualizado: string;
-  contenedoresSemana: number;
-  contenedoresFrancia: number;
-  contenedoresUK: number;
-  librasSemana: number;
+  librasFrancia: number;
+  librasUK: number;
+  librasACHolding: number;
+  librasTerceros: number;
+  librasTotal: number;
 }
 
-/** Compra de materia prima — avance de órdenes de compra de exportación. */
+/**
+ * Compra de materia prima — contadores de la semana y el mes en curso.
+ * `librasPromedioSemana` = libras del mes / nº de semanas del mes actual.
+ */
 export interface CompraMpResumen {
+  semanaInicio: string;
+  semanaFin: string;
   actualizado: string;
-  ordenesPendientes: number;
-  ordenesTotales: number;
-  kgFaltantes: number;
-  masteresFaltantes: number;
+  ordenesCompraSemana: number;
+  librasRecibidasSemana: number;
+  librasRecibidasMes: number;
+  librasPromedioSemana: number;
 }

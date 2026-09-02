@@ -1,15 +1,16 @@
-import { Box, Stack } from '@mui/material';
+import { Stack } from '@mui/material';
 import MoveToInboxOutlinedIcon from '@mui/icons-material/MoveToInboxOutlined';
+import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import ProcessFilters from '../components/filters/ProcessFilters';
 import ResumenCards from '../components/live/ResumenCards';
 import ChartWidget from '../components/charts/ChartWidget';
+import WidgetDataTable from '../components/charts/WidgetDataTable';
 import { useProcesoResumen } from '../hooks/useDashboardData';
 import { RecepcionResumen } from '../types';
 import { formatPeriodo } from '../utils/format';
 import { recepcionWidgets } from '../config/dashboardConfig';
 
-const [porFinca, porFincaDia, porFincaMes] = recepcionWidgets;
-const TABLE_H = 440;
+const [porFinca] = recepcionWidgets;
 
 export default function RecepcionPage() {
   const { data, isLoading, isError, error, dataUpdatedAt } =
@@ -22,7 +23,8 @@ export default function RecepcionPage() {
     >
       <ProcessFilters
         title="Filtros de recepción"
-        hint="Los contadores muestran el día en curso; las tarjetas y tablas responden al rango de fechas."
+        hint="Los contadores muestran el día en curso; las tarjetas y la tabla responden al rango de fechas."
+        hideTurno
       />
 
       <ResumenCards
@@ -48,12 +50,40 @@ export default function RecepcionPage() {
       />
 
       <ChartWidget config={porFinca} />
-      <Box sx={{ height: TABLE_H, flexShrink: 0 }}>
-        <ChartWidget config={porFincaDia} />
-      </Box>
-      <Box sx={{ height: TABLE_H, flexShrink: 0 }}>
-        <ChartWidget config={porFincaMes} />
-      </Box>
+
+      <WidgetDataTable
+        title="Remisiones Recibidas — Detalle"
+        subtitle="Una fila por remisión, finca y laguna · rango de fechas del filtro · fuente: RemisionesPlantaPBI"
+        icon={<ReceiptLongOutlinedIcon color="primary" sx={{ fontSize: 16 }} />}
+        endpoint="recepcion-remisiones"
+        defaultSortKey="fecha"
+        maxHeight={520}
+        emptyText="Sin remisiones recibidas en el rango seleccionado."
+        columns={[
+          { key: 'fecha', label: 'Fecha remisión', format: 'periodo' },
+          { key: 'cliente', label: 'Cliente' },
+          { key: 'codigoFinca', label: 'Código finca' },
+          { key: 'laguna', label: 'Laguna' },
+          { key: 'remision', label: 'Remisión planta' },
+          { key: 'librasRemision', label: 'Libras remisión', format: 'number', total: 'sum' },
+          { key: 'librasBasura', label: 'L. basura', format: 'number' },
+          { key: 'librasCola', label: 'Libras cola', format: 'number', total: 'sum' },
+          { key: 'librasCabeza', label: 'Libras cabeza', format: 'number', total: 'sum' },
+          { key: 'totalColaCabeza', label: 'Total cola + cabeza', format: 'number', total: 'sum' },
+          {
+            key: 'rendimientoFinca',
+            label: 'Rend. finca',
+            format: 'percent',
+            total: { ratio: ['librasCola', 'librasRemision'] },
+          },
+          {
+            key: 'rendimientoPlanta',
+            label: 'Rend. planta',
+            format: 'percent',
+            total: { ratio: ['librasCola', 'totalColaCabeza'] },
+          },
+        ]}
+      />
     </Stack>
   );
 }

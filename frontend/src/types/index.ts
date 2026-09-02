@@ -61,23 +61,19 @@ export type DashboardEndpoint =
   | 'pelado-personal-dia'
   | 'pelado-personal-mes'
   | 'recepcion-por-finca'
-  | 'recepcion-por-finca-dia'
-  | 'recepcion-por-finca-mes'
+  | 'recepcion-remisiones'
   | 'descabezado-por-dia'
   | 'descabezado-por-dia-mes'
+  | 'clasificado-inventario'
   | 'clasificado-por-maquina'
-  | 'clasificado-por-maquina-dia'
-  | 'clasificado-por-maquina-mes'
   | 'clasificado-por-talla'
   | 'clasificado-por-talla-dia'
   | 'clasificado-por-talla-mes'
   | 'exportaciones-por-estilo'
   | 'exportaciones-contenedores'
-  | 'exportaciones-por-cliente-dia'
   | 'exportaciones-por-cliente-mes'
-  | 'compra-mp-ordenes'
   | 'compra-mp-por-proveedor'
-  | 'compra-mp-por-proveedor-mes';
+  | 'compra-mp-materia-prima';
 
 /** Contador en vivo de una línea IQF (día de producción en curso) */
 export interface IqfLiveLine {
@@ -193,37 +189,56 @@ export interface RecepcionResumen {
 export interface DescabezadoResumen {
   dia: string;
   actualizado: string;
-  librasDescabezadasHoy: number;
-  pagoHoy: number;
-  empleadosHoy: number;
-  librasPendientesDescabezar: number;
+  librasDescabezadasDia: number;
+  personasDia: number;
+  /** Talla / rango con más libras del día (texto, no cantidad). */
+  gramajePromedio: string;
+  /** Pago a destajo por libra: SUM(VALOR) / SUM(LIBRAS) del día. */
+  costoPorLibra: number;
 }
 
 export interface ClasificadoResumen {
   dia: string;
   actualizado: string;
+  semanaInicio: string;
+  semanaFin: string;
   librasClasificadasHoy: number;
-  binsHoy: number;
-  inventarioLibras: number;
-  inventarioBins: number;
+  librasClasificadasSemana: number;
+  librasClasificadasMes: number;
 }
 
 export interface ExportacionesResumen {
   semanaInicio: string;
   semanaFin: string;
   actualizado: string;
-  contenedoresSemana: number;
-  contenedoresFrancia: number;
-  contenedoresUK: number;
-  librasSemana: number;
+  librasFrancia: number;
+  librasUK: number;
+  librasACHolding: number;
+  librasTerceros: number;
+  librasTotal: number;
 }
 
+/**
+ * Compra de materia prima — contadores de la semana y el mes en curso.
+ * `librasPromedioSemana` = libras del mes / nº de semanas del mes actual.
+ */
 export interface CompraMpResumen {
+  semanaInicio: string;
+  semanaFin: string;
   actualizado: string;
-  ordenesPendientes: number;
-  ordenesTotales: number;
-  kgFaltantes: number;
-  masteresFaltantes: number;
+  ordenesCompraSemana: number;
+  librasRecibidasSemana: number;
+  librasRecibidasMes: number;
+  librasPromedioSemana: number;
+}
+
+/** Fila del widget "libras recibidas por año/mes/gramaje/proveedor". */
+export interface CompraMpMateriaPrimaRow extends DataRow {
+  anio: number;
+  mes: string; // "YYYY-MM"
+  gramaje: string;
+  proveedor: string;
+  libras: number;
 }
 
 export type ProcesoResumen =
@@ -345,8 +360,6 @@ export interface ChartConfig {
   sort?: ChartSort;
   /** Formato de los valores en tooltips y ejes */
   valueFormat?: ValueFormat;
-  /** Muestra el valor directamente sobre cada punto o barra */
-  showDataLabels?: boolean;
   /** Paleta de colores personalizada */
   colors?: string[];
   /** Agrega al final una tarjeta con la suma de todos los valores */

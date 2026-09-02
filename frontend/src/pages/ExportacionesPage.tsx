@@ -10,7 +10,7 @@ import { ExportacionesResumen } from '../types';
 import { formatPeriodo } from '../utils/format';
 import { exportacionesWidgets } from '../config/dashboardConfig';
 
-const [porEstilo, porClienteDia, porClienteMes] = exportacionesWidgets;
+const [porEstilo, porClienteMes] = exportacionesWidgets;
 const TABLE_H = 440;
 
 export default function ExportacionesPage() {
@@ -30,6 +30,7 @@ export default function ExportacionesPage() {
       <ProcessFilters
         title="Filtros de exportaciones"
         hint="Los contadores muestran la semana en curso (lunes a domingo); las tarjetas y tablas responden al rango de fechas."
+        hideTurno
       />
 
       <ResumenCards
@@ -42,10 +43,11 @@ export default function ExportacionesPage() {
         updatedAt={dataUpdatedAt}
         emptyText="Sin contenedores exportados esta semana."
         metrics={[
-          { label: 'Contenedores esta semana', value: data?.contenedoresSemana ?? 0, unit: 'contenedores', tone: 'good' },
-          { label: 'Contenedores Francia', value: data?.contenedoresFrancia ?? 0, unit: 'contenedores' },
-          { label: 'Contenedores UK', value: data?.contenedoresUK ?? 0, unit: 'contenedores' },
-          { label: 'Libras exportadas', value: data?.librasSemana ?? 0, unit: 'lbs' },
+          { label: 'Libras a Francia', value: data?.librasFrancia ?? 0, unit: 'lbs' },
+          { label: 'Libras a UK', value: data?.librasUK ?? 0, unit: 'lbs' },
+          { label: 'Libras a AC Holding', value: data?.librasACHolding ?? 0, unit: 'lbs' },
+          { label: 'Libras a terceros', value: data?.librasTerceros ?? 0, unit: 'lbs' },
+          { label: 'Total exportado', value: data?.librasTotal ?? 0, unit: 'lbs', tone: 'good' },
         ]}
       />
 
@@ -53,7 +55,7 @@ export default function ExportacionesPage() {
 
       <WidgetDataTable
         title="Contenedores Exportados — Detalle"
-        subtitle="Por contenedor, estilo, código de exportación e item · rango de fechas del filtro"
+        subtitle="Por contenedor, estilo y cliente · rango de fechas del filtro"
         icon={<Inventory2OutlinedIcon color="primary" sx={{ fontSize: 16 }} />}
         endpoint="exportaciones-contenedores"
         defaultSortKey="fecha"
@@ -63,17 +65,12 @@ export default function ExportacionesPage() {
           { key: 'contenedor', label: 'Contenedor' },
           { key: 'cliente', label: 'Cliente' },
           { key: 'estilo', label: 'Estilo' },
-          { key: 'codigoExportacion', label: 'Cód. exportación' },
-          { key: 'item', label: 'Item' },
           { key: 'masteres', label: 'Másteres', format: 'number' },
           { key: 'anillosXMaster', label: 'Anillos/máster', format: 'decimal' },
           { key: 'libras', label: 'Libras', format: 'number' },
         ]}
       />
 
-      <Box sx={{ height: TABLE_H, flexShrink: 0 }}>
-        <ChartWidget config={porClienteDia} />
-      </Box>
       <Box sx={{ height: TABLE_H, flexShrink: 0 }}>
         <ChartWidget config={porClienteMes} />
       </Box>

@@ -92,7 +92,7 @@ export default function DynamicChart({ config, data }: DynamicChartProps) {
       colors,
       legend: { position: 'bottom', fontSize: '12px', fontWeight: 600 },
       dataLabels: {
-        enabled: true,
+        enabled: showChartValues,
         formatter: (val: number) => `${val.toFixed(1)}%`,
         style: { fontSize: '12px', fontWeight: 700 },
       },
@@ -161,7 +161,7 @@ export default function DynamicChart({ config, data }: DynamicChartProps) {
   const isHorizontal = config.type === 'bar';
   const apexType = config.type === 'column' ? 'bar' : config.type;
   const isLineLike = config.type === 'line' || config.type === 'area';
-  const displayDataLabels = Boolean(config.showDataLabels && showChartValues);
+  const displayDataLabels = showChartValues;
   const dateTickStep = config.adaptiveDateTicks
     ? adaptiveStepFor(categories.length)
     : 1;

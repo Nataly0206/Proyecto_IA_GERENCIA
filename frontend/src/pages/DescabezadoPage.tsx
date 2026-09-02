@@ -22,7 +22,8 @@ export default function DescabezadoPage() {
     >
       <ProcessFilters
         title="Filtros de descabezado"
-        hint="Los contadores muestran el día en curso; las tablas responden al rango de fechas y turno."
+        hint="Los contadores muestran el día en curso; las tablas responden al rango de fechas."
+        hideTurno
       />
 
       <ResumenCards
@@ -36,19 +37,27 @@ export default function DescabezadoPage() {
         emptyText="Sin descabezado registrado hoy."
         metrics={[
           {
-            label: 'Libras descabezadas hoy',
-            value: data?.librasDescabezadasHoy ?? 0,
+            label: 'Libras descabezadas al día',
+            value: data?.librasDescabezadasDia ?? 0,
             unit: 'lbs',
             tone: 'good',
           },
           {
-            label: 'Libras pendientes de descabezar',
-            value: data?.librasPendientesDescabezar ?? 0,
-            unit: 'lbs',
+            label: 'Personas descabezando por día',
+            value: data?.personasDia ?? 0,
+            unit: 'personas',
+          },
+          {
+            label: 'Gramaje promedio',
+            value: 0,
+            display: data?.gramajePromedio || undefined,
+          },
+          {
+            label: 'Costo por libra',
+            value: data?.costoPorLibra ?? 0,
+            format: 'currency',
             tone: 'warn',
           },
-          { label: 'Empleados registrando hoy', value: data?.empleadosHoy ?? 0, unit: 'personas' },
-          { label: 'Pago a destajo hoy', value: data?.pagoHoy ?? 0, format: 'currency' },
         ]}
       />
 

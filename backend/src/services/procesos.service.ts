@@ -8,6 +8,7 @@ import sql from 'mssql';
 import { runQuery } from './sql.service';
 import { runStbQuery } from './stb.service';
 import { matchesTurno, pickNumber, pickString } from '../utils/rows';
+import { withTtlCache } from '../utils/ttlCache';
 import {
   ClasificadoResumen,
   CompraMpResumen,
@@ -17,8 +18,8 @@ import {
 } from '../types/dashboard.types';
 import {
   CLASIFICADO_DETALLE_QUERY,
+  CLASIFICADO_INVENTARIO_QUERY,
   CLASIFICADO_RESUMEN_QUERY,
-  COMPRA_MP_ORDENES_QUERY,
   COMPRA_MP_POR_PROVEEDOR_QUERY,
   COMPRA_MP_RESUMEN_QUERY,
   DESCABEZADO_POR_DIA_QUERY,
@@ -26,6 +27,7 @@ import {
   EXPORTACIONES_CONTENEDORES_QUERY,
   EXPORTACIONES_RESUMEN_QUERY,
   RECEPCION_POR_FINCA_QUERY,
+  RECEPCION_REMISIONES_QUERY,
   RECEPCION_RESUMEN_QUERY,
 } from './procesos.queries';
 
@@ -127,15 +129,36 @@ export async function getRecepcionPorFinca(f: DashboardFilters): Promise<DataRow
   return aggregateTotal(groups).map(({ valor, libras, porcentaje }) => ({ finca: valor, libras, porcentaje }));
 }
 
-export async function getRecepcionPorFincaDia(f: DashboardFilters): Promise<DataRow[]> {
-  const groups = await fetchRecepcionFinca(f.fechaInicial, f.fechaFinal);
-  return aggregateByPeriod(groups, (d) => d).map(({ periodo, valor, libras }) => ({ periodo, finca: valor, libras }));
-}
-
-export async function getRecepcionPorFincaMes(_f: DashboardFilters, meses: number): Promise<DataRow[]> {
-  const [ini, fin] = monthWindow(meses);
-  const groups = await fetchRecepcionFinca(ini, fin);
-  return aggregateByPeriod(groups, (d) => d.slice(0, 7)).map(({ periodo, valor, libras }) => ({ periodo, finca: valor, libras }));
+/**
+ * Detalle de remisiones recibidas (tabla estilo Power BI): una fila por
+ * remisión, finca y laguna con libras de remisión, cola, cabeza y basura,
+ * más los rendimientos cola/recepción ("finca") y cola/planta. Fuente:
+ * vista `RemisionesPlantaPBI`.
+ */
+export async function getRecepcionRemisiones(f: DashboardFilters): Promise<DataRow[]> {
+  const rows = await runStbQuery(RECEPCION_REMISIONES_QUERY, dateParams(f.fechaInicial, f.fechaFinal));
+  return rows
+    .map((row) => {
+      const librasRemision = pickNumber(row, 'LibrasRemision');
+      const librasCola = pickNumber(row, 'LibrasCola');
+      const librasCabeza = pickNumber(row, 'LibrasCabeza');
+      const totalColaCabeza = librasCola + librasCabeza;
+      return {
+        fecha: pickString(row, 'Fecha').slice(0, 10),
+        remision: pickString(row, 'Remision') || '—',
+        cliente: pickString(row, 'Cliente') || 'Sin cliente',
+        codigoFinca: pickString(row, 'CodigoFinca') || '—',
+        laguna: pickString(row, 'Laguna') || '—',
+        librasRemision: round2(librasRemision),
+        librasBasura: round2(pickNumber(row, 'LibrasBasura')),
+        librasCola: round2(librasCola),
+        librasCabeza: round2(librasCabeza),
+        totalColaCabeza: round2(totalColaCabeza),
+        rendimientoFinca: librasRemision > 0 ? round2((librasCola / librasRemision) * 100) : 0,
+        rendimientoPlanta: totalColaCabeza > 0 ? round2((librasCola / totalColaCabeza) * 100) : 0,
+      };
+    })
+    .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.remision.localeCompare(b.remision));
 }
 
 /* ================================================================== */
@@ -148,40 +171,41 @@ export async function getDescabezadoResumen(): Promise<DescabezadoResumen> {
   return {
     dia: formatDate(new Date()),
     actualizado: new Date().toISOString(),
-    librasDescabezadasHoy: round2(pickNumber(r, 'LibrasDescabezadasHoy')),
-    pagoHoy: round2(pickNumber(r, 'PagoHoy')),
-    empleadosHoy: pickNumber(r, 'EmpleadosHoy'),
-    librasPendientesDescabezar: round2(pickNumber(r, 'LibrasPendientesDescabezar')),
+    librasDescabezadasDia: round2(pickNumber(r, 'LibrasDescabezadasDia')),
+    personasDia: pickNumber(r, 'PersonasDia'),
+    gramajePromedio: pickString(r, 'GramajePromedio'),
+    costoPorLibra: round2(pickNumber(r, 'CostoPorLibra')),
   };
 }
 
-async function fetchDescabezadoDia(fechaInicial: string, fechaFinal: string, turno?: string) {
+async function fetchDescabezadoDia(fechaInicial: string, fechaFinal: string) {
   const rows = await runStbQuery(DESCABEZADO_POR_DIA_QUERY, dateParams(fechaInicial, fechaFinal));
-  return rows
-    .map((row) => ({
-      dia: pickString(row, 'Dia'),
-      turno: turnoNombre(pickNumber(row, 'IdTurno')),
-      libras: pickNumber(row, 'Libras'),
-      valor: pickNumber(row, 'Valor'),
-    }))
-    .filter((g) => !turno || matchesTurno(g.turno, turno));
+  return rows.map((row) => ({
+    dia: pickString(row, 'Dia'),
+    libras: pickNumber(row, 'Libras'),
+    valor: pickNumber(row, 'Valor'),
+  }));
 }
+
+/** Serie única para las tablas generales (sin turno): la tabla pivote
+ *  necesita un `seriesField`, así que se usa una etiqueta constante. */
+const DESCABEZADO_SERIE = 'Descabezadas';
 
 export async function getDescabezadoPorDia(f: DashboardFilters): Promise<DataRow[]> {
-  const groups = await fetchDescabezadoDia(f.fechaInicial, f.fechaFinal, f.turno);
+  const groups = await fetchDescabezadoDia(f.fechaInicial, f.fechaFinal);
   return aggregateByPeriod(
-    groups.map((g) => ({ dia: g.dia, valor: g.turno, libras: g.libras })),
+    groups.map((g) => ({ dia: g.dia, valor: DESCABEZADO_SERIE, libras: g.libras })),
     (d) => d,
-  ).map(({ periodo, valor, libras }) => ({ periodo, turno: valor, libras }));
+  ).map(({ periodo, libras }) => ({ periodo, serie: DESCABEZADO_SERIE, libras }));
 }
 
-export async function getDescabezadoPorDiaMes(f: DashboardFilters, meses: number): Promise<DataRow[]> {
+export async function getDescabezadoPorDiaMes(_f: DashboardFilters, meses: number): Promise<DataRow[]> {
   const [ini, fin] = monthWindow(meses);
-  const groups = await fetchDescabezadoDia(ini, fin, f.turno);
+  const groups = await fetchDescabezadoDia(ini, fin);
   return aggregateByPeriod(
-    groups.map((g) => ({ dia: g.dia, valor: g.turno, libras: g.libras })),
+    groups.map((g) => ({ dia: g.dia, valor: DESCABEZADO_SERIE, libras: g.libras })),
     (d) => d.slice(0, 7),
-  ).map(({ periodo, valor, libras }) => ({ periodo, turno: valor, libras }));
+  ).map(({ periodo, libras }) => ({ periodo, serie: DESCABEZADO_SERIE, libras }));
 }
 
 /* ================================================================== */
@@ -194,11 +218,53 @@ export async function getClasificadoResumen(): Promise<ClasificadoResumen> {
   return {
     dia: formatDate(new Date()),
     actualizado: new Date().toISOString(),
+    semanaInicio: pickString(r, 'SemanaInicio'),
+    semanaFin: pickString(r, 'SemanaFin'),
     librasClasificadasHoy: round2(pickNumber(r, 'LibrasClasificadasHoy')),
-    binsHoy: pickNumber(r, 'BinsHoy'),
-    inventarioLibras: round2(pickNumber(r, 'InventarioLibras')),
-    inventarioBins: pickNumber(r, 'InventarioBins'),
+    librasClasificadasSemana: round2(pickNumber(r, 'LibrasClasificadasSemana')),
+    librasClasificadasMes: round2(pickNumber(r, 'LibrasClasificadasMes')),
   };
+}
+
+/**
+ * Inventario de clasificado disponible: una fila por talla final con su
+ * finca de origen predominante (la de más libras), bins, libras, días que
+ * lleva represado el bin más antiguo de esa talla, y porcentaje sobre el
+ * total disponible. Snapshot actual — sin filtros de fecha.
+ */
+export async function getClasificadoInventario(): Promise<DataRow[]> {
+  const rows = await runStbQuery(CLASIFICADO_INVENTARIO_QUERY, []);
+  const hoy = formatDate(new Date());
+  const porTalla = new Map<
+    string,
+    { talla: string; bins: number; libras: number; fincas: Map<string, number>; fechaMasAntigua: string }
+  >();
+  for (const row of rows) {
+    const talla = pickString(row, 'Talla') || 'Sin talla';
+    const finca = pickString(row, 'Finca') || 'Sin finca';
+    const bins = pickNumber(row, 'Bins');
+    const libras = pickNumber(row, 'Libras');
+    const fecha = pickString(row, 'FechaMasAntigua');
+    const acc = porTalla.get(talla) ?? { talla, bins: 0, libras: 0, fincas: new Map(), fechaMasAntigua: fecha };
+    acc.bins += bins;
+    acc.libras += libras;
+    acc.fincas.set(finca, (acc.fincas.get(finca) ?? 0) + libras);
+    if (fecha && (!acc.fechaMasAntigua || fecha < acc.fechaMasAntigua)) acc.fechaMasAntigua = fecha;
+    porTalla.set(talla, acc);
+  }
+  const total = Array.from(porTalla.values()).reduce((s, t) => s + t.libras, 0);
+  return Array.from(porTalla.values())
+    .map((t) => ({
+      talla: t.talla,
+      finca: Array.from(t.fincas.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '—',
+      bins: t.bins,
+      libras: round2(t.libras),
+      diasEnInventario: t.fechaMasAntigua
+        ? Math.max(0, Math.round((Date.parse(hoy) - Date.parse(t.fechaMasAntigua)) / 86400000))
+        : 0,
+      porcentaje: total > 0 ? round2((t.libras / total) * 100) : 0,
+    }))
+    .sort((a, b) => b.libras - a.libras);
 }
 
 interface ClasificadoGroup {
@@ -234,7 +300,12 @@ export async function getClasificadoPorTalla(f: DashboardFilters): Promise<DataR
     .map(({ valor, libras, porcentaje }) => ({ talla: valor, libras, porcentaje }));
 }
 
-function clasificadoPeriod(groups: ClasificadoGroup[], field: 'maquina' | 'talla', periodOf: (d: string) => string, key: string) {
+function clasificadoPeriod(
+  groups: ClasificadoGroup[],
+  field: 'maquina' | 'talla',
+  periodOf: (d: string) => string,
+  key: string,
+) {
   return aggregateByPeriod(groups.map((g) => ({ dia: g.dia, valor: g[field], libras: g.libras })), periodOf)
     .map(({ periodo, valor, libras }) => ({ periodo, [key]: valor, libras }));
 }
@@ -245,13 +316,6 @@ export async function getClasificadoPorTallaDia(f: DashboardFilters): Promise<Da
 export async function getClasificadoPorTallaMes(f: DashboardFilters, meses: number): Promise<DataRow[]> {
   const [ini, fin] = monthWindow(meses);
   return clasificadoPeriod(await fetchClasificado(ini, fin, f.turno), 'talla', (d) => d.slice(0, 7), 'talla');
-}
-export async function getClasificadoPorMaquinaDia(f: DashboardFilters): Promise<DataRow[]> {
-  return clasificadoPeriod(await fetchClasificado(f.fechaInicial, f.fechaFinal, f.turno), 'maquina', (d) => d, 'maquina');
-}
-export async function getClasificadoPorMaquinaMes(f: DashboardFilters, meses: number): Promise<DataRow[]> {
-  const [ini, fin] = monthWindow(meses);
-  return clasificadoPeriod(await fetchClasificado(ini, fin, f.turno), 'maquina', (d) => d.slice(0, 7), 'maquina');
 }
 
 /* ================================================================== */
@@ -265,10 +329,11 @@ export async function getExportacionesResumen(): Promise<ExportacionesResumen> {
     semanaInicio: pickString(r, 'SemanaInicio'),
     semanaFin: pickString(r, 'SemanaFin'),
     actualizado: new Date().toISOString(),
-    contenedoresSemana: pickNumber(r, 'ContenedoresSemana'),
-    contenedoresFrancia: pickNumber(r, 'ContenedoresFrancia'),
-    contenedoresUK: pickNumber(r, 'ContenedoresUK'),
-    librasSemana: round2(pickNumber(r, 'LibrasSemana')),
+    librasFrancia: round2(pickNumber(r, 'LibrasFrancia')),
+    librasUK: round2(pickNumber(r, 'LibrasUK')),
+    librasACHolding: round2(pickNumber(r, 'LibrasACHolding')),
+    librasTerceros: round2(pickNumber(r, 'LibrasTerceros')),
+    librasTotal: round2(pickNumber(r, 'LibrasTotal')),
   };
 }
 
@@ -278,27 +343,30 @@ interface ExportGroup {
   referencia: string;
   cliente: string;
   estilo: string;
-  codigoExportacion: string;
-  item: string;
   masteres: number;
   libras: number;
   unidades: number;
 }
 
+const EXPORT_GROUPS_CACHE_MS = 5 * 60 * 1000;
+
+/** Varios widgets de Exportaciones comparten el mismo rango de fechas del
+ *  filtro; se cachea por rango para no repetir el escaneo de `AV_Envios`
+ *  (vista de ~19M filas) una vez por widget. */
 async function fetchExportGroups(fechaInicial: string, fechaFinal: string): Promise<ExportGroup[]> {
-  const rows = await runQuery(EXPORTACIONES_CONTENEDORES_QUERY, dateParams(fechaInicial, fechaFinal));
-  return rows.map((row) => ({
-    dia: pickString(row, 'Dia'),
-    contenedor: pickString(row, 'Contenedor'),
-    referencia: pickString(row, 'Referencia'),
-    cliente: pickString(row, 'Cliente') || 'Sin cliente',
-    estilo: pickString(row, 'Estilo') || 'Sin estilo',
-    codigoExportacion: pickString(row, 'CodigoExportacion'),
-    item: pickString(row, 'Item'),
-    masteres: pickNumber(row, 'Masteres'),
-    libras: pickNumber(row, 'Libras'),
-    unidades: pickNumber(row, 'Unidades'),
-  }));
+  return withTtlCache(`exportGroups:${fechaInicial}:${fechaFinal}`, EXPORT_GROUPS_CACHE_MS, async () => {
+    const rows = await runQuery(EXPORTACIONES_CONTENEDORES_QUERY, dateParams(fechaInicial, fechaFinal));
+    return rows.map((row) => ({
+      dia: pickString(row, 'Dia'),
+      contenedor: pickString(row, 'Contenedor'),
+      referencia: pickString(row, 'Referencia'),
+      cliente: pickString(row, 'Cliente') || 'Sin cliente',
+      estilo: pickString(row, 'Estilo') || 'Sin estilo',
+      masteres: pickNumber(row, 'Masteres'),
+      libras: pickNumber(row, 'Libras'),
+      unidades: pickNumber(row, 'Unidades'),
+    }));
+  });
 }
 
 export async function getExportacionesPorEstilo(f: DashboardFilters): Promise<DataRow[]> {
@@ -307,8 +375,8 @@ export async function getExportacionesPorEstilo(f: DashboardFilters): Promise<Da
     .map(({ valor, libras, porcentaje }) => ({ estilo: valor, libras, porcentaje }));
 }
 
-/** Detalle por contenedor: una fila por (contenedor, estilo, código de
- *  exportación, item) con másteres, anillos por máster y libras. */
+/** Detalle por contenedor: una fila por (contenedor, estilo, cliente) con
+ *  másteres, anillos por máster y libras. */
 export async function getExportacionesContenedores(f: DashboardFilters): Promise<DataRow[]> {
   const groups = await fetchExportGroups(f.fechaInicial, f.fechaFinal);
   return groups
@@ -318,8 +386,6 @@ export async function getExportacionesContenedores(f: DashboardFilters): Promise
       referencia: g.referencia,
       cliente: g.cliente,
       estilo: g.estilo,
-      codigoExportacion: g.codigoExportacion || '—',
-      item: g.item || '—',
       masteres: g.masteres,
       anillosXMaster: g.masteres > 0 ? round2(g.unidades / g.masteres) : 0,
       libras: round2(g.libras),
@@ -343,9 +409,6 @@ function exportContainersByPeriod(groups: ExportGroup[], periodOf: (d: string) =
     .sort((a, b) => a.periodo.localeCompare(b.periodo) || a.cliente.localeCompare(b.cliente));
 }
 
-export async function getExportacionesPorClienteDia(f: DashboardFilters): Promise<DataRow[]> {
-  return exportContainersByPeriod(await fetchExportGroups(f.fechaInicial, f.fechaFinal), (d) => d.slice(0, 10));
-}
 export async function getExportacionesPorClienteMes(_f: DashboardFilters, meses: number): Promise<DataRow[]> {
   const [ini, fin] = monthWindow(meses);
   return exportContainersByPeriod(await fetchExportGroups(ini, fin), (d) => d.slice(0, 7));
@@ -355,44 +418,53 @@ export async function getExportacionesPorClienteMes(_f: DashboardFilters, meses:
 /* COMPRA DE MATERIA PRIMA                                             */
 /* ================================================================== */
 
+/** Nº de semanas lunes-domingo que toca el mes en curso desde el día 1
+ *  hasta hoy (para el promedio "libras por semana" del mes actual). Si se
+ *  quiere contar solo semanas completas, cambiar el `Math.ceil` por lógica
+ *  de semanas cerradas. */
+function semanasDelMesActual(hoy = new Date()): number {
+  const primerDiaSemana = (new Date(hoy.getFullYear(), hoy.getMonth(), 1).getDay() + 6) % 7; // 0 = lunes
+  return Math.max(1, Math.ceil((hoy.getDate() + primerDiaSemana) / 7));
+}
+
 export async function getCompraMpResumen(): Promise<CompraMpResumen> {
   const rows = await runQuery(COMPRA_MP_RESUMEN_QUERY, []);
   const r = rows[0] ?? {};
+  const librasRecibidasMes = round2(pickNumber(r, 'LibrasRecibidasMes'));
   return {
     actualizado: new Date().toISOString(),
-    ordenesPendientes: pickNumber(r, 'OrdenesPendientes'),
-    ordenesTotales: pickNumber(r, 'OrdenesTotales'),
-    kgFaltantes: round2(pickNumber(r, 'KgFaltantes')),
-    masteresFaltantes: pickNumber(r, 'MasteresFaltantes'),
+    semanaInicio: pickString(r, 'SemanaInicio'),
+    semanaFin: pickString(r, 'SemanaFin'),
+    ordenesCompraSemana: pickNumber(r, 'OrdenesCompraSemana'),
+    librasRecibidasSemana: round2(pickNumber(r, 'LibrasRecibidasSemana')),
+    librasRecibidasMes,
+    librasPromedioSemana: round2(librasRecibidasMes / semanasDelMesActual()),
   };
 }
 
-/** Órdenes de compra pendientes de exportación por cliente. */
-export async function getCompraMpOrdenes(): Promise<DataRow[]> {
-  const rows = await runQuery(COMPRA_MP_ORDENES_QUERY, []);
-  return rows
-    .map((row) => ({
-      noOrden: pickString(row, 'NoOrden'),
-      fecha: pickString(row, 'Fecha'),
-      cliente: pickString(row, 'Cliente') || 'Sin cliente',
-      producto: pickString(row, 'Producto') || 'Sin producto',
-      codigoExportacion: pickString(row, 'CodigoExportacion') || '—',
-      estilo: pickString(row, 'Estilo') || 'Sin estilo',
-      anillosXMaster: pickNumber(row, 'AnillosXMaster'),
-      semanaETD: pickString(row, 'SemanaETD') || '—',
-      kg: round2(pickNumber(row, 'Kg')),
-      kgProducidos: round2(pickNumber(row, 'KgProducidos')),
-      kgFaltantes: round2(pickNumber(row, 'KgFaltantes')),
-      masteresFaltantes: pickNumber(row, 'MasteresFaltantes'),
-      estado: pickString(row, 'Estado') || 'SIN ESTADO',
-    }))
-    .sort((a, b) => b.kgFaltantes - a.kgFaltantes);
+
+/** Cantidad de meses con datos que debe mostrar el reporte de materia prima
+ *  por proveedor (antes eran 12). Ver `getCompraMpMateriaPrima`: no es una
+ *  ventana calendario estricta, se ajusta para siempre mostrar 3 meses con
+ *  filas reales. */
+const COMPRA_MP_MESES = 3;
+
+interface CompraProveedorGroup {
+  dia: string;
+  anio: number;
+  mes: string;
+  gramaje: string;
+  valor: string;
+  libras: number;
 }
 
-async function fetchCompraProveedor(fechaInicial: string, fechaFinal: string) {
+async function fetchCompraProveedor(fechaInicial: string, fechaFinal: string): Promise<CompraProveedorGroup[]> {
   const rows = await runQuery(COMPRA_MP_POR_PROVEEDOR_QUERY, dateParams(fechaInicial, fechaFinal));
   return rows.map((row) => ({
     dia: pickString(row, 'Dia'),
+    anio: pickNumber(row, 'Anio'),
+    mes: pickString(row, 'Mes'),
+    gramaje: pickString(row, 'Gramaje') || 'Sin gramaje',
     valor: pickString(row, 'Proveedor') || 'Sin proveedor',
     libras: pickNumber(row, 'Libras'),
   }));
@@ -403,8 +475,38 @@ export async function getCompraMpPorProveedor(f: DashboardFilters): Promise<Data
   return aggregateTotal(groups).map(({ valor, libras, porcentaje }) => ({ proveedor: valor, libras, porcentaje }));
 }
 
-export async function getCompraMpPorProveedorMes(_f: DashboardFilters, meses: number): Promise<DataRow[]> {
-  const [ini, fin] = monthWindow(meses);
+/** Libras de materia prima recibidas por año, mes, gramaje (talla) y
+ *  proveedor, en una ventana de los últimos 3 meses **con datos** (no 3
+ *  meses calendario a secas). Alimenta el widget con selector de
+ *  proveedores; el filtrado por proveedor visible se hace en el front.
+ *
+ * IMPORTANTE: se pide un mes calendario extra (`COMPRA_MP_MESES + 1`) y
+ * luego se recorta a los 3 meses más recientes que realmente tienen filas.
+ * Si se pidiera la ventana calendario exacta (hoy − 3 meses → hoy), el mes
+ * en curso aparece vacío los primeros días (la recepción se registra con
+ * un par de días de rezago) y el widget mostraba solo 2 meses en vez de 3. */
+export async function getCompraMpMateriaPrima(): Promise<DataRow[]> {
+  const [ini, fin] = monthWindow(COMPRA_MP_MESES + 1);
   const groups = await fetchCompraProveedor(ini, fin);
-  return aggregateByPeriod(groups, (d) => d.slice(0, 7)).map(({ periodo, valor, libras }) => ({ periodo, proveedor: valor, libras }));
+  const map = new Map<string, { anio: number; mes: string; gramaje: string; proveedor: string; libras: number }>();
+  for (const g of groups) {
+    if (!g.mes || !g.valor) continue;
+    const key = `${g.mes}|${g.gramaje}|${g.valor}`;
+    const acc = map.get(key) ?? { anio: g.anio, mes: g.mes, gramaje: g.gramaje, proveedor: g.valor, libras: 0 };
+    acc.libras += g.libras;
+    map.set(key, acc);
+  }
+  const mesesConDatos = Array.from(new Set(Array.from(map.values()).map((c) => c.mes)))
+    .sort()
+    .slice(-COMPRA_MP_MESES);
+  const mesesVisibles = new Set(mesesConDatos);
+  return Array.from(map.values())
+    .filter((c) => mesesVisibles.has(c.mes))
+    .map((c) => ({ ...c, libras: round2(c.libras) }))
+    .sort(
+      (a, b) =>
+        a.mes.localeCompare(b.mes) ||
+        a.proveedor.localeCompare(b.proveedor) ||
+        a.gramaje.localeCompare(b.gramaje),
+    );
 }

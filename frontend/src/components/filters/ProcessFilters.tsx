@@ -12,15 +12,20 @@ import GlobalFilters from './GlobalFilters';
  */
 export default function ProcessFilters({
   title = 'Filtros',
-  subtitle = 'Ajusta el período y turno de los reportes',
+  subtitle,
   hint,
+  hideTurno = false,
 }: {
   title?: string;
   subtitle?: string;
   /** Nota adicional bajo los filtros (p. ej. de qué depende cada widget). */
   hint?: ReactNode;
+  /** Oculta el selector de turno cuando ningún widget de la página lo usa. */
+  hideTurno?: boolean;
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
+  const resolvedSubtitle =
+    subtitle ?? (hideTurno ? 'Ajusta el período de los reportes' : 'Ajusta el período y turno de los reportes');
 
   return (
     <Paper
@@ -57,7 +62,7 @@ export default function ProcessFilters({
             color="text.secondary"
             sx={{ display: { xs: 'none', sm: 'block' } }}
           >
-            {subtitle}
+            {resolvedSubtitle}
           </Typography>
         </Box>
         <Tooltip title={open ? 'Ocultar filtros' : 'Mostrar filtros'}>
@@ -74,7 +79,7 @@ export default function ProcessFilters({
       </Box>
       <Collapse in={open}>
         <Box sx={{ pt: 1.25 }}>
-          <GlobalFilters />
+          <GlobalFilters hideTurno={hideTurno} />
           {hint && (
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
               {hint}

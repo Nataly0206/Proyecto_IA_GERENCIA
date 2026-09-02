@@ -32,10 +32,10 @@ function report(key: string, handler: FilterHandler) {
 }
 
 /** Reporte mensual: ventana de N meses independiente del filtro de fechas. */
-function monthlyReport(key: string, handler: MonthHandler) {
+function monthlyReport(key: string, handler: MonthHandler, defaultMeses = 12) {
   return async (req: Request, res: Response): Promise<void> => {
     const filters = parseFilters(req);
-    const meses = Math.min(Math.max(Number(req.query.meses) || 12, 1), 36);
+    const meses = Math.min(Math.max(Number(req.query.meses) || defaultMeses, 1), 36);
     const forceRefresh = req.query.refresh === 'true';
     res.json(
       await withTtlCache(
@@ -59,8 +59,7 @@ function live(key: string, handler: () => Promise<unknown>) {
 /* Recepción */
 export const getRecepcionResumen = live('recepcion-resumen', procesos.getRecepcionResumen);
 export const getRecepcionPorFinca = report('recepcion-por-finca', procesos.getRecepcionPorFinca);
-export const getRecepcionPorFincaDia = report('recepcion-por-finca-dia', procesos.getRecepcionPorFincaDia);
-export const getRecepcionPorFincaMes = monthlyReport('recepcion-por-finca-mes', procesos.getRecepcionPorFincaMes);
+export const getRecepcionRemisiones = report('recepcion-remisiones', procesos.getRecepcionRemisiones);
 
 /* Descabezado */
 export const getDescabezadoResumen = live('descabezado-resumen', procesos.getDescabezadoResumen);
@@ -69,22 +68,19 @@ export const getDescabezadoPorDiaMes = monthlyReport('descabezado-por-dia-mes', 
 
 /* Clasificado */
 export const getClasificadoResumen = live('clasificado-resumen', procesos.getClasificadoResumen);
+export const getClasificadoInventario = live('clasificado-inventario', procesos.getClasificadoInventario);
 export const getClasificadoPorMaquina = report('clasificado-por-maquina', procesos.getClasificadoPorMaquina);
 export const getClasificadoPorTalla = report('clasificado-por-talla', procesos.getClasificadoPorTalla);
 export const getClasificadoPorTallaDia = report('clasificado-por-talla-dia', procesos.getClasificadoPorTallaDia);
 export const getClasificadoPorTallaMes = monthlyReport('clasificado-por-talla-mes', procesos.getClasificadoPorTallaMes);
-export const getClasificadoPorMaquinaDia = report('clasificado-por-maquina-dia', procesos.getClasificadoPorMaquinaDia);
-export const getClasificadoPorMaquinaMes = monthlyReport('clasificado-por-maquina-mes', procesos.getClasificadoPorMaquinaMes);
 
 /* Exportaciones */
 export const getExportacionesResumen = live('exportaciones-resumen', procesos.getExportacionesResumen);
 export const getExportacionesPorEstilo = report('exportaciones-por-estilo', procesos.getExportacionesPorEstilo);
 export const getExportacionesContenedores = report('exportaciones-contenedores', procesos.getExportacionesContenedores);
-export const getExportacionesPorClienteDia = report('exportaciones-por-cliente-dia', procesos.getExportacionesPorClienteDia);
-export const getExportacionesPorClienteMes = monthlyReport('exportaciones-por-cliente-mes', procesos.getExportacionesPorClienteMes);
+export const getExportacionesPorClienteMes = monthlyReport('exportaciones-por-cliente-mes', procesos.getExportacionesPorClienteMes, 6);
 
 /* Compra de materia prima */
 export const getCompraMpResumen = live('compra-mp-resumen', procesos.getCompraMpResumen);
-export const getCompraMpOrdenes = live('compra-mp-ordenes', procesos.getCompraMpOrdenes);
 export const getCompraMpPorProveedor = report('compra-mp-por-proveedor', procesos.getCompraMpPorProveedor);
-export const getCompraMpPorProveedorMes = monthlyReport('compra-mp-por-proveedor-mes', procesos.getCompraMpPorProveedorMes);
+export const getCompraMpMateriaPrima = monthlyReport('compra-mp-materia-prima', procesos.getCompraMpMateriaPrima);

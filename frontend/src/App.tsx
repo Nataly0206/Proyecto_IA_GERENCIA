@@ -141,7 +141,7 @@ export default function App() {
         }}
       >
         {view === 'compra-materia-prima' ? (
-          <CompraMateriaPrimaPage />
+          <CompraMateriaPrimaPage userId={user.id} />
         ) : view === 'recepcion' ? (
           <RecepcionPage />
         ) : view === 'descabezado' ? (

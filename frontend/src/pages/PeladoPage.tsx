@@ -9,7 +9,7 @@ import PeladoPorSalaTable from '../components/live/PeladoPorSalaTable';
 import PeladoEstiloWidget from '../components/charts/PeladoEstiloWidget';
 
 export default function PeladoPage() {
-  const [filtersOpen, setFiltersOpen] = useState(true);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   return (
     <Stack

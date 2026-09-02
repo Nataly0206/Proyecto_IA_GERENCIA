@@ -1,20 +1,25 @@
 import { Box, Stack } from '@mui/material';
 import ShoppingCartOutlinedIcon from '@mui/icons-material/ShoppingCartOutlined';
-import AssignmentLateOutlinedIcon from '@mui/icons-material/AssignmentLateOutlined';
 import ProcessFilters from '../components/filters/ProcessFilters';
 import ResumenCards from '../components/live/ResumenCards';
 import ChartWidget from '../components/charts/ChartWidget';
-import WidgetDataTable from '../components/charts/WidgetDataTable';
+import MateriaPrimaProveedorWidget from '../components/charts/MateriaPrimaProveedorWidget';
 import { useProcesoResumen } from '../hooks/useDashboardData';
 import { CompraMpResumen } from '../types';
+import { formatPeriodo } from '../utils/format';
 import { compraMpWidgets } from '../config/dashboardConfig';
 
-const [porProveedor, porProveedorMes] = compraMpWidgets;
+const [porProveedor] = compraMpWidgets;
 const TABLE_H = 460;
 
-export default function CompraMateriaPrimaPage() {
+export default function CompraMateriaPrimaPage({ userId }: { userId: string }) {
   const { data, isLoading, isError, error, dataUpdatedAt } =
     useProcesoResumen<CompraMpResumen>('compra-mp-resumen');
+
+  const semana =
+    data && data.semanaInicio
+      ? `Semana ${formatPeriodo(data.semanaInicio)} → ${formatPeriodo(data.semanaFin)}`
+      : undefined;
 
   return (
     <Stack
@@ -23,57 +28,31 @@ export default function CompraMateriaPrimaPage() {
     >
       <ProcessFilters
         title="Filtros de compra de materia prima"
-        hint="El avance de órdenes es global; la materia prima por proveedor responde al rango de fechas."
+        hint="Los contadores muestran la semana y el mes en curso; el desglose por proveedor responde al rango de fechas."
+        hideTurno
       />
 
       <ResumenCards
-        title="Órdenes de Compra de Exportación"
+        title="Materia Prima — Semana y mes en curso"
         icon={<ShoppingCartOutlinedIcon color="primary" sx={{ fontSize: 16 }} />}
         liveBadge={false}
         isLoading={isLoading}
         isError={isError}
         errorText={error instanceof Error ? error.message : undefined}
         updatedAt={dataUpdatedAt}
-        periodoLabel="Avance global"
-        emptyText="Sin órdenes de compra registradas."
+        periodoLabel={semana}
+        emptyText="Sin materia prima registrada."
         metrics={[
-          {
-            label: 'Órdenes pendientes de exportación',
-            value: data?.ordenesPendientes ?? 0,
-            unit: 'órdenes',
-            tone: 'warn',
-          },
-          { label: 'Órdenes totales', value: data?.ordenesTotales ?? 0, unit: 'órdenes' },
-          { label: 'Kg faltantes por producir', value: data?.kgFaltantes ?? 0, unit: 'kg', tone: 'warn' },
-          { label: 'Másteres faltantes', value: data?.masteresFaltantes ?? 0, unit: 'másteres' },
-        ]}
-      />
-
-      <WidgetDataTable
-        title="Órdenes Pendientes de Exportación"
-        subtitle="Por cliente y producto · código de exportación y anillos por máster"
-        icon={<AssignmentLateOutlinedIcon color="primary" sx={{ fontSize: 16 }} />}
-        endpoint="compra-mp-ordenes"
-        defaultSortKey="kgFaltantes"
-        emptyText="No hay órdenes de compra pendientes."
-        columns={[
-          { key: 'noOrden', label: 'N.º orden' },
-          { key: 'cliente', label: 'Cliente' },
-          { key: 'producto', label: 'Producto' },
-          { key: 'codigoExportacion', label: 'Cód. exportación' },
-          { key: 'estilo', label: 'Estilo' },
-          { key: 'anillosXMaster', label: 'Anillos/máster', format: 'number' },
-          { key: 'semanaETD', label: 'Semana ETD' },
-          { key: 'kg', label: 'Kg orden', format: 'number' },
-          { key: 'kgProducidos', label: 'Kg producidos', format: 'number' },
-          { key: 'kgFaltantes', label: 'Kg faltantes', format: 'number' },
-          { key: 'estado', label: 'Estado' },
+          { label: 'Órdenes de compra — semana actual', value: data?.ordenesCompraSemana ?? 0, unit: 'órdenes' },
+          { label: 'Libras recibidas — semana', value: data?.librasRecibidasSemana ?? 0, unit: 'lbs' },
+          { label: 'Libras recibidas — mes', value: data?.librasRecibidasMes ?? 0, unit: 'lbs' },
+          { label: 'Libras promedio por semana', value: data?.librasPromedioSemana ?? 0, unit: 'lbs/semana' },
         ]}
       />
 
       <ChartWidget config={porProveedor} />
       <Box sx={{ height: TABLE_H, flexShrink: 0 }}>
-        <ChartWidget config={porProveedorMes} />
+        <MateriaPrimaProveedorWidget userId={userId} height={TABLE_H} />
       </Box>
     </Stack>
   );

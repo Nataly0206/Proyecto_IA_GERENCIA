@@ -7,6 +7,11 @@ export interface ResumenMetric {
   label: string;
   value: number;
   format?: ValueFormat;
+  /**
+   * Valor a mostrar tal cual (texto), en lugar de formatear `value`. Para
+   * indicadores cualitativos como el gramaje ("21-25", "GRANDE", …).
+   */
+  display?: string;
   /** Texto bajo el valor (ej. "lbs", "contenedores"). */
   unit?: string;
   /** Color de acento: neutro, alerta (naranja) o positivo (verde). */
@@ -50,7 +55,8 @@ export default function ResumenCards({
   liveBadge = true,
   emptyText = 'Sin datos para hoy.',
 }: ResumenCardsProps) {
-  const allZero = metrics.length > 0 && metrics.every((m) => !m.value);
+  const allZero =
+    metrics.length > 0 && metrics.every((m) => !m.value && !m.display);
 
   return (
     <Box>
@@ -134,7 +140,7 @@ export default function ResumenCards({
                     {m.label}
                   </Typography>
                   <Typography variant="h6" fontWeight={800} sx={{ color, lineHeight: 1.1 }}>
-                    {formatValue(m.value, m.format ?? 'number')}
+                    {m.display ?? formatValue(m.value, m.format ?? 'number')}
                     {m.unit && (
                       <Typography component="span" variant="caption" color="text.secondary" ml={0.5}>
                         {m.unit}

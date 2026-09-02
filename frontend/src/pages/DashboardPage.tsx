@@ -24,7 +24,7 @@ export default function DashboardPage() {
   const topRef = useRef<HTMLDivElement>(null);
   const netProcessRef = useRef<HTMLDivElement>(null);
   const [heights, setHeights] = useState({ netas: 320, iqf: 240 });
-  const [filtersOpen, setFiltersOpen] = useState(true);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   useEffect(() => {
     const calc = () => {

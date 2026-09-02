@@ -15,6 +15,7 @@ export const PERMISOS = [
   'inventario',
   'usuarios',
   'asistente_ia',
+  'detalles_desarrollador',
 ] as const;
 
 export type Permiso = (typeof PERMISOS)[number];
@@ -30,6 +31,7 @@ export const PERMISO_LABELS: Record<Permiso, string> = {
   inventario: 'Inventario',
   usuarios: 'Usuarios',
   asistente_ia: 'Asistente IA',
+  detalles_desarrollador: 'Detalles Desarrollador',
 };
 
 export function tienePermiso(

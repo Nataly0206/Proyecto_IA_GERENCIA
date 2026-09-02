@@ -60,6 +60,7 @@ router.get('/exportaciones-por-cliente-mes', exportaciones, asyncHandler(proceso
 /* Compra de materia prima */
 router.get('/compra-mp-resumen', compraMp, asyncHandler(procesos.getCompraMpResumen));
 router.get('/compra-mp-por-proveedor', compraMp, asyncHandler(procesos.getCompraMpPorProveedor));
+router.get('/compra-mp-por-item', compraMp, asyncHandler(procesos.getCompraMpPorItem));
 router.get('/compra-mp-materia-prima', compraMp, asyncHandler(procesos.getCompraMpMateriaPrima));
 
 export default router;

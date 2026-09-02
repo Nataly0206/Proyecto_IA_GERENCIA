@@ -20,6 +20,7 @@ import {
   CLASIFICADO_DETALLE_QUERY,
   CLASIFICADO_INVENTARIO_QUERY,
   CLASIFICADO_RESUMEN_QUERY,
+  COMPRA_MP_POR_ITEM_QUERY,
   COMPRA_MP_POR_PROVEEDOR_QUERY,
   COMPRA_MP_RESUMEN_QUERY,
   DESCABEZADO_POR_DIA_QUERY,
@@ -431,6 +432,8 @@ export async function getCompraMpResumen(): Promise<CompraMpResumen> {
   const rows = await runQuery(COMPRA_MP_RESUMEN_QUERY, []);
   const r = rows[0] ?? {};
   const librasRecibidasMes = round2(pickNumber(r, 'LibrasRecibidasMes'));
+  const hoyEfectivo = pickString(r, 'HoyEfectivo');
+  const anchor = hoyEfectivo ? new Date(`${hoyEfectivo}T00:00:00`) : new Date();
   return {
     actualizado: new Date().toISOString(),
     semanaInicio: pickString(r, 'SemanaInicio'),
@@ -438,7 +441,7 @@ export async function getCompraMpResumen(): Promise<CompraMpResumen> {
     ordenesCompraSemana: pickNumber(r, 'OrdenesCompraSemana'),
     librasRecibidasSemana: round2(pickNumber(r, 'LibrasRecibidasSemana')),
     librasRecibidasMes,
-    librasPromedioSemana: round2(librasRecibidasMes / semanasDelMesActual()),
+    librasPromedioSemana: round2(librasRecibidasMes / semanasDelMesActual(anchor)),
   };
 }
 
@@ -473,6 +476,26 @@ async function fetchCompraProveedor(fechaInicial: string, fechaFinal: string): P
 export async function getCompraMpPorProveedor(f: DashboardFilters): Promise<DataRow[]> {
   const groups = await fetchCompraProveedor(f.fechaInicial, f.fechaFinal);
   return aggregateTotal(groups).map(({ valor, libras, porcentaje }) => ({ proveedor: valor, libras, porcentaje }));
+}
+
+/** Materia prima por tipo, proveedor e item (rango de fechas del filtro):
+ *  una fila por combinación, para la tabla agrupada tipo/proveedor/item. */
+export async function getCompraMpPorItem(f: DashboardFilters): Promise<DataRow[]> {
+  const rows = await runQuery(COMPRA_MP_POR_ITEM_QUERY, dateParams(f.fechaInicial, f.fechaFinal));
+  return rows
+    .map((row) => ({
+      tipo: pickString(row, 'Tipo') || 'Sin tipo',
+      proveedor: pickString(row, 'Proveedor') || 'Sin proveedor',
+      item: pickString(row, 'Item') || 'Sin item',
+      pesoLibras: round2(pickNumber(row, 'PesoLibras')),
+      cantidadSerial: pickNumber(row, 'CantidadSerial'),
+    }))
+    .sort(
+      (a, b) =>
+        a.tipo.localeCompare(b.tipo) ||
+        a.proveedor.localeCompare(b.proveedor) ||
+        a.item.localeCompare(b.item),
+    );
 }
 
 /** Libras de materia prima recibidas por año, mes, gramaje (talla) y

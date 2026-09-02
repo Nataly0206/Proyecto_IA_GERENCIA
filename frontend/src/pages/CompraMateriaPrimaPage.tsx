@@ -1,9 +1,11 @@
 import { Box, Stack } from '@mui/material';
 import ShoppingCartOutlinedIcon from '@mui/icons-material/ShoppingCartOutlined';
+import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import ProcessFilters from '../components/filters/ProcessFilters';
 import ResumenCards from '../components/live/ResumenCards';
 import ChartWidget from '../components/charts/ChartWidget';
 import MateriaPrimaProveedorWidget from '../components/charts/MateriaPrimaProveedorWidget';
+import GroupedItemsTable from '../components/charts/GroupedItemsTable';
 import { useProcesoResumen } from '../hooks/useDashboardData';
 import { CompraMpResumen } from '../types';
 import { formatPeriodo } from '../utils/format';
@@ -51,6 +53,15 @@ export default function CompraMateriaPrimaPage({ userId }: { userId: string }) {
       />
 
       <ChartWidget config={porProveedor} />
+
+      <GroupedItemsTable
+        title="Materia Prima por Proveedor e Item"
+        subtitle="Tipo, proveedor e item · rango de fechas del filtro · fuente: AV_MateriaPrima"
+        icon={<Inventory2OutlinedIcon color="primary" sx={{ fontSize: 16 }} />}
+        endpoint="compra-mp-por-item"
+        emptyText="Sin materia prima registrada en el rango seleccionado."
+      />
+
       <Box sx={{ height: TABLE_H, flexShrink: 0 }}>
         <MateriaPrimaProveedorWidget userId={userId} height={TABLE_H} />
       </Box>

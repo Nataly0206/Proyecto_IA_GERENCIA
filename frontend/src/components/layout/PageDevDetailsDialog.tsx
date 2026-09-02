@@ -324,7 +324,7 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
       {
         heading: 'Tablas y vistas de origen',
         bullets: [
-          'Única fuente: vista `dbo.AV_MateriaPrima` (`DiaProduccion2024`, `NombrePropietario`, `NombreGrupo`, `Talla` — gramaje del camarón, ej. "51/60" —, `PesoLibras`, `SubTotal`). En los últimos meses casi toda la vista es `fkTipo = 4` / `NombreTipoProceso = \'FRESH TAIL\'` (registro fresco de materia prima).',
+          'Única fuente: vista `dbo.AV_MateriaPrima` (`DiaProduccion2024`, `NombrePropietario`, `NombreGrupo`, `Talla` — gramaje del camarón, ej. "51/60" —, `Item` — código de producto, ej. "STB COLA FRESCO51/60" —, `TipoMateria` — "FRESCO" casi siempre, a veces "SALMUERA" —, `PesoLibras`, `CantidadSerial`, `SubTotal`). En los últimos meses casi toda la vista es `fkTipo = 4` / `NombreTipoProceso = \'FRESH TAIL\'` (registro fresco de materia prima).',
           'Conteo de órdenes de la semana: tabla `dbo.OrdenesCompra` (`FechaOrdenCompra`, fecha de creación de la orden).',
           'Nota: NO se usa la tabla `dbo.MateriaPrima` (esa tabla es de otro dominio — liquidación de exportación WSO/embarque — y no tiene el gramaje de recepción; se verificó por inspección directa de columnas).',
         ],
@@ -332,11 +332,12 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
       {
         heading: 'Filtros y parámetros',
         bullets: [
-          'Contadores superiores: `@Lunes`/`@Domingo` = semana en curso calculada sin `@@DATEFIRST` (`DATEADD(DAY, -(DATEDIFF(DAY, 0, @Hoy) % 7), @Hoy)`, igual que en Exportaciones); `@PrimerDiaMes = DATEADD(DAY, 1 - DAY(@Hoy), @Hoy)`. Ninguno de los 4 contadores responde al filtro de fechas del dashboard.',
-          '`OrdenesCompraSemana = COUNT(*)` de `OrdenesCompra` con `FechaOrdenCompra` en `[@Lunes, @Domingo]`.',
+          'Contadores superiores: `@Lunes`/`@Domingo` = semana que contiene `@Hoy`, `@PrimerDiaMes` = 1º del mes de `@Hoy` — pero `@Hoy` NO es `GETDATE()` directo, es `MAX(DiaProduccion2024)` de `AV_MateriaPrima` (con tope en la fecha real del servidor). La recepción se registra con varios días de rezago (se observó hasta 5); anclar al reloj hacía que "semana actual" y "mes actual" casi siempre cayeran en un período aún sin filas y el resumen mostrara "sin datos" pese a haber recepción reciente. `HoyEfectivo` viaja en la respuesta SQL para que el servicio calcule `librasPromedioSemana` sobre el mes correcto. Ninguno de los 4 contadores responde al filtro de fechas del dashboard.',
+          '`OrdenesCompraSemana = COUNT(*)` de `OrdenesCompra` con `FechaOrdenCompra` en `[@Lunes, @Domingo]` (con el `@Hoy` anclado arriba) — casi siempre da 0: la orden más reciente en `OrdenesCompra` es de hace ~2 meses, muy anterior al rezago normal de recepción.',
           '`LibrasRecibidasSemana` / `LibrasRecibidasMes` = `SUM(PesoLibras)` de `AV_MateriaPrima` con `DiaProduccion2024` en la semana / en `[@PrimerDiaMes, @Hoy]` respectivamente.',
           'Materia prima por proveedor (tarjetas, rango del filtro): `CAST(DiaProduccion2024 AS date) BETWEEN @Fecha_Inicial AND @Fecha_Final`; proveedor = `COALESCE(NULLIF(NombrePropietario, \'\'), NULLIF(NombreGrupo, \'\'), \'Sin proveedor\')`.',
-          'Tarjeta "Materia Prima por Proveedor/Gramaje — Mensual": ventana fija de **3 meses** (antes había una tabla de 12 meses separada; se fusionó con el widget de gramaje/selector porque, en modo "Proveedor", mostraban exactamente los mismos datos — ver `getCompraMpPorProveedorMes` eliminado). El filtro de proveedores (checklist) se aplica en el navegador sobre las filas ya traídas, antes de re-agregar por mes+serie.',
+          'Tarjeta "Materia Prima por Proveedor/Gramaje — Mensual": muestra los 3 meses **con datos** más recientes, no 3 meses calendario a secas — se pide un mes extra (`COMPRA_MP_MESES + 1`) y se recorta a los 3 con filas reales, por el mismo motivo de rezago que el punto anterior (antes había una tabla de 12 meses separada; se fusionó con el widget de gramaje/selector porque, en modo "Proveedor", mostraban exactamente los mismos datos — ver `getCompraMpPorProveedorMes` eliminado). El filtro de proveedores (checklist) se aplica en el navegador sobre las filas ya traídas, antes de re-agregar por mes+serie.',
+          'Tabla "Materia Prima por Proveedor e Item" (rango del filtro): agrupa por `TipoMateria` → proveedor → `Item`, reproduce la tabla dinámica de Excel/Power BI que ya usaba el cliente. Jerarquía expandible/colapsable con subtotal por proveedor y total general.',
         ],
       },
       {
@@ -350,11 +351,11 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
       {
         heading: 'Endpoints y archivos',
         bullets: [
-          '`/compra-mp-resumen` (4 contadores semana/mes) · `/compra-mp-por-proveedor` (tarjetas, rango) · `/compra-mp-materia-prima` (mes/gramaje/proveedor, 3 meses — alimenta la tarjeta "Mensual" fusionada).',
+          '`/compra-mp-resumen` (4 contadores semana/mes) · `/compra-mp-por-proveedor` (tarjetas, rango) · `/compra-mp-materia-prima` (mes/gramaje/proveedor, 3 meses con datos — alimenta la tarjeta "Mensual" fusionada) · `/compra-mp-por-item` (tabla agrupada tipo/proveedor/item, rango del filtro).',
           '`/compra-mp-por-proveedor-mes` se eliminó (junto con `getCompraMpPorProveedorMes` en el servicio, su controller y su ruta): quedó redundante frente a `/compra-mp-materia-prima` en modo "Proveedor".',
           '`/compra-mp-ordenes` (tabla "Órdenes Pendientes de Exportación") se eliminó por completo: vivió primero aquí, luego se movió a Exportaciones, y finalmente se quitó del dashboard.',
           'Permiso backend: `requirePermission(\'compra_materia_prima\')`.',
-          'Archivos: `procesos.queries.ts` (`COMPRA_MP_RESUMEN_QUERY`, `COMPRA_MP_POR_PROVEEDOR_QUERY`), `procesos.service.ts` (`getCompraMpResumen`, `getCompraMpPorProveedor`, `getCompraMpMateriaPrima`); front `frontend/src/pages/CompraMateriaPrimaPage.tsx`, `frontend/src/components/charts/MateriaPrimaProveedorWidget.tsx` (la única tarjeta "Mensual": toggle Proveedor/Gramaje, toggle Tabla/Gráfica/Tendencia, selector de proveedores).',
+          'Archivos: `procesos.queries.ts` (`COMPRA_MP_RESUMEN_QUERY`, `COMPRA_MP_POR_PROVEEDOR_QUERY`, `COMPRA_MP_POR_ITEM_QUERY`), `procesos.service.ts` (`getCompraMpResumen`, `getCompraMpPorProveedor`, `getCompraMpMateriaPrima`, `getCompraMpPorItem`); front `frontend/src/pages/CompraMateriaPrimaPage.tsx`, `frontend/src/components/charts/MateriaPrimaProveedorWidget.tsx` (la tarjeta "Mensual": toggle Proveedor/Gramaje, toggle Tabla/Gráfica/Tendencia, selector de proveedores), `frontend/src/components/charts/GroupedItemsTable.tsx` (tabla tipo/proveedor/item).',
           'La selección de proveedores del checklist se guarda en `localStorage`, clave `compra-mp-proveedores-ocultos:v1:<userId>` (se guardan los proveedores OCULTOS, no los visibles, para que un proveedor nuevo aparezca visible por defecto).',
         ],
       },

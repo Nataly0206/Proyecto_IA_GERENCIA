@@ -308,8 +308,21 @@ WHERE v.FechaCarga BETWEEN @Lunes AND @Domingo
  * El promedio por semana se calcula en el servicio (libras del mes / nº de
  * semanas del mes en curso).
  */
+/**
+ * IMPORTANTE: "hoy" se ancla al día más reciente con filas en
+ * `AV_MateriaPrima`, no al reloj del servidor. La recepción de materia
+ * prima se registra con varios días de rezago (se observó hasta 5 días);
+ * si se usara `GETDATE()` directo, "semana actual" y "mes actual" casi
+ * siempre caerían en un período todavía sin filas y el resumen mostraría
+ * "sin datos" aunque sí hay recepción reciente (mismo problema que se
+ * corrigió en `getCompraMpMateriaPrima` para la ventana de 3 meses).
+ * Se devuelve `HoyEfectivo` para que el servicio calcule el promedio por
+ * semana sobre el mes correcto (ver `getCompraMpResumen`).
+ */
 export const COMPRA_MP_RESUMEN_QUERY = `
-DECLARE @Hoy date = CAST(GETDATE() AS date);
+DECLARE @HoyReal date = CAST(GETDATE() AS date);
+DECLARE @UltimaFechaMP date = (SELECT MAX(CAST(DiaProduccion2024 AS date)) FROM dbo.AV_MateriaPrima);
+DECLARE @Hoy date = IIF(@UltimaFechaMP IS NULL OR @UltimaFechaMP > @HoyReal, @HoyReal, @UltimaFechaMP);
 DECLARE @Lunes date = DATEADD(DAY, -(DATEDIFF(DAY, 0, @Hoy) % 7), @Hoy);
 DECLARE @Domingo date = DATEADD(DAY, 6, @Lunes);
 DECLARE @PrimerDiaMes date = DATEADD(DAY, 1 - DAY(@Hoy), @Hoy);
@@ -317,6 +330,7 @@ DECLARE @PrimerDiaMes date = DATEADD(DAY, 1 - DAY(@Hoy), @Hoy);
 SELECT
   CONVERT(varchar(10), @Lunes, 23) AS SemanaInicio,
   CONVERT(varchar(10), @Domingo, 23) AS SemanaFin,
+  CONVERT(varchar(10), @Hoy, 23) AS HoyEfectivo,
   (SELECT COUNT(*) FROM dbo.OrdenesCompra oc
     WHERE oc.FechaOrdenCompra BETWEEN @Lunes AND @Domingo) AS OrdenesCompraSemana,
   (SELECT ISNULL(SUM(v.PesoLibras), 0) FROM dbo.AV_MateriaPrima v
@@ -349,4 +363,25 @@ GROUP BY CAST(v.DiaProduccion2024 AS date),
   CONVERT(varchar(7), v.DiaProduccion2024, 23),
   COALESCE(NULLIF(LTRIM(RTRIM(v.Talla)), ''), 'Sin gramaje'),
   COALESCE(NULLIF(LTRIM(RTRIM(v.NombrePropietario)), ''), NULLIF(LTRIM(RTRIM(v.NombreGrupo)), ''), 'Sin proveedor')
+`;
+
+/**
+ * Materia prima por tipo (`TipoMateria`: casi siempre "FRESCO", a veces
+ * "SALMUERA"), proveedor e item (`Item`, ej. "STB COLA FRESCO51/60") —
+ * mismo desglose que la tabla dinámica de Excel/Power BI que ya usa el
+ * cliente. Peso en libras y cantidad de seriales (bultos/cajas) por grupo.
+ */
+export const COMPRA_MP_POR_ITEM_QUERY = `
+SELECT
+  COALESCE(NULLIF(LTRIM(RTRIM(v.TipoMateria)), ''), 'Sin tipo') AS Tipo,
+  COALESCE(NULLIF(LTRIM(RTRIM(v.NombrePropietario)), ''), NULLIF(LTRIM(RTRIM(v.NombreGrupo)), ''), 'Sin proveedor') AS Proveedor,
+  COALESCE(NULLIF(LTRIM(RTRIM(v.Item)), ''), 'Sin item') AS Item,
+  SUM(v.PesoLibras) AS PesoLibras,
+  SUM(v.CantidadSerial) AS CantidadSerial
+FROM dbo.AV_MateriaPrima v
+WHERE CAST(v.DiaProduccion2024 AS date) BETWEEN @Fecha_Inicial AND @Fecha_Final
+GROUP BY
+  COALESCE(NULLIF(LTRIM(RTRIM(v.TipoMateria)), ''), 'Sin tipo'),
+  COALESCE(NULLIF(LTRIM(RTRIM(v.NombrePropietario)), ''), NULLIF(LTRIM(RTRIM(v.NombreGrupo)), ''), 'Sin proveedor'),
+  COALESCE(NULLIF(LTRIM(RTRIM(v.Item)), ''), 'Sin item')
 `;

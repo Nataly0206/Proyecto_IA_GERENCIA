@@ -83,4 +83,5 @@ export const getExportacionesPorClienteMes = monthlyReport('exportaciones-por-cl
 /* Compra de materia prima */
 export const getCompraMpResumen = live('compra-mp-resumen', procesos.getCompraMpResumen);
 export const getCompraMpPorProveedor = report('compra-mp-por-proveedor', procesos.getCompraMpPorProveedor);
+export const getCompraMpPorItem = report('compra-mp-por-item', procesos.getCompraMpPorItem);
 export const getCompraMpMateriaPrima = monthlyReport('compra-mp-materia-prima', procesos.getCompraMpMateriaPrima);

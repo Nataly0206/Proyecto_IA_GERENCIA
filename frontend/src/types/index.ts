@@ -73,6 +73,7 @@ export type DashboardEndpoint =
   | 'exportaciones-contenedores'
   | 'exportaciones-por-cliente-mes'
   | 'compra-mp-por-proveedor'
+  | 'compra-mp-por-item'
   | 'compra-mp-materia-prima';
 
 /** Contador en vivo de una línea IQF (día de producción en curso) */

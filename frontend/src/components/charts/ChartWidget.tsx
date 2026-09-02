@@ -76,13 +76,18 @@ export default function ChartWidget({ config, actions }: ChartWidgetProps) {
           );
         })()
       : seriesFilteredData;
-  const widgetHeight =
-    effectiveConfig.type === 'cards'
-      ? 'auto'
-      : { xs: 'auto', md: '100%' };
+  const isCards = effectiveConfig.type === 'cards';
+  const widgetHeight = isCards ? 'auto' : { xs: 'auto', md: '100%' };
 
   return (
-    <Card sx={{ height: widgetHeight, minHeight: 0 }}>
+    // "cards" widgets sit bare in the page's outer Stack (height:'100%',
+    // overflowY:'auto'), unlike table/chart widgets which pages always wrap in
+    // a `flexShrink: 0` Box. Without flexShrink:0 here, this Card is a shrinkable
+    // flex child with minHeight:0 (needed below for table/chart to fill 100%) —
+    // when the page's total content is taller than the viewport, the browser
+    // squashes this Card down to fit instead of letting the Stack scroll, so it
+    // renders empty/collapsed under the next section. flexShrink:0 opts it out.
+    <Card sx={{ height: widgetHeight, minHeight: 0, ...(isCards && { flexShrink: 0 }) }}>
       <CardContent
         sx={{
           height: widgetHeight,
@@ -161,15 +166,24 @@ export default function ChartWidget({ config, actions }: ChartWidgetProps) {
 
         {!isLoading && !isError && visibleData && visibleData.length > 0 && (
           <ErrorBoundary label="Error al renderizar el widget">
-            <Box sx={{ flex: 1, minHeight: 0 }}>
-              {effectiveConfig.type === 'table' ? (
-                <PivotTable config={effectiveConfig} data={visibleData} />
-              ) : effectiveConfig.type === 'cards' ? (
-                <KpiCards config={effectiveConfig} data={visibleData} />
-              ) : (
-                <DynamicChart config={effectiveConfig} data={visibleData} />
-              )}
-            </Box>
+            {/* Solo table/chart viven en un Card de altura fija (height: '100%' en
+                md+) donde flex:1 + minHeight:0 reparte el espacio restante para
+                habilitar el scroll interno. "cards" usa height:'auto' — con esas
+                mismas propiedades, un Card sin alto definido no tiene espacio libre
+                que repartir y el contenido colapsa a 0px (queda en el DOM pero
+                invisible, montado bajo el siguiente widget). Por eso "cards" usa
+                un Box sin flex, que simplemente crece con su contenido. */}
+            {isCards ? (
+              <KpiCards config={effectiveConfig} data={visibleData} />
+            ) : (
+              <Box sx={{ flex: 1, minHeight: 0 }}>
+                {effectiveConfig.type === 'table' ? (
+                  <PivotTable config={effectiveConfig} data={visibleData} />
+                ) : (
+                  <DynamicChart config={effectiveConfig} data={visibleData} />
+                )}
+              </Box>
+            )}
           </ErrorBoundary>
         )}
       </CardContent>

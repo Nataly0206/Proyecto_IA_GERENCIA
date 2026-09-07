@@ -551,8 +551,10 @@ export async function getPeladoLibrasHoy(): Promise<PeladoLibrasHoyResponse> {
 
 /* ------------------------------------------------------------------ */
 /* Actividad de pelado por sala (fuente STB_data, PES_SALAS +          */
-/* DCP_LINEAS + PES_ASIGNACION_LIBRAS_EMPLEADOS) — combina acumulado    */
-/* del día con personas activas en los últimos 30 minutos.             */
+/* DCP_LINEAS + PES_ASIGNACION_LIBRAS_EMPLEADOS) — acumulado del día    */
+/* por sala; `personasActivas` es el nº de empleados con pago de       */
+/* destajo de pelado hoy en la sala. `librasUltimos30Min` sigue        */
+/* usando la ventana de 30 min (solo pelado individual).               */
 /* ------------------------------------------------------------------ */
 
 export async function getPeladoPorSala(): Promise<PeladoPorSalaResponse> {
@@ -569,13 +571,18 @@ export async function getPeladoPorSala(): Promise<PeladoPorSalaResponse> {
     .map((row) => {
       const sala = pickString(row, 'NOMBRE_SALA');
       const activos = activosPorSala.get(sala);
+      // `personasActivas` se aproxima con los empleados distintos que
+      // tienen pago de destajo de pelado hoy en la sala (individual +
+      // grupal), no con una ventana de 30 min: es un estimado de cuánta
+      // gente está pelando por sala. Coincide con `empleadosRegistrandoHoy`.
+      const empleadosHoy = pickNumber(row, 'EmpleadosRegistrando');
       return {
         sala,
-        personasActivas: activos ? pickNumber(activos, 'PersonasActivas') : 0,
+        personasActivas: empleadosHoy,
         librasUltimos30Min: activos ? round2(pickNumber(activos, 'LibrasUltimos30Min')) : 0,
         librasPeladasHoy: round2(pickNumber(row, 'LibrasPeladasHoy')),
         pagoAcumuladoHoy: round2(pickNumber(row, 'PagoAcumuladoHoy')),
-        empleadosRegistrandoHoy: pickNumber(row, 'EmpleadosRegistrando'),
+        empleadosRegistrandoHoy: empleadosHoy,
       };
     })
     .sort((a, b) => b.librasPeladasHoy - a.librasPeladasHoy);

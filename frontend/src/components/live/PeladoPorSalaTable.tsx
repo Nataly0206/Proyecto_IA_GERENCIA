@@ -59,7 +59,6 @@ export default function PeladoPorSalaTable() {
                 <TableCell align="right" sx={HEADER_SX}>Libras últimos 30 min</TableCell>
                 <TableCell align="right" sx={HEADER_SX}>Libras hoy</TableCell>
                 <TableCell align="right" sx={HEADER_SX}>Empleados hoy</TableCell>
-                <TableCell align="right" sx={HEADER_SX}>Pago hoy</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -86,7 +85,6 @@ export default function PeladoPorSalaTable() {
                   <TableCell align="right">{formatValue(sala.librasUltimos30Min)}</TableCell>
                   <TableCell align="right">{formatValue(sala.librasPeladasHoy)}</TableCell>
                   <TableCell align="right">{formatValue(sala.empleadosRegistrandoHoy)}</TableCell>
-                  <TableCell align="right">{formatValue(sala.pagoAcumuladoHoy, 'currency')}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

@@ -198,7 +198,7 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
           'Por estilo / rango histórico: `dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS` + `_DET` (`LIBRAS`); estilo vía `dbo.PES_ASIGNACION_RECIPIENTES_LINEAS` → `dbo.PES_ESTILOS.NOMBRE`. Reemplaza a la vista `V_PagosxPeladoIndividualPBI`, que subcontaba libras respecto a las tablas base.',
           'Personal (headcount) y pago por estilo / talla: vista `dbo.V_PagosxPeladoIndividualPBI` (`IdEmpleado`, `libras`, `Valor`, `Fecha`, `Turno`, `Estilo`, `Talla`).',
           'Por sala (hoy): pelado individual (`PES_ASIGNACION_LIBRAS_EMPLEADOS_DET` → `dbo.DCP_LINEAS.ID_SALA`, empleado vía `dbo.PES_EMPLEADOS_LINEAS`) + pelado grupal (`dbo.DCP_PagosGrupales` + `dbo.DCP_PagosGrupalesDetalle`). Salas fijas `SALA #1`…`SALA #6` de `dbo.PES_SALAS`.',
-          'Actividad en vivo por sala: empleados distintos con registro en los últimos 30 min (solo pelado individual; el grupal no tiene hora de registro).',
+'"Personas activas" por sala: estimado de gente pelando = `COUNT(DISTINCT ID_EMPLEADO)` con pago de destajo de pelado hoy en la sala (individual + grupal, todo el día), mismo valor que "Empleados hoy". "Libras últimos 30 min" mantiene la ventana en vivo (solo pelado individual; el grupal no tiene hora de registro).',
           'Órdenes activas / tiempo real: la BD no tiene un conteo real de personal en planta (módulo legado `CodigosBin` / `MovimientosInvProceso` vacío). Se aproxima con órdenes de `dbo.AV_Produccion_Diaria_2020` (`FechaHoraTorre`) con lectura en los últimos 15 min y `NombreTipoProceso IN (\'IQF PEELED\', \'IQF COOK PEELED\', \'PD BLOCK\', \'FRESH PEELED\')`.',
         ],
       },

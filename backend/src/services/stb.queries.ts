@@ -196,10 +196,12 @@ GROUP BY s.NOMBRE_SALA
 `;
 
 /**
- * Personas activas ahora mismo por sala: empleados distintos con registro
- * en los últimos 30 minutos (solo SALA #1 a SALA #6, misma restricción
- * que `PELADO_POR_SALA_HOY_QUERY`). Solo cubre pelado individual — los
- * pagos grupales no tienen hora de registro para medir actividad reciente.
+ * Ventana en vivo por sala (últimos 30 minutos), solo SALA #1 a SALA #6 y
+ * misma restricción que `PELADO_POR_SALA_HOY_QUERY`. Solo cubre pelado
+ * individual — los pagos grupales no tienen hora de registro para medir
+ * actividad reciente. El servicio solo consume `LibrasUltimos30Min`;
+ * `PersonasActivas` ya no se usa (la columna "Personas activas" ahora sale
+ * de los pagos de destajo del día, ver `getPeladoPorSala`).
  */
 export const PELADO_POR_SALA_ACTIVOS_QUERY = `
 ;WITH Activos AS (

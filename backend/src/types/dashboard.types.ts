@@ -150,11 +150,15 @@ export interface PeladoLibrasHoyResponse {
 
 /**
  * Actividad de pelado por sala (fuente: STB_data, PES_SALAS + DCP_LINEAS +
- * PES_ASIGNACION_LIBRAS_EMPLEADOS). `personasActivas` y `librasUltimos30Min`
- * usan una ventana de los últimos 30 minutos; el resto es acumulado del día.
+ * PES_ASIGNACION_LIBRAS_EMPLEADOS). `personasActivas` es un estimado de
+ * cuánta gente está pelando en la sala: empleados distintos con pago de
+ * destajo de pelado hoy (individual + grupal), igual que
+ * `empleadosRegistrandoHoy`. `librasUltimos30Min` usa una ventana de los
+ * últimos 30 minutos; el resto es acumulado del día.
  */
 export interface PeladoSalaRow {
   sala: string;
+  /** Estimado de personas pelando en la sala = empleados con destajo hoy */
   personasActivas: number;
   librasUltimos30Min: number;
   librasPeladasHoy: number;

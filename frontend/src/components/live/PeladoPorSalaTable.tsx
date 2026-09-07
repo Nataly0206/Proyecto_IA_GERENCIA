@@ -8,6 +8,7 @@ import {
   TableBody,
   TableCell,
   TableContainer,
+  TableFooter,
   TableHead,
   TableRow,
   Typography,
@@ -17,9 +18,27 @@ import { usePeladoPorSala } from '../../hooks/useDashboardData';
 import { formatPeriodo, formatValue } from '../../utils/format';
 
 const HEADER_SX = { fontWeight: 800, bgcolor: '#f1f5f9', color: '#172033' } as const;
+const FOOTER_SX = {
+  fontWeight: 800,
+  color: '#172033',
+  bgcolor: '#f8fafc',
+  borderTop: '2px solid rgba(148, 163, 184, 0.35)',
+} as const;
 
 export default function PeladoPorSalaTable() {
   const { data, isLoading, isError, error, dataUpdatedAt } = usePeladoPorSala();
+
+  const salaNum = (nombre: string) => Number(nombre.replace(/\D/g, '')) || 0;
+  const salas = [...(data?.salas ?? [])].sort((a, b) => salaNum(a.sala) - salaNum(b.sala));
+  const totales = salas.reduce(
+    (acc, s) => ({
+      personasActivas: acc.personasActivas + s.personasActivas,
+      librasUltimos30Min: acc.librasUltimos30Min + s.librasUltimos30Min,
+      librasPeladasHoy: acc.librasPeladasHoy + s.librasPeladasHoy,
+      empleadosRegistrandoHoy: acc.empleadosRegistrandoHoy + s.empleadosRegistrandoHoy,
+    }),
+    { personasActivas: 0, librasUltimos30Min: 0, librasPeladasHoy: 0, empleadosRegistrandoHoy: 0 },
+  );
 
   return (
     <Box>
@@ -62,7 +81,7 @@ export default function PeladoPorSalaTable() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {data.salas.map((sala) => (
+              {salas.map((sala) => (
                 <TableRow key={sala.sala} hover>
                   <TableCell sx={{ fontWeight: 600 }}>{sala.sala}</TableCell>
                   <TableCell align="right">
@@ -88,6 +107,15 @@ export default function PeladoPorSalaTable() {
                 </TableRow>
               ))}
             </TableBody>
+            <TableFooter>
+              <TableRow>
+                <TableCell sx={FOOTER_SX}>Total</TableCell>
+                <TableCell align="right" sx={FOOTER_SX}>{formatValue(totales.personasActivas)}</TableCell>
+                <TableCell align="right" sx={FOOTER_SX}>{formatValue(totales.librasUltimos30Min)}</TableCell>
+                <TableCell align="right" sx={FOOTER_SX}>{formatValue(totales.librasPeladasHoy)}</TableCell>
+                <TableCell align="right" sx={FOOTER_SX}>{formatValue(totales.empleadosRegistrandoHoy)}</TableCell>
+              </TableRow>
+            </TableFooter>
           </Table>
         </TableContainer>
       )}

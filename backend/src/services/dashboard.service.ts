@@ -585,7 +585,11 @@ export async function getPeladoPorSala(): Promise<PeladoPorSalaResponse> {
         empleadosRegistrandoHoy: empleadosHoy,
       };
     })
-    .sort((a, b) => b.librasPeladasHoy - a.librasPeladasHoy);
+    .sort((a, b) => {
+      const na = Number(a.sala.replace(/\D/g, '')) || 0;
+      const nb = Number(b.sala.replace(/\D/g, '')) || 0;
+      return na - nb;
+    });
 
   return { dia: formatDate(new Date()), actualizado: new Date().toISOString(), salas };
 }

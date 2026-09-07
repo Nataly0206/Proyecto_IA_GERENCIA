@@ -17,6 +17,7 @@ import {
   PELADO_LIBRAS_HOY_ESTILOS_FALLBACK_QUERY,
   PELADO_LIBRAS_HOY_ESTILOS_QUERY,
   PELADO_LIBRAS_HOY_QUERY,
+  PELADO_MINUTOS_TRANSCURRIDOS_HOY_QUERY,
   PELADO_PERSONAL_DAILY_QUERY,
   PELADO_POR_ESTILO_RANGO_QUERY,
   PELADO_POR_SALA_ACTIVOS_QUERY,
@@ -558,14 +559,20 @@ export async function getPeladoLibrasHoy(): Promise<PeladoLibrasHoyResponse> {
 /* ------------------------------------------------------------------ */
 
 export async function getPeladoPorSala(): Promise<PeladoPorSalaResponse> {
-  const [hoyRows, activosRows] = await Promise.all([
+  const [hoyRows, activosRows, transcurridoRows] = await Promise.all([
     runStbQuery(PELADO_POR_SALA_HOY_QUERY, []),
     runStbQuery(PELADO_POR_SALA_ACTIVOS_QUERY, []),
+    runStbQuery(PELADO_MINUTOS_TRANSCURRIDOS_HOY_QUERY, []),
   ]);
 
   const activosPorSala = new Map(
     activosRows.map((row) => [pickString(row, 'NOMBRE_SALA'), row] as const),
   );
+
+  // Horas transcurridas del día (mismo divisor para todas las salas):
+  // desde el primer registro de pelado de hoy hasta ahora.
+  const minutosTranscurridos = pickNumber(transcurridoRows[0] ?? {}, 'MinutosTranscurridos');
+  const horasTranscurridas = minutosTranscurridos > 0 ? round2(minutosTranscurridos / 60) : 0;
 
   const salas = hoyRows
     .map((row) => {
@@ -576,11 +583,13 @@ export async function getPeladoPorSala(): Promise<PeladoPorSalaResponse> {
       // grupal), no con una ventana de 30 min: es un estimado de cuánta
       // gente está pelando por sala. Coincide con `empleadosRegistrandoHoy`.
       const empleadosHoy = pickNumber(row, 'EmpleadosRegistrando');
+      const librasPeladasHoy = round2(pickNumber(row, 'LibrasPeladasHoy'));
       return {
         sala,
         personasActivas: empleadosHoy,
         librasUltimos30Min: activos ? round2(pickNumber(activos, 'LibrasUltimos30Min')) : 0,
-        librasPeladasHoy: round2(pickNumber(row, 'LibrasPeladasHoy')),
+        librasPeladasHoy,
+        librasPorHora: horasTranscurridas > 0 ? round2(librasPeladasHoy / horasTranscurridas) : 0,
         pagoAcumuladoHoy: round2(pickNumber(row, 'PagoAcumuladoHoy')),
         empleadosRegistrandoHoy: empleadosHoy,
       };
@@ -591,7 +600,12 @@ export async function getPeladoPorSala(): Promise<PeladoPorSalaResponse> {
       return na - nb;
     });
 
-  return { dia: formatDate(new Date()), actualizado: new Date().toISOString(), salas };
+  return {
+    dia: formatDate(new Date()),
+    actualizado: new Date().toISOString(),
+    horasTranscurridas,
+    salas,
+  };
 }
 
 /* ------------------------------------------------------------------ */

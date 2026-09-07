@@ -222,3 +222,23 @@ LEFT JOIN Activos a ON a.ID_LINEA_ACTUAL = l.ID_LINEA
 WHERE s.NOMBRE_SALA IN ('SALA #1','SALA #2','SALA #3','SALA #4','SALA #5','SALA #6')
 GROUP BY s.NOMBRE_SALA
 `;
+
+/**
+ * Minutos transcurridos del día de pelado: desde el primer registro de
+ * destajo individual de hoy (toda la planta) hasta ahora. El servicio lo
+ * divide entre 60 para obtener las horas usadas como divisor de la
+ * columna "Libras por hora" por sala. El pelado grupal no tiene hora de
+ * registro, por eso solo cuenta el detalle individual para el arranque.
+ */
+export const PELADO_MINUTOS_TRANSCURRIDOS_HOY_QUERY = `
+SELECT
+  DATEDIFF(
+    MINUTE,
+    MIN(DATEADD(SECOND, DATEDIFF(SECOND, 0, d.HORA), CAST(h.FECHA AS DATETIME))),
+    GETDATE()
+  ) AS MinutosTranscurridos
+FROM dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS_DET d
+JOIN dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS h ON h.ID_ASIGNACION_LIBRAS_EMPLEADO = d.ID_ASIGNACION_LIBRAS_EMPLEADO
+WHERE h.FECHA = CAST(GETDATE() AS DATE)
+  AND d.ANULADO = 0
+`;

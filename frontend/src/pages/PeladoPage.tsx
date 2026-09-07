@@ -7,6 +7,7 @@ import GlobalFilters from '../components/filters/GlobalFilters';
 import PeladoLibrasHoyCards from '../components/live/PeladoLibrasHoyCards';
 import PeladoPorSalaTable from '../components/live/PeladoPorSalaTable';
 import PeladoEstiloWidget from '../components/charts/PeladoEstiloWidget';
+import PeladoTallaWidget from '../components/charts/PeladoTallaWidget';
 
 export default function PeladoPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -75,6 +76,7 @@ export default function PeladoPage() {
 
       <PeladoLibrasHoyCards />
       <PeladoEstiloWidget />
+      <PeladoTallaWidget />
       <PeladoPorSalaTable />
     </Stack>
   );

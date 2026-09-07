@@ -161,7 +161,10 @@ export interface PeladoSalaRow {
   /** Estimado de personas pelando en la sala = empleados con destajo hoy */
   personasActivas: number;
   librasUltimos30Min: number;
+  /** Total acumulado de libras peladas hoy en la sala */
   librasPeladasHoy: number;
+  /** Promedio = librasPeladasHoy / horas transcurridas del día (mismo divisor para todas las salas) */
+  librasPorHora: number;
   pagoAcumuladoHoy: number;
   empleadosRegistrandoHoy: number;
 }
@@ -171,6 +174,8 @@ export interface PeladoPorSalaResponse {
   dia: string;
   /** Timestamp ISO de esta lectura */
   actualizado: string;
+  /** Horas desde el primer registro de pelado de hoy hasta ahora; divisor de `librasPorHora` */
+  horasTranscurridas: number;
   salas: PeladoSalaRow[];
 }
 

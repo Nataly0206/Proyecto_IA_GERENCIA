@@ -155,15 +155,17 @@ export interface PeladoLibrasHoyResponse {
 }
 
 /**
- * Actividad de pelado por sala (fuente: STB_data). `personasActivas` y
- * `librasUltimos30Min` son de los últimos 30 minutos; el resto es
- * acumulado del día.
+ * Actividad de pelado por sala (fuente: STB_data). `personasActivas` = nº
+ * de empleados con destajo de pelado hoy en la sala; `librasUltimos30Min`
+ * es de los últimos 30 minutos; `librasPeladasHoy` es el acumulado del día
+ * y `librasPorHora` = librasPeladasHoy / horas transcurridas del día.
  */
 export interface PeladoSalaRow {
   sala: string;
   personasActivas: number;
   librasUltimos30Min: number;
   librasPeladasHoy: number;
+  librasPorHora: number;
   pagoAcumuladoHoy: number;
   empleadosRegistrandoHoy: number;
 }
@@ -171,6 +173,7 @@ export interface PeladoSalaRow {
 export interface PeladoPorSalaResponse {
   dia: string; // YYYY-MM-DD, siempre hoy
   actualizado: string; // ISO timestamp de la lectura
+  horasTranscurridas: number; // horas desde el primer registro de pelado de hoy; divisor de librasPorHora
   salas: PeladoSalaRow[];
 }
 

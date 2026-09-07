@@ -199,6 +199,7 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
           'Personal (headcount) y pago por estilo / talla: vista `dbo.V_PagosxPeladoIndividualPBI` (`IdEmpleado`, `libras`, `Valor`, `Fecha`, `Turno`, `Estilo`, `Talla`).',
           'Por sala (hoy): pelado individual (`PES_ASIGNACION_LIBRAS_EMPLEADOS_DET` → `dbo.DCP_LINEAS.ID_SALA`, empleado vía `dbo.PES_EMPLEADOS_LINEAS`) + pelado grupal (`dbo.DCP_PagosGrupales` + `dbo.DCP_PagosGrupalesDetalle`). Salas fijas `SALA #1`…`SALA #6` de `dbo.PES_SALAS`.',
 '"Personas activas" por sala: estimado de gente pelando = `COUNT(DISTINCT ID_EMPLEADO)` con pago de destajo de pelado hoy en la sala (individual + grupal, todo el día), mismo valor que "Empleados hoy". "Libras últimos 30 min" mantiene la ventana en vivo (solo pelado individual; el grupal no tiene hora de registro).',
+          '"Libras hoy" por sala = acumulado del día; "Libras por hora" = "Libras hoy" ÷ horas transcurridas del día (`DATEDIFF` desde el primer registro de destajo de hoy de toda la planta hasta `GETDATE()`, mismo divisor para todas las salas). La tabla se ordena por nº de sala y lleva fila de totales.',
           'Órdenes activas / tiempo real: la BD no tiene un conteo real de personal en planta (módulo legado `CodigosBin` / `MovimientosInvProceso` vacío). Se aproxima con órdenes de `dbo.AV_Produccion_Diaria_2020` (`FechaHoraTorre`) con lectura en los últimos 15 min y `NombreTipoProceso IN (\'IQF PEELED\', \'IQF COOK PEELED\', \'PD BLOCK\', \'FRESH PEELED\')`.',
         ],
       },

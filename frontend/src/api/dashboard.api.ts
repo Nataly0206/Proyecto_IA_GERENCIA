@@ -7,6 +7,7 @@ import {
   DataRow,
   IqfLiveResponse,
   PeladoLibrasHoyResponse,
+  PeladoLibrasHoyTallaResponse,
   PeladoPorSalaResponse,
 } from '../types';
 
@@ -30,6 +31,16 @@ export async function fetchPeladoLibrasHoy(refresh = false): Promise<PeladoLibra
   const { data } = await apiClient.get<PeladoLibrasHoyResponse>('/dashboard/pelado-libras-hoy', {
     params: refresh ? { refresh: 'true' } : undefined,
   });
+  return data;
+}
+
+export async function fetchPeladoLibrasHoyTalla(
+  refresh = false,
+): Promise<PeladoLibrasHoyTallaResponse> {
+  const { data } = await apiClient.get<PeladoLibrasHoyTallaResponse>(
+    '/dashboard/pelado-libras-hoy-talla',
+    { params: refresh ? { refresh: 'true' } : undefined },
+  );
   return data;
 }
 

@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   fetchIqfLive,
   fetchPeladoLibrasHoy,
+  fetchPeladoLibrasHoyTalla,
   fetchPeladoPorSala,
   fetchProcesoResumen,
   fetchWidgetData,
@@ -13,6 +14,7 @@ import {
   DataRow,
   IqfLiveResponse,
   PeladoLibrasHoyResponse,
+  PeladoLibrasHoyTallaResponse,
   PeladoPorSalaResponse,
 } from '../types';
 import { getDateFilterError } from '../utils/dateFilters';
@@ -150,6 +152,40 @@ export function usePeladoLibrasHoy() {
     const data = await fetchPeladoLibrasHoy(true);
     writeBrowserCache(cacheKey, data);
     queryClient.setQueryData<PeladoLibrasHoyResponse>(queryKey, data);
+    return data;
+  };
+
+  return { ...query, refreshNow };
+}
+
+/**
+ * Libras peladas hoy por talla. Se consulta de forma perezosa (`enabled`):
+ * solo cuando el usuario abre el diálogo desde la tabla de actividad por
+ * sala, para no pegarle al endpoint en cada carga de la página.
+ */
+export function usePeladoLibrasHoyTalla(enabled: boolean) {
+  const queryClient = useQueryClient();
+  const queryKey = ['dashboard', 'pelado-libras-hoy-talla'] as const;
+  const cacheKey = browserCacheKey(['pelado-libras-hoy-talla', 'current']);
+  const cached = readBrowserCache<PeladoLibrasHoyTallaResponse>(cacheKey, LIVE_REFRESH_INTERVAL_MS);
+
+  const query = useQuery<PeladoLibrasHoyTallaResponse>({
+    queryKey,
+    queryFn: async () => {
+      const data = await fetchPeladoLibrasHoyTalla();
+      writeBrowserCache(cacheKey, data);
+      return data;
+    },
+    enabled,
+    initialData: cached?.data,
+    initialDataUpdatedAt: cached?.updatedAt,
+    staleTime: LIVE_REFRESH_INTERVAL_MS,
+  });
+
+  const refreshNow = async (): Promise<PeladoLibrasHoyTallaResponse> => {
+    const data = await fetchPeladoLibrasHoyTalla(true);
+    writeBrowserCache(cacheKey, data);
+    queryClient.setQueryData<PeladoLibrasHoyTallaResponse>(queryKey, data);
     return data;
   };
 

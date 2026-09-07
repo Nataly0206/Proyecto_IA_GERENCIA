@@ -1,8 +1,14 @@
+import { useState } from 'react';
 import {
   Alert,
   Box,
+  Button,
   Card,
   CardContent,
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  IconButton,
   Skeleton,
   Stack,
   Table,
@@ -15,7 +21,9 @@ import {
   Typography,
 } from '@mui/material';
 import MeetingRoomOutlinedIcon from '@mui/icons-material/MeetingRoomOutlined';
-import { usePeladoPorSala } from '../../hooks/useDashboardData';
+import StraightenOutlinedIcon from '@mui/icons-material/StraightenOutlined';
+import CloseIcon from '@mui/icons-material/Close';
+import { usePeladoLibrasHoyTalla, usePeladoPorSala } from '../../hooks/useDashboardData';
 import { formatPeriodo, formatValue } from '../../utils/format';
 
 const NUM_SX = { fontVariantNumeric: 'tabular-nums' } as const;
@@ -67,6 +75,7 @@ const salaNum = (nombre: string) => Number(nombre.replace(/\D/g, '')) || 0;
 
 export default function PeladoPorSalaTable() {
   const { data, isLoading, isError, error, dataUpdatedAt } = usePeladoPorSala();
+  const [tallaOpen, setTallaOpen] = useState(false);
 
   const salas = [...(data?.salas ?? [])].sort((a, b) => salaNum(a.sala) - salaNum(b.sala));
   const maxLibrasHoy = salas.reduce((m, s) => Math.max(m, s.librasPeladasHoy), 0);
@@ -90,35 +99,63 @@ export default function PeladoPorSalaTable() {
   return (
     <Card sx={{ flexShrink: 0, borderRadius: 2 }}>
       <CardContent sx={{ p: '14px !important' }}>
-        <Stack direction="row" alignItems="center" spacing={0.75} mb={1} flexWrap="wrap" useFlexGap>
-          <Box
-            sx={{
-              width: 26,
-              height: 26,
-              display: 'grid',
-              placeItems: 'center',
-              borderRadius: 1,
-              bgcolor: 'rgba(22, 74, 139, 0.08)',
-              color: 'primary.main',
-            }}
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 1,
+            mb: 1,
+          }}
+        >
+          <Stack
+            direction="row"
+            alignItems="center"
+            spacing={0.75}
+            flexWrap="wrap"
+            useFlexGap
+            sx={{ flex: 1, minWidth: 0 }}
           >
-            <MeetingRoomOutlinedIcon sx={{ fontSize: 16 }} />
-          </Box>
-          <Typography variant="subtitle2" fontWeight={800} sx={{ fontSize: 14, lineHeight: 1.2 }}>
-            Actividad de Pelado por Sala
-          </Typography>
-          {data && data.dia !== '' && (
-            <Typography
-              variant="caption"
-              color="text.secondary"
-              sx={{ fontSize: 11, flexBasis: { xs: '100%', sm: 'auto' }, pl: { xs: 4.25, sm: 0 } }}
+            <Box
+              sx={{
+                width: 26,
+                height: 26,
+                display: 'grid',
+                placeItems: 'center',
+                borderRadius: 1,
+                bgcolor: 'rgba(22, 74, 139, 0.08)',
+                color: 'primary.main',
+              }}
             >
-              {formatPeriodo(data.dia)} · actualizado {new Date(dataUpdatedAt).toLocaleTimeString()}
-              {data.horasTranscurridas > 0 &&
-                ` · libras/hora sobre ${formatValue(data.horasTranscurridas, 'decimal')} h del día`}
+              <MeetingRoomOutlinedIcon sx={{ fontSize: 16 }} />
+            </Box>
+            <Typography variant="subtitle2" fontWeight={800} sx={{ fontSize: 14, lineHeight: 1.2 }}>
+              Actividad de Pelado por Sala
             </Typography>
-          )}
-        </Stack>
+            {data && data.dia !== '' && (
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ fontSize: 11, flexBasis: { xs: '100%', sm: 'auto' }, pl: { xs: 4.25, sm: 0 } }}
+              >
+                {formatPeriodo(data.dia)} · actualizado {new Date(dataUpdatedAt).toLocaleTimeString()}
+                {data.horasTranscurridas > 0 &&
+                  ` · libras/hora sobre ${formatValue(data.horasTranscurridas, 'decimal')} h del día`}
+              </Typography>
+            )}
+          </Stack>
+
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<StraightenOutlinedIcon sx={{ fontSize: 16 }} />}
+            onClick={() => setTallaOpen(true)}
+            sx={{ flexShrink: 0, textTransform: 'none', fontWeight: 700, fontSize: 12, py: 0.4 }}
+          >
+            Por talla · hoy
+          </Button>
+        </Box>
 
         {isLoading && <Skeleton variant="rounded" height={240} />}
 
@@ -257,6 +294,83 @@ export default function PeladoPorSalaTable() {
           </TableContainer>
         )}
       </CardContent>
+
+      <PeladoTallaHoyDialog open={tallaOpen} onClose={() => setTallaOpen(false)} />
     </Card>
+  );
+}
+
+function PeladoTallaHoyDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { data, isLoading, isError, error, dataUpdatedAt } = usePeladoLibrasHoyTalla(open);
+  const tallas = data?.tallas ?? [];
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
+      <DialogTitle sx={{ p: 1.75, pb: 1.25 }}>
+        <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={1}>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography sx={{ fontSize: 14, fontWeight: 800, lineHeight: 1.2 }}>
+              Libras Peladas por Talla — Hoy
+            </Typography>
+            {data && data.dia !== '' && (
+              <Typography variant="caption" color="text.secondary" sx={{ fontSize: 11 }}>
+                {formatPeriodo(data.dia)} · actualizado {new Date(dataUpdatedAt).toLocaleTimeString()}
+              </Typography>
+            )}
+          </Box>
+          <IconButton size="small" onClick={onClose} aria-label="Cerrar" sx={{ mt: -0.5, mr: -0.5 }}>
+            <CloseIcon sx={{ fontSize: 18 }} />
+          </IconButton>
+        </Stack>
+      </DialogTitle>
+      <DialogContent dividers sx={{ p: 1.75 }}>
+        {isLoading && <Skeleton variant="rounded" height={200} />}
+
+        {isError && (
+          <Alert severity="error" sx={{ py: 0.5 }}>
+            Error al cargar libras por talla: {error instanceof Error ? error.message : 'desconocido'}
+          </Alert>
+        )}
+
+        {!isLoading && !isError && tallas.length === 0 && (
+          <Alert severity="info" sx={{ py: 0.5 }}>
+            Sin libras peladas registradas hoy.
+          </Alert>
+        )}
+
+        {!isLoading && !isError && tallas.length > 0 && (
+          <TableContainer sx={{ maxHeight: 360, borderRadius: 1.5, border: '1px solid #e6ebf2' }}>
+            <Table size="small" stickyHeader>
+              <TableHead>
+                <TableRow>
+                  <HeadCell label="Talla" align="left" />
+                  <HeadCell label="Libras hoy" unit="lbs · acumulado" />
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {tallas.map((t) => (
+                  <TableRow key={t.talla} sx={ROW_SX}>
+                    <TableCell sx={{ fontSize: 12.5, fontWeight: 700, color: '#0f172a', borderColor: '#eef2f7' }}>
+                      {t.talla}
+                    </TableCell>
+                    <TableCell align="right" sx={BODY_NUM_SX}>
+                      {formatValue(t.libras)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+              <TableFooter>
+                <TableRow>
+                  <TableCell sx={{ ...FOOT_CELL_SX, fontSize: 11, letterSpacing: 0.4, textTransform: 'uppercase', color: '#64748b' }}>
+                    Total
+                  </TableCell>
+                  <TableCell align="right" sx={FOOT_CELL_SX}>{formatValue(data?.total ?? 0)}</TableCell>
+                </TableRow>
+              </TableFooter>
+            </Table>
+          </TableContainer>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }

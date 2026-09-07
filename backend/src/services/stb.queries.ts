@@ -127,6 +127,29 @@ ORDER BY D.NOMBRE
 `;
 
 /**
+ * Libras peladas por talla, siempre del día en curso (GETDATE en SQL,
+ * independiente del filtro de fechas del dashboard). Misma fuente y
+ * mismo criterio que `PELADO_LIBRAS_HOY_QUERY` (asignación real de libras
+ * por empleado), con la talla resuelta vía `DCP_TALLAS.NOMBRE_TALLA` — así
+ * el total por talla del día concilia con el total por estilo del día.
+ */
+export const PELADO_LIBRAS_HOY_TALLA_QUERY = `
+DECLARE @Dia date = CAST(GETDATE() AS date);
+
+SELECT
+  COALESCE(NULLIF(LTRIM(RTRIM(t.NOMBRE_TALLA)), ''), 'Sin talla') AS Talla,
+  SUM(b.LIBRAS) AS Libras
+FROM dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS a
+INNER JOIN dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS_DET b
+  ON a.ID_ASIGNACION_LIBRAS_EMPLEADO = b.ID_ASIGNACION_LIBRAS_EMPLEADO
+LEFT JOIN dbo.DCP_TALLAS t
+  ON t.ID_TALLA = b.ID_TALLA
+WHERE a.FECHA = @Dia
+GROUP BY COALESCE(NULLIF(LTRIM(RTRIM(t.NOMBRE_TALLA)), ''), 'Sin talla')
+ORDER BY Libras DESC
+`;
+
+/**
  * Libras peladas por estilo, totalizadas sobre un rango de fechas.
  * Fuente: asignación real de libras por empleado
  * (`PES_ASIGNACION_LIBRAS_EMPLEADOS` + `_DET`), igual que

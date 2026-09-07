@@ -73,6 +73,7 @@ const PAGE_HELP: Record<DashboardView, PageHelp> = {
     sections: [
       { title: 'Indicadores de hoy', body: 'Resumen las libras peladas durante el día y los registros operativos disponibles.' },
       { title: 'Por sala y por estilo', body: 'La sala permite comparar dónde se procesó el producto; el estilo indica la presentación obtenida. Esto ayuda a evaluar mezcla de producción y carga por área.' },
+      { title: 'Por talla · hoy', body: 'El botón "Por talla · hoy" en la esquina de la tabla de Actividad de Pelado por Sala abre el detalle de libras peladas del día en curso agrupadas por talla, con su total. No cambia con el filtro de fechas. El detalle "Libras Peladas por Talla" de la página sí responde al rango y turno seleccionados.' },
       { title: 'Personas y pago', body: 'Cuando se muestran empleados, el valor representa personas distintas con registros en el período. Se relaciona con libras y pago para analizar capacidad y costo real, no para sumar empleados entre filas.' },
       { title: 'Períodos', body: 'Los reportes diarios usan el rango y turno seleccionados. Los mensuales muestran los últimos 12 meses.' },
     ],

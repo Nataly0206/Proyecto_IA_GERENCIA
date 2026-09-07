@@ -200,6 +200,7 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
           'Por sala (hoy): pelado individual (`PES_ASIGNACION_LIBRAS_EMPLEADOS_DET` → `dbo.DCP_LINEAS.ID_SALA`, empleado vía `dbo.PES_EMPLEADOS_LINEAS`) + pelado grupal (`dbo.DCP_PagosGrupales` + `dbo.DCP_PagosGrupalesDetalle`). Salas fijas `SALA #1`…`SALA #6` de `dbo.PES_SALAS`.',
 '"Personas activas" por sala: estimado de gente pelando = `COUNT(DISTINCT ID_EMPLEADO)` con pago de destajo de pelado hoy en la sala (individual + grupal, todo el día), mismo valor que "Empleados hoy". "Libras últimos 30 min" mantiene la ventana en vivo (solo pelado individual; el grupal no tiene hora de registro).',
           '"Libras hoy" por sala = acumulado del día; "Libras por hora" = "Libras hoy" ÷ horas transcurridas del día (`DATEDIFF` desde el primer registro de destajo de hoy de toda la planta hasta `GETDATE()`, mismo divisor para todas las salas). La tabla se ordena por nº de sala y lleva fila de totales.',
+          'Botón "Por talla · hoy": libras peladas del día en curso agrupadas por `dbo.DCP_TALLAS.NOMBRE_TALLA` (mismo criterio que `/pelado-libras-hoy` por estilo, así el total por talla concilia con el total por estilo). Independiente del filtro de fechas; consulta perezosa al abrir el diálogo.',
           'Órdenes activas / tiempo real: la BD no tiene un conteo real de personal en planta (módulo legado `CodigosBin` / `MovimientosInvProceso` vacío). Se aproxima con órdenes de `dbo.AV_Produccion_Diaria_2020` (`FechaHoraTorre`) con lectura en los últimos 15 min y `NombreTipoProceso IN (\'IQF PEELED\', \'IQF COOK PEELED\', \'PD BLOCK\', \'FRESH PEELED\')`.',
         ],
       },
@@ -224,7 +225,7 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
         heading: 'Endpoints y archivos',
         bullets: [
           '`/pelado-por-estilo` · `/pelado-por-talla` (`-dia` / `-mes`) · `/pelado-personal` (`-dia` / `-mes`)',
-          '`/pelado-tiempo-real` · `/pelado-libras-hoy` · `/pelado-por-sala`',
+          '`/pelado-tiempo-real` · `/pelado-libras-hoy` · `/pelado-libras-hoy-talla` (botón "Por talla · hoy" de la tabla por sala) · `/pelado-por-sala`',
           'Permiso backend: `requirePermission(\'pelado\')`.',
           'Archivos: `backend/src/services/stb.queries.ts`, `reports.queries.ts` (pelado en vivo), `dashboard.service.ts`; front `frontend/src/pages/PeladoPage.tsx`.',
         ],

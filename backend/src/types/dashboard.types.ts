@@ -148,6 +148,21 @@ export interface PeladoLibrasHoyResponse {
   total: number;
 }
 
+/** Libras peladas hoy por talla (fuente: STB_data.dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS). */
+export interface PeladoLibrasHoyTalla {
+  talla: string;
+  libras: number;
+}
+
+export interface PeladoLibrasHoyTallaResponse {
+  /** Día mostrado (YYYY-MM-DD), siempre hoy */
+  dia: string;
+  /** Timestamp ISO de esta lectura */
+  actualizado: string;
+  tallas: PeladoLibrasHoyTalla[];
+  total: number;
+}
+
 /**
  * Actividad de pelado por sala (fuente: STB_data, PES_SALAS + DCP_LINEAS +
  * PES_ASIGNACION_LIBRAS_EMPLEADOS). `personasActivas` es un estimado de

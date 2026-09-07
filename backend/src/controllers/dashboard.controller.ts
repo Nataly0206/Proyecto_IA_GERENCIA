@@ -232,6 +232,18 @@ export async function getPeladoLibrasHoy(req: Request, res: Response): Promise<v
   );
 }
 
+export async function getPeladoLibrasHoyTalla(req: Request, res: Response): Promise<void> {
+  const forceRefresh = req.query.refresh === 'true';
+  res.json(
+    await withTtlCache(
+      'pelado-libras-hoy-talla:current',
+      LIVE_CACHE_MS,
+      () => dashboardService.getPeladoLibrasHoyTalla(),
+      forceRefresh,
+    ),
+  );
+}
+
 export async function getPeladoPorSala(req: Request, res: Response): Promise<void> {
   const forceRefresh = req.query.refresh === 'true';
   res.json(

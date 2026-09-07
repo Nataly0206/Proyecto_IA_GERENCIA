@@ -28,6 +28,7 @@ router.get('/pelado-por-talla-dia', pelado, asyncHandler(controller.getPeladoPor
 router.get('/pelado-por-talla-mes', pelado, asyncHandler(controller.getPeladoPorTallaMes));
 router.get('/pelado-tiempo-real', pelado, asyncHandler(controller.getPeladoTiempoReal));
 router.get('/pelado-libras-hoy', pelado, asyncHandler(controller.getPeladoLibrasHoy));
+router.get('/pelado-libras-hoy-talla', pelado, asyncHandler(controller.getPeladoLibrasHoyTalla));
 router.get('/pelado-por-sala', pelado, asyncHandler(controller.getPeladoPorSala));
 router.get('/pelado-personal', pelado, asyncHandler(controller.getPeladoPersonal));
 router.get('/pelado-personal-dia', pelado, asyncHandler(controller.getPeladoPersonalDia));

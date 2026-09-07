@@ -17,6 +17,7 @@ import {
   PELADO_LIBRAS_HOY_ESTILOS_FALLBACK_QUERY,
   PELADO_LIBRAS_HOY_ESTILOS_QUERY,
   PELADO_LIBRAS_HOY_QUERY,
+  PELADO_LIBRAS_HOY_TALLA_QUERY,
   PELADO_MINUTOS_TRANSCURRIDOS_HOY_QUERY,
   PELADO_PERSONAL_DAILY_QUERY,
   PELADO_POR_ESTILO_RANGO_QUERY,
@@ -31,6 +32,7 @@ import {
   NetProcessPeriodRow,
   NetProcessRow,
   PeladoLibrasHoyResponse,
+  PeladoLibrasHoyTallaResponse,
   PeladoLiveResponse,
   PeladoPersonalPeriodRow,
   PeladoPersonalRow,
@@ -548,6 +550,25 @@ export async function getPeladoLibrasHoy(): Promise<PeladoLibrasHoyResponse> {
   const total = round2(estilos.reduce((acc, e) => acc + e.libras, 0));
 
   return { dia: formatDate(new Date()), actualizado: new Date().toISOString(), estilos, total };
+}
+
+/* ------------------------------------------------------------------ */
+/* Libras peladas hoy por talla (fuente STB_data,                      */
+/* PES_ASIGNACION_LIBRAS_EMPLEADOS) — siempre día actual, mismo        */
+/* criterio que getPeladoLibrasHoy pero agrupado por talla.            */
+/* ------------------------------------------------------------------ */
+
+export async function getPeladoLibrasHoyTalla(): Promise<PeladoLibrasHoyTallaResponse> {
+  const rows = await runStbQuery(PELADO_LIBRAS_HOY_TALLA_QUERY, []);
+  const tallas = rows
+    .map((row) => ({
+      talla: pickString(row, 'Talla') || 'Sin talla',
+      libras: round2(pickNumber(row, 'Libras')),
+    }))
+    .sort((a, b) => b.libras - a.libras);
+  const total = round2(tallas.reduce((acc, t) => acc + t.libras, 0));
+
+  return { dia: formatDate(new Date()), actualizado: new Date().toISOString(), tallas, total };
 }
 
 /* ------------------------------------------------------------------ */

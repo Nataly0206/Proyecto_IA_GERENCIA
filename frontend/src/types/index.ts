@@ -154,6 +154,19 @@ export interface PeladoLibrasHoyResponse {
   total: number;
 }
 
+/** Libras peladas hoy por talla (fuente: STB_data.dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS) */
+export interface PeladoLibrasHoyTalla {
+  talla: string;
+  libras: number;
+}
+
+export interface PeladoLibrasHoyTallaResponse {
+  dia: string; // YYYY-MM-DD, siempre hoy
+  actualizado: string; // ISO timestamp de la lectura
+  tallas: PeladoLibrasHoyTalla[];
+  total: number;
+}
+
 /**
  * Actividad de pelado por sala (fuente: STB_data). `personasActivas` = nº
  * de empleados con destajo de pelado hoy en la sala; `librasUltimos30Min`

@@ -135,8 +135,19 @@ export default function PeladoPorSalaTable() {
         )}
 
         {!isLoading && !isError && data && data.salas.length > 0 && (
-          <TableContainer sx={{ maxHeight: 360, borderRadius: 1.5, border: '1px solid #e6ebf2' }}>
-            <Table size="small" stickyHeader>
+          <TableContainer
+            sx={{
+              maxHeight: 360,
+              borderRadius: 1.5,
+              border: '1px solid #e6ebf2',
+              // En pantallas angostas la tabla desborda su ancho y se
+              // desplaza en horizontal dentro de este contenedor, sin
+              // empujar el layout de la página.
+              overflowX: 'auto',
+              WebkitOverflowScrolling: 'touch',
+            }}
+          >
+            <Table size="small" stickyHeader sx={{ minWidth: 620 }}>
               <TableHead>
                 <TableRow>
                   <HeadCell label="Sala" align="left" />

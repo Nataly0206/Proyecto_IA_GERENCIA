@@ -18,8 +18,9 @@ export default function PeladoPage() {
       sx={{
         height: '100%',
         minHeight: 0,
-        overflowY: { xs: 'auto', md: 'hidden' },
+        overflowY: 'auto',
         overflowX: 'hidden',
+        pb: 1.5,
       }}
     >
       <Paper

@@ -395,7 +395,7 @@ SELECT
   CONVERT(varchar(10), @Domingo, 23) AS SemanaFin,
   CONVERT(varchar(10), @Hoy, 23) AS HoyEfectivo,
   (SELECT ISNULL(SUM(v.PesoLibras), 0) FROM dbo.AV_MateriaPrima v
-    WHERE CAST(v.DiaProduccion2024 AS date) = @HoyReal) AS LibrasRecibidasHoy,
+    WHERE CAST(v.DiaProduccion2024 AS date) BETWEEN @Hoy AND @Hoy) AS LibrasRecibidasHoy,
   (SELECT ISNULL(SUM(v.PesoLibras), 0) FROM dbo.AV_MateriaPrima v
     WHERE CAST(v.DiaProduccion2024 AS date) BETWEEN @Lunes AND @Domingo) AS LibrasRecibidasSemana,
   (SELECT ISNULL(SUM(v.PesoLibras), 0) FROM dbo.AV_MateriaPrima v

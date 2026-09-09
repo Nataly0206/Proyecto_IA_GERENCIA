@@ -322,7 +322,7 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
         heading: 'Tablas y vistas de origen',
         bullets: [
           'Única fuente: vista `dbo.AV_MateriaPrima` (`DiaProduccion2024`, `NombrePropietario`, `NombreGrupo`, `Talla` — gramaje del camarón, ej. "51/60" —, `Item` — código de producto, ej. "STB COLA FRESCO51/60" —, `TipoMateria` — "FRESCO" casi siempre, a veces "SALMUERA" —, `PesoLibras`, `CantidadSerial`, `SubTotal`). En los últimos meses casi toda la vista es `fkTipo = 4` / `NombreTipoProceso = \'FRESH TAIL\'` (registro fresco de materia prima).',
-          'Libras recibidas hoy: `dbo.AV_MateriaPrima.PesoLibras` filtrado por la fecha real del servidor.',
+          'Libras recibidas hoy: `dbo.AV_MateriaPrima.PesoLibras` filtrado de `@Hoy` a `@Hoy`, usando la misma fecha efectiva que semana y mes.',
           'Nota: NO se usa la tabla `dbo.MateriaPrima` (esa tabla es de otro dominio — liquidación de exportación WSO/embarque — y no tiene el gramaje de recepción; se verificó por inspección directa de columnas).',
         ],
       },
@@ -330,7 +330,7 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
         heading: 'Filtros y parámetros',
         bullets: [
           'Contadores superiores: `@Lunes`/`@Domingo` = semana que contiene `@Hoy`, `@PrimerDiaMes` = 1º del mes de `@Hoy` — pero `@Hoy` NO es `GETDATE()` directo, es `MAX(DiaProduccion2024)` de `AV_MateriaPrima` (con tope en la fecha real del servidor). La recepción se registra con varios días de rezago (se observó hasta 5); anclar al reloj hacía que "semana actual" y "mes actual" casi siempre cayeran en un período aún sin filas y el resumen mostrara "sin datos" pese a haber recepción reciente. `HoyEfectivo` viaja en la respuesta SQL para que el servicio calcule `librasPromedioSemana` sobre el mes correcto. Ninguno de los 4 contadores responde al filtro de fechas del dashboard.',
-          '`LibrasRecibidasHoy = SUM(PesoLibras)` donde `DiaProduccion2024` corresponde a la fecha real de hoy.',
+          '`LibrasRecibidasHoy = SUM(PesoLibras)` donde `DiaProduccion2024 BETWEEN @Hoy AND @Hoy`; `@Hoy` es la última fecha disponible, limitada a no superar la fecha real.',
           '`LibrasRecibidasSemana` / `LibrasRecibidasMes` = `SUM(PesoLibras)` de `AV_MateriaPrima` con `DiaProduccion2024` en la semana / en `[@PrimerDiaMes, @Hoy]` respectivamente.',
           'Materia prima por proveedor (tarjetas, rango del filtro): `CAST(DiaProduccion2024 AS date) BETWEEN @Fecha_Inicial AND @Fecha_Final`; proveedor = `COALESCE(NULLIF(NombrePropietario, \'\'), NULLIF(NombreGrupo, \'\'), \'Sin proveedor\')`.',
           'Tarjeta "Materia Prima por Proveedor/Gramaje — Mensual": muestra los 3 meses **con datos** más recientes, no 3 meses calendario a secas — se pide un mes extra (`COMPRA_MP_MESES + 1`) y se recorta a los 3 con filas reales, por el mismo motivo de rezago que el punto anterior (antes había una tabla de 12 meses separada; se fusionó con el widget de gramaje/selector porque, en modo "Proveedor", mostraban exactamente los mismos datos — ver `getCompraMpPorProveedorMes` eliminado). El filtro de proveedores (checklist) se aplica en el navegador sobre las filas ya traídas, antes de re-agregar por mes+serie.',

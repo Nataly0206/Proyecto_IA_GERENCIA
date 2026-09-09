@@ -242,14 +242,14 @@ export interface ExportacionesResumen {
 }
 
 /**
- * Compra de materia prima — órdenes de hoy y contadores de semana/mes.
+ * Compra de materia prima — libras recibidas hoy, semana y mes.
  * `librasPromedioSemana` = libras del mes / nº de semanas del mes actual.
  */
 export interface CompraMpResumen {
   semanaInicio: string;
   semanaFin: string;
   actualizado: string;
-  ordenesCompraHoy: number;
+  librasRecibidasHoy: number;
   librasRecibidasSemana: number;
   librasRecibidasMes: number;
   librasPromedioSemana: number;

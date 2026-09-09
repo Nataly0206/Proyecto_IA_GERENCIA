@@ -439,7 +439,7 @@ export async function getCompraMpResumen(): Promise<CompraMpResumen> {
     actualizado: new Date().toISOString(),
     semanaInicio: pickString(r, 'SemanaInicio'),
     semanaFin: pickString(r, 'SemanaFin'),
-    ordenesCompraHoy: pickNumber(r, 'OrdenesCompraHoy'),
+    librasRecibidasHoy: round2(pickNumber(r, 'LibrasRecibidasHoy')),
     librasRecibidasSemana: round2(pickNumber(r, 'LibrasRecibidasSemana')),
     librasRecibidasMes,
     librasPromedioSemana: round2(librasRecibidasMes / semanasDelMesActual(anchor)),

@@ -365,9 +365,8 @@ WHERE v.FechaCarga BETWEEN @Lunes AND @Domingo
 /* ================================================================== */
 
 /**
- * Contadores superiores de Compra de Materia Prima: órdenes de compra
- * creadas hoy y libras de materia prima recibidas en la
- * semana y en el mes en curso. La semana es lunes-domingo, calculada sin
+ * Contadores superiores de Compra de Materia Prima: libras recibidas hoy,
+ * en la semana y en el mes en curso. La semana es lunes-domingo, calculada sin
  * depender de `@@DATEFIRST` (igual que `EXPORTACIONES_RESUMEN_QUERY`).
  * El promedio por semana se calcula en el servicio (libras del mes / nº de
  * semanas del mes en curso).
@@ -395,8 +394,8 @@ SELECT
   CONVERT(varchar(10), @Lunes, 23) AS SemanaInicio,
   CONVERT(varchar(10), @Domingo, 23) AS SemanaFin,
   CONVERT(varchar(10), @Hoy, 23) AS HoyEfectivo,
-  (SELECT COUNT(*) FROM dbo.OrdenesCompra oc
-    WHERE oc.FechaOrdenCompra = @HoyReal) AS OrdenesCompraHoy,
+  (SELECT ISNULL(SUM(v.PesoLibras), 0) FROM dbo.AV_MateriaPrima v
+    WHERE CAST(v.DiaProduccion2024 AS date) = @HoyReal) AS LibrasRecibidasHoy,
   (SELECT ISNULL(SUM(v.PesoLibras), 0) FROM dbo.AV_MateriaPrima v
     WHERE CAST(v.DiaProduccion2024 AS date) BETWEEN @Lunes AND @Domingo) AS LibrasRecibidasSemana,
   (SELECT ISNULL(SUM(v.PesoLibras), 0) FROM dbo.AV_MateriaPrima v

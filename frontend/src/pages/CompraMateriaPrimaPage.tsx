@@ -63,7 +63,7 @@ export default function CompraMateriaPrimaPage({ userId }: { userId: string }) {
         periodoLabel={semana}
         emptyText="Sin materia prima registrada."
         metrics={[
-          { label: 'Órdenes de compra — Hoy', value: data?.ordenesCompraHoy ?? 0, unit: 'órdenes' },
+          { label: 'Libras recibidas Hoy', value: data?.librasRecibidasHoy ?? 0, unit: 'lbs' },
           { label: 'Libras recibidas — semana', value: data?.librasRecibidasSemana ?? 0, unit: 'lbs' },
           { label: 'Libras recibidas — mes', value: data?.librasRecibidasMes ?? 0, unit: 'lbs' },
           { label: 'Libras promedio por semana', value: data?.librasPromedioSemana ?? 0, unit: 'lbs/semana' },

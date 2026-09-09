@@ -1,0 +1,10 @@
+{
+  "name": "Dashboard Gerencial · Producción Camaronera",
+  "short_name": "Dashboard Gerencial",
+  "icons": [
+    { "src": "/images/logo-esf.png", "sizes": "512x512", "type": "image/png" }
+  ],
+  "theme_color": "#0f172a",
+  "background_color": "#ffffff",
+  "display": "standalone"
+}

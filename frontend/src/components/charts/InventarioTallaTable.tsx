@@ -1,7 +1,8 @@
-import { ReactNode, useMemo } from 'react';
+import { ReactNode, useMemo, useState } from 'react';
 import {
   Alert,
   Box,
+  Button,
   Skeleton,
   Stack,
   Table,
@@ -12,9 +13,11 @@ import {
   TableRow,
   Typography,
 } from '@mui/material';
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import { DashboardEndpoint } from '../../types';
 import { useWidgetData } from '../../hooks/useDashboardData';
 import { formatValue } from '../../utils/format';
+import ClasificadoInventarioDetalleDialog from './ClasificadoInventarioDetalleDialog';
 
 interface InventarioTallaTableProps {
   title: string;
@@ -42,6 +45,7 @@ export default function InventarioTallaTable({
   maxHeight = 300,
 }: InventarioTallaTableProps) {
   const { data, isLoading, isError, error, dataUpdatedAt } = useWidgetData(endpoint);
+  const [detailOpen, setDetailOpen] = useState(false);
 
   const { tallas, bins, libras, totalBins, totalLibras } = useMemo(() => {
     const rows = data ?? [];
@@ -60,17 +64,15 @@ export default function InventarioTallaTable({
 
   return (
     <Box>
-      <Stack direction="row" alignItems="center" spacing={0.75} mb={0.9} flexWrap="wrap" useFlexGap>
-        {icon}
-        <Typography variant="subtitle2" fontWeight={800} sx={{ fontSize: 13 }}>
-          {title}
-        </Typography>
-        {subtitle && (
-          <Typography variant="caption" color="text.secondary" sx={{ fontSize: 11 }}>
-            {subtitle}
-            {dataUpdatedAt ? ` · actualizado ${new Date(dataUpdatedAt).toLocaleTimeString()}` : ''}
-          </Typography>
-        )}
+      <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1} mb={0.9} flexWrap="wrap" useFlexGap>
+        <Stack direction="row" alignItems="center" spacing={0.75} flexWrap="wrap" useFlexGap>
+          {icon}
+          <Typography variant="subtitle2" fontWeight={800} sx={{ fontSize: 13 }}>{title}</Typography>
+          {subtitle && <Typography variant="caption" color="text.secondary" sx={{ fontSize: 11 }}>{subtitle}{dataUpdatedAt ? ` · actualizado ${new Date(dataUpdatedAt).toLocaleTimeString()}` : ''}</Typography>}
+        </Stack>
+        <Button size="small" variant="outlined" startIcon={<VisibilityOutlinedIcon />} onClick={() => setDetailOpen(true)}>
+          Ver detalle
+        </Button>
       </Stack>
 
       {isLoading && <Skeleton variant="rounded" height={160} />}
@@ -132,6 +134,7 @@ export default function InventarioTallaTable({
           </Table>
         </TableContainer>
       )}
+      {detailOpen && <ClasificadoInventarioDetalleDialog open={detailOpen} onClose={() => setDetailOpen(false)} />}
     </Box>
   );
 }

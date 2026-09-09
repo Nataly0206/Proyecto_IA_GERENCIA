@@ -58,7 +58,6 @@ function live(key: string, handler: () => Promise<unknown>) {
 
 /* Recepción */
 export const getRecepcionResumen = live('recepcion-resumen', procesos.getRecepcionResumen);
-export const getRecepcionPorFinca = report('recepcion-por-finca', procesos.getRecepcionPorFinca);
 export const getRecepcionRemisiones = report('recepcion-remisiones', procesos.getRecepcionRemisiones);
 
 /* Descabezado */
@@ -69,6 +68,7 @@ export const getDescabezadoPorDiaMes = monthlyReport('descabezado-por-dia-mes', 
 /* Clasificado */
 export const getClasificadoResumen = live('clasificado-resumen', procesos.getClasificadoResumen);
 export const getClasificadoInventario = live('clasificado-inventario', procesos.getClasificadoInventario);
+export const getClasificadoInventarioDetalle = live('clasificado-inventario-detalle', procesos.getClasificadoInventarioDetalle);
 export const getClasificadoPorMaquina = report('clasificado-por-maquina', procesos.getClasificadoPorMaquina);
 export const getClasificadoPorTalla = report('clasificado-por-talla', procesos.getClasificadoPorTalla);
 export const getClasificadoPorTallaDia = report('clasificado-por-talla-dia', procesos.getClasificadoPorTallaDia);
@@ -84,4 +84,5 @@ export const getExportacionesPorClienteMes = monthlyReport('exportaciones-por-cl
 export const getCompraMpResumen = live('compra-mp-resumen', procesos.getCompraMpResumen);
 export const getCompraMpPorProveedor = report('compra-mp-por-proveedor', procesos.getCompraMpPorProveedor);
 export const getCompraMpPorItem = report('compra-mp-por-item', procesos.getCompraMpPorItem);
+export const getCompraMpPorTalla = report('compra-mp-por-talla', procesos.getCompraMpPorTalla);
 export const getCompraMpMateriaPrima = monthlyReport('compra-mp-materia-prima', procesos.getCompraMpMateriaPrima);

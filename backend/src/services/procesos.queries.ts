@@ -35,44 +35,32 @@
 /* RECEPCIÓN (STB_data)                                                */
 /* ================================================================== */
 
-/** Contadores del día en curso: libras recibidas, remisiones, libras
- *  pendientes de procesar y fincas activas. */
+/** Libras recibidas hoy, en la semana y en el mes en curso, más el saldo
+ * global pendiente de procesar. */
 export const RECEPCION_RESUMEN_QUERY = `
 DECLARE @Dia date = CAST(GETDATE() AS date);
+DECLARE @Lunes date = DATEADD(DAY, -(DATEDIFF(DAY, 0, @Dia) % 7), @Dia);
+DECLARE @PrimerDiaMes date = DATEADD(DAY, 1 - DAY(@Dia), @Dia);
 
 SELECT
   (SELECT ISNULL(SUM(d.LIBRAS), 0)
      FROM dbo.R_REMISIONES_PLANTA rp
      JOIN dbo.R_REMISIONES_PLANTA_DETALLE d ON d.ID_REMISION_PLANTA = rp.ID_REMISION_PLANTA
     WHERE rp.FECHA_REMISION = @Dia AND rp.ANULADA = 0 AND rp.RECHAZADA = 0) AS LibrasRecibidasHoy,
-  (SELECT COUNT(DISTINCT rp.REMISION_GENERAL)
-     FROM dbo.R_REMISIONES_PLANTA rp
-    WHERE rp.FECHA_REMISION = @Dia AND rp.ANULADA = 0 AND rp.RECHAZADA = 0) AS RemisionesHoy,
   (SELECT ISNULL(SUM(d.LIBRAS), 0)
      FROM dbo.R_REMISIONES_PLANTA rp
      JOIN dbo.R_REMISIONES_PLANTA_DETALLE d ON d.ID_REMISION_PLANTA = rp.ID_REMISION_PLANTA
-    WHERE rp.ANULADA = 0 AND rp.RECHAZADA = 0 AND rp.CERRADA = 0 AND ISNULL(d.PROCESADO, 0) = 0) AS LibrasPendientesProcesar,
-  (SELECT COUNT(DISTINCT f.IdFinca)
+    WHERE rp.FECHA_REMISION BETWEEN @Lunes AND @Dia
+      AND rp.ANULADA = 0 AND rp.RECHAZADA = 0) AS LibrasRecibidasSemana,
+  (SELECT ISNULL(SUM(d.LIBRAS), 0)
      FROM dbo.R_REMISIONES_PLANTA rp
-     LEFT JOIN dbo.R_Lagunas lg ON lg.IdLaguna = rp.ID_LAGUNA
-     LEFT JOIN dbo.R_Fincas f ON f.IdFinca = lg.IdFinca
-    WHERE rp.FECHA_REMISION = @Dia AND rp.ANULADA = 0 AND rp.RECHAZADA = 0) AS FincasActivasHoy
-`;
-
-/** Libras recibidas por finca y día dentro del rango filtrado. */
-export const RECEPCION_POR_FINCA_QUERY = `
-SELECT
-  rp.FECHA_REMISION AS Dia,
-  COALESCE(NULLIF(LTRIM(RTRIM(f.Finca)), ''), NULLIF(LTRIM(RTRIM(rp.NombreCliente)), ''), 'Sin finca') AS Finca,
-  SUM(d.LIBRAS) AS Libras
-FROM dbo.R_REMISIONES_PLANTA rp
-JOIN dbo.R_REMISIONES_PLANTA_DETALLE d ON d.ID_REMISION_PLANTA = rp.ID_REMISION_PLANTA
-LEFT JOIN dbo.R_Lagunas lg ON lg.IdLaguna = rp.ID_LAGUNA
-LEFT JOIN dbo.R_Fincas f ON f.IdFinca = lg.IdFinca
-WHERE rp.FECHA_REMISION BETWEEN @Fecha_Inicial AND @Fecha_Final
-  AND rp.ANULADA = 0 AND rp.RECHAZADA = 0
-GROUP BY rp.FECHA_REMISION,
-  COALESCE(NULLIF(LTRIM(RTRIM(f.Finca)), ''), NULLIF(LTRIM(RTRIM(rp.NombreCliente)), ''), 'Sin finca')
+     JOIN dbo.R_REMISIONES_PLANTA_DETALLE d ON d.ID_REMISION_PLANTA = rp.ID_REMISION_PLANTA
+    WHERE rp.FECHA_REMISION BETWEEN @PrimerDiaMes AND @Dia
+      AND rp.ANULADA = 0 AND rp.RECHAZADA = 0) AS LibrasRecibidasMes,
+  (SELECT ISNULL(SUM(d.LIBRAS), 0)
+     FROM dbo.R_REMISIONES_PLANTA rp
+     JOIN dbo.R_REMISIONES_PLANTA_DETALLE d ON d.ID_REMISION_PLANTA = rp.ID_REMISION_PLANTA
+    WHERE rp.ANULADA = 0 AND rp.RECHAZADA = 0 AND rp.CERRADA = 0 AND ISNULL(d.PROCESADO, 0) = 0) AS LibrasPendientesProcesar
 `;
 
 /**
@@ -113,46 +101,92 @@ GROUP BY v.FechaRemision, v.IdRemisionPlanta,
 /* DESCABEZADO (STB_data)                                              */
 /* ================================================================== */
 
-/**
- * Contadores del día en curso: libras descabezadas al día, personas
- * descabezando, gramaje promedio (talla dominante por libras) y costo por
- * libra (pago a destajo ponderado). Todo sobre `DES_ASIG_LBRS_EMPLEADOS`
- * (+ `_DET`, columnas `LIBRAS`, `VALOR`, `ID_TALLA`, `ID_EMPLEADO_LINEA`).
- * El "gramaje" es el `NOMBRE_TALLA` (DCP_TALLAS) con más libras del día —
- * un texto (talla / rango), no una cantidad.
- */
+/** Libras descabezadas hoy, semana y mes, más empleados distintos de hoy. */
 export const DESCABEZADO_RESUMEN_QUERY = `
 DECLARE @Dia date = CAST(GETDATE() AS date);
+DECLARE @Lunes date = DATEADD(DAY, -(DATEDIFF(DAY, 0, @Dia) % 7), @Dia);
+DECLARE @PrimerDiaMes date = DATEADD(DAY, 1 - DAY(@Dia), @Dia);
 
 ;WITH det AS (
-  SELECT d.LIBRAS, d.VALOR, d.ID_TALLA, el.ID_EMPLEADO
+  SELECT h.FECHA, d.LIBRAS, el.ID_EMPLEADO
     FROM dbo.DES_ASIG_LBRS_EMPLEADOS h
     JOIN dbo.DES_ASIG_LBRS_EMPLEADOS_DET d ON d.ID_ASIG_LBRS_EMPLEADO = h.ID_ASIG_LBRS_EMPLEADO
     LEFT JOIN dbo.DES_EMPLEADOS_LINEAS el ON el.ID_EMPLEADO_LINEA = d.ID_EMPLEADO_LINEA
-   WHERE h.FECHA = @Dia AND d.ANULADO = 0
+   WHERE h.FECHA BETWEEN @PrimerDiaMes AND @Dia AND d.ANULADO = 0
 )
 SELECT
-  (SELECT ISNULL(SUM(LIBRAS), 0) FROM det) AS LibrasDescabezadasDia,
-  (SELECT COUNT(DISTINCT ID_EMPLEADO) FROM det) AS PersonasDia,
-  (SELECT CASE WHEN SUM(LIBRAS) > 0 THEN SUM(VALOR) / SUM(LIBRAS) ELSE 0 END FROM det) AS CostoPorLibra,
-  (SELECT TOP 1 COALESCE(NULLIF(LTRIM(RTRIM(t.NOMBRE_TALLA)), ''), 'Sin talla')
-     FROM det d
-     LEFT JOIN dbo.DCP_TALLAS t ON t.ID_TALLA = d.ID_TALLA
-    GROUP BY COALESCE(NULLIF(LTRIM(RTRIM(t.NOMBRE_TALLA)), ''), 'Sin talla')
-    ORDER BY SUM(d.LIBRAS) DESC) AS GramajePromedio
+  (SELECT ISNULL(SUM(LIBRAS), 0) FROM det WHERE FECHA = @Dia) AS LibrasDescabezadasDia,
+  (SELECT ISNULL(SUM(LIBRAS), 0) FROM det WHERE FECHA BETWEEN @Lunes AND @Dia) AS LibrasDescabezadasSemana,
+  (SELECT ISNULL(SUM(LIBRAS), 0) FROM det) AS LibrasDescabezadasMes,
+  (SELECT COUNT(DISTINCT ID_EMPLEADO) FROM det WHERE FECHA = @Dia) AS PersonasDia
 `;
 
-/** Libras y pago de descabezado por día dentro del rango (sin desglose por
- *  turno: total general por fecha). */
+/** Detalle diario. Empleados y horas se agregan antes de unirlos con la
+ * trazabilidad para evitar multiplicar personas o libras. */
 export const DESCABEZADO_POR_DIA_QUERY = `
-SELECT
-  h.FECHA AS Dia,
-  SUM(det.LIBRAS) AS Libras,
-  SUM(det.VALOR) AS Valor
-FROM dbo.DES_ASIG_LBRS_EMPLEADOS h
-JOIN dbo.DES_ASIG_LBRS_EMPLEADOS_DET det ON det.ID_ASIG_LBRS_EMPLEADO = h.ID_ASIG_LBRS_EMPLEADO
-WHERE h.FECHA BETWEEN @Fecha_Inicial AND @Fecha_Final AND det.ANULADO = 0
-GROUP BY h.FECHA
+;WITH personal AS (
+  SELECT h.FECHA AS Dia,
+    COUNT(DISTINCT el.ID_EMPLEADO) AS Personas,
+    DATEDIFF(SECOND, MIN(CAST(d.HORA AS time)), MAX(CAST(d.HORA AS time))) / 3600.0 AS Horas
+  FROM dbo.DES_ASIG_LBRS_EMPLEADOS h
+  JOIN dbo.DES_ASIG_LBRS_EMPLEADOS_DET d ON d.ID_ASIG_LBRS_EMPLEADO = h.ID_ASIG_LBRS_EMPLEADO
+  LEFT JOIN dbo.DES_EMPLEADOS_LINEAS el ON el.ID_EMPLEADO_LINEA = d.ID_EMPLEADO_LINEA
+  WHERE h.FECHA BETWEEN @Fecha_Inicial AND @Fecha_Final AND d.ANULADO = 0
+  GROUP BY h.FECHA
+), produccion AS (
+  SELECT FECHA_DESCABEZADO AS Dia,
+    SUM(LIBRAS_COLA) AS Cola,
+    SUM(LIBRAS_DESCABEZADO) AS Cabezas,
+    SUM(LIBRAS_ENTERO) AS Total
+  FROM dbo.V_TrazabilidadDescabezadoPBI
+  WHERE FECHA_DESCABEZADO BETWEEN @Fecha_Inicial AND @Fecha_Final
+  GROUP BY FECHA_DESCABEZADO
+)
+SELECT p.Dia, p.Personas, ISNULL(r.Cola, 0) AS Cola,
+  ISNULL(r.Cabezas, 0) AS Cabezas, ISNULL(r.Total, 0) AS Total,
+  CASE WHEN p.Horas > 0 THEN ISNULL(r.Total, 0) / p.Horas ELSE 0 END AS LibrasPorHora,
+  p.Horas
+FROM personal p
+LEFT JOIN produccion r ON r.Dia = p.Dia
+`;
+
+/** Detalle mensual. `COUNT(DISTINCT ID_EMPLEADO)` evita repetir a una
+ * persona que trabajó varios días del mismo mes. Las horas son la suma de
+ * las jornadas diarias para calcular un rendimiento mensual ponderado. */
+export const DESCABEZADO_POR_MES_QUERY = `
+;WITH jornadas AS (
+  SELECT h.FECHA AS Dia,
+    DATEDIFF(SECOND, MIN(CAST(d.HORA AS time)), MAX(CAST(d.HORA AS time))) / 3600.0 AS Horas
+  FROM dbo.DES_ASIG_LBRS_EMPLEADOS h
+  JOIN dbo.DES_ASIG_LBRS_EMPLEADOS_DET d ON d.ID_ASIG_LBRS_EMPLEADO = h.ID_ASIG_LBRS_EMPLEADO
+  WHERE h.FECHA BETWEEN @Fecha_Inicial AND @Fecha_Final AND d.ANULADO = 0
+  GROUP BY h.FECHA
+), personal AS (
+  SELECT CONVERT(varchar(7), h.FECHA, 23) AS Mes,
+    COUNT(DISTINCT el.ID_EMPLEADO) AS Personas
+  FROM dbo.DES_ASIG_LBRS_EMPLEADOS h
+  JOIN dbo.DES_ASIG_LBRS_EMPLEADOS_DET d ON d.ID_ASIG_LBRS_EMPLEADO = h.ID_ASIG_LBRS_EMPLEADO
+  LEFT JOIN dbo.DES_EMPLEADOS_LINEAS el ON el.ID_EMPLEADO_LINEA = d.ID_EMPLEADO_LINEA
+  WHERE h.FECHA BETWEEN @Fecha_Inicial AND @Fecha_Final AND d.ANULADO = 0
+  GROUP BY CONVERT(varchar(7), h.FECHA, 23)
+), horas AS (
+  SELECT CONVERT(varchar(7), Dia, 23) AS Mes, SUM(Horas) AS Horas
+  FROM jornadas GROUP BY CONVERT(varchar(7), Dia, 23)
+), produccion AS (
+  SELECT CONVERT(varchar(7), FECHA_DESCABEZADO, 23) AS Mes,
+    SUM(LIBRAS_COLA) AS Cola, SUM(LIBRAS_DESCABEZADO) AS Cabezas,
+    SUM(LIBRAS_ENTERO) AS Total
+  FROM dbo.V_TrazabilidadDescabezadoPBI
+  WHERE FECHA_DESCABEZADO BETWEEN @Fecha_Inicial AND @Fecha_Final
+  GROUP BY CONVERT(varchar(7), FECHA_DESCABEZADO, 23)
+)
+SELECT p.Mes, p.Personas, ISNULL(r.Cola, 0) AS Cola,
+  ISNULL(r.Cabezas, 0) AS Cabezas, ISNULL(r.Total, 0) AS Total,
+  CASE WHEN h.Horas > 0 THEN ISNULL(r.Total, 0) / h.Horas ELSE 0 END AS LibrasPorHora,
+  h.Horas
+FROM personal p
+LEFT JOIN horas h ON h.Mes = p.Mes
+LEFT JOIN produccion r ON r.Mes = p.Mes
 `;
 
 /* ================================================================== */
@@ -207,6 +241,36 @@ WHERE ic.EnInventario = 1 AND ic.Transferido = 0 AND ic.Procesado = 0
 GROUP BY
   COALESCE(NULLIF(LTRIM(RTRIM(t.NOMBRE_TALLA)), ''), 'Sin talla'),
   COALESCE(NULLIF(LTRIM(RTRIM(ic.FincaPBI)), ''), 'Sin finca')
+`;
+
+/** Detalle cruzado del inventario clasificado disponible. Se consulta a
+ * través de la conexión PlantaEmpacadora y se califica STB_data porque el
+ * inventario operativo de clasificación vive en esa base de la instancia. */
+export const CLASIFICADO_INVENTARIO_DETALLE_QUERY = `
+SELECT
+  COALESCE(NULLIF(LTRIM(RTRIM(h.FincaPBI)), ''), NULLIF(LTRIM(RTRIM(ic.FincaPBI)), ''), 'Sin finca') AS Finca,
+  COALESCE(NULLIF(LTRIM(RTRIM(h.LagunaCicloPBI)), ''), NULLIF(LTRIM(RTRIM(ic.LagunaCicloPBI)), ''), 'Sin laguna/ciclo') AS LagunaCiclo,
+  COALESCE(NULLIF(LTRIM(RTRIM(h.Remision)), ''), 'Sin remisión') AS Remision,
+  COALESCE(NULLIF(LTRIM(RTRIM(ic.Lote)), ''), 'Sin lote') AS Lote,
+  COALESCE(NULLIF(LTRIM(RTRIM(t.NOMBRE_TALLA)), ''), 'Sin talla') AS TallaInicio,
+  COALESCE(NULLIF(LTRIM(RTRIM(tp.TipoProducto)), ''),
+    CASE WHEN h.ENTERO = 1 THEN 'Entero' ELSE 'Nitido Cola' END) AS Destino,
+  SUM(ic.LibrasNetas) AS Libras
+FROM STB_data.dbo.CL_InventarioClasificado ic
+JOIN STB_data.dbo.CL_LLENADO_RECIPIENTES_D d
+  ON d.ID_LLENADO_RECIPIENTE_D = ic.IdLLenadoRecipienteD
+JOIN STB_data.dbo.CL_LLENADO_RECIPIENTES h
+  ON h.ID_LLENADO_RECIPIENTE = d.ID_LLENADO_RECIPIENTE
+LEFT JOIN STB_data.dbo.DCP_TALLAS t ON t.ID_TALLA = d.ID_TALLA
+LEFT JOIN STB_data.dbo.CL_TipoProducto tp ON tp.IdTipoProducto = h.IdTipoProducto
+WHERE ic.EnInventario = 1 AND ic.Transferido = 0 AND ic.Procesado = 0
+GROUP BY
+  COALESCE(NULLIF(LTRIM(RTRIM(h.FincaPBI)), ''), NULLIF(LTRIM(RTRIM(ic.FincaPBI)), ''), 'Sin finca'),
+  COALESCE(NULLIF(LTRIM(RTRIM(h.LagunaCicloPBI)), ''), NULLIF(LTRIM(RTRIM(ic.LagunaCicloPBI)), ''), 'Sin laguna/ciclo'),
+  COALESCE(NULLIF(LTRIM(RTRIM(h.Remision)), ''), 'Sin remisión'),
+  COALESCE(NULLIF(LTRIM(RTRIM(ic.Lote)), ''), 'Sin lote'),
+  COALESCE(NULLIF(LTRIM(RTRIM(t.NOMBRE_TALLA)), ''), 'Sin talla'),
+  COALESCE(NULLIF(LTRIM(RTRIM(tp.TipoProducto)), ''), CASE WHEN h.ENTERO = 1 THEN 'Entero' ELSE 'Nitido Cola' END)
 `;
 
 /** Libras clasificadas por día, turno, máquina (responsable) y talla. */
@@ -302,7 +366,7 @@ WHERE v.FechaCarga BETWEEN @Lunes AND @Domingo
 
 /**
  * Contadores superiores de Compra de Materia Prima: órdenes de compra
- * creadas en la semana en curso y libras de materia prima recibidas en la
+ * creadas hoy y libras de materia prima recibidas en la
  * semana y en el mes en curso. La semana es lunes-domingo, calculada sin
  * depender de `@@DATEFIRST` (igual que `EXPORTACIONES_RESUMEN_QUERY`).
  * El promedio por semana se calcula en el servicio (libras del mes / nº de
@@ -332,7 +396,7 @@ SELECT
   CONVERT(varchar(10), @Domingo, 23) AS SemanaFin,
   CONVERT(varchar(10), @Hoy, 23) AS HoyEfectivo,
   (SELECT COUNT(*) FROM dbo.OrdenesCompra oc
-    WHERE oc.FechaOrdenCompra BETWEEN @Lunes AND @Domingo) AS OrdenesCompraSemana,
+    WHERE oc.FechaOrdenCompra = @HoyReal) AS OrdenesCompraHoy,
   (SELECT ISNULL(SUM(v.PesoLibras), 0) FROM dbo.AV_MateriaPrima v
     WHERE CAST(v.DiaProduccion2024 AS date) BETWEEN @Lunes AND @Domingo) AS LibrasRecibidasSemana,
   (SELECT ISNULL(SUM(v.PesoLibras), 0) FROM dbo.AV_MateriaPrima v
@@ -384,4 +448,18 @@ GROUP BY
   COALESCE(NULLIF(LTRIM(RTRIM(v.TipoMateria)), ''), 'Sin tipo'),
   COALESCE(NULLIF(LTRIM(RTRIM(v.NombrePropietario)), ''), NULLIF(LTRIM(RTRIM(v.NombreGrupo)), ''), 'Sin proveedor'),
   COALESCE(NULLIF(LTRIM(RTRIM(v.Item)), ''), 'Sin item')
+`;
+
+/** Agregado base para la matriz proveedor × talla del detalle de materia
+ * prima. Los totales de filas y columnas se calculan en la interfaz. */
+export const COMPRA_MP_POR_TALLA_QUERY = `
+SELECT
+  COALESCE(NULLIF(LTRIM(RTRIM(v.NombrePropietario)), ''), NULLIF(LTRIM(RTRIM(v.NombreGrupo)), ''), 'Sin proveedor') AS Proveedor,
+  COALESCE(NULLIF(LTRIM(RTRIM(v.Talla)), ''), 'Sin talla') AS Talla,
+  SUM(v.PesoLibras) AS Total
+FROM dbo.AV_MateriaPrima v
+WHERE CAST(v.DiaProduccion2024 AS date) BETWEEN @Fecha_Inicial AND @Fecha_Final
+GROUP BY
+  COALESCE(NULLIF(LTRIM(RTRIM(v.NombrePropietario)), ''), NULLIF(LTRIM(RTRIM(v.NombreGrupo)), ''), 'Sin proveedor'),
+  COALESCE(NULLIF(LTRIM(RTRIM(v.Talla)), ''), 'Sin talla')
 `;

@@ -29,10 +29,10 @@ const PAGE_HELP: Record<DashboardView, PageHelp> = {
     title: 'Compra de materia prima',
     purpose: 'Resume cuánta materia prima (camarón entero) ha entrado a planta y cómo se reparte por proveedor, mes y gramaje.',
     sections: [
-      { title: 'Indicadores de la semana y el mes', body: 'Muestran las órdenes de compra creadas en la semana en curso, las libras recibidas en esa misma semana, las libras recibidas en lo que va del mes, y un promedio de libras por semana (libras del mes ÷ número de semanas que lleva el mes). Estos 4 contadores no cambian con el filtro de fechas. Como la recepción se registra con algunos días de rezago, "semana" y "mes" se calculan sobre la última fecha con datos, no sobre la fecha de hoy — así no aparecen vacíos apenas empieza una semana o un mes nuevo.' },
+      { title: 'Indicadores de hoy, semana y mes', body: 'Muestran las órdenes de compra creadas hoy, las libras recibidas en la semana, las libras recibidas en lo que va del mes, y un promedio de libras por semana (libras del mes ÷ número de semanas que lleva el mes). Estos 4 contadores no cambian con el filtro de fechas. Como la recepción se registra con algunos días de rezago, los indicadores de libras se calculan sobre la última fecha con datos; las órdenes sí corresponden a la fecha real de hoy.' },
       { title: 'Materia prima por proveedor', body: 'Tarjetas con las libras recibidas por proveedor en el rango de fechas seleccionado.' },
       { title: 'Materia Prima por Proveedor/Gramaje — Mensual', body: 'Una sola tarjeta con las libras recibidas en los últimos 3 meses con datos, agrupadas por mes y, a elección, por proveedor o por gramaje (talla del camarón, ej. "51/60") — usa el selector Proveedor/Gramaje para cambiar. Tiene vista de tabla, gráfica comparativa y gráfica de tendencia. El botón "Proveedores" abre una lista de casillas para elegir cuáles se muestran; esa selección se guarda en este navegador para tu usuario.' },
-      { title: 'Materia Prima por Proveedor e Item', body: 'Tabla agrupada por tipo (fresco/salmuera), proveedor e item, con subtotal por proveedor y total general. Cada grupo se puede expandir o colapsar con la flecha. Responde al rango de fechas del filtro.' },
+      { title: 'Detalle de Materia Prima por Talla', body: 'Tabla cruzada con una fila por proveedor y una columna por talla. Incluye el total de cada proveedor, el total de cada talla y el total general. Responde al rango de fechas del filtro.' },
     ],
     dataNote: 'Los nombres que aparecen aquí corresponden a proveedores registrados en las fuentes operativas; se muestran para dar trazabilidad a las compras de materia prima.',
   },
@@ -40,20 +40,17 @@ const PAGE_HELP: Record<DashboardView, PageHelp> = {
     title: 'Recepción',
     purpose: 'Resume el camarón que ingresa desde las fincas y cuánto queda pendiente de pasar a proceso.',
     sections: [
-      { title: 'Indicadores de hoy', body: 'Muestran libras recibidas, remisiones, libras pendientes de procesar y fincas activas durante el día en curso. No cambian al modificar el rango histórico.' },
-      { title: 'Recepción por finca', body: 'Distribuye las libras recibidas entre las fincas de origen. Se incluye la finca para rastrear el abastecimiento, comparar volúmenes y detectar concentraciones o variaciones.' },
+      { title: 'Indicadores de recepción', body: 'Muestran las libras recibidas hoy, durante la semana actual (lunes a hoy), durante el mes actual y el saldo pendiente de procesar. No cambian al modificar el rango histórico.' },
       { title: 'Remisiones recibidas — detalle', body: 'Una fila por remisión, finca y laguna dentro del rango de fechas, con libras de remisión, libras de basura, libras de cola y de cabeza pesadas, el total cola + cabeza y dos rendimientos: "finca" (cola ÷ libras de remisión) y "planta" (cola ÷ (cola + cabeza)). La fila de Total suma las libras y recalcula los rendimientos de forma ponderada sobre el rango. Es la misma información del tablero de Power BI (vista RemisionesPlantaPBI).' },
     ],
   },
   descabezado: {
     title: 'Descabezado',
-    purpose: 'Mide el volumen descabezado por día, la dotación que lo produjo y el costo de la labor a destajo.',
+    purpose: 'Mide el volumen descabezado, la dotación y la producción de cola y cabezas.',
     sections: [
-      { title: 'Indicadores de hoy', body: 'Libras descabezadas al día, personas descabezando por día (conteo de personas distintas con registro), gramaje promedio y costo por libra. Todos corresponden al día en curso y no cambian con el rango histórico.' },
-      { title: 'Gramaje promedio', body: 'Es la talla / rango de camarón con más libras descabezadas en el día — un dato cualitativo (tamaño), no una cantidad. Sale del catálogo de tallas asociado a cada registro de descabezado.' },
-      { title: 'Costo por libra', body: 'Pago a destajo total del día dividido entre las libras descabezadas del día (promedio ponderado del precio por libra).' },
+      { title: 'Indicadores de volumen', body: 'Muestran las libras descabezadas hoy, en la semana actual y en el mes actual, además de las personas distintas que trabajaron hoy.' },
       { title: 'Por qué muestra personas', body: 'El número de personas es un conteo de individuos distintos con registros operativos. Se usa para entender la dotación que produjo el volumen; el resumen no muestra sus nombres.' },
-      { title: 'Tablas diaria y mensual', body: 'Muestran el total general de libras descabezadas (sin desglose por turno). La diaria usa el rango de fechas elegido; la mensual resume los últimos 12 meses.' },
+      { title: 'Tablas diaria y mensual', body: 'Muestran fecha, personas únicas, libras de cola, libras de cabezas, libras totales y rendimiento por hora. La tabla mensual cuenta a cada persona una sola vez dentro de cada mes.' },
     ],
   },
   clasificado: {
@@ -61,7 +58,7 @@ const PAGE_HELP: Record<DashboardView, PageHelp> = {
     purpose: 'Explica cuánto producto fue clasificado, en qué tallas quedó y qué mesa fue responsable del registro.',
     sections: [
       { title: 'Indicadores de libras', body: 'Tres contadores: libras clasificadas hoy (día en curso), por semana (lunes a domingo en curso) y por mes (mes en curso). No cambian con el rango de fechas del filtro.' },
-      { title: 'Inventario de clasificado disponible', body: 'Tabla con el producto clasificado que sigue disponible (no transferido ni procesado): bins y libras por talla, con el total general. Es una foto del momento, no depende del filtro.' },
+      { title: 'Inventario de clasificado disponible', body: 'Tabla con el producto clasificado que sigue disponible (no transferido ni procesado): bins y libras por talla. “Ver detalle” abre el desglose por finca, laguna/ciclo, remisión, lote y talla inicial, cruzado por destino, con totales por filas y columnas. Es una foto del momento, no depende del filtro.' },
       { title: 'Por qué aparecen nombres de personas', body: 'El sistema de origen identifica cada máquina o mesa de clasificado mediante el nombre de su responsable. Por eso la tarjeta "Libras Clasificadas por Máquina" puede mostrar nombres: no representa producción individual, sino la mesa y las libras registradas bajo su responsable.' },
       { title: 'Por talla y por máquina', body: 'La talla explica la composición del producto clasificado; la máquina o responsable permite ubicar dónde se clasificó. Las tarjetas por talla y por máquina responden al rango de fechas y turno; las tablas "Clasificado por Talla" diaria y mensual muestran la evolución por talla (la mensual, últimos 12 meses).' },
     ],
@@ -72,7 +69,7 @@ const PAGE_HELP: Record<DashboardView, PageHelp> = {
     purpose: 'Muestra el volumen pelado y cómo se distribuye entre salas, estilos y personal registrado.',
     sections: [
       { title: 'Indicadores de hoy', body: 'Resumen las libras peladas durante el día y los registros operativos disponibles.' },
-      { title: 'Por sala y por estilo', body: 'La sala permite comparar dónde se procesó el producto; el estilo indica la presentación obtenida. Esto ayuda a evaluar mezcla de producción y carga por área.' },
+      { title: 'Por sala, estilo y talla', body: 'Los tres desgloses parten de los mismos registros de libras, por lo que sus totales concilian. Si un registro no tiene sala o talla catalogada se conserva como “Sin sala” o “Sin talla” para no perderlo.' },
       { title: 'Por talla · hoy', body: 'El botón "Por talla · hoy" en la esquina de la tabla de Actividad de Pelado por Sala abre el detalle de libras peladas del día en curso agrupadas por talla, con su total. No cambia con el filtro de fechas. El detalle "Libras Peladas por Talla" de la página sí responde al rango y turno seleccionados.' },
       { title: 'Personas y pago', body: 'Cuando se muestran empleados, el valor representa personas distintas con registros en el período. Se relaciona con libras y pago para analizar capacidad y costo real, no para sumar empleados entre filas.' },
       { title: 'Períodos', body: 'Los reportes diarios usan el rango y turno seleccionados. Los mensuales muestran los últimos 12 meses.' },

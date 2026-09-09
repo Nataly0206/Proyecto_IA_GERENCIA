@@ -36,7 +36,6 @@ router.get('/pelado-personal-mes', pelado, asyncHandler(controller.getPeladoPers
 
 /* Recepción */
 router.get('/recepcion-resumen', recepcion, asyncHandler(procesos.getRecepcionResumen));
-router.get('/recepcion-por-finca', recepcion, asyncHandler(procesos.getRecepcionPorFinca));
 router.get('/recepcion-remisiones', recepcion, asyncHandler(procesos.getRecepcionRemisiones));
 
 /* Descabezado */
@@ -47,6 +46,7 @@ router.get('/descabezado-por-dia-mes', descabezado, asyncHandler(procesos.getDes
 /* Clasificado */
 router.get('/clasificado-resumen', clasificado, asyncHandler(procesos.getClasificadoResumen));
 router.get('/clasificado-inventario', clasificado, asyncHandler(procesos.getClasificadoInventario));
+router.get('/clasificado-inventario-detalle', clasificado, asyncHandler(procesos.getClasificadoInventarioDetalle));
 router.get('/clasificado-por-maquina', clasificado, asyncHandler(procesos.getClasificadoPorMaquina));
 router.get('/clasificado-por-talla-dia', clasificado, asyncHandler(procesos.getClasificadoPorTallaDia));
 router.get('/clasificado-por-talla-mes', clasificado, asyncHandler(procesos.getClasificadoPorTallaMes));
@@ -62,6 +62,7 @@ router.get('/exportaciones-por-cliente-mes', exportaciones, asyncHandler(proceso
 router.get('/compra-mp-resumen', compraMp, asyncHandler(procesos.getCompraMpResumen));
 router.get('/compra-mp-por-proveedor', compraMp, asyncHandler(procesos.getCompraMpPorProveedor));
 router.get('/compra-mp-por-item', compraMp, asyncHandler(procesos.getCompraMpPorItem));
+router.get('/compra-mp-por-talla', compraMp, asyncHandler(procesos.getCompraMpPorTalla));
 router.get('/compra-mp-materia-prima', compraMp, asyncHandler(procesos.getCompraMpMateriaPrima));
 
 export default router;

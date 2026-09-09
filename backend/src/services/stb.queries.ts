@@ -29,19 +29,27 @@ GROUP BY Turno, Fecha, IdEmpleado
 `;
 
 /**
- * Libras peladas por Estilo y Talla, totalizadas sobre un rango de fechas
- * (sin desglose por día). El servicio agrega por Estilo o por Talla según
- * la dimensión elegida en el widget, sumando la otra dimensión.
+ * Libras peladas por Estilo y Talla desde las mismas tablas base que el
+ * total oficial por estilo. Esto evita el subconteo de la vista PBI.
  */
 export const PELADO_BY_DIMENSION_QUERY = `
 SELECT
-  Turno,
-  Estilo,
-  Talla,
-  SUM(libras) AS Libras
-FROM dbo.V_PagosxPeladoIndividualPBI
-WHERE Fecha BETWEEN @Fecha_Inicial AND @Fecha_Final
-GROUP BY Turno, Estilo, Talla
+  COALESCE(tr.Turno, 'Sin turno') AS Turno,
+  COALESCE(NULLIF(LTRIM(RTRIM(e.NOMBRE)), ''), 'Sin estilo') AS Estilo,
+  COALESCE(NULLIF(LTRIM(RTRIM(t.NOMBRE_TALLA)), ''), 'Sin talla') AS Talla,
+  SUM(d.LIBRAS) AS Libras
+FROM dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS h
+JOIN dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS_DET d
+  ON h.ID_ASIGNACION_LIBRAS_EMPLEADO = d.ID_ASIGNACION_LIBRAS_EMPLEADO
+LEFT JOIN dbo.PES_ASIGNACION_RECIPIENTES_LINEAS ar
+  ON d.ID_ASIGNACION_RECIPIENTE_LINEA = ar.ID_ASIGNACION_RECIPIENTE_LINEA
+LEFT JOIN dbo.PES_ESTILOS e ON ar.ID_ESTILO = e.ID_ESTILO
+LEFT JOIN dbo.DCP_TALLAS t ON d.ID_TALLA = t.ID_TALLA
+LEFT JOIN dbo.Cl_Turnos tr ON d.ID_TURNO = tr.IdTurno
+WHERE h.FECHA BETWEEN @Fecha_Inicial AND @Fecha_Final
+GROUP BY COALESCE(tr.Turno, 'Sin turno'),
+  COALESCE(NULLIF(LTRIM(RTRIM(e.NOMBRE)), ''), 'Sin estilo'),
+  COALESCE(NULLIF(LTRIM(RTRIM(t.NOMBRE_TALLA)), ''), 'Sin talla')
 `;
 
 /**
@@ -50,14 +58,23 @@ GROUP BY Turno, Estilo, Talla
  */
 export const PELADO_BY_DIMENSION_DAILY_QUERY = `
 SELECT
-  Turno,
-  Fecha AS Dia,
-  Estilo,
-  Talla,
-  SUM(libras) AS Libras
-FROM dbo.V_PagosxPeladoIndividualPBI
-WHERE Fecha BETWEEN @Fecha_Inicial AND @Fecha_Final
-GROUP BY Turno, Fecha, Estilo, Talla
+  COALESCE(tr.Turno, 'Sin turno') AS Turno,
+  h.FECHA AS Dia,
+  COALESCE(NULLIF(LTRIM(RTRIM(e.NOMBRE)), ''), 'Sin estilo') AS Estilo,
+  COALESCE(NULLIF(LTRIM(RTRIM(t.NOMBRE_TALLA)), ''), 'Sin talla') AS Talla,
+  SUM(d.LIBRAS) AS Libras
+FROM dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS h
+JOIN dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS_DET d
+  ON h.ID_ASIGNACION_LIBRAS_EMPLEADO = d.ID_ASIGNACION_LIBRAS_EMPLEADO
+LEFT JOIN dbo.PES_ASIGNACION_RECIPIENTES_LINEAS ar
+  ON d.ID_ASIGNACION_RECIPIENTE_LINEA = ar.ID_ASIGNACION_RECIPIENTE_LINEA
+LEFT JOIN dbo.PES_ESTILOS e ON ar.ID_ESTILO = e.ID_ESTILO
+LEFT JOIN dbo.DCP_TALLAS t ON d.ID_TALLA = t.ID_TALLA
+LEFT JOIN dbo.Cl_Turnos tr ON d.ID_TURNO = tr.IdTurno
+WHERE h.FECHA BETWEEN @Fecha_Inicial AND @Fecha_Final
+GROUP BY COALESCE(tr.Turno, 'Sin turno'), h.FECHA,
+  COALESCE(NULLIF(LTRIM(RTRIM(e.NOMBRE)), ''), 'Sin estilo'),
+  COALESCE(NULLIF(LTRIM(RTRIM(t.NOMBRE_TALLA)), ''), 'Sin talla')
 `;
 
 /**
@@ -150,72 +167,24 @@ ORDER BY Libras DESC
 `;
 
 /**
- * Libras peladas por estilo, totalizadas sobre un rango de fechas.
- * Fuente: asignación real de libras por empleado
- * (`PES_ASIGNACION_LIBRAS_EMPLEADOS` + `_DET`), igual que
- * `PELADO_LIBRAS_HOY_QUERY` — reemplaza la vista `V_PagosxPeladoIndividualPBI`,
- * que subcuenta libras respecto a las tablas base.
- * Equivalente a los subtotales por estilo de un `GROUP BY ROLLUP(Estilo, Fecha)`,
- * sin desglosar por día porque este reporte solo necesita el total del rango.
- */
-export const PELADO_POR_ESTILO_RANGO_QUERY = `
-SELECT
-  D.NOMBRE AS Estilo,
-  SUM(b.LIBRAS) AS Libras
-FROM dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS a
-INNER JOIN dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS_DET b
-  ON a.ID_ASIGNACION_LIBRAS_EMPLEADO = b.ID_ASIGNACION_LIBRAS_EMPLEADO
-LEFT JOIN dbo.PES_ASIGNACION_RECIPIENTES_LINEAS c
-  ON b.ID_ASIGNACION_RECIPIENTE_LINEA = c.ID_ASIGNACION_RECIPIENTE_LINEA
-LEFT JOIN dbo.PES_ESTILOS D
-  ON c.ID_ESTILO = D.ID_ESTILO
-WHERE a.FECHA BETWEEN @Fecha_Inicial AND @Fecha_Final
-GROUP BY D.NOMBRE
-ORDER BY D.NOMBRE
-`;
-
-/**
- * Libras peladas por sala, acumulado del día en curso (solo SALA #1 a
- * SALA #6). Combina las dos fuentes de pago de pelado: individual
- * (`PES_ASIGNACION_LIBRAS_EMPLEADOS` + `_DET`, resuelta a sala vía
- * `DCP_LINEAS.ID_SALA` y a empleado vía `PES_EMPLEADOS_LINEAS`) y
- * grupal (`DCP_PagosGrupales` + `DCP_PagosGrupalesDetalle`, con las
- * libras del pago repartidas entre los empleados del grupo).
+ * Libras peladas por sala desde exactamente el mismo detalle que el total
+ * oficial por estilo. Las uniones son LEFT para conservar registros sin
+ * sala/empleado catalogado bajo "Sin sala".
  */
 export const PELADO_POR_SALA_HOY_QUERY = `
-;WITH HoyDet AS (
-    SELECT l.ID_SALA, d.LIBRAS, d.VALOR, k.ID_EMPLEADO
-    FROM dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS_DET d
-    JOIN dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS h ON h.ID_ASIGNACION_LIBRAS_EMPLEADO = d.ID_ASIGNACION_LIBRAS_EMPLEADO
-    JOIN dbo.DCP_LINEAS l ON l.ID_LINEA = d.ID_LINEA_ACTUAL
-    JOIN dbo.PES_EMPLEADOS_LINEAS k ON k.ID_EMPLEADOS_LINEA = d.ID_EMPLEADO_LINEA
-    WHERE h.FECHA = CAST(GETDATE() AS DATE)
-      AND d.ANULADO = 0
-),
-GrupalCab AS (
-    SELECT IdPagoPG, IdSala, Libras / NULLIF(CantEmpleados, 0) AS LibrasPorPersona
-    FROM dbo.DCP_PagosGrupales
-    WHERE Fecha = CAST(GETDATE() AS DATE)
-),
-GrupalHoy AS (
-    SELECT c.IdSala AS ID_SALA, c.LibrasPorPersona AS LIBRAS, d.Valor AS VALOR, d.IdEmpleado AS ID_EMPLEADO
-    FROM GrupalCab c
-    JOIN dbo.DCP_PagosGrupalesDetalle d ON d.IdPagoPG = c.IdPagoPG
-),
-TodoHoy AS (
-    SELECT * FROM HoyDet
-    UNION ALL
-    SELECT * FROM GrupalHoy
-)
 SELECT
-  s.NOMBRE_SALA,
-  ISNULL(SUM(t.LIBRAS), 0) AS LibrasPeladasHoy,
-  ISNULL(SUM(t.VALOR), 0) AS PagoAcumuladoHoy,
-  COUNT(DISTINCT t.ID_EMPLEADO) AS EmpleadosRegistrando
-FROM dbo.PES_SALAS s
-LEFT JOIN TodoHoy t ON t.ID_SALA = s.ID_SALA
-WHERE s.NOMBRE_SALA IN ('SALA #1','SALA #2','SALA #3','SALA #4','SALA #5','SALA #6')
-GROUP BY s.NOMBRE_SALA
+  COALESCE(s.NOMBRE_SALA, 'Sin sala') AS NOMBRE_SALA,
+  SUM(d.LIBRAS) AS LibrasPeladasHoy,
+  SUM(d.VALOR) AS PagoAcumuladoHoy,
+  COUNT(DISTINCT k.ID_EMPLEADO) AS EmpleadosRegistrando
+FROM dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS h
+JOIN dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS_DET d
+  ON h.ID_ASIGNACION_LIBRAS_EMPLEADO = d.ID_ASIGNACION_LIBRAS_EMPLEADO
+LEFT JOIN dbo.DCP_LINEAS l ON l.ID_LINEA = d.ID_LINEA_ACTUAL
+LEFT JOIN dbo.PES_SALAS s ON s.ID_SALA = l.ID_SALA
+LEFT JOIN dbo.PES_EMPLEADOS_LINEAS k ON k.ID_EMPLEADOS_LINEA = d.ID_EMPLEADO_LINEA
+WHERE h.FECHA = CAST(GETDATE() AS DATE)
+GROUP BY COALESCE(s.NOMBRE_SALA, 'Sin sala')
 `;
 
 /**

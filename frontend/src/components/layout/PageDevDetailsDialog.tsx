@@ -61,8 +61,7 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
       {
         heading: 'Tablas y vistas de origen',
         bullets: [
-          'Contadores de hoy y "Libras recibidas por finca": `dbo.R_REMISIONES_PLANTA` (cabecera) + `dbo.R_REMISIONES_PLANTA_DETALLE` (bins; columnas `LIBRAS`, `PROCESADO`).',
-          'Finca: `dbo.R_REMISIONES_PLANTA.ID_LAGUNA` → `dbo.R_Lagunas.IdLaguna` → `dbo.R_Fincas.IdFinca` (`Finca`).',
+          'Contadores de recepción: `dbo.R_REMISIONES_PLANTA` (cabecera) + `dbo.R_REMISIONES_PLANTA_DETALLE` (bins; columnas `LIBRAS`, `PROCESADO`).',
           '`dbo.R_PesadoRecepcion.LibrasNetas` dejó de poblarse en 2026-03; por eso las libras se suman desde el detalle de bins, no de esa tabla.',
           '"Remisiones Recibidas — Detalle": vista `dbo.RemisionesPlantaPBI` (la misma que alimenta el tablero de Power BI). Trae `LibrasRemision`, `LibrasBasura`, `LibrasCola` / `LibrasCabeza` (vía `VPesadoColaPBI` / `VPesadoCabezaPBI`), `Nombre`, `CodigoFinca`, `Laguna` e `IdRemisionPlanta`. La vista filtra internamente `FechaRemision > 2025-01-01`.',
         ],
@@ -70,10 +69,8 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
       {
         heading: 'Filtros y parámetros',
         bullets: [
-          'Contadores: `rp.ANULADA = 0 AND rp.RECHAZADA = 0`. Libras recibidas hoy: `rp.FECHA_REMISION = @Dia`. Remisiones hoy: `COUNT(DISTINCT rp.REMISION_GENERAL)`.',
+          'Contadores: `rp.ANULADA = 0 AND rp.RECHAZADA = 0`. Libras recibidas hoy: `rp.FECHA_REMISION = @Dia`; semana: lunes a hoy; mes: primer día del mes a hoy.',
           'Libras pendientes de procesar: `rp.CERRADA = 0 AND ISNULL(d.PROCESADO, 0) = 0` — es un saldo global, sin filtro de fecha.',
-          'Fincas activas hoy: `COUNT(DISTINCT f.IdFinca)`.',
-          'Libras recibidas por finca: `rp.FECHA_REMISION BETWEEN @Fecha_Inicial AND @Fecha_Final`; nombre = `COALESCE(NULLIF(f.Finca, \'\'), NULLIF(rp.NombreCliente, \'\'), \'Sin finca\')`.',
           'Remisiones recibidas — detalle: `RemisionesPlantaPBI.FechaRemision BETWEEN @Fecha_Inicial AND @Fecha_Final`, agrupado por (fecha, remisión, cliente, código de finca, laguna).',
           'Recepción no maneja turno.',
         ],
@@ -90,10 +87,9 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
       {
         heading: 'Endpoints y archivos',
         bullets: [
-          '`GET /api/dashboard/recepcion-resumen`',
-          '`GET /api/dashboard/recepcion-por-finca` · `/recepcion-remisiones`',
+          '`GET /api/dashboard/recepcion-resumen` · `/recepcion-remisiones`',
           'Permiso backend: `requirePermission(\'recepcion\')`.',
-          'Archivos: `backend/src/services/procesos.queries.ts` (`RECEPCION_RESUMEN_QUERY`, `RECEPCION_POR_FINCA_QUERY`, `RECEPCION_REMISIONES_QUERY`), `procesos.service.ts`, `procesos.controller.ts`, `routes/dashboard.routes.ts`; front `frontend/src/pages/RecepcionPage.tsx`, `components/charts/WidgetDataTable.tsx`.',
+          'Archivos: `backend/src/services/procesos.queries.ts` (`RECEPCION_RESUMEN_QUERY`, `RECEPCION_REMISIONES_QUERY`), `procesos.service.ts`, `procesos.controller.ts`, `routes/dashboard.routes.ts`; front `frontend/src/pages/RecepcionPage.tsx`, `components/charts/WidgetDataTable.tsx`.',
         ],
       },
       ARQUITECTURA_COMUN,
@@ -107,16 +103,16 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
       {
         heading: 'Tablas y vistas de origen',
         bullets: [
-          '`dbo.DES_ASIG_LBRS_EMPLEADOS` (cabecera, `FECHA`) + `dbo.DES_ASIG_LBRS_EMPLEADOS_DET` (`LIBRAS`, `VALOR`, `ANULADO`, `ID_TALLA`, `ID_EMPLEADO_LINEA`) — libras y pago a destajo reales.',
+          '`dbo.DES_ASIG_LBRS_EMPLEADOS` + `_DET` — personas, horas y libras de cabezas asignadas.',
           'Personas: `dbo.DES_EMPLEADOS_LINEAS` (`ID_EMPLEADO_LINEA` → `ID_EMPLEADO`).',
-          'Gramaje: `dbo.DCP_TALLAS` (`ID_TALLA` → `NOMBRE_TALLA`) — la talla / rango, valor cualitativo.',
+          '`dbo.V_TrazabilidadDescabezadoPBI` — libras de cola, cabezas y total entero por fecha.',
         ],
       },
       {
         heading: 'Filtros y parámetros',
         bullets: [
-          'Resumen de hoy: `h.FECHA = @Dia AND d.ANULADO = 0` (CTE `det` reutilizada por los 4 contadores).',
-          'Por día: `h.FECHA BETWEEN @Fecha_Inicial AND @Fecha_Final`, `GROUP BY h.FECHA` (sin turno).',
+          'Resumen: libras de hoy, lunes a hoy y primer día del mes a hoy; solo detalle no anulado.',
+          'Por día: rango de fechas del filtro. Mensual: últimos 12 meses.',
           'Descabezado ya no filtra por turno.',
         ],
       },
@@ -125,9 +121,8 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
         bullets: [
           'Libras descabezadas al día = `SUM(DES_ASIG_LBRS_EMPLEADOS_DET.LIBRAS)` no anulado del día.',
           'Personas descabezando por día = `COUNT(DISTINCT el.ID_EMPLEADO)` del día; no se suma entre filas.',
-          'Gramaje promedio = `NOMBRE_TALLA` con mayor `SUM(LIBRAS)` del día (`TOP 1 ... ORDER BY SUM(LIBRAS) DESC`) — texto, no número.',
-          'Costo por libra = `SUM(VALOR) / SUM(LIBRAS)` del día (promedio ponderado del precio por libra).',
-          'Tablas diaria / mensual: `SUM(LIBRAS)` por fecha, serie constante `\'Descabezadas\'` para la pivote; mensual = 12 meses agregados por mes en el servicio.',
+          'Cola + cabezas = total entero procesado. Libras por hora = total ÷ horas efectivas entre el primer y último registro diario.',
+          'Personas = `COUNT(DISTINCT ID_EMPLEADO)`; en mensual cada empleado se cuenta una sola vez por mes.',
         ],
       },
       {
@@ -135,7 +130,7 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
         bullets: [
           '`GET /api/dashboard/descabezado-resumen` · `/descabezado-por-dia` · `/descabezado-por-dia-mes`',
           'Permiso backend: `requirePermission(\'descabezado\')`.',
-          'Archivos: `procesos.queries.ts` (`DESCABEZADO_RESUMEN_QUERY`, `DESCABEZADO_POR_DIA_QUERY`), `procesos.service.ts`; front `frontend/src/pages/DescabezadoPage.tsx`, `components/live/ResumenCards.tsx`.',
+          'Archivos: `procesos.queries.ts` (`DESCABEZADO_RESUMEN_QUERY`, `DESCABEZADO_POR_DIA_QUERY`, `DESCABEZADO_POR_MES_QUERY`), `procesos.service.ts`; front `frontend/src/pages/DescabezadoPage.tsx`, `components/charts/WidgetDataTable.tsx`.',
         ],
       },
       ARQUITECTURA_COMUN,
@@ -174,10 +169,10 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
       {
         heading: 'Endpoints y archivos',
         bullets: [
-          '`GET /api/dashboard/clasificado-resumen` · `/clasificado-inventario`',
+          '`GET /api/dashboard/clasificado-resumen` · `/clasificado-inventario` · `/clasificado-inventario-detalle`',
           '`/clasificado-por-maquina` · `/clasificado-por-talla` (`-dia` / `-mes`)',
           'Permiso backend: `requirePermission(\'clasificado\')`.',
-          'Archivos: `procesos.queries.ts` (`CLASIFICADO_RESUMEN_QUERY`, `CLASIFICADO_INVENTARIO_QUERY`, `CLASIFICADO_DETALLE_QUERY`), `procesos.service.ts`; front `frontend/src/pages/ClasificadoPage.tsx`, `components/charts/InventarioTallaTable.tsx`.',
+          'Archivos: `procesos.queries.ts` (`CLASIFICADO_RESUMEN_QUERY`, `CLASIFICADO_INVENTARIO_QUERY`, `CLASIFICADO_INVENTARIO_DETALLE_QUERY`, `CLASIFICADO_DETALLE_QUERY`), `procesos.service.ts`; front `frontend/src/pages/ClasificadoPage.tsx`, `InventarioTallaTable.tsx`, `ClasificadoInventarioDetalleDialog.tsx`.',
         ],
       },
       {
@@ -195,10 +190,10 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
       {
         heading: 'Tablas y vistas de origen',
         bullets: [
-          'Por estilo / rango histórico: `dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS` + `_DET` (`LIBRAS`); estilo vía `dbo.PES_ASIGNACION_RECIPIENTES_LINEAS` → `dbo.PES_ESTILOS.NOMBRE`. Reemplaza a la vista `V_PagosxPeladoIndividualPBI`, que subcontaba libras respecto a las tablas base.',
-          'Personal (headcount) y pago por estilo / talla: vista `dbo.V_PagosxPeladoIndividualPBI` (`IdEmpleado`, `libras`, `Valor`, `Fecha`, `Turno`, `Estilo`, `Talla`).',
-          'Por sala (hoy): pelado individual (`PES_ASIGNACION_LIBRAS_EMPLEADOS_DET` → `dbo.DCP_LINEAS.ID_SALA`, empleado vía `dbo.PES_EMPLEADOS_LINEAS`) + pelado grupal (`dbo.DCP_PagosGrupales` + `dbo.DCP_PagosGrupalesDetalle`). Salas fijas `SALA #1`…`SALA #6` de `dbo.PES_SALAS`.',
-'"Personas activas" por sala: estimado de gente pelando = `COUNT(DISTINCT ID_EMPLEADO)` con pago de destajo de pelado hoy en la sala (individual + grupal, todo el día), mismo valor que "Empleados hoy". "Libras últimos 30 min" mantiene la ventana en vivo (solo pelado individual; el grupal no tiene hora de registro).',
+          'Por estilo y talla: `dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS` + `_DET` (`LIBRAS`); estilo vía `PES_ASIGNACION_RECIPIENTES_LINEAS` → `PES_ESTILOS`, talla vía `DCP_TALLAS`. Ambos usan exactamente el mismo detalle base para que sus totales concilien.',
+          'Personal (headcount) y pago: vista `dbo.V_PagosxPeladoIndividualPBI` (`IdEmpleado`, `libras`, `Valor`, `Fecha`, `Turno`).',
+          'Por sala (hoy): el mismo detalle base de la card por estilo, resuelto mediante `DCP_LINEAS.ID_SALA`. Los registros sin catálogo de sala se conservan como “Sin sala” para no perder libras.',
+          '"Personas activas" por sala = `COUNT(DISTINCT ID_EMPLEADO)` con registro de pelado hoy. "Libras últimos 30 min" mantiene su ventana en vivo.',
           '"Libras hoy" por sala = acumulado del día; "Libras por hora" = "Libras hoy" ÷ horas transcurridas del día (`DATEDIFF` desde el primer registro de destajo de hoy de toda la planta hasta `GETDATE()`, mismo divisor para todas las salas). La tabla se ordena por nº de sala y lleva fila de totales.',
           'Botón "Por talla · hoy": libras peladas del día en curso agrupadas por `dbo.DCP_TALLAS.NOMBRE_TALLA` (mismo criterio que `/pelado-libras-hoy` por estilo, así el total por talla concilia con el total por estilo). Independiente del filtro de fechas; consulta perezosa al abrir el diálogo.',
           'Órdenes activas / tiempo real: la BD no tiene un conteo real de personal en planta (módulo legado `CodigosBin` / `MovimientosInvProceso` vacío). Se aproxima con órdenes de `dbo.AV_Produccion_Diaria_2020` (`FechaHoraTorre`) con lectura en los últimos 15 min y `NombreTipoProceso IN (\'IQF PEELED\', \'IQF COOK PEELED\', \'PD BLOCK\', \'FRESH PEELED\')`.',
@@ -218,7 +213,7 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
         bullets: [
           'Libras peladas (rango) = `SUM(PES_ASIGNACION_LIBRAS_EMPLEADOS_DET.LIBRAS)`.',
           'Empleados = `COUNT(DISTINCT IdEmpleado)` de `V_PagosxPeladoIndividualPBI` en el período; no se suman empleados entre filas.',
-          'Libras por sala (grupal) = `Libras / NULLIF(CantEmpleados, 0)` por persona, luego re-sumadas por sala.',
+          'Total por estilo = total por talla = suma de libras de todas las salas, incluyendo “Sin sala”.',
         ],
       },
       {
@@ -339,7 +334,7 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
           '`LibrasRecibidasSemana` / `LibrasRecibidasMes` = `SUM(PesoLibras)` de `AV_MateriaPrima` con `DiaProduccion2024` en la semana / en `[@PrimerDiaMes, @Hoy]` respectivamente.',
           'Materia prima por proveedor (tarjetas, rango del filtro): `CAST(DiaProduccion2024 AS date) BETWEEN @Fecha_Inicial AND @Fecha_Final`; proveedor = `COALESCE(NULLIF(NombrePropietario, \'\'), NULLIF(NombreGrupo, \'\'), \'Sin proveedor\')`.',
           'Tarjeta "Materia Prima por Proveedor/Gramaje — Mensual": muestra los 3 meses **con datos** más recientes, no 3 meses calendario a secas — se pide un mes extra (`COMPRA_MP_MESES + 1`) y se recorta a los 3 con filas reales, por el mismo motivo de rezago que el punto anterior (antes había una tabla de 12 meses separada; se fusionó con el widget de gramaje/selector porque, en modo "Proveedor", mostraban exactamente los mismos datos — ver `getCompraMpPorProveedorMes` eliminado). El filtro de proveedores (checklist) se aplica en el navegador sobre las filas ya traídas, antes de re-agregar por mes+serie.',
-          'Tabla "Materia Prima por Proveedor e Item" (rango del filtro): agrupa por `TipoMateria` → proveedor → `Item`, reproduce la tabla dinámica de Excel/Power BI que ya usaba el cliente. Jerarquía expandible/colapsable con subtotal por proveedor y total general.',
+          'Tabla "Detalle de Materia Prima por Talla" (rango del filtro): pivota `NombrePropietario`/`NombreGrupo` por `Talla`, suma `PesoLibras` e incluye totales por proveedor, por talla y general.',
         ],
       },
       {
@@ -353,7 +348,7 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
       {
         heading: 'Endpoints y archivos',
         bullets: [
-          '`/compra-mp-resumen` (4 contadores semana/mes) · `/compra-mp-por-proveedor` (tarjetas, rango) · `/compra-mp-materia-prima` (mes/gramaje/proveedor, 3 meses con datos — alimenta la tarjeta "Mensual" fusionada) · `/compra-mp-por-item` (tabla agrupada tipo/proveedor/item, rango del filtro).',
+          '`/compra-mp-resumen` (órdenes de hoy y contadores de libras semana/mes) · `/compra-mp-por-proveedor` (tarjetas, rango) · `/compra-mp-materia-prima` (mes/gramaje/proveedor, 3 meses con datos — alimenta la tarjeta "Mensual" fusionada) · `/compra-mp-por-talla` (matriz proveedor/talla, rango del filtro).',
           '`/compra-mp-por-proveedor-mes` se eliminó (junto con `getCompraMpPorProveedorMes` en el servicio, su controller y su ruta): quedó redundante frente a `/compra-mp-materia-prima` en modo "Proveedor".',
           '`/compra-mp-ordenes` (tabla "Órdenes Pendientes de Exportación") se eliminó por completo: vivió primero aquí, luego se movió a Exportaciones, y finalmente se quitó del dashboard.',
           'Permiso backend: `requirePermission(\'compra_materia_prima\')`.',

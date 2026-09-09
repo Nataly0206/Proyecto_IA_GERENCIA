@@ -106,61 +106,6 @@ export const peladoWidgets: ChartConfig[] = [
 /* Módulos de proceso — mismos patrones ChartConfig que arriba        */
 /* ================================================================== */
 
-/** Recepción de camarón de finca. */
-export const recepcionWidgets: ChartConfig[] = [
-  {
-    id: 'recepcion-por-finca',
-    type: 'cards',
-    title: 'Libras Recibidas por Finca',
-    subtitle: 'Rango de fechas del filtro — fuente: STB_data',
-    endpoint: 'recepcion-por-finca',
-    xField: 'finca',
-    yField: 'libras',
-    sort: { field: 'libras', direction: 'desc' },
-    valueFormat: 'number',
-    unitLabel: 'lbs recibidas',
-    showTotalCard: true,
-  },
-];
-
-/** Descabezado (libras y pago a destajo). */
-export const descabezadoWidgets: ChartConfig[] = [
-  {
-    id: 'descabezado-por-dia',
-    type: 'table',
-    title: 'Libras Descabezadas — Diario',
-    subtitle: 'Total general por día · rango de fechas seleccionado',
-    endpoint: 'descabezado-por-dia',
-    xField: 'periodo',
-    xLabel: 'Fecha',
-    yField: 'libras',
-    seriesField: 'serie',
-    totalAggregation: 'sum',
-    adaptiveDateTicks: true,
-    visibleDatePointsOnly: true,
-    lineCurve: 'straight',
-    altChartType: 'line',
-    valueFormat: 'number',
-    gridSpan: { xs: 12, md: 6 },
-  },
-  {
-    id: 'descabezado-por-dia-mes',
-    type: 'table',
-    title: 'Libras Descabezadas — Mensual',
-    subtitle: 'Total general por mes · últimos 12 meses (independiente del filtro de fechas)',
-    endpoint: 'descabezado-por-dia-mes',
-    xField: 'periodo',
-    xLabel: 'Mes',
-    yField: 'libras',
-    seriesField: 'serie',
-    totalAggregation: 'sum',
-    altChartType: 'column',
-    trendChartType: 'line',
-    valueFormat: 'number',
-    gridSpan: { xs: 12, md: 6 },
-  },
-];
-
 /** Clasificado por talla y por máquina (responsable de mesa). Las tablas
  *  diario/mensual pivotean por talla; las tarjetas cubren talla y máquina. */
 export const clasificadoWidgets: ChartConfig[] = [

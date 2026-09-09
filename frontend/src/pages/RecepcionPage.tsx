@@ -3,14 +3,10 @@ import MoveToInboxOutlinedIcon from '@mui/icons-material/MoveToInboxOutlined';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import ProcessFilters from '../components/filters/ProcessFilters';
 import ResumenCards from '../components/live/ResumenCards';
-import ChartWidget from '../components/charts/ChartWidget';
 import WidgetDataTable from '../components/charts/WidgetDataTable';
 import { useProcesoResumen } from '../hooks/useDashboardData';
 import { RecepcionResumen } from '../types';
 import { formatPeriodo } from '../utils/format';
-import { recepcionWidgets } from '../config/dashboardConfig';
-
-const [porFinca] = recepcionWidgets;
 
 export default function RecepcionPage() {
   const { data, isLoading, isError, error, dataUpdatedAt } =
@@ -23,7 +19,7 @@ export default function RecepcionPage() {
     >
       <ProcessFilters
         title="Filtros de recepción"
-        hint="Los contadores muestran el día en curso; las tarjetas y la tabla responden al rango de fechas."
+        hint="Los contadores muestran hoy, la semana y el mes en curso; la tabla responde al rango de fechas."
         hideTurno
       />
 
@@ -38,24 +34,23 @@ export default function RecepcionPage() {
         emptyText="Sin recepción registrada hoy."
         metrics={[
           { label: 'Libras recibidas hoy', value: data?.librasRecibidasHoy ?? 0, unit: 'lbs', tone: 'good' },
-          { label: 'Remisiones hoy', value: data?.remisionesHoy ?? 0, unit: 'remisiones' },
+          { label: 'Libras recibidas semana', value: data?.librasRecibidasSemana ?? 0, unit: 'lbs' },
+          { label: 'Libras recibidas mes', value: data?.librasRecibidasMes ?? 0, unit: 'lbs' },
           {
-            label: 'Libras pendientes de procesar',
+            label: 'Pendientes de procesar',
             value: data?.librasPendientesProcesar ?? 0,
             unit: 'lbs',
             tone: 'warn',
           },
-          { label: 'Fincas activas hoy', value: data?.fincasActivasHoy ?? 0, unit: 'fincas' },
         ]}
       />
-
-      <ChartWidget config={porFinca} />
 
       <WidgetDataTable
         title="Remisiones Recibidas — Detalle"
         subtitle="Una fila por remisión, finca y laguna · rango de fechas del filtro · fuente: RemisionesPlantaPBI"
         icon={<ReceiptLongOutlinedIcon color="primary" sx={{ fontSize: 16 }} />}
         endpoint="recepcion-remisiones"
+        variant="recepcion"
         defaultSortKey="fecha"
         maxHeight={520}
         emptyText="Sin remisiones recibidas en el rango seleccionado."

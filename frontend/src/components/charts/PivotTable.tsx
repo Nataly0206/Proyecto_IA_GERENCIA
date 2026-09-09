@@ -21,7 +21,15 @@ interface Cell {
 }
 
 const HEADER_SX = { fontWeight: 800, bgcolor: '#f1f5f9', color: '#172033' } as const;
-const TOTAL_SX = { fontWeight: 800, bgcolor: '#f8fafc' } as const;
+const TOTAL_SX = {
+  fontWeight: 800,
+  bgcolor: '#e8eef7',
+  color: '#172033',
+  position: 'sticky',
+  bottom: 0,
+  zIndex: 2,
+  borderTop: '2px solid #b8c7d9',
+} as const;
 
 /**
  * Tabla pivote estilo "RENDIMIENTOS IQF X HORA": filas = xField,
@@ -78,7 +86,7 @@ export default function PivotTable({ config, data }: PivotTableProps) {
     value === null || value === undefined ? '—' : formatValue(value, config.valueFormat ?? 'decimal');
 
   return (
-    <TableContainer sx={{ maxHeight: config.height ?? 430, mt: 0.5, borderRadius: 1, border: '1px solid rgba(148, 163, 184, 0.18)' }}>
+    <TableContainer sx={{ height: '100%', maxHeight: config.height ?? '100%', mt: 0.5, borderRadius: 1, border: '1px solid rgba(148, 163, 184, 0.18)' }}>
       <Table size="small" stickyHeader>
         <TableHead>
           <TableRow>

@@ -19,15 +19,17 @@ import {
 import {
   CLASIFICADO_DETALLE_QUERY,
   CLASIFICADO_INVENTARIO_QUERY,
+  CLASIFICADO_INVENTARIO_DETALLE_QUERY,
   CLASIFICADO_RESUMEN_QUERY,
   COMPRA_MP_POR_ITEM_QUERY,
+  COMPRA_MP_POR_TALLA_QUERY,
   COMPRA_MP_POR_PROVEEDOR_QUERY,
   COMPRA_MP_RESUMEN_QUERY,
   DESCABEZADO_POR_DIA_QUERY,
+  DESCABEZADO_POR_MES_QUERY,
   DESCABEZADO_RESUMEN_QUERY,
   EXPORTACIONES_CONTENEDORES_QUERY,
   EXPORTACIONES_RESUMEN_QUERY,
-  RECEPCION_POR_FINCA_QUERY,
   RECEPCION_REMISIONES_QUERY,
   RECEPCION_RESUMEN_QUERY,
 } from './procesos.queries';
@@ -110,24 +112,10 @@ export async function getRecepcionResumen(): Promise<RecepcionResumen> {
     dia: formatDate(new Date()),
     actualizado: new Date().toISOString(),
     librasRecibidasHoy: round2(pickNumber(r, 'LibrasRecibidasHoy')),
-    remisionesHoy: pickNumber(r, 'RemisionesHoy'),
+    librasRecibidasSemana: round2(pickNumber(r, 'LibrasRecibidasSemana')),
+    librasRecibidasMes: round2(pickNumber(r, 'LibrasRecibidasMes')),
     librasPendientesProcesar: round2(pickNumber(r, 'LibrasPendientesProcesar')),
-    fincasActivasHoy: pickNumber(r, 'FincasActivasHoy'),
   };
-}
-
-async function fetchRecepcionFinca(fechaInicial: string, fechaFinal: string) {
-  const rows = await runStbQuery(RECEPCION_POR_FINCA_QUERY, dateParams(fechaInicial, fechaFinal));
-  return rows.map((row) => ({
-    dia: pickString(row, 'Dia'),
-    valor: pickString(row, 'Finca') || 'Sin finca',
-    libras: pickNumber(row, 'Libras'),
-  }));
-}
-
-export async function getRecepcionPorFinca(f: DashboardFilters): Promise<DataRow[]> {
-  const groups = await fetchRecepcionFinca(f.fechaInicial, f.fechaFinal);
-  return aggregateTotal(groups).map(({ valor, libras, porcentaje }) => ({ finca: valor, libras, porcentaje }));
 }
 
 /**
@@ -173,40 +161,40 @@ export async function getDescabezadoResumen(): Promise<DescabezadoResumen> {
     dia: formatDate(new Date()),
     actualizado: new Date().toISOString(),
     librasDescabezadasDia: round2(pickNumber(r, 'LibrasDescabezadasDia')),
+    librasDescabezadasSemana: round2(pickNumber(r, 'LibrasDescabezadasSemana')),
+    librasDescabezadasMes: round2(pickNumber(r, 'LibrasDescabezadasMes')),
     personasDia: pickNumber(r, 'PersonasDia'),
-    gramajePromedio: pickString(r, 'GramajePromedio'),
-    costoPorLibra: round2(pickNumber(r, 'CostoPorLibra')),
   };
 }
 
 async function fetchDescabezadoDia(fechaInicial: string, fechaFinal: string) {
   const rows = await runStbQuery(DESCABEZADO_POR_DIA_QUERY, dateParams(fechaInicial, fechaFinal));
   return rows.map((row) => ({
-    dia: pickString(row, 'Dia'),
-    libras: pickNumber(row, 'Libras'),
-    valor: pickNumber(row, 'Valor'),
+    fecha: pickString(row, 'Dia').slice(0, 10),
+    personas: pickNumber(row, 'Personas'),
+    cola: round2(pickNumber(row, 'Cola')),
+    cabezas: round2(pickNumber(row, 'Cabezas')),
+    librasPorHora: round2(pickNumber(row, 'LibrasPorHora')),
+    total: round2(pickNumber(row, 'Total')),
+    horas: pickNumber(row, 'Horas'),
   }));
 }
 
-/** Serie única para las tablas generales (sin turno): la tabla pivote
- *  necesita un `seriesField`, así que se usa una etiqueta constante. */
-const DESCABEZADO_SERIE = 'Descabezadas';
-
 export async function getDescabezadoPorDia(f: DashboardFilters): Promise<DataRow[]> {
-  const groups = await fetchDescabezadoDia(f.fechaInicial, f.fechaFinal);
-  return aggregateByPeriod(
-    groups.map((g) => ({ dia: g.dia, valor: DESCABEZADO_SERIE, libras: g.libras })),
-    (d) => d,
-  ).map(({ periodo, libras }) => ({ periodo, serie: DESCABEZADO_SERIE, libras }));
+  return fetchDescabezadoDia(f.fechaInicial, f.fechaFinal);
 }
 
 export async function getDescabezadoPorDiaMes(_f: DashboardFilters, meses: number): Promise<DataRow[]> {
   const [ini, fin] = monthWindow(meses);
-  const groups = await fetchDescabezadoDia(ini, fin);
-  return aggregateByPeriod(
-    groups.map((g) => ({ dia: g.dia, valor: DESCABEZADO_SERIE, libras: g.libras })),
-    (d) => d.slice(0, 7),
-  ).map(({ periodo, libras }) => ({ periodo, serie: DESCABEZADO_SERIE, libras }));
+  const rows = await runStbQuery(DESCABEZADO_POR_MES_QUERY, dateParams(ini, fin));
+  return rows.map((row) => ({
+    fecha: pickString(row, 'Mes'),
+    personas: pickNumber(row, 'Personas'),
+    cola: round2(pickNumber(row, 'Cola')),
+    cabezas: round2(pickNumber(row, 'Cabezas')),
+    librasPorHora: round2(pickNumber(row, 'LibrasPorHora')),
+    total: round2(pickNumber(row, 'Total')),
+  }));
 }
 
 /* ================================================================== */
@@ -266,6 +254,19 @@ export async function getClasificadoInventario(): Promise<DataRow[]> {
       porcentaje: total > 0 ? round2((t.libras / total) * 100) : 0,
     }))
     .sort((a, b) => b.libras - a.libras);
+}
+
+export async function getClasificadoInventarioDetalle(): Promise<DataRow[]> {
+  const rows = await runQuery(CLASIFICADO_INVENTARIO_DETALLE_QUERY, []);
+  return rows.map((row) => ({
+    finca: pickString(row, 'Finca') || 'Sin finca',
+    lagunaCiclo: pickString(row, 'LagunaCiclo') || 'Sin laguna/ciclo',
+    remision: pickString(row, 'Remision') || 'Sin remisión',
+    lote: pickString(row, 'Lote') || 'Sin lote',
+    tallaInicio: pickString(row, 'TallaInicio') || 'Sin talla',
+    destino: pickString(row, 'Destino') || 'Sin destino',
+    libras: round2(pickNumber(row, 'Libras')),
+  }));
 }
 
 interface ClasificadoGroup {
@@ -438,7 +439,7 @@ export async function getCompraMpResumen(): Promise<CompraMpResumen> {
     actualizado: new Date().toISOString(),
     semanaInicio: pickString(r, 'SemanaInicio'),
     semanaFin: pickString(r, 'SemanaFin'),
-    ordenesCompraSemana: pickNumber(r, 'OrdenesCompraSemana'),
+    ordenesCompraHoy: pickNumber(r, 'OrdenesCompraHoy'),
     librasRecibidasSemana: round2(pickNumber(r, 'LibrasRecibidasSemana')),
     librasRecibidasMes,
     librasPromedioSemana: round2(librasRecibidasMes / semanasDelMesActual(anchor)),
@@ -496,6 +497,18 @@ export async function getCompraMpPorItem(f: DashboardFilters): Promise<DataRow[]
         a.proveedor.localeCompare(b.proveedor) ||
         a.item.localeCompare(b.item),
     );
+}
+
+/** Detalle de libras de materia prima por proveedor y talla. */
+export async function getCompraMpPorTalla(f: DashboardFilters): Promise<DataRow[]> {
+  const rows = await runQuery(COMPRA_MP_POR_TALLA_QUERY, dateParams(f.fechaInicial, f.fechaFinal));
+  return rows
+    .map((row) => ({
+      proveedor: pickString(row, 'Proveedor') || 'Sin proveedor',
+      talla: pickString(row, 'Talla') || 'Sin talla',
+      total: round2(pickNumber(row, 'Total')),
+    }))
+    .sort((a, b) => a.proveedor.localeCompare(b.proveedor) || a.talla.localeCompare(b.talla));
 }
 
 /** Libras de materia prima recibidas por año, mes, gramaje (talla) y

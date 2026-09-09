@@ -203,9 +203,9 @@ export interface RecepcionResumen {
   dia: string;
   actualizado: string;
   librasRecibidasHoy: number;
-  remisionesHoy: number;
+  librasRecibidasSemana: number;
+  librasRecibidasMes: number;
   librasPendientesProcesar: number;
-  fincasActivasHoy: number;
 }
 
 /** Descabezado — contadores del día en curso. */
@@ -213,11 +213,9 @@ export interface DescabezadoResumen {
   dia: string;
   actualizado: string;
   librasDescabezadasDia: number;
+  librasDescabezadasSemana: number;
+  librasDescabezadasMes: number;
   personasDia: number;
-  /** Talla / rango con más libras del día (texto, no cantidad). */
-  gramajePromedio: string;
-  /** Pago a destajo por libra: SUM(VALOR) / SUM(LIBRAS) del día. */
-  costoPorLibra: number;
 }
 
 /** Clasificado — libras clasificadas del día, la semana y el mes en curso. */
@@ -244,14 +242,14 @@ export interface ExportacionesResumen {
 }
 
 /**
- * Compra de materia prima — contadores de la semana y el mes en curso.
+ * Compra de materia prima — órdenes de hoy y contadores de semana/mes.
  * `librasPromedioSemana` = libras del mes / nº de semanas del mes actual.
  */
 export interface CompraMpResumen {
   semanaInicio: string;
   semanaFin: string;
   actualizado: string;
-  ordenesCompraSemana: number;
+  ordenesCompraHoy: number;
   librasRecibidasSemana: number;
   librasRecibidasMes: number;
   librasPromedioSemana: number;

@@ -45,6 +45,8 @@ interface WidgetDataTableProps {
   subtitle?: string;
   emptyText?: string;
   maxHeight?: number;
+  /** Variante visual para tablas operativas con mayor densidad de datos. */
+  variant?: 'default' | 'recepcion';
 }
 
 const HEADER_SX = { fontWeight: 800, bgcolor: '#f1f5f9', color: '#172033' } as const;
@@ -72,6 +74,7 @@ export default function WidgetDataTable({
   subtitle,
   emptyText = 'Sin datos para los filtros seleccionados.',
   maxHeight = 420,
+  variant = 'default',
 }: WidgetDataTableProps) {
   const { data, isLoading, isError, error, dataUpdatedAt } = useWidgetData(endpoint);
   const [sortKey, setSortKey] = useState(defaultSortKey ?? columns[0]?.key);
@@ -115,8 +118,18 @@ export default function WidgetDataTable({
     return out;
   }, [rows, columns]);
 
+  const isRecepcion = variant === 'recepcion';
+
   return (
-    <Box>
+    <Box
+      sx={isRecepcion ? {
+        bgcolor: 'background.paper',
+        border: '1px solid rgba(22, 74, 139, 0.14)',
+        borderRadius: 2,
+        boxShadow: '0 10px 28px rgba(23, 32, 51, 0.07)',
+        p: { xs: 1.25, sm: 1.75 },
+      } : undefined}
+    >
       <Stack direction="row" alignItems="center" spacing={0.75} mb={0.9} flexWrap="wrap" useFlexGap>
         {icon}
         <Typography variant="subtitle2" fontWeight={800} sx={{ fontSize: 13 }}>
@@ -146,16 +159,30 @@ export default function WidgetDataTable({
 
       {!isLoading && !isError && rows.length > 0 && (
         <TableContainer
-          sx={{ maxHeight, borderRadius: 1, border: '1px solid rgba(148, 163, 184, 0.18)' }}
+          sx={{
+            maxHeight,
+            borderRadius: isRecepcion ? 1.5 : 1,
+            border: isRecepcion ? '1px solid #d8e3f0' : '1px solid rgba(148, 163, 184, 0.18)',
+            boxShadow: isRecepcion ? 'inset 0 0 0 1px rgba(255,255,255,0.5)' : 'none',
+          }}
         >
-          <Table size="small" stickyHeader>
+          <Table size="small" stickyHeader sx={isRecepcion ? { minWidth: 1180 } : undefined}>
             <TableHead>
               <TableRow>
                 {columns.map((col) => (
                   <TableCell
                     key={col.key}
                     align={col.align ?? (col.format && col.format !== 'text' && col.format !== 'periodo' ? 'right' : 'left')}
-                    sx={HEADER_SX}
+                    sx={isRecepcion ? {
+                      ...HEADER_SX,
+                      bgcolor: '#164a8b',
+                      color: '#fff',
+                      py: 1.15,
+                      whiteSpace: 'nowrap',
+                      borderBottom: 'none',
+                      '& .MuiTableSortLabel-root, & .MuiTableSortLabel-root:hover, & .MuiTableSortLabel-root.Mui-active': { color: '#fff' },
+                      '& .MuiTableSortLabel-icon': { color: '#fff !important' },
+                    } : HEADER_SX}
                     sortDirection={sortKey === col.key ? sortDir : false}
                   >
                     <TableSortLabel
@@ -171,14 +198,59 @@ export default function WidgetDataTable({
             </TableHead>
             <TableBody>
               {rows.map((row, i) => (
-                <TableRow key={i} hover>
+                <TableRow
+                  key={i}
+                  hover
+                  sx={isRecepcion ? {
+                    bgcolor: i % 2 === 0 ? '#fff' : '#f7faff',
+                    '&:hover': { bgcolor: '#eaf2fb !important' },
+                    '& td': { borderColor: '#e7edf5', py: 0.9, whiteSpace: 'nowrap' },
+                  } : undefined}
+                >
                   {columns.map((col) => (
                     <TableCell
                       key={col.key}
                       align={col.align ?? (col.format && col.format !== 'text' && col.format !== 'periodo' ? 'right' : 'left')}
-                      sx={col.key === columns[0].key ? { fontWeight: 600 } : undefined}
+                      sx={{
+                        ...(col.key === columns[0].key ? { fontWeight: 600 } : {}),
+                        ...(isRecepcion && col.key === 'cliente' ? { fontWeight: 700, color: '#243b53' } : {}),
+                      }}
                     >
-                      {renderCell(row, col)}
+                      {isRecepcion && col.key === 'remision' ? (
+                        <Box
+                          component="span"
+                          sx={{
+                            display: 'inline-flex',
+                            px: 0.9,
+                            py: 0.3,
+                            borderRadius: 1,
+                            bgcolor: '#e7f0fb',
+                            color: '#164a8b',
+                            fontWeight: 800,
+                            fontSize: 11.5,
+                            border: '1px solid #cddff3',
+                          }}
+                        >
+                          {renderCell(row, col)}
+                        </Box>
+                      ) : isRecepcion && (col.key === 'rendimientoFinca' || col.key === 'rendimientoPlanta') ? (
+                        <Box
+                          component="span"
+                          sx={{
+                            display: 'inline-block',
+                            minWidth: 58,
+                            px: 0.75,
+                            py: 0.25,
+                            borderRadius: 1,
+                            textAlign: 'center',
+                            bgcolor: '#eaf7f2',
+                            color: '#08775b',
+                            fontWeight: 800,
+                          }}
+                        >
+                          {renderCell(row, col)}
+                        </Box>
+                      ) : renderCell(row, col)}
                     </TableCell>
                   ))}
                 </TableRow>
@@ -188,9 +260,9 @@ export default function WidgetDataTable({
                   sx={{
                     '& td': {
                       fontWeight: 800,
-                      bgcolor: '#f1f5f9',
-                      color: '#172033',
-                      borderTop: '2px solid rgba(148, 163, 184, 0.45)',
+                      bgcolor: isRecepcion ? '#dfeafa' : '#f1f5f9',
+                      color: isRecepcion ? '#123a6d' : '#172033',
+                      borderTop: isRecepcion ? '2px solid #9db9da' : '2px solid rgba(148, 163, 184, 0.45)',
                       position: 'sticky',
                       bottom: 0,
                     },

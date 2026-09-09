@@ -2,13 +2,10 @@ import { Box, Stack } from '@mui/material';
 import SetMealOutlinedIcon from '@mui/icons-material/SetMealOutlined';
 import ProcessFilters from '../components/filters/ProcessFilters';
 import ResumenCards from '../components/live/ResumenCards';
-import ChartWidget from '../components/charts/ChartWidget';
+import WidgetDataTable from '../components/charts/WidgetDataTable';
 import { useProcesoResumen } from '../hooks/useDashboardData';
 import { DescabezadoResumen } from '../types';
 import { formatPeriodo } from '../utils/format';
-import { descabezadoWidgets } from '../config/dashboardConfig';
-
-const [porDia, porDiaMes] = descabezadoWidgets;
 const TABLE_H = 440;
 
 export default function DescabezadoPage() {
@@ -22,7 +19,7 @@ export default function DescabezadoPage() {
     >
       <ProcessFilters
         title="Filtros de descabezado"
-        hint="Los contadores muestran el día en curso; las tablas responden al rango de fechas."
+        hint="Los contadores muestran el día, semana y mes en curso; la tabla diaria responde al rango de fechas."
         hideTurno
       />
 
@@ -43,29 +40,58 @@ export default function DescabezadoPage() {
             tone: 'good',
           },
           {
+            label: 'Libras descabezadas a la semana',
+            value: data?.librasDescabezadasSemana ?? 0,
+            unit: 'lbs',
+          },
+          {
+            label: 'Libras descabezadas al mes',
+            value: data?.librasDescabezadasMes ?? 0,
+            unit: 'lbs',
+          },
+          {
             label: 'Personas descabezando por día',
             value: data?.personasDia ?? 0,
             unit: 'personas',
-          },
-          {
-            label: 'Gramaje promedio',
-            value: 0,
-            display: data?.gramajePromedio || undefined,
-          },
-          {
-            label: 'Costo por libra',
-            value: data?.costoPorLibra ?? 0,
-            format: 'currency',
-            tone: 'warn',
           },
         ]}
       />
 
       <Box sx={{ height: TABLE_H, flexShrink: 0 }}>
-        <ChartWidget config={porDia} />
+        <WidgetDataTable
+          title="Libras Descabezadas — Diario"
+          subtitle="Rango de fechas seleccionado · personas sin repetir por fecha"
+          icon={<SetMealOutlinedIcon color="primary" sx={{ fontSize: 16 }} />}
+          endpoint="descabezado-por-dia"
+          defaultSortKey="fecha"
+          maxHeight={TABLE_H}
+          columns={[
+            { key: 'fecha', label: 'Fecha', format: 'periodo' },
+            { key: 'personas', label: 'Personas', format: 'number' },
+            { key: 'cola', label: 'Cola', format: 'number', total: 'sum' },
+            { key: 'cabezas', label: 'Cabezas', format: 'number', total: 'sum' },
+            { key: 'librasPorHora', label: 'Libras por hora', format: 'decimal', total: { ratio: ['total', 'horas'] } },
+            { key: 'total', label: 'Total', format: 'number', total: 'sum' },
+          ]}
+        />
       </Box>
       <Box sx={{ height: TABLE_H, flexShrink: 0 }}>
-        <ChartWidget config={porDiaMes} />
+        <WidgetDataTable
+          title="Libras Descabezadas — Mensual"
+          subtitle="Últimos 12 meses · cada persona se cuenta una vez por mes"
+          icon={<SetMealOutlinedIcon color="primary" sx={{ fontSize: 16 }} />}
+          endpoint="descabezado-por-dia-mes"
+          defaultSortKey="fecha"
+          maxHeight={TABLE_H}
+          columns={[
+            { key: 'fecha', label: 'Fecha' },
+            { key: 'personas', label: 'Personas', format: 'number' },
+            { key: 'cola', label: 'Cola', format: 'number', total: 'sum' },
+            { key: 'cabezas', label: 'Cabezas', format: 'number', total: 'sum' },
+            { key: 'librasPorHora', label: 'Libras por hora', format: 'decimal' },
+            { key: 'total', label: 'Total', format: 'number', total: 'sum' },
+          ]}
+        />
       </Box>
     </Stack>
   );

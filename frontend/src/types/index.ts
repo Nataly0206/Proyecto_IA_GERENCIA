@@ -60,11 +60,11 @@ export type DashboardEndpoint =
   | 'pelado-personal'
   | 'pelado-personal-dia'
   | 'pelado-personal-mes'
-  | 'recepcion-por-finca'
   | 'recepcion-remisiones'
   | 'descabezado-por-dia'
   | 'descabezado-por-dia-mes'
   | 'clasificado-inventario'
+  | 'clasificado-inventario-detalle'
   | 'clasificado-por-maquina'
   | 'clasificado-por-talla'
   | 'clasificado-por-talla-dia'
@@ -74,6 +74,7 @@ export type DashboardEndpoint =
   | 'exportaciones-por-cliente-mes'
   | 'compra-mp-por-proveedor'
   | 'compra-mp-por-item'
+  | 'compra-mp-por-talla'
   | 'compra-mp-materia-prima';
 
 /** Contador en vivo de una línea IQF (día de producción en curso) */
@@ -198,20 +199,18 @@ export interface RecepcionResumen {
   dia: string;
   actualizado: string;
   librasRecibidasHoy: number;
-  remisionesHoy: number;
+  librasRecibidasSemana: number;
+  librasRecibidasMes: number;
   librasPendientesProcesar: number;
-  fincasActivasHoy: number;
 }
 
 export interface DescabezadoResumen {
   dia: string;
   actualizado: string;
   librasDescabezadasDia: number;
+  librasDescabezadasSemana: number;
+  librasDescabezadasMes: number;
   personasDia: number;
-  /** Talla / rango con más libras del día (texto, no cantidad). */
-  gramajePromedio: string;
-  /** Pago a destajo por libra: SUM(VALOR) / SUM(LIBRAS) del día. */
-  costoPorLibra: number;
 }
 
 export interface ClasificadoResumen {
@@ -236,14 +235,14 @@ export interface ExportacionesResumen {
 }
 
 /**
- * Compra de materia prima — contadores de la semana y el mes en curso.
+ * Compra de materia prima — órdenes de hoy y contadores de semana/mes.
  * `librasPromedioSemana` = libras del mes / nº de semanas del mes actual.
  */
 export interface CompraMpResumen {
   semanaInicio: string;
   semanaFin: string;
   actualizado: string;
-  ordenesCompraSemana: number;
+  ordenesCompraHoy: number;
   librasRecibidasSemana: number;
   librasRecibidasMes: number;
   librasPromedioSemana: number;

@@ -8,7 +8,7 @@ import ProcessFilters from '../components/filters/ProcessFilters';
 import ResumenCards from '../components/live/ResumenCards';
 import ChartWidget from '../components/charts/ChartWidget';
 import MateriaPrimaProveedorWidget from '../components/charts/MateriaPrimaProveedorWidget';
-import GroupedItemsTable from '../components/charts/GroupedItemsTable';
+import MateriaPrimaTallaTable from '../components/charts/MateriaPrimaTallaTable';
 import { useProcesoResumen } from '../hooks/useDashboardData';
 import { ChartConfig, CompraMpResumen, DataRow } from '../types';
 import { formatPeriodo } from '../utils/format';
@@ -63,7 +63,7 @@ export default function CompraMateriaPrimaPage({ userId }: { userId: string }) {
         periodoLabel={semana}
         emptyText="Sin materia prima registrada."
         metrics={[
-          { label: 'Órdenes de compra — semana actual', value: data?.ordenesCompraSemana ?? 0, unit: 'órdenes' },
+          { label: 'Órdenes de compra — Hoy', value: data?.ordenesCompraHoy ?? 0, unit: 'órdenes' },
           { label: 'Libras recibidas — semana', value: data?.librasRecibidasSemana ?? 0, unit: 'lbs' },
           { label: 'Libras recibidas — mes', value: data?.librasRecibidasMes ?? 0, unit: 'lbs' },
           { label: 'Libras promedio por semana', value: data?.librasPromedioSemana ?? 0, unit: 'lbs/semana' },
@@ -86,11 +86,10 @@ export default function CompraMateriaPrimaPage({ userId }: { userId: string }) {
       />
 
       {showDetalle && (
-        <GroupedItemsTable
-          title="Materia Prima por Proveedor e Item"
-          subtitle="Tipo, proveedor e item · rango de fechas del filtro · fuente: AV_MateriaPrima"
+        <MateriaPrimaTallaTable
+          title="Detalle de Materia Prima por Talla"
+          subtitle="Libras por proveedor y talla · rango de fechas del filtro · fuente: AV_MateriaPrima"
           icon={<Inventory2OutlinedIcon color="primary" sx={{ fontSize: 16 }} />}
-          endpoint="compra-mp-por-item"
           emptyText="Sin materia prima registrada en el rango seleccionado."
         />
       )}

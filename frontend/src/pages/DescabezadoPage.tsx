@@ -34,25 +34,25 @@ export default function DescabezadoPage() {
         emptyText="Sin descabezado registrado hoy."
         metrics={[
           {
-            label: 'Libras descabezadas al día',
+            label: 'Personas descabezando hoy',
+            value: data?.personasDia ?? 0,
+            unit: 'personas',
+          },
+          {
+            label: 'Libras descabezadas hoy',
             value: data?.librasDescabezadasDia ?? 0,
             unit: 'lbs',
             tone: 'good',
           },
           {
-            label: 'Libras descabezadas a la semana',
+            label: 'Libras descabezadas en la semana',
             value: data?.librasDescabezadasSemana ?? 0,
             unit: 'lbs',
           },
           {
-            label: 'Libras descabezadas al mes',
+            label: 'Libras descabezadas en el mes',
             value: data?.librasDescabezadasMes ?? 0,
             unit: 'lbs',
-          },
-          {
-            label: 'Personas descabezando por día',
-            value: data?.personasDia ?? 0,
-            unit: 'personas',
           },
         ]}
       />

@@ -29,33 +29,40 @@ function LiveCard({ linea, total = false }: { linea: IqfLiveLine; total?: boolea
       }}
     >
       <CardContent sx={{ py: 1.25, px: 1.75, '&:last-child': { pb: 1.25 } }}>
-        <Stack direction="row" justifyContent="space-between" alignItems="center" mb={0.5} spacing={0.5}>
+        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" mb={0.5} spacing={0.5}>
           <Typography variant="body2" fontWeight={700} noWrap sx={{ minWidth: 0 }} title={linea.linea}>
             {linea.linea}
           </Typography>
-          <Chip
-            size="small"
-            label={
-              total
-                ? 'IQF 1 + IQF 2 + IQF 3'
-                : linea.ultimaCaja
-                  ? `Última lectura: ${linea.ultimaCaja}`
-                  : 'Sin lectura hoy'
-            }
-            sx={{
-              maxWidth: { xs: 124, sm: 'none' },
-              bgcolor: `${color}18`,
-              color,
-              fontWeight: 700,
-              height: 18,
-              '& .MuiChip-label': {
-                px: 0.7,
-                fontSize: 9.5,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              },
-            }}
-          />
+          <Stack alignItems="flex-end" spacing={0.25} sx={{ minWidth: 0 }}>
+            <Chip
+              size="small"
+              label={
+                total
+                  ? 'IQF 1 + IQF 2 + IQF 3'
+                  : linea.ultimaCaja
+                    ? `Última lectura: ${linea.ultimaCaja}`
+                    : 'Sin lectura hoy'
+              }
+              sx={{
+                maxWidth: { xs: 124, sm: 'none' },
+                bgcolor: `${color}18`,
+                color,
+                fontWeight: 700,
+                height: 18,
+                '& .MuiChip-label': {
+                  px: 0.7,
+                  fontSize: 9.5,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                },
+              }}
+            />
+            {!total && (
+              <Typography variant="caption" color="text.secondary" sx={{ fontSize: 9.5, lineHeight: 1.2 }}>
+                {formatValue(linea.librasPorHora, 'decimal')} lbs/hora
+              </Typography>
+            )}
+          </Stack>
         </Stack>
 
         <Typography

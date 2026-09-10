@@ -30,6 +30,8 @@ export interface WidgetColumn {
    * no se dibuja fila de totales.
    */
   total?: 'sum' | { ratio: [string, string] };
+  /** Muestra la media aritmética de la columna en la fila de promedios. */
+  average?: boolean;
 }
 
 const numericFormat = (f: WidgetColumn['format']): ValueFormat =>
@@ -114,6 +116,21 @@ export default function WidgetDataTable({
         const ratio = den > 0 ? sum(col.total.ratio[0]) / den : 0;
         out[col.key] = col.format === 'percent' ? ratio * 100 : ratio;
       }
+    }
+    return out;
+  }, [rows, columns]);
+
+  const averages = useMemo(() => {
+    if (!columns.some((c) => c.average)) return null;
+    const out: Record<string, number> = {};
+    for (const col of columns) {
+      if (!col.average) continue;
+      const values = rows
+        .map((row) => Number(row[col.key]))
+        .filter((value) => Number.isFinite(value));
+      out[col.key] = values.length > 0
+        ? values.reduce((sum, value) => sum + value, 0) / values.length
+        : 0;
     }
     return out;
   }, [rows, columns]);
@@ -263,8 +280,6 @@ export default function WidgetDataTable({
                       bgcolor: isRecepcion ? '#dfeafa' : '#f1f5f9',
                       color: isRecepcion ? '#123a6d' : '#172033',
                       borderTop: isRecepcion ? '2px solid #9db9da' : '2px solid rgba(148, 163, 184, 0.45)',
-                      position: 'sticky',
-                      bottom: 0,
                     },
                   }}
                 >
@@ -277,6 +292,31 @@ export default function WidgetDataTable({
                         ? 'Total'
                         : col.key in totals
                           ? formatValue(totals[col.key], numericFormat(col.format))
+                          : ''}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              )}
+              {averages && (
+                <TableRow
+                  sx={{
+                    '& td': {
+                      fontWeight: 800,
+                      bgcolor: isRecepcion ? '#edf3fb' : '#f8fafc',
+                      color: isRecepcion ? '#123a6d' : '#172033',
+                      borderTop: '1px solid rgba(148, 163, 184, 0.3)',
+                    },
+                  }}
+                >
+                  {columns.map((col, idx) => (
+                    <TableCell
+                      key={col.key}
+                      align={col.align ?? (col.format && col.format !== 'text' && col.format !== 'periodo' ? 'right' : 'left')}
+                    >
+                      {idx === 0
+                        ? 'Promedio'
+                        : col.key in averages
+                          ? formatValue(averages[col.key], numericFormat(col.format))
                           : ''}
                     </TableCell>
                   ))}

@@ -194,6 +194,7 @@ export async function getDescabezadoPorDiaMes(_f: DashboardFilters, meses: numbe
     cabezas: round2(pickNumber(row, 'Cabezas')),
     librasPorHora: round2(pickNumber(row, 'LibrasPorHora')),
     total: round2(pickNumber(row, 'Total')),
+    horas: pickNumber(row, 'Horas'),
   }));
 }
 

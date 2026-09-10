@@ -57,7 +57,7 @@ export default function DescabezadoPage() {
         ]}
       />
 
-      <Box sx={{ height: TABLE_H, flexShrink: 0 }}>
+      <Box sx={{ flexShrink: 0 }}>
         <WidgetDataTable
           title="Libras Descabezadas — Diario"
           subtitle="Rango de fechas seleccionado · personas sin repetir por fecha"
@@ -67,15 +67,15 @@ export default function DescabezadoPage() {
           maxHeight={TABLE_H}
           columns={[
             { key: 'fecha', label: 'Fecha', format: 'periodo' },
-            { key: 'personas', label: 'Personas', format: 'number' },
-            { key: 'cola', label: 'Cola', format: 'number', total: 'sum' },
-            { key: 'cabezas', label: 'Cabezas', format: 'number', total: 'sum' },
-            { key: 'librasPorHora', label: 'Libras por hora', format: 'decimal', total: { ratio: ['total', 'horas'] } },
-            { key: 'total', label: 'Total', format: 'number', total: 'sum' },
+            { key: 'personas', label: 'Personas', format: 'number', total: 'sum', average: true },
+            { key: 'cola', label: 'Cola', format: 'number', total: 'sum', average: true },
+            { key: 'cabezas', label: 'Cabezas', format: 'number', total: 'sum', average: true },
+            { key: 'librasPorHora', label: 'Libras por hora', format: 'decimal', total: { ratio: ['total', 'horas'] }, average: true },
+            { key: 'total', label: 'Total', format: 'number', total: 'sum', average: true },
           ]}
         />
       </Box>
-      <Box sx={{ height: TABLE_H, flexShrink: 0 }}>
+      <Box sx={{ flexShrink: 0 }}>
         <WidgetDataTable
           title="Libras Descabezadas — Mensual"
           subtitle="Últimos 12 meses · cada persona se cuenta una vez por mes"
@@ -85,11 +85,11 @@ export default function DescabezadoPage() {
           maxHeight={TABLE_H}
           columns={[
             { key: 'fecha', label: 'Fecha' },
-            { key: 'personas', label: 'Personas', format: 'number' },
-            { key: 'cola', label: 'Cola', format: 'number', total: 'sum' },
-            { key: 'cabezas', label: 'Cabezas', format: 'number', total: 'sum' },
-            { key: 'librasPorHora', label: 'Libras por hora', format: 'decimal' },
-            { key: 'total', label: 'Total', format: 'number', total: 'sum' },
+            { key: 'personas', label: 'Personas', format: 'number', total: 'sum', average: true },
+            { key: 'cola', label: 'Cola', format: 'number', total: 'sum', average: true },
+            { key: 'cabezas', label: 'Cabezas', format: 'number', total: 'sum', average: true },
+            { key: 'librasPorHora', label: 'Libras por hora', format: 'decimal', total: { ratio: ['total', 'horas'] }, average: true },
+            { key: 'total', label: 'Total', format: 'number', total: 'sum', average: true },
           ]}
         />
       </Box>

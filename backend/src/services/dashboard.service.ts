@@ -247,14 +247,23 @@ export async function getIqfLibrasHoraMes(
 /* ------------------------------------------------------------------ */
 
 export async function getIqfTiempoReal(): Promise<IqfLiveResponse> {
-  const [catalogoRows, rows] = await Promise.all([
+  const hoy = formatDate(new Date());
+  const [catalogoRows, rows, gruposRendimiento] = await Promise.all([
     runQuery(IQF_LIVE_LINES_QUERY, []),
     runQuery(IQF_LIVE_QUERY, []),
+    fetchIqfGroups(hoy, hoy),
   ]);
+  const rendimientoPorIqf = new Map(
+    aggregateCells(gruposRendimiento, (dia) => dia).flatMap((row) => {
+      const numero = row.linea.match(/\bIQF\s*[-#]?\s*(\d+)\b/i)?.[1];
+      return numero ? [[numero, row.librasPorHora] as const] : [];
+    }),
+  );
   const dia = pickString(catalogoRows[0] ?? rows[0] ?? {}, 'Dia') || formatDate(new Date());
   const conDatos = new Map(
     rows.map((row) => {
       const linea = pickString(row, 'Linea');
+      const numeroIqf = linea.match(/\bIQF\s*[-#]?\s*(\d+)\b/i)?.[1];
       const minutosDesdeUltima = pickNumber(row, 'MinutosDesdeUltima');
       return [
         linea,
@@ -263,7 +272,7 @@ export async function getIqfTiempoReal(): Promise<IqfLiveResponse> {
           libras: round2(pickNumber(row, 'Libras')),
           cajas: 0,
           librasUltimaHora: 0,
-          librasPorHora: 0,
+          librasPorHora: numeroIqf ? (rendimientoPorIqf.get(numeroIqf) ?? 0) : 0,
           primeraCaja: '',
           ultimaCaja: pickString(row, 'UltimaCaja'),
           minutosDesdeUltima,
@@ -280,16 +289,19 @@ export async function getIqfTiempoReal(): Promise<IqfLiveResponse> {
   }
   const lineas = Array.from(nombres)
     .sort()
-    .map((linea) => conDatos.get(linea) ?? {
-      linea,
-      libras: 0,
-      cajas: 0,
-      librasUltimaHora: 0,
-      librasPorHora: 0,
-      primeraCaja: '',
-      ultimaCaja: '',
-      minutosDesdeUltima: -1,
-      activa: false,
+    .map((linea) => {
+      const numeroIqf = linea.match(/\bIQF\s*[-#]?\s*(\d+)\b/i)?.[1];
+      return conDatos.get(linea) ?? {
+        linea,
+        libras: 0,
+        cajas: 0,
+        librasUltimaHora: 0,
+        librasPorHora: numeroIqf ? (rendimientoPorIqf.get(numeroIqf) ?? 0) : 0,
+        primeraCaja: '',
+        ultimaCaja: '',
+        minutosDesdeUltima: -1,
+        activa: false,
+      };
     });
 
   return { dia, actualizado: new Date().toISOString(), lineas };

@@ -57,33 +57,35 @@ function LiveCard({ linea, total = false }: { linea: IqfLiveLine; total?: boolea
                 },
               }}
             />
-            {!total && (
-              <Typography
-                variant="body2"
-                sx={{
-                  color: '#000',
-                  fontSize: { xs: 15, sm: 16 },
-                  fontWeight: 900,
-                  lineHeight: 1.25,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {formatValue(linea.librasPorHora, 'decimal')} lbs/hora
-              </Typography>
-            )}
           </Stack>
         </Stack>
 
-        <Typography
-          variant="h6"
-          fontWeight={800}
-          sx={{ color: linea.libras > 0 ? '#164a8b' : 'text.secondary', lineHeight: 1.1 }}
-        >
-          {formatValue(linea.libras)}
-          <Typography component="span" variant="caption" color="text.secondary" ml={0.5}>
-            lbs
+        <Stack direction="row" justifyContent="space-between" alignItems="baseline" spacing={2}>
+          <Typography
+            variant="h6"
+            fontWeight={800}
+            sx={{ color: linea.libras > 0 ? '#164a8b' : 'text.secondary', lineHeight: 1.1 }}
+          >
+            {formatValue(linea.libras)}
+            <Typography component="span" variant="caption" color="text.secondary" ml={0.5}>
+              lbs
+            </Typography>
           </Typography>
-        </Typography>
+          {!total && (
+            <Typography
+              variant="body2"
+              sx={{
+                color: '#000',
+                fontSize: { xs: 15, sm: 16 },
+                fontWeight: 900,
+                lineHeight: 1.25,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {formatValue(linea.librasPorHora, 'decimal')} lbs/hora
+            </Typography>
+          )}
+        </Stack>
       </CardContent>
     </Card>
   );

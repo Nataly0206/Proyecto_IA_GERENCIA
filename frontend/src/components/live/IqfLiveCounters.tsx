@@ -71,20 +71,18 @@ function LiveCard({ linea, total = false }: { linea: IqfLiveLine; total?: boolea
               lbs
             </Typography>
           </Typography>
-          {!total && (
-            <Typography
-              variant="body2"
-              sx={{
-                color: '#000',
-                fontSize: { xs: 15, sm: 16 },
-                fontWeight: 900,
-                lineHeight: 1.25,
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {formatValue(linea.librasPorHora)} lbs/hora
-            </Typography>
-          )}
+          <Typography
+            variant="body2"
+            sx={{
+              color: '#000',
+              fontSize: { xs: 15, sm: 16 },
+              fontWeight: 900,
+              lineHeight: 1.25,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {formatValue(linea.librasPorHora)} lbs/hora
+          </Typography>
         </Stack>
       </CardContent>
     </Card>
@@ -93,10 +91,11 @@ function LiveCard({ linea, total = false }: { linea: IqfLiveLine; total?: boolea
 
 export default function IqfLiveCounters() {
   const { data, isLoading, isError, error, dataUpdatedAt } = useIqfLive();
-  const totalIqf =
-    data?.lineas
-      .filter((linea) => /\bIQF\s*[-#]?\s*[123]\b/i.test(linea.linea))
-      .reduce((total, linea) => total + linea.libras, 0) ?? 0;
+  const lineasIqf = data?.lineas.filter((linea) => /\bIQF\s*[-#]?\s*[123]\b/i.test(linea.linea)) ?? [];
+  const totalIqf = lineasIqf.reduce((total, linea) => total + linea.libras, 0);
+  const promedioLibrasPorHora = lineasIqf.length > 0
+    ? lineasIqf.reduce((total, linea) => total + linea.librasPorHora, 0) / lineasIqf.length
+    : 0;
 
   return (
     <Box>
@@ -161,7 +160,7 @@ export default function IqfLiveCounters() {
               libras: totalIqf,
               cajas: 0,
               librasUltimaHora: 0,
-              librasPorHora: 0,
+              librasPorHora: promedioLibrasPorHora,
               primeraCaja: '',
               ultimaCaja: '',
               minutosDesdeUltima: -1,

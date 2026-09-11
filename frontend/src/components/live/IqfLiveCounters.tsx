@@ -58,7 +58,16 @@ function LiveCard({ linea, total = false }: { linea: IqfLiveLine; total?: boolea
               }}
             />
             {!total && (
-              <Typography variant="caption" color="text.secondary" sx={{ fontSize: 9.5, lineHeight: 1.2 }}>
+              <Typography
+                variant="body2"
+                sx={{
+                  color: '#000',
+                  fontSize: { xs: 15, sm: 16 },
+                  fontWeight: 900,
+                  lineHeight: 1.25,
+                  whiteSpace: 'nowrap',
+                }}
+              >
                 {formatValue(linea.librasPorHora, 'decimal')} lbs/hora
               </Typography>
             )}

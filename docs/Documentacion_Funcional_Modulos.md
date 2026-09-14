@@ -113,13 +113,13 @@ Para una línea específica, agregar `AND a.LineaEquipoIQF = @Linea` con un par�
 
 ### Caso verificado en SQL: «Horas trabajadas por IQF entre dos fechas»
 
-**Ubicación en pantalla:** IQF → lista desplegable del reporte diario o mensual. La lista diaria ofrece **Rendimientos IQF x Hora — Diario** y **Horas Trabajadas por IQF — Diario**; la mensual ofrece **Rendimientos IQF x Hora — Mensual** y **Horas Trabajadas por IQF — Mensual**. Cada lista es independiente y muestra los datos de la opción seleccionada. La lista se ajusta al ancho del texto seleccionado. Ambos indicadores comparten las mismas vistas: Tabla y Gráfica en Diario; Tabla, Gráfica y Tendencia en Mensual. Cambiar el indicador conserva la vista seleccionada. Las gráficas de Horas utilizan los mismos períodos y equipos de la tabla y muestran horas decimales; los totales y promedios se consultan en la vista Tabla.
+**Ubicación en pantalla:** IQF → lista desplegable del reporte diario o mensual. La lista diaria ofrece **Rendimientos IQF x Hora — Diario** y **Horas Trabajadas por IQF — Diario**; la mensual ofrece **Rendimientos IQF x Hora — Mensual** y **Horas Trabajadas por IQF — Mensual**. Cada lista es independiente y muestra los datos de la opción seleccionada. La lista se ajusta al ancho del texto seleccionado; si falta espacio, el texto se distribuye en varias líneas y los botones pasan a la siguiente fila. Los encabezados de equipos en la tabla se muestran como IQF 1, IQF 2, IQF 3, con el nombre completo al pasar el cursor. Ambos indicadores comparten las mismas vistas: Tabla y Gráfica en Diario; Tabla, Gráfica y Tendencia en Mensual. Cambiar el indicador conserva la vista seleccionada. Las gráficas de Horas utilizan los mismos períodos y equipos de la tabla y muestran horas decimales; los promedios se consultan en la vista Tabla.
 
 **Ayuda dentro del módulo:** abrir **Detalles** para ver cómo elegir el indicador, las vistas disponibles, períodos, unidades y promedios. Abrir **Detalles de desarrollador** para ver fuentes SQL, agrupaciones, fórmulas, contratos de API, caché y archivos que implementan ambos reportes. Estos textos corresponden a las listas desplegables actuales, no al antiguo botón de horas.
 
 **Diario:** utiliza Desde/Hasta y Turno del reporte. **Mensual:** utiliza la misma ventana de últimos 12 meses que el rendimiento mensual (hasta hoy), independiente de Desde/Hasta; sí respeta Turno. Suma las horas diarias por equipo y mes; no calcula un intervalo entre primera y última lectura de todo el mes.
 
-Fechas o meses en filas, equipos en columnas y una columna **Promedio por día/mes (h)** = suma de horas de equipos con registro en esa fila ÷ cantidad de equipos con registro. Incluye total del período por equipo, promedio diario/mensual por equipo y promedio general al final = suma de horas de todas las celdas válidas ÷ cantidad de celdas equipo/período válidas. El pie de la columna Promedio muestra la media de los promedios de las filas. Las celdas sin registro se muestran como — y se excluyen de los promedios. No se redondea antes de agregar; se muestran dos decimales.
+Fechas o meses en filas, equipos en columnas y una columna **Promedio** (por día o mes) = suma de horas de equipos con registro en esa fila ÷ cantidad de equipos con registro. No muestra una fila de total del período. Incluye la fila **Promedio diario** o **Promedio mensual** por equipo y promedio general al final = suma de horas de todas las celdas válidas ÷ cantidad de celdas equipo/período válidas. El pie de la columna Promedio muestra la media de los promedios de las filas. Las celdas sin registro se muestran como — y se excluyen de los promedios. No se redondea antes de agregar; se muestran dos decimales.
 
 **API mensual:** `GET /api/dashboard/iqf-horas-trabajadas-mes`; admite `meses` de 1 a 36, predeterminado 12, y turno opcional. Misma estructura de respuesta que Diario, con `periodo` en formato `YYYY-MM`. El mes actual puede estar incompleto.
 
@@ -222,7 +222,7 @@ Para límites por categoría o valor numérico, indicar el criterio sobre la res
 | IQF | Mismo bloque, modo Mensual | No | Sí | Últimos 12 meses |
 | IQF | **Rendimientos IQF x Hora — Diario** | Sí | Sí | Columna de cada línea; unidad lbs/h |
 | IQF | **Rendimientos IQF x Hora — Mensual** | No | Sí | Últimos 12 meses |
-| IQF | **Horas Trabajadas por IQF — Diario**, lista del reporte diario | Sí | Sí | Horas por equipo/día, totales y promedios |
+| IQF | **Horas Trabajadas por IQF — Diario**, lista del reporte diario | Sí | Sí | Horas por equipo/día y promedios |
 | IQF | **Horas Trabajadas por IQF — Mensual**, lista del reporte mensual | No | Sí | Últimos 12 meses, horas acumuladas y promedio por mes |
 | IQF | Contadores en vivo por línea | No | No | Día actual; actividad reciente |
 | Pelado | **Libras Peladas por Estilo** y **Detalle de Libras Peladas por Talla** | Sí | Sí | Totales por estilo y por talla del rango |

@@ -1,4 +1,4 @@
-import { Alert, Box, Paper, Skeleton, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from '@mui/material';
+import { Alert, Box, Paper, Skeleton, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tooltip, Typography } from '@mui/material';
 import { useWidgetData } from '../../hooks/useDashboardData';
 import { ChartConfig } from '../../types';
 import DynamicChart from './DynamicChart';
@@ -9,7 +9,6 @@ const formatHours = (value: number) => value.toLocaleString('en-US', { minimumFr
 
 export default function IqfWorkedHoursTable({ mode = 'dia', view = 'table', config }: { mode?: 'dia' | 'mes'; view?: 'table' | 'chart' | 'trend'; config?: ChartConfig }) {
   const monthly = mode === 'mes';
-  const periodLabel = monthly ? 'mes' : 'día';
   const { data, isLoading, isError, error } = useWidgetData(monthly ? 'iqf-horas-trabajadas-mes' : 'iqf-horas-trabajadas');
   const cells = data ?? [];
   const lines = [...new Set(cells.map((row) => String(row.linea)))].sort();
@@ -49,12 +48,18 @@ export default function IqfWorkedHoursTable({ mode = 'dia', view = 'table', conf
         </ErrorBoundary>
       ) : (
         <Box sx={{ mt: 1 }}>
-          <TableContainer sx={{ maxHeight: 340 }}>
-            <Table stickyHeader size="small" aria-label="Horas trabajadas por IQF">
+          <TableContainer sx={{ maxHeight: 340, border: 1, borderColor: 'divider', borderRadius: 1 }}>
+            <Table stickyHeader size="small" aria-label="Horas trabajadas por IQF" sx={{
+              '& th': { bgcolor: '#f1f5f9', fontWeight: 800, whiteSpace: 'nowrap' },
+              '& td': { whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' },
+              '& th, & td': { px: 1.25, py: 1 },
+            }}>
               <TableHead><TableRow>
                 <TableCell>{monthly ? 'Mes' : 'Fecha'}</TableCell>
-                {lines.map((line) => <TableCell key={line} align="right">{line}</TableCell>)}
-                <TableCell align="right">Promedio por {periodLabel} (h)</TableCell>
+                {lines.map((line) => <TableCell key={line} align="right">
+                  <Tooltip title={line}><span>{line.match(/IQF\s*#?\s*(\d+)/i) ? `IQF ${line.match(/IQF\s*#?\s*(\d+)/i)?.[1]}` : line}</span></Tooltip>
+                </TableCell>)}
+                <TableCell align="right">Promedio</TableCell>
               </TableRow></TableHead>
               <TableBody>
                 {dates.map((date) => {
@@ -69,13 +74,8 @@ export default function IqfWorkedHoursTable({ mode = 'dia', view = 'table', conf
                   <TableCell align="right">{formatHours(average)}</TableCell>
                 </TableRow>;
                 })}
-                <TableRow sx={{ '& td': { fontWeight: 800 }, bgcolor: 'action.hover' }}>
-                  <TableCell>Total del período (h)</TableCell>
-                  {lines.map((line) => <TableCell key={line} align="right">{formatHours(totalFor(line))}</TableCell>)}
-                  <TableCell align="right">—</TableCell>
-                </TableRow>
-                <TableRow sx={{ '& td': { fontWeight: 800 } }}>
-                  <TableCell>Promedio {monthly ? 'mensual' : 'diario'} por IQF (h)</TableCell>
+                <TableRow sx={{ '& td': { fontWeight: 800, bgcolor: '#e8eef7', position: 'sticky', bottom: 0, borderTop: '2px solid #b8c7d9' } }}>
+                  <TableCell>Promedio {monthly ? 'mensual' : 'diario'}</TableCell>
                   {lines.map((line) => <TableCell key={line} align="right">{formatHours(totalFor(line) / countFor(line))}</TableCell>)}
                   <TableCell align="right">{formatHours(dates.reduce((sum, date) => {
                     const values = cells.filter((row) => row.periodo === date);
@@ -86,10 +86,10 @@ export default function IqfWorkedHoursTable({ mode = 'dia', view = 'table', conf
             </Table>
           </TableContainer>
           <Typography variant="body2" fontWeight={800} sx={{ mt: 1 }}>
-            Promedio general: {formatHours(total / cells.length)} h por IQF y {periodLabel} con registro
+            Promedio general: {formatHours(total / cells.length)} h
           </Typography>
           <Typography variant="caption" color="text.secondary">
-            Los promedios excluyen celdas sin registros válidos (—). Solo se incluyen turnos con más de 15 minutos entre lecturas; no se descuentan pausas.
+            Horas decimales · — sin registro · promedios sobre registros válidos.
           </Typography>
         </Box>
       )}

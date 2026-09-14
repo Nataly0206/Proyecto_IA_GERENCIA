@@ -273,7 +273,7 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
         bullets: [
           'Diario: “Rendimientos IQF x Hora — Diario” / “Horas Trabajadas por IQF — Diario”. Mensual: “Rendimientos IQF x Hora — Mensual” / “Horas Trabajadas por IQF — Mensual”. Listas independientes y ancho ajustado al texto.',
           'Ambos indicadores comparten Tabla/Gráfica en Diario y Tabla/Gráfica/Tendencia en Mensual. `ChartWidget` conserva `view` al cambiar `report` y muestra el contenido del indicador seleccionado.',
-          'Horas usa `IqfWorkedHoursTable` en Tabla y `DynamicChart` en Gráfica/Tendencia, con `yField = horas`, formato decimal y la misma configuración temporal del reporte. Diario usa línea, Mensual columnas o línea de tendencia. Totales y promedios están en Tabla.',
+          'Horas usa `IqfWorkedHoursTable` en Tabla y `DynamicChart` en Gráfica/Tendencia, con `yField = horas`, formato decimal y la misma configuración temporal del reporte. Diario usa línea, Mensual columnas o línea de tendencia. La tabla muestra “Promedio diario” o “Promedio mensual” y el promedio general; no muestra total del período.',
         ],
       },
       {

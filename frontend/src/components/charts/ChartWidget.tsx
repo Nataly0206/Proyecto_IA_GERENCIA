@@ -110,7 +110,7 @@ export default function ChartWidget({ config, actions, transform, workedHours }:
           p: '14px !important',
         }}
       >
-        <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} spacing={{ xs: 1, sm: 1.5 }} mb={1}>
+        <Stack direction={workedHours ? 'row' : { xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={workedHours ? 'center' : { xs: 'stretch', sm: 'center' }} spacing={workedHours ? 0 : { xs: 1, sm: 1.5 }} sx={workedHours ? { flexWrap: 'wrap', gap: 1 } : undefined} mb={1}>
           <Box sx={{ minWidth: 0 }}>
             {workedHours ? (
               <Select
@@ -118,10 +118,10 @@ export default function ChartWidget({ config, actions, transform, workedHours }:
                 value={report}
                 onChange={(event) => setReport(event.target.value as 'rate' | 'hours')}
                 inputProps={{ 'aria-label': `Reporte IQF ${workedHours === 'mes' ? 'mensual' : 'diario'}` }}
-                sx={{ width: 'auto', maxWidth: '100%', '& .MuiSelect-select': { fontWeight: 800, fontSize: 14 } }}
+                sx={{ width: 'auto', maxWidth: '100%', '& .MuiSelect-select': { fontWeight: 800, fontSize: { xs: 13, sm: 14 }, whiteSpace: 'normal', lineHeight: 1.35, py: 0.75 } }}
               >
-                <MenuItem value="rate">{config.title}</MenuItem>
-                <MenuItem value="hours">{hoursTitle}</MenuItem>
+                <MenuItem sx={{ whiteSpace: 'normal' }} value="rate">{config.title}</MenuItem>
+                <MenuItem sx={{ whiteSpace: 'normal' }} value="hours">{hoursTitle}</MenuItem>
               </Select>
             ) : (
               <Typography variant="subtitle2" fontWeight={800} lineHeight={1.2} sx={{ whiteSpace: { sm: 'nowrap' }, fontSize: { xs: 15, sm: 14 } }}>

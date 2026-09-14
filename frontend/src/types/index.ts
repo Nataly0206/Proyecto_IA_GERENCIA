@@ -49,6 +49,8 @@ export type DashboardEndpoint =
   | 'libras-netas-proceso'
   | 'libras-netas-proceso-dia'
   | 'libras-netas-proceso-mes'
+  | 'iqf-horas-trabajadas'
+  | 'iqf-horas-trabajadas-mes'
   | 'iqf-libras-hora-dia'
   | 'iqf-libras-hora-mes'
   | 'pelado-por-estilo'

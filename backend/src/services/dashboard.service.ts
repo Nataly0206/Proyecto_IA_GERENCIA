@@ -3,6 +3,7 @@ import { runQuery } from './sql.service';
 import { runStbQuery } from './stb.service';
 import {
   IQF_DAILY_RATE_QUERY,
+  IQF_WORKED_HOURS_QUERY,
   IQF_LIVE_LINES_QUERY,
   IQF_LIVE_QUERY,
   NET_FROZEN_BY_PROCESS_DAILY_QUERY,
@@ -724,4 +725,36 @@ export async function getPeladoPersonalMes(
   const inicio = new Date(hoy.getFullYear(), hoy.getMonth() - (meses - 1), 1);
   const groups = await fetchPeladoPersonalGroups(formatDate(inicio), formatDate(hoy));
   return aggregatePeladoPersonalByPeriod(groups, filters.turno, (dia) => dia.slice(0, 7));
+}
+
+export async function getIqfHorasTrabajadas(filters: DashboardFilters): Promise<{ periodo: string; linea: string; horas: number }[]> {
+  const rows = await runQuery(IQF_WORKED_HOURS_QUERY, dateParams(filters.fechaInicial, filters.fechaFinal));
+  const cells = new Map<string, { periodo: string; linea: string; horas: number }>();
+  for (const row of rows) {
+    if (filters.turno && !matchesTurno(pickString(row, 'Turno'), filters.turno)) continue;
+    const periodo = pickString(row, 'Dia').slice(0, 10);
+    const linea = pickString(row, 'Linea');
+    const key = `${periodo}|${linea}`;
+    const cell = cells.get(key) ?? { periodo, linea, horas: 0 };
+    cell.horas += pickNumber(row, 'Horas');
+    cells.set(key, cell);
+  }
+  // Mantener precisión para calcular totales y promedios antes de formatearlos.
+  return [...cells.values()].sort((a, b) => a.periodo.localeCompare(b.periodo) || a.linea.localeCompare(b.linea));
+}
+
+/** Misma ventana calendario que Rendimientos IQF — Mensual. */
+export async function getIqfHorasTrabajadasMes(filters: DashboardFilters, meses: number): Promise<{ periodo: string; linea: string; horas: number }[]> {
+  const hoy = new Date();
+  const inicio = new Date(hoy.getFullYear(), hoy.getMonth() - (meses - 1), 1);
+  const daily = await getIqfHorasTrabajadas({ ...filters, fechaInicial: formatDate(inicio), fechaFinal: formatDate(hoy) });
+  const cells = new Map<string, { periodo: string; linea: string; horas: number }>();
+  for (const row of daily) {
+    const periodo = row.periodo.slice(0, 7);
+    const key = `${periodo}|${row.linea}`;
+    const cell = cells.get(key) ?? { periodo, linea: row.linea, horas: 0 };
+    cell.horas += row.horas;
+    cells.set(key, cell);
+  }
+  return [...cells.values()].sort((a, b) => a.periodo.localeCompare(b.periodo) || a.linea.localeCompare(b.linea));
 }

@@ -63,7 +63,7 @@ export default function DashboardPage() {
       sx={{
         height: '100%',
         minHeight: 0,
-        overflowY: { xs: 'auto', md: 'hidden' },
+        overflowY: 'auto',
       overflowX: 'hidden',
       }}
     >
@@ -120,20 +120,20 @@ export default function DashboardPage() {
         </Collapse>
       </Paper>
 
-      <div ref={topRef}>
+      <div ref={topRef} style={{ flexShrink: 0 }}>
         <IqfLiveCounters />
       </div>
 
       <Box
         sx={{
-          flex: 1,
+          flexShrink: 0,
           minHeight: 0,
           display: 'grid',
           gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'repeat(2, minmax(0, 1fr))' },
-          gridTemplateRows: { xs: 'auto auto auto', md: 'auto minmax(0, 1fr)' },
+          gridTemplateRows: 'auto auto',
           gap: { xs: 1.5, md: 2 },
           pb: { xs: 1.5, md: 0 },
-          overflow: { xs: 'visible', md: 'hidden' },
+          overflow: 'visible',
         }}
       >
         <Box
@@ -150,7 +150,7 @@ export default function DashboardPage() {
             flexDirection: 'column',
           }}
         >
-          <ChartWidget config={{ ...iqfDiario, height: heights.iqf }} />
+          <ChartWidget config={{ ...iqfDiario, height: heights.iqf }} workedHours="dia" />
         </Box>
         <Box
           sx={{
@@ -160,7 +160,7 @@ export default function DashboardPage() {
             flexDirection: 'column',
           }}
         >
-          <ChartWidget config={{ ...iqfMensual, height: heights.iqf }} />
+          <ChartWidget config={{ ...iqfMensual, height: heights.iqf }} workedHours="mes" />
         </Box>
       </Box>
     </Stack>

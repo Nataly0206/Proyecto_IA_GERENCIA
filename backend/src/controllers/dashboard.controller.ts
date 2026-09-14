@@ -295,3 +295,24 @@ export async function getPeladoPersonalMes(req: Request, res: Response): Promise
     ),
   );
 }
+
+export async function getIqfHorasTrabajadas(req: Request, res: Response): Promise<void> {
+  const filters = parseFilters(req);
+  res.json(await withTtlCache(
+    JSON.stringify(['iqf-horas-trabajadas', filters]),
+    REPORT_CACHE_MS,
+    () => dashboardService.getIqfHorasTrabajadas(filters),
+    req.query.refresh === 'true',
+  ));
+}
+
+export async function getIqfHorasTrabajadasMes(req: Request, res: Response): Promise<void> {
+  const filters = parseFilters(req);
+  const meses = Math.min(Math.max(Number(req.query.meses) || 12, 1), 36);
+  res.json(await withTtlCache(
+    JSON.stringify(['iqf-horas-trabajadas-mes', filters.turno ?? '', meses]),
+    REPORT_CACHE_MS,
+    () => dashboardService.getIqfHorasTrabajadasMes(filters, meses),
+    req.query.refresh === 'true',
+  ));
+}

@@ -6,6 +6,8 @@ import {
   CardContent,
   CircularProgress,
   Stack,
+  MenuItem,
+  Select,
   ToggleButton,
   ToggleButtonGroup,
   Tooltip,
@@ -13,6 +15,7 @@ import {
 } from '@mui/material';
 import TableChartOutlinedIcon from '@mui/icons-material/TableChartOutlined';
 import InsertChartOutlinedIcon from '@mui/icons-material/InsertChartOutlined';
+import IqfWorkedHoursTable from './IqfWorkedHoursTable';
 import TimelineOutlinedIcon from '@mui/icons-material/TimelineOutlined';
 import { ChartConfig, DataRow } from '../../types';
 import { useWidgetData } from '../../hooks/useDashboardData';
@@ -23,6 +26,7 @@ import ErrorBoundary from '../ErrorBoundary';
 
 interface ChartWidgetProps {
   config: ChartConfig;
+  workedHours?: 'dia' | 'mes';
   /** Controles adicionales mostrados en la cabecera, junto al selector tabla/gráfica */
   actions?: ReactNode;
   /**
@@ -41,9 +45,12 @@ type ViewMode = 'table' | 'chart' | 'trend';
  * DynamicChart. Si el config declara `altChartType`, muestra un selector
  * para alternar entre vista de tabla y gráfica comparativa.
  */
-export default function ChartWidget({ config, actions, transform }: ChartWidgetProps) {
+export default function ChartWidget({ config, actions, transform, workedHours }: ChartWidgetProps) {
   const { data, isLoading, isError, error } = useWidgetData(config.endpoint);
   const [view, setView] = useState<ViewMode>('chart');
+  const [report, setReport] = useState<'rate' | 'hours'>('rate');
+  const showHours = Boolean(workedHours) && report === 'hours';
+  const hoursTitle = `Horas Trabajadas por IQF — ${workedHours === 'mes' ? 'Mensual' : 'Diario'}`;
 
   const hasToggle = config.type === 'table' && Boolean(config.altChartType);
   const hasTrend = hasToggle && Boolean(config.trendChartType);
@@ -105,12 +112,25 @@ export default function ChartWidget({ config, actions, transform }: ChartWidgetP
       >
         <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} spacing={{ xs: 1, sm: 1.5 }} mb={1}>
           <Box sx={{ minWidth: 0 }}>
-            <Typography variant="subtitle2" fontWeight={800} lineHeight={1.2} sx={{ whiteSpace: { sm: 'nowrap' }, fontSize: { xs: 15, sm: 14 } }}>
-              {config.title}
-            </Typography>
+            {workedHours ? (
+              <Select
+                size="small"
+                value={report}
+                onChange={(event) => setReport(event.target.value as 'rate' | 'hours')}
+                inputProps={{ 'aria-label': `Reporte IQF ${workedHours === 'mes' ? 'mensual' : 'diario'}` }}
+                sx={{ width: 'auto', maxWidth: '100%', '& .MuiSelect-select': { fontWeight: 800, fontSize: 14 } }}
+              >
+                <MenuItem value="rate">{config.title}</MenuItem>
+                <MenuItem value="hours">{hoursTitle}</MenuItem>
+              </Select>
+            ) : (
+              <Typography variant="subtitle2" fontWeight={800} lineHeight={1.2} sx={{ whiteSpace: { sm: 'nowrap' }, fontSize: { xs: 15, sm: 14 } }}>
+                {config.title}
+              </Typography>
+            )}
             {config.subtitle && (
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.3 }}>
-                {config.subtitle}
+                {showHours ? (workedHours === 'mes' ? 'Últimos 12 meses · horas acumuladas por IQF y promedio por mes' : 'Rango de fechas seleccionado · horas por IQF y promedio por día') : config.subtitle}
               </Typography>
             )}
           </Box>
@@ -146,7 +166,13 @@ export default function ChartWidget({ config, actions, transform }: ChartWidgetP
           </Stack>
         </Stack>
 
-        {isLoading && (
+        {showHours && workedHours && (
+          <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+            <IqfWorkedHoursTable mode={workedHours} view={view} config={effectiveConfig} />
+          </Box>
+        )}
+
+        {!showHours && isLoading && (
           <Box
             sx={{
               display: 'flex',
@@ -159,19 +185,19 @@ export default function ChartWidget({ config, actions, transform }: ChartWidgetP
           </Box>
         )}
 
-        {isError && (
+        {!showHours && isError && (
           <Alert severity="error" sx={{ mt: 2 }}>
             Error al cargar datos: {error instanceof Error ? error.message : 'desconocido'}
           </Alert>
         )}
 
-        {!isLoading && !isError && (transformedData?.length ?? 0) === 0 && (
+        {!showHours && !isLoading && !isError && (transformedData?.length ?? 0) === 0 && (
           <Alert severity="info" sx={{ mt: 2 }}>
             Sin datos para los filtros seleccionados.
           </Alert>
         )}
 
-        {!isLoading && !isError && transformedData && transformedData.length > 0 && (
+        {!showHours && !isLoading && !isError && transformedData && transformedData.length > 0 && (
           <ErrorBoundary label="Error al renderizar el widget">
             {/* Solo table/chart viven en un Card de altura fija (height: '100%' en
                 md+) donde flex:1 + minHeight:0 reparte el espacio restante para

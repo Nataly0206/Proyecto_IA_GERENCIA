@@ -19,6 +19,8 @@ router.get('/libras-netas-proceso-dia', iqf, asyncHandler(controller.getLibrasNe
 router.get('/libras-netas-proceso-mes', iqf, asyncHandler(controller.getLibrasNetasPorProcesoMes));
 router.get('/iqf-libras-hora-dia', iqf, asyncHandler(controller.getIqfLibrasHoraDia));
 router.get('/iqf-libras-hora-mes', iqf, asyncHandler(controller.getIqfLibrasHoraMes));
+router.get('/iqf-horas-trabajadas-mes', iqf, asyncHandler(controller.getIqfHorasTrabajadasMes));
+router.get('/iqf-horas-trabajadas', iqf, asyncHandler(controller.getIqfHorasTrabajadas));
 router.get('/iqf-tiempo-real', iqf, asyncHandler(controller.getIqfTiempoReal));
 router.get('/pelado-por-estilo', pelado, asyncHandler(controller.getPeladoPorEstilo));
 router.get('/pelado-por-estilo-dia', pelado, asyncHandler(controller.getPeladoPorEstiloDia));

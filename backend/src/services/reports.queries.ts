@@ -218,3 +218,14 @@ GROUP BY ei.NombreIQF, pd.EstiloFinal, pd.NombreEjecutivo, pd.NombreGrupo,
          pd.Turno, pd.DiaProduccion2024
 HAVING DATEDIFF(MINUTE, MIN(pd.FechaHoraTorre), MAX(pd.FechaHoraTorre)) > 15
 `;
+
+/** Horas entre primera y última lectura por equipo/día/turno (modo 30). */
+export const IQF_WORKED_HOURS_QUERY = `
+SELECT CategoriaLinea AS Linea, Turno, DiaProduccion2024 AS Dia,
+       CAST(DATEDIFF(MINUTE, MIN(FechaHoraTorre), MAX(FechaHoraTorre)) AS FLOAT) / 60 AS Horas
+FROM dbo.AV_Produccion_Diaria_2020
+WHERE DiaProduccion2024 BETWEEN @Fecha_Inicial AND @Fecha_Final
+  AND fkTipo < 4 AND CategoriaLinea LIKE '%IQF%'
+GROUP BY CategoriaLinea, Turno, DiaProduccion2024
+HAVING DATEDIFF(MINUTE, MIN(FechaHoraTorre), MAX(FechaHoraTorre)) > 15;
+`;

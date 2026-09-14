@@ -231,13 +231,15 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
 
   dashboard: {
     title: 'IQF',
-    summary: 'Producción congelada neta y rendimiento por hora de las líneas IQF. Fuente: PlantaEmpacadora.',
+    summary: 'Producción congelada neta, rendimiento por hora y horas trabajadas por IQF. Fuente: PlantaEmpacadora.',
     blocks: [
       {
         heading: 'Tablas y vistas de origen',
         bullets: [
           'Libras congeladas netas: `dbo.AV_Produccion_Diaria_Resumen` (`NombreTipoProceso`, `Turno`, `PesoLibras`, `DiaProduccion2024`, `fkTipo`, `VaEjecutivo`, `ProcesadaPlanta`).',
           'Rendimiento IQF: `dbo.AV_Produccion_Diaria_2020` (`CategoriaLinea`, `EquipoIQF`, `Turno`, `DiaProduccion2024`, `PesoLibras`, `FechaHoraTorre`, `fkTipo`, `EstiloFinal`) + `dbo.EquiposIQF` (`IDequipo` → `NombreIQF`). Join opcional `dbo.OPship` por `OrdenProduccion`.',
+          'Horas trabajadas: `dbo.AV_Produccion_Diaria_2020`, SELECT equivalente a `dbo.a_Fill_Produccion_Diaria_lectura_dos @Resumen = 30`. `FechaHoraTorre` viene de `Seriales.Created`; `CategoriaLinea` de `AV_LineasProduccion`, unida por `OrdenesProduccion.fkLineaProduccion`.',
+          'Día lógico de la vista: `CAST(DATEADD(MINUTE, -359, Seriales.Created) AS DATE)`; Turno A entre 07:00:00 y 18:59:59, B en las demás horas.',
           'IQF en tiempo real: `AV_Produccion_Diaria_2020` agrupado por `LineaEquipoIQF`, día en curso.',
           'Equivale a los SP de lectura oficiales: `@Resumen = 3` (netas) y `@Resumen = 23` / SP `_dos` (rendimiento).',
         ],
@@ -249,6 +251,7 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
           'Se excluye RE-EMPAQUE (`fkTipo = 2`) y FRESH TAIL / REGISTRO FRESCO (`fkTipo = 4`, que es compra de materia prima, no congelación neta nueva).',
           '`fkTipo`: 0 = RECEPCIÓN (producción), 1 = REPROCESO, 2 = RE-EMPAQUE, 4 = REGISTRO FRESCO.',
           'Rendimiento: `fkTipo < 4`, líneas con `CategoriaLinea LIKE \'%IQF%\'` o `EquipoIQF > 0`; `HAVING DATEDIFF(MINUTE, MIN(FechaHoraTorre), MAX(FechaHoraTorre)) > 15` descarta grupos de ≤15 min.',
+          "Horas: `DiaProduccion2024 BETWEEN @Fecha_Inicial AND @Fecha_Final`, `fkTipo < 4`, `CategoriaLinea LIKE '%IQF%'`; agrupar por equipo/día/turno y conservar grupos con más de 15 minutos. No usa el UNION ALL del reporte de rendimiento.",
           'La línea `SAL` se excluye del rendimiento por no ser una línea IQF comparable.',
           'Turno filtrado en TypeScript. Vista mensual = 12 meses (ignora el filtro de días, respeta el turno).',
         ],
@@ -259,15 +262,28 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
           'Libras netas = `SUM(PesoLibras)` agrupado por proceso y turno.',
           'Libras/hora por grupo = `SUM(PesoLibras) / (DATEDIFF(MINUTE, MIN(FechaHoraTorre), MAX(FechaHoraTorre)) / 60)`.',
           'Rendimiento del período = promedio simple de los `librasPorHora` de los grupos (`rateSum / grupos`), NO `SUM(libras) / SUM(horas)` — así lo calcula el reporte oficial. Ver `fetchIqfGroups` / `aggregate*` en `dashboard.service.ts`.',
+          'Horas por turno = `DATEDIFF(MINUTE, MIN(FechaHoraTorre), MAX(FechaHoraTorre)) / 60.0`. Diario suma turnos seleccionados por equipo/día; Mensual suma esas horas diarias por equipo/mes, sin medir un intervalo de todo el mes. No descuenta pausas.',
+          'Columna promedio de fila = suma de horas de sus equipos válidos / número de equipos válidos. Promedio por equipo = total de horas / períodos válidos del equipo. Promedio general = suma de todas las horas / número de celdas equipo/período válidas. Pie de la columna Promedio = media de los promedios de fila. Celdas ausentes se excluyen; mantener precisión y formatear dos decimales al mostrar.',
+          'Las horas del endpoint de rendimiento tienen agrupación adicional por estilo/ejecutivo/grupo; no equivalen a las horas trabajadas del modo 30.',
           'IQF tiempo real: `MinutosDesdeUltima = DATEDIFF(MINUTE, MAX(FechaHoraTorre), GETDATE())`.',
+        ],
+      },
+      {
+        heading: 'Listas desplegables y vistas',
+        bullets: [
+          'Diario: “Rendimientos IQF x Hora — Diario” / “Horas Trabajadas por IQF — Diario”. Mensual: “Rendimientos IQF x Hora — Mensual” / “Horas Trabajadas por IQF — Mensual”. Listas independientes y ancho ajustado al texto.',
+          'Ambos indicadores comparten Tabla/Gráfica en Diario y Tabla/Gráfica/Tendencia en Mensual. `ChartWidget` conserva `view` al cambiar `report` y muestra el contenido del indicador seleccionado.',
+          'Horas usa `IqfWorkedHoursTable` en Tabla y `DynamicChart` en Gráfica/Tendencia, con `yField = horas`, formato decimal y la misma configuración temporal del reporte. Diario usa línea, Mensual columnas o línea de tendencia. Totales y promedios están en Tabla.',
         ],
       },
       {
         heading: 'Endpoints y archivos',
         bullets: [
-          '`/libras-netas-proceso` (`-dia` / `-mes`) · `/iqf-libras-hora-dia` · `/iqf-libras-hora-mes` · `/iqf-tiempo-real`',
+          '`/libras-netas-proceso` (`-dia` / `-mes`) · `/iqf-libras-hora-dia` · `/iqf-libras-hora-mes` · `/iqf-tiempo-real` · `/iqf-horas-trabajadas` · `/iqf-horas-trabajadas-mes`',
+          'Rutas bajo `/api/dashboard/`. Horas Diario devuelve `{ periodo: YYYY-MM-DD, linea, horas }`; Mensual `{ periodo: YYYY-MM, linea, horas }`. Mensual admite `meses` de 1 a 36, predeterminado 12, con ventana desde el primer día del mes más antiguo hasta hoy. Valida las fechas aunque no las use para elegir la ventana; respeta turno.',
+          'Horas: caché de reporte de 5 min por fechas/turno en Diario y por meses/turno en Mensual; `refresh=true` fuerza renovación. El navegador consulta cada 5 min.',
           'Permiso backend: `requirePermission(\'iqf\')`.',
-          'Archivos: `backend/src/services/reports.queries.ts`, `dashboard.service.ts`; front `frontend/src/pages/DashboardPage.tsx`.',
+          'Archivos: `backend/src/services/reports.queries.ts`, `dashboard.service.ts`; front `frontend/src/pages/DashboardPage.tsx`, `frontend/src/components/charts/ChartWidget.tsx` e `IqfWorkedHoursTable.tsx`.',
         ],
       },
       ARQUITECTURA_COMUN,

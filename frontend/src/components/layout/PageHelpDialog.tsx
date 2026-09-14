@@ -77,10 +77,14 @@ const PAGE_HELP: Record<DashboardView, PageHelp> = {
   },
   dashboard: {
     title: 'IQF',
-    purpose: 'Resume la producción congelada y el rendimiento por hora de las líneas IQF.',
+    purpose: 'Resume la producción congelada, el rendimiento por hora y las horas trabajadas por IQF.',
     sections: [
       { title: 'Contadores actuales', body: 'Muestran la actividad IQF disponible para el día en curso y sirven como lectura rápida de la operación.' },
       { title: 'Libras congeladas netas', body: 'Agrupa las libras por tipo de proceso. Excluye FRESH TAIL, porque corresponde a compra de materia prima, y reempaque, para evitar mezclar movimientos que no representan congelación neta nueva.' },
+      { title: 'Seleccionar reporte diario o mensual', body: 'Cada tarjeta tiene una lista desplegable ajustada al ancho del texto. En la diaria puedes elegir “Rendimientos IQF x Hora — Diario” o “Horas Trabajadas por IQF — Diario”; en la mensual, “Rendimientos IQF x Hora — Mensual” o “Horas Trabajadas por IQF — Mensual”. Las selecciones son independientes. Diario respeta Desde, Hasta y Turno. Mensual usa los últimos 12 meses hasta hoy y el turno seleccionado; no cambia con Desde/Hasta y el mes actual puede estar incompleto.' },
+      { title: 'Vistas de los dos indicadores', body: 'Rendimientos y Horas tienen los mismos botones: Tabla y Gráfica en Diario; Tabla, Gráfica y Tendencia en Mensual. Cambiar el indicador conserva la vista elegida. Las gráficas de rendimiento muestran libras por hora; las de horas muestran horas decimales del día o acumuladas del mes.' },
+      { title: 'Horas trabajadas por IQF', body: 'Se calculan entre la primera y la última lectura de cada turno y se suman por equipo y día. En Mensual se suman las horas de los días del mes. Solo se incluyen turnos con más de 15 minutos entre lecturas; no se descuentan pausas. Son horas decimales: 7.60 equivale a 7 horas y 36 minutos.' },
+      { title: 'Totales y promedios de horas', body: 'En Tabla aparecen los equipos en columnas y cada día o mes en filas. La columna “Promedio por día/mes” muestra la media entre los IQF con registro en esa fila. Al pie se muestran el total del período y el promedio diario o mensual de cada equipo, además del promedio general de todas las celdas con registro. El pie de la columna Promedio es la media de los promedios de las filas. Las celdas sin registro se muestran con — y se excluyen de los promedios; no equivalen a un cero medido.' },
       { title: 'Rendimiento por hora', body: 'Compara el promedio de libras por hora por línea IQF. La vista diaria usa el rango seleccionado; la mensual muestra los últimos 12 meses. La línea SAL se excluye porque no corresponde a una línea IQF comparable.' },
     ],
   },

@@ -12,6 +12,7 @@
     "migrate:prod": "node dist/database/migrate.js"
   },
   "dependencies": {
+    "@azure/msal-node": "^6.0.0",
     "axios": "^1.18.1",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",

@@ -35,6 +35,7 @@ import AcUnitOutlinedIcon from '@mui/icons-material/AcUnitOutlined';
 import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import DataObjectIcon from '@mui/icons-material/DataObject';
+import BarChartOutlinedIcon from '@mui/icons-material/BarChartOutlined';
 import { AuthUser } from '../../types/auth';
 import AiAssistantPanel from '../ai/AiAssistantPanel';
 import { useRefreshDashboard } from '../../hooks/useDashboardData';
@@ -51,6 +52,7 @@ export type DashboardView =
   | 'dashboard'
   | 'exportaciones'
   | 'inventory'
+  | 'power-bi'
   | 'users';
 
 interface DashboardLayoutProps {
@@ -224,6 +226,20 @@ export default function DashboardLayout({
             </ListItemButton>
           </Tooltip>
         )}
+        {tienePermiso(user, 'power_bi') && (
+          <Tooltip title={expanded ? '' : 'Power BI'} placement="right">
+            <ListItemButton
+              selected={currentView === 'power-bi'}
+              onClick={() => navigate('power-bi')}
+              sx={{ minHeight: 42, px: 1.25, borderRadius: 1, mb: 0.5 }}
+            >
+              <ListItemIcon sx={{ minWidth: expanded ? 36 : 0, justifyContent: 'center' }}>
+                <BarChartOutlinedIcon fontSize="small" />
+              </ListItemIcon>
+              {expanded && <ListItemText primary="Power BI" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
+            </ListItemButton>
+          </Tooltip>
+        )}
         {tienePermiso(user, 'usuarios') && (
           <Tooltip title={expanded ? '' : 'Usuarios'} placement="right">
             <ListItemButton
@@ -285,7 +301,7 @@ export default function DashboardLayout({
               ESF Seafood
             </Typography>
           </Stack>
-          {currentView !== null && currentView !== 'users' && currentView !== 'inventory' && (
+          {currentView !== null && currentView !== 'users' && currentView !== 'inventory' && currentView !== 'power-bi' && (
             <Button
               size="small"
               variant="outlined"

@@ -147,6 +147,8 @@ Si SQL Server corre en la máquina anfitriona, `DB_SERVER=host.docker.internal`
 | `AI_BASE_URL`                 | URL base compatible con OpenAI       | `https://integrate.api.nvidia.com/v1` |
 | `AI_MODEL`                    | Modelo NVIDIA usado por el asistente | `nvidia/llama-3.3-nemotron-super-49b-v1.5` |
 | `AI_CONTEXT_PATH`             | Ruta del contexto Markdown de la BD  | Detección automática en desarrollo |
+| `POWERBI_TENANT_ID` / `POWERBI_CLIENT_ID` / `POWERBI_CLIENT_SECRET` | Credenciales de la aplicación de Microsoft Entra | — |
+| `POWERBI_WORKSPACE_ID` / `POWERBI_REPORT_ID` | IDs del área de trabajo y reporte de Power BI | — |
 
 ### Frontend (`frontend/.env`)
 

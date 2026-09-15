@@ -75,4 +75,9 @@ export const env = {
   AI_BASE_URL: process.env.AI_BASE_URL ?? 'https://integrate.api.nvidia.com/v1',
   AI_MODEL: process.env.AI_MODEL ?? 'nvidia/llama-3.3-nemotron-super-49b-v1.5',
   AI_CONTEXT_PATH: process.env.AI_CONTEXT_PATH ?? '',
+  POWERBI_TENANT_ID: process.env.POWERBI_TENANT_ID ?? '',
+  POWERBI_CLIENT_ID: process.env.POWERBI_CLIENT_ID ?? '',
+  POWERBI_CLIENT_SECRET: process.env.POWERBI_CLIENT_SECRET ?? '',
+  POWERBI_WORKSPACE_ID: process.env.POWERBI_WORKSPACE_ID ?? '',
+  POWERBI_REPORT_ID: process.env.POWERBI_REPORT_ID ?? '',
 };

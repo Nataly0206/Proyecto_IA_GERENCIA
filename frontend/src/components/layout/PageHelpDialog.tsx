@@ -107,6 +107,14 @@ const PAGE_HELP: Record<DashboardView, PageHelp> = {
       { title: 'Peso y cantidad serial', body: 'Peso kilos suma el peso disponible; cantidad serial cuenta las unidades o seriales asociados. Los nombres de clientes e items permiten identificar a qué producto corresponde el saldo.' },
     ],
   },
+  'power-bi': {
+    title: 'Power BI',
+    purpose: 'Muestra el reporte corporativo de Power BI dentro del dashboard, sin solicitar un inicio de sesión adicional en Microsoft.',
+    sections: [
+      { title: 'Navegación', body: 'Usa las pestañas del reporte y sus controles internos para cambiar de página, explorar visualizaciones y aplicar filtros.' },
+      { title: 'Filtros', body: 'El panel de filtros puede expandirse u ocultarse desde el propio reporte. Los datos y permisos disponibles son administrados en Power BI.' },
+    ],
+  },
   users: {
     title: 'Usuarios',
     purpose: 'Administra quién puede entrar al dashboard y qué secciones puede consultar.',

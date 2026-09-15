@@ -417,6 +417,27 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
     ],
   },
 
+  'power-bi': {
+    title: 'Power BI',
+    summary: 'Reporte de Power BI Embedded mediante el esquema App Owns Data; las credenciales de Microsoft permanecen exclusivamente en el backend.',
+    blocks: [
+      {
+        heading: 'Autenticación y token',
+        bullets: [
+          '`backend/src/services/powerbi.service.ts` usa MSAL Client Credentials con el scope `https://analysis.windows.net/powerbi/api/.default`.',
+          '`GET /api/powerbi/embed-token` está protegido por sesión y `requirePermission(\'power_bi\')`; devuelve únicamente el embed token, embed URL e ID del reporte.',
+          'El backend consulta los metadatos del reporte y llama a `GenerateToken` con `accessLevel: View`. Las credenciales nunca se incluyen en el bundle de React.',
+        ],
+      },
+      {
+        heading: 'Renderizado',
+        bullets: [
+          '`frontend/src/components/powerbi/PowerBIReportContainer.tsx` obtiene la configuración mediante el cliente API compartido y renderiza `PowerBIEmbed` con `TokenType.Embed`.',
+          'El iframe ocupa el 100% del panel; el panel de filtros está disponible contraído y la navegación de páginas permanece visible.',
+        ],
+      },
+    ],
+  },
   users: {
     title: 'Usuarios',
     summary: 'Administración de accesos y permisos del dashboard. Fuente: base de autenticación del dashboard (tablas propias `dashboard_*`).',

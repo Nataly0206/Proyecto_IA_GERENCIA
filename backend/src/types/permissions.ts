@@ -13,6 +13,7 @@ export const PERMISOS = [
   'iqf',
   'exportaciones',
   'inventario',
+  'power_bi',
   'usuarios',
   'asistente_ia',
   'detalles_desarrollador',

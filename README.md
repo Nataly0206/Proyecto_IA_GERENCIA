@@ -149,7 +149,6 @@ Si SQL Server corre en la máquina anfitriona, `DB_SERVER=host.docker.internal`
 | `AI_CONTEXT_PATH`             | Ruta del contexto Markdown de la BD  | Detección automática en desarrollo |
 | `POWERBI_TENANT_ID` / `POWERBI_CLIENT_ID` / `POWERBI_CLIENT_SECRET` | Credenciales de la aplicación de Microsoft Entra | — |
 | `POWERBI_WORKSPACE_ID` / `POWERBI_REPORT_ID` | IDs del área de trabajo y reporte de Power BI | — |
-| `POWERBI_DEBUG_ERRORS` | Expone temporalmente detalles del proveedor para diagnóstico | `false` |
 
 ### Frontend (`frontend/.env`)
 

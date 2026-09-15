@@ -30,11 +30,20 @@ function getPowerBIConfig(): {
   if (Object.values(config).some((value) => !value)) {
     throw new ApiError(503, 'La integración de Power BI todavía no está configurada.');
   }
+
+  const guidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const invalidIds = Object.entries(config)
+    .filter(([key, value]) => key !== 'clientSecret' && !guidPattern.test(value))
+    .map(([key]) => key);
+  if (invalidIds.length > 0) {
+    throw new ApiError(503, `La configuración de Power BI contiene identificadores inválidos: ${invalidIds.join(', ')}. Deben ser GUID sin partes adicionales de la URL.`);
+  }
   return config;
 }
 
 export async function generatePowerBIEmbedConfig(): Promise<PowerBIEmbedConfig> {
   const config = getPowerBIConfig();
+  let stage = 'Autenticación con Microsoft Entra ID';
   const msalClient = new ConfidentialClientApplication({
     auth: {
       clientId: config.clientId,
@@ -53,14 +62,14 @@ export async function generatePowerBIEmbedConfig(): Promise<PowerBIEmbedConfig> 
 
     const headers = { Authorization: `Bearer ${authResult.accessToken}` };
     const reportUrl = `${POWERBI_API}/groups/${encodeURIComponent(config.workspaceId)}/reports/${encodeURIComponent(config.reportId)}`;
-    const [reportResponse, tokenResponse] = await Promise.all([
-      axios.get<{ embedUrl: string }>(reportUrl, { headers, timeout: 15_000 }),
-      axios.post<{ token: string }>(
-        `${reportUrl}/GenerateToken`,
-        { accessLevel: 'View' },
-        { headers, timeout: 15_000 },
-      ),
-    ]);
+    stage = 'Consulta de metadatos del reporte';
+    const reportResponse = await axios.get<{ embedUrl: string }>(reportUrl, { headers, timeout: 15_000 });
+    stage = 'Generación del Embed Token';
+    const tokenResponse = await axios.post<{ token: string }>(
+      `${reportUrl}/GenerateToken`,
+      { accessLevel: 'View' },
+      { headers, timeout: 15_000 },
+    );
 
     if (!reportResponse.data.embedUrl || !tokenResponse.data.token) {
       throw new ApiError(502, 'Power BI devolvió una respuesta incompleta.');
@@ -79,11 +88,18 @@ export async function generatePowerBIEmbedConfig(): Promise<PowerBIEmbedConfig> 
       ? error.response?.data ?? error.message
       : error instanceof Error ? error.message : String(error);
 
-    console.error('ERROR POWERBI DETALLADO:', providerDetails);
+    const diagnostic = {
+      etapa: stage,
+      estadoHttpMicrosoft: status,
+      codigo: isAxiosError ? error.code : undefined,
+      mensaje: isAxiosError ? error.message : providerDetails,
+      respuestaMicrosoft: providerDetails,
+    };
+    console.error('ERROR POWERBI DETALLADO:', diagnostic);
     throw new ApiError(
       502,
       'No fue posible obtener el reporte de Power BI. Verifica la configuración y los permisos del servicio.',
-      env.POWERBI_DEBUG_ERRORS ? { providerStatus: status, providerResponse: providerDetails } : undefined,
+      diagnostic,
     );
   }
 }

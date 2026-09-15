@@ -80,5 +80,4 @@ export const env = {
   POWERBI_CLIENT_SECRET: process.env.POWERBI_CLIENT_SECRET ?? '',
   POWERBI_WORKSPACE_ID: process.env.POWERBI_WORKSPACE_ID ?? '',
   POWERBI_REPORT_ID: process.env.POWERBI_REPORT_ID ?? '',
-  POWERBI_DEBUG_ERRORS: (process.env.POWERBI_DEBUG_ERRORS ?? 'false') === 'true',
 };

@@ -2,7 +2,7 @@
 
 Este documento es una guía independiente para ubicar, interpretar y consultar los datos del Dashboard Gerencial. Incluye la ubicación en pantalla, el comportamiento de los filtros, las fuentes SQL, las fórmulas y ejemplos de consultas. No requiere leer otra documentación ni el código para usarlo.
 
-**Alcance:** los ocho módulos de datos: IQF, Pelado, Recepción, Descabezado, Clasificado, Exportaciones, Compra de Materia Prima e Inventario. Las funciones descritas corresponden al código revisado el 14 de septiembre de 2026; la mayoría de los indicadores se revisaron desde el código. Las horas IQF del 1 al 15 de enero de 2026 sí se verificaron contra PlantaEmpacadora, como se detalla en su sección.
+**Alcance:** los ocho módulos de datos: IQF, Pelado, Recepción, Descabezado, Clasificado, Exportaciones, Compra de Materia Prima e Inventario. Las funciones descritas corresponden al código revisado el 15 de septiembre de 2026; la mayoría de los indicadores se revisaron desde el código. Las horas IQF del 1 al 15 de enero de 2026 sí se verificaron contra PlantaEmpacadora, como se detalla en su sección.
 
 ## Propuesta de menú de consulta rápida por módulo
 
@@ -176,7 +176,7 @@ GROUP BY GROUPING SETS (
 ORDER BY EsTotal, Fecha, IQF;
 ```
 
-Para mostrarlo como tabla pivote: Fecha en filas, IQF en columnas y HorasTrabajadas en valores; las filas `EsTotal = 1` son los totales por equipo. Si se requiere un turno, filtrar `Turno` en HorasPorTurno antes de sumar.
+El SQL de referencia incluye `EsTotal = 1` únicamente para demostrar que los valores reproducen los totales de la imagen usada en la verificación. La pantalla actual no muestra esa fila de total: presenta fecha o mes en filas, IQF en columnas, una columna Promedio y una fila Promedio diario/mensual. Si se requiere un turno en SQL, filtrar `Turno` dentro de `HorasPorTurno` antes de agregar.
 
 ### Caso: «Quiero las libras congeladas netas por proceso del día X»
 
@@ -368,7 +368,7 @@ se hace en varios reportes después en TypeScript (`backend/src/services/*.servi
 | --- | --- | --- | --- |
 | Libras congeladas netas por proceso | `dbo.AV_Produccion_Diaria_Resumen` | `SUM(PesoLibras)` agrupado por `NombreTipoProceso`+`Turno`, filtrando `VaEjecutivo=1, ProcesadaPlanta=1, fkTipo NOT IN (2,4)` (excluye RE-EMPAQUE y FRESH TAIL/materia prima) | `GET /libras-netas-proceso` (`-dia`, `-mes`) |
 | Rendimiento IQF (libras/hora) por línea | `dbo.AV_Produccion_Diaria_2020` + `dbo.EquiposIQF` (nombre de equipo) | Por grupo línea/estilo/turno/día: `SUM(PesoLibras) / horas trabajadas`; el valor final de cada celda es el **promedio simple** de esos rendimientos por grupo (no libras totales ÷ horas totales); se descartan grupos con ≤15 min de trabajo; línea `SAL` excluida | `GET /iqf-libras-hora-dia` (`-mes`) |
-| Horas trabajadas por IQF — Diario, totales y promedios | `dbo.AV_Produccion_Diaria_2020` (SELECT equivalente al SP `a_Fill_Produccion_Diaria_lectura_dos`, modo 30) | Horas entre primera/última lectura por equipo/día/turno, grupos >15 min y `fkTipo < 4`; sumar turnos. Respeta fechas y turno; promedios sobre celdas válidas | `GET /iqf-horas-trabajadas` |
+| Horas trabajadas por IQF — Diario y Mensual, con promedios | `dbo.AV_Produccion_Diaria_2020` (SELECT equivalente al SP `a_Fill_Produccion_Diaria_lectura_dos`, modo 30) | Horas entre primera/última lectura por equipo/día/turno, grupos >15 min y `fkTipo < 4`; sumar turnos. Respeta fechas y turno; promedios sobre celdas válidas | `GET /iqf-horas-trabajadas` |
 | Contador en vivo por línea IQF (hoy) | `dbo.AV_Produccion_Diaria_2020`, día en curso | `SUM(PesoLibras)` por `LineaEquipoIQF`; "activa" si tuvo caja en los últimos 15 min | `GET /iqf-tiempo-real` |
 
 `fkTipo`: 0=RECEPCIÓN (producción), 1=REPROCESO, 2=RE-EMPAQUE (excluido de netas), 4=REGISTRO FRESCO/FRESH TAIL (excluido, es compra de materia prima).

@@ -4,6 +4,7 @@ import RefreshOutlinedIcon from '@mui/icons-material/RefreshOutlined';
 import { PowerBIEmbed } from 'powerbi-client-react';
 import { models } from 'powerbi-client';
 import { apiClient } from '../../api/client';
+import axios from 'axios';
 
 interface EmbedConfigResponse {
   accessToken: string;
@@ -22,9 +23,13 @@ export default function PowerBIReportContainer() {
     try {
       const { data } = await apiClient.get<EmbedConfigResponse>('/powerbi/embed-token');
       setConfig(data);
-    } catch {
+    } catch (requestError) {
       setConfig(null);
-      setError('No se pudo conectar con Power BI. Verifica la configuración o intenta nuevamente.');
+      const response = axios.isAxiosError(requestError)
+        ? requestError.response?.data as { error?: string; details?: unknown } | undefined
+        : undefined;
+      const detail = response?.details ? `\n\nDetalle técnico:\n${JSON.stringify(response.details, null, 2)}` : '';
+      setError(`${response?.error ?? 'No se pudo conectar con Power BI. Verifica la configuración o intenta nuevamente.'}${detail}`);
     } finally {
       setLoading(false);
     }
@@ -47,7 +52,7 @@ export default function PowerBIReportContainer() {
         <Alert
           severity="error"
           action={<Button color="inherit" startIcon={<RefreshOutlinedIcon />} onClick={() => void loadReport()}>Reintentar</Button>}
-          sx={{ maxWidth: 720 }}
+          sx={{ maxWidth: 720, whiteSpace: 'pre-wrap' }}
         >
           {error}
         </Alert>

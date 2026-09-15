@@ -73,8 +73,17 @@ export async function generatePowerBIEmbedConfig(): Promise<PowerBIEmbedConfig> 
     };
   } catch (error) {
     if (error instanceof ApiError) throw error;
-    const status = error instanceof AxiosError ? error.response?.status : undefined;
-    console.error(`[powerbi] Error del proveedor${status ? ` (${status})` : ''}.`);
-    throw new ApiError(502, 'No fue posible obtener el reporte de Power BI. Verifica la configuración y los permisos del servicio.');
+    const isAxiosError = error instanceof AxiosError;
+    const status = isAxiosError ? error.response?.status : undefined;
+    const providerDetails = isAxiosError
+      ? error.response?.data ?? error.message
+      : error instanceof Error ? error.message : String(error);
+
+    console.error('ERROR POWERBI DETALLADO:', providerDetails);
+    throw new ApiError(
+      502,
+      'No fue posible obtener el reporte de Power BI. Verifica la configuración y los permisos del servicio.',
+      env.POWERBI_DEBUG_ERRORS ? { providerStatus: status, providerResponse: providerDetails } : undefined,
+    );
   }
 }

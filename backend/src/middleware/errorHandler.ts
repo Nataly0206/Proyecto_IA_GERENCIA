@@ -5,6 +5,7 @@ export class ApiError extends Error {
   constructor(
     public statusCode: number,
     message: string,
+    public details?: unknown,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -31,6 +32,7 @@ export function errorHandler(
   console.error(`[api] ${err.name}: ${err.message}`);
   res.status(status).json({
     error: status === 500 ? 'Error interno del servidor' : err.message,
+    details: err instanceof ApiError ? err.details : undefined,
     // El detalle crudo (posibles nombres de tabla/columna, mensajes de
     // driver SQL) solo se expone fuera de producción, nunca al cliente real.
     detail: status === 500 && env.NODE_ENV !== 'production' ? err.message : undefined,

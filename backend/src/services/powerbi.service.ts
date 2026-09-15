@@ -99,7 +99,6 @@ export async function generatePowerBIEmbedConfig(): Promise<PowerBIEmbedConfig> 
     throw new ApiError(
       502,
       'No fue posible obtener el reporte de Power BI. Verifica la configuración y los permisos del servicio.',
-      diagnostic,
     );
   }
 }

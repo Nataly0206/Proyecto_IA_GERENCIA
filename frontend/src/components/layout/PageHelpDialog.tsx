@@ -27,11 +27,11 @@ type PageHelp = {
 const PAGE_HELP: Record<DashboardView, PageHelp> = {
   'compra-materia-prima': {
     title: 'Compra de materia prima',
-    purpose: 'Resume cuánta materia prima (camarón entero) ha entrado a planta y cómo se reparte por proveedor, mes y gramaje.',
+    purpose: 'Resume la materia prima recibida en libras WSO, su equivalente entero y cómo se reparte por proveedor, mes y talla.',
     sections: [
-      { title: 'Indicadores de hoy, semana y mes', body: 'Muestran las libras recibidas hoy, en la semana, en lo que va del mes y el promedio por semana (libras del mes ÷ número de semanas transcurridas). Estos contadores no cambian con el filtro de fechas.' },
-      { title: 'Materia prima por proveedor', body: 'Tarjetas con las libras recibidas por proveedor en el rango de fechas seleccionado.' },
-      { title: 'Materia Prima por Proveedor/Gramaje — Mensual', body: 'Una sola tarjeta con las libras recibidas en los últimos 3 meses con datos, agrupadas por mes y, a elección, por proveedor o por gramaje (talla del camarón, ej. "51/60") — usa el selector Proveedor/Gramaje para cambiar. Tiene vista de tabla, gráfica comparativa y gráfica de tendencia. El botón "Proveedores" abre una lista de casillas para elegir cuáles se muestran; esa selección se guarda en este navegador para tu usuario.' },
+      { title: 'Indicadores WSO de hoy, semana y mes', body: 'Muestran libras WSO de la última fecha registrada, su semana, su mes y el promedio WSO por semana (libras WSO del mes ÷ semanas transcurridas). No son libras enteras equivalentes y no cambian con el filtro de fechas.' },
+      { title: 'Materia prima por proveedor — WSO y Entero', body: 'Hay una sola fila de tarjetas y una tarjeta por proveedor. Dentro de cada tarjeta aparecen lado a lado las libras WSO registradas y su equivalente Entero (WSO ÷ 0.65), con un único porcentaje del total y color compartido. La tarjeta TOTAL usa el mismo formato. El botón Ver detalle abre la matriz proveedor × talla.' },
+      { title: 'Materia Prima por Proveedor/Talla — Mensual', body: 'Muestra libras WSO de los últimos 3 meses con datos. El selector Proveedor/Talla cambia la agrupación. Tiene tabla, gráfica comparativa mensual y embudo; el embudo ordena de mayor a menor el total acumulado de esos 3 meses por proveedor o talla. El botón Proveedores elige cuáles participan y guarda la selección para tu usuario.' },
       { title: 'Detalle de Materia Prima por Talla', body: 'Tabla cruzada con una fila por proveedor y una columna por talla. Incluye el total de cada proveedor, el total de cada talla y el total general. Responde al rango de fechas del filtro.' },
     ],
     dataNote: 'Los nombres que aparecen aquí corresponden a proveedores registrados en las fuentes operativas; se muestran para dar trazabilidad a las compras de materia prima.',

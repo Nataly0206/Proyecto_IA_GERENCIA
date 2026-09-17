@@ -216,5 +216,6 @@ export const compraMpWidgets: ChartConfig[] = [
     valueFormat: 'number',
     unitLabel: 'lbs de materia prima',
     showTotalCard: true,
+    colorByLabel: true,
   },
 ];

@@ -19,7 +19,7 @@ import {
 import PeopleAltOutlinedIcon from '@mui/icons-material/PeopleAltOutlined';
 import TableChartOutlinedIcon from '@mui/icons-material/TableChartOutlined';
 import InsertChartOutlinedIcon from '@mui/icons-material/InsertChartOutlined';
-import TimelineOutlinedIcon from '@mui/icons-material/TimelineOutlined';
+import FilterAltOutlinedIcon from '@mui/icons-material/FilterAltOutlined';
 import { ChartConfig, CompraMpMateriaPrimaRow, DataRow } from '../../types';
 import { useWidgetData } from '../../hooks/useDashboardData';
 import PivotTable from './PivotTable';
@@ -29,7 +29,7 @@ import ErrorBoundary from '../ErrorBoundary';
 const STORAGE_KEY = 'compra-mp-proveedores-ocultos:v1';
 
 type Dimension = 'proveedor' | 'gramaje';
-type ViewMode = 'chart' | 'table' | 'trend';
+type ViewMode = 'chart' | 'table' | 'funnel';
 
 function readHidden(userId: string): Set<string> {
   try {
@@ -42,8 +42,8 @@ function readHidden(userId: string): Set<string> {
 }
 
 /**
- * Tarjeta única de "Materia Prima por Proveedor/Gramaje — Mensual": libras
- * recibidas por año/mes/gramaje/proveedor, con un selector de proveedores
+ * Tarjeta única de "Materia Prima por Proveedor/Talla — Mensual": libras
+ * recibidas por año/mes/talla/proveedor, con un selector de proveedores
  * (checklist persistida en localStorage por usuario) que decide qué
  * proveedores se dibujan. Ventana fija de 3 meses (endpoint
  * `compra-mp-materia-prima`, independiente del filtro de fechas). Antes
@@ -54,7 +54,7 @@ function readHidden(userId: string): Set<string> {
  * A diferencia de los demás widgets, no usa <ChartWidget /> porque necesita
  * filtrar y re-agregar los datos en el navegador antes de graficar (el
  * filtro de proveedores debe aplicar tanto agrupando por proveedor como
- * por gramaje) — renderiza PivotTable/DynamicChart directamente, igual que
+ * por talla) — renderiza PivotTable/DynamicChart directamente, igual que
  * hace ChartWidget internamente.
  */
 export default function MateriaPrimaProveedorWidget({ userId, height }: { userId: string; height?: number }) {
@@ -104,20 +104,28 @@ export default function MateriaPrimaProveedorWidget({ userId, height }: { userId
     return Array.from(map.values()).map((c) => ({ ...c, libras: Number(c.libras.toFixed(2)) }));
   }, [rows, hidden, dimension]);
 
-  const dimensionLabel = dimension === 'proveedor' ? 'Proveedor' : 'Gramaje';
+  const funnelRows: DataRow[] = useMemo(() => {
+    const totals = new Map<string, number>();
+    for (const row of chartRows) totals.set(String(row.serie), (totals.get(String(row.serie)) ?? 0) + Number(row.libras));
+    return [...totals].map(([serie, libras]) => ({ serie, libras: Number(libras.toFixed(2)) }));
+  }, [chartRows]);
+
+  const dimensionLabel = dimension === 'proveedor' ? 'Proveedor' : 'Talla';
   const baseConfig: ChartConfig = {
     id: 'compra-mp-materia-prima',
-    type: view === 'table' ? 'table' : view === 'trend' ? 'line' : 'column',
+    type: view === 'table' ? 'table' : view === 'funnel' ? 'funnel' : 'column',
     title: `Materia Prima por ${dimensionLabel} — Mensual`,
-    subtitle: 'Últimos 3 meses · desglosado por año, mes y gramaje · fuente: AV_MateriaPrima',
+    subtitle: view === 'funnel' ? `Embudo · total WSO de los últimos 3 meses con datos por ${dimensionLabel.toLowerCase()}` : `Últimos 3 meses con datos · libras WSO por mes y ${dimensionLabel.toLowerCase()} · fuente: AV_MateriaPrima`,
     endpoint: 'compra-mp-materia-prima',
-    xField: 'periodo',
+    xField: view === 'funnel' ? 'serie' : 'periodo',
     xLabel: 'Mes',
     yField: 'libras',
-    seriesField: 'serie',
+    seriesField: view === 'funnel' ? undefined : 'serie',
     totalAggregation: 'sum',
     valueFormat: 'number',
+    unitLabel: 'lbs WSO',
     height,
+    colorByLabel: true,
   };
 
   return (
@@ -150,7 +158,7 @@ export default function MateriaPrimaProveedorWidget({ userId, height }: { userId
               sx={{ '& .MuiToggleButton-root': { px: 1.25, py: 0.5, fontSize: 11, fontWeight: 700, lineHeight: 1 } }}
             >
               <ToggleButton value="proveedor" aria-label="Por proveedor">Proveedor</ToggleButton>
-              <ToggleButton value="gramaje" aria-label="Por gramaje">Gramaje</ToggleButton>
+              <ToggleButton value="gramaje" aria-label="Por talla">Talla</ToggleButton>
             </ToggleButtonGroup>
             <ToggleButtonGroup
               size="small"
@@ -165,8 +173,8 @@ export default function MateriaPrimaProveedorWidget({ userId, height }: { userId
               <ToggleButton value="chart" aria-label="Vista de gráfica">
                 <Tooltip title="Gráfica comparativa"><InsertChartOutlinedIcon sx={{ fontSize: 14 }} /></Tooltip>
               </ToggleButton>
-              <ToggleButton value="trend" aria-label="Vista de tendencia">
-                <Tooltip title="Gráfica de tendencia"><TimelineOutlinedIcon sx={{ fontSize: 14 }} /></Tooltip>
+              <ToggleButton value="funnel" aria-label="Vista de embudo">
+                <Tooltip title="Gráfica de embudo"><FilterAltOutlinedIcon sx={{ fontSize: 14 }} /></Tooltip>
               </ToggleButton>
             </ToggleButtonGroup>
           </Stack>
@@ -235,7 +243,7 @@ export default function MateriaPrimaProveedorWidget({ userId, height }: { userId
               {view === 'table' ? (
                 <PivotTable config={baseConfig} data={chartRows} />
               ) : (
-                <DynamicChart config={baseConfig} data={chartRows} />
+                <DynamicChart config={baseConfig} data={view === 'funnel' ? funnelRows : chartRows} />
               )}
             </Box>
           </ErrorBoundary>

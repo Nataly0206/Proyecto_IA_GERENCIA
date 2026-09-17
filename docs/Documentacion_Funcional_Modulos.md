@@ -2,7 +2,7 @@
 
 Este documento es una guía independiente para ubicar, interpretar y consultar los datos del Dashboard Gerencial. Incluye la ubicación en pantalla, el comportamiento de los filtros, las fuentes SQL, las fórmulas y ejemplos de consultas. No requiere leer otra documentación ni el código para usarlo.
 
-**Alcance:** los ocho módulos de datos: IQF, Pelado, Recepción, Descabezado, Clasificado, Exportaciones, Compra de Materia Prima e Inventario. Las funciones descritas corresponden al código revisado el 15 de septiembre de 2026; la mayoría de los indicadores se revisaron desde el código. Las horas IQF del 1 al 15 de enero de 2026 sí se verificaron contra PlantaEmpacadora, como se detalla en su sección.
+**Alcance:** los ocho módulos de datos: IQF, Pelado, Recepción, Descabezado, Clasificado, Exportaciones, Compra de Materia Prima e Inventario. Las funciones descritas corresponden al código revisado el 16 de septiembre de 2026; la mayoría de los indicadores se revisaron desde el código. Las horas IQF del 1 al 15 de enero de 2026 sí se verificaron contra PlantaEmpacadora, como se detalla en su sección.
 
 ## Propuesta de menú de consulta rápida por módulo
 
@@ -239,11 +239,10 @@ Para límites por categoría o valor numérico, indicar el criterio sobre la res
 | Exportaciones | **Libras Exportadas por Estilo** y **Contenedores Exportados — Detalle** | Sí | No | Libras por estilo; detalle de contenedor, estilo y cliente |
 | Exportaciones | **Exportaciones — Semana en curso** | No | No | Lunes a domingo de la semana actual |
 | Exportaciones | **Contenedores Exportados por Cliente — Mensual** | No | No | Últimos 6 meses |
-| Compra de Materia Prima | **Materia Prima por Proveedor WSO** | Sí | No | Libras registradas por proveedor |
+| Compra de Materia Prima | **Materia Prima por Proveedor — WSO y Entero** | Sí | No | Una tarjeta por proveedor: WSO y equivalente Entero lado a lado, porcentaje compartido |
 | Compra de Materia Prima | **Ver Detalle** → **Detalle de Materia Prima por Talla** | Sí | No | Cruce proveedor × talla |
-| Compra de Materia Prima | **Materia Prima por Proveedor Entero** | Sí | No | Equivalente calculado: WSO ÷ 0.65 |
-| Compra de Materia Prima | **Materia Prima por Proveedor — Mensual**, selector Proveedor/Gramaje | No | No | Últimos 3 meses con datos; selección local de proveedores |
-| Compra de Materia Prima | **Materia Prima — Semana y mes en curso**, contadores | No | No | Se anclan a la última fecha registrada, limitada a hoy |
+| Compra de Materia Prima | **Materia Prima por Proveedor/Talla — Mensual**, selector Proveedor/Talla | No | No | Últimos 3 meses con datos; selección local de proveedores |
+| Compra de Materia Prima | **Materia Prima WSO — Día, semana y mes**, contadores | No | No | Libras WSO; se anclan a la última fecha registrada, limitada a hoy |
 | Inventario | Tabla pivote, columnas **Peso kilos** y **Cantidad serial** | No | No | Existencias actuales; filtros propios por valores de columnas |
 
 **Disponibilidad en API y en pantalla:** Pelado tiene endpoints diarios, mensuales y de personal, pero la página actual solo monta los bloques de hoy, estilo, talla y sala. No indicar al usuario que existe un selector diario/mensual o una tarjeta histórica de personal en esa página. Esos datos se consultan por API. Compra de Materia Prima también tiene un endpoint por item que no está montado como bloque en la página actual.
@@ -459,20 +458,26 @@ todavía no se ha despachado (no tiene `FkEnvio`). Este saldo no equivale a comp
 
 ## 7. Compra de materia prima
 
-**Qué responde:** camarón entero recibido en la semana/mes en curso, y
-su desglose por mes, gramaje y proveedor. Base: `PlantaEmpacadora`. Sin turno.
+**Qué responde:** materia prima WSO recibida y su equivalente entero, con desglose por proveedor, mes y talla. Base: `PlantaEmpacadora`. Sin turno.
 
 | Dato | Vista/Tabla SQL | Cómo se calcula | Endpoint |
 | --- | --- | --- | --- |
-| Libras recibidas hoy/semana/mes + promedio semanal | vista `dbo.AV_MateriaPrima` (única fuente) | `SUM(PesoLibras)`; "hoy efectivo" = última fecha con filas, limitada a hoy; semana y mes se anclan a esa fecha. Promedio semanal = libras del mes ÷ semanas transcurridas de lunes a domingo, incluyendo semanas parciales | `GET /compra-mp-resumen` |
-| Libras por proveedor (rango) | `dbo.AV_MateriaPrima` | `SUM(PesoLibras)`; proveedor = `NombrePropietario` o, si vacío, `NombreGrupo` | `GET /compra-mp-por-proveedor` |
+| Libras WSO recibidas hoy/semana/mes + promedio WSO semanal | vista `dbo.AV_MateriaPrima` (única fuente) | `SUM(PesoLibras)`; "hoy efectivo" = última fecha con filas, limitada a hoy; semana y mes se anclan a esa fecha. Promedio semanal = libras WSO del mes ÷ semanas transcurridas de lunes a domingo, incluyendo semanas parciales | `GET /compra-mp-resumen` |
+| Libras WSO por proveedor (rango) | `dbo.AV_MateriaPrima` | `SUM(PesoLibras)`; proveedor = `NombrePropietario` o, si vacío, `NombreGrupo` | `GET /compra-mp-por-proveedor` |
+| Equivalente entero por proveedor | Derivado de las libras WSO anteriores | `libras WSO ÷ 0.65`; conversión solo de presentación | `GET /compra-mp-por-proveedor`, transformado en frontend |
 | Por tipo/proveedor/item | `dbo.AV_MateriaPrima` | `SUM(PesoLibras)`, `SUM(CantidadSerial)` agrupado por `TipoMateria`, proveedor, `Item` | `GET /compra-mp-por-item` |
-| Matriz proveedor × talla (gramaje) | `dbo.AV_MateriaPrima` | `SUM(PesoLibras)` por proveedor y `Talla` (gramaje, ej. "51/60") | `GET /compra-mp-por-talla` |
-| Por mes/gramaje/proveedor (últimos 3 meses **con datos**) | `dbo.AV_MateriaPrima` | `SUM(PesoLibras)` agregado por mes+gramaje+proveedor | `GET /compra-mp-materia-prima` |
+| Matriz proveedor × talla | `dbo.AV_MateriaPrima` | `SUM(PesoLibras)` por proveedor y campo `Talla` (ej. "51/60") | `GET /compra-mp-por-talla` |
+| Por mes/talla/proveedor (últimos 3 meses **con datos**) | `dbo.AV_MateriaPrima` | `SUM(PesoLibras)` agregado por mes+talla+proveedor | `GET /compra-mp-materia-prima` |
 
-Nota: NO se usa la tabla `dbo.MateriaPrima` (es de otro dominio —
-liquidación de exportación WSO/embarque— y no tiene el gramaje de
-recepción).
+### Presentación actual del módulo
+
+- Los contadores **Hoy, Semana, Mes y Promedio por semana** son libras **WSO** de `AV_MateriaPrima.PesoLibras`. La interfaz los rotula explícitamente como WSO. No usan la conversión a entero.
+- **Materia Prima por Proveedor — WSO y Entero** es una sola sección y una sola fila de tarjetas. Cada proveedor ocupa una tarjeta con dos columnas: WSO registrado y Entero equivalente (`WSO ÷ 0.65`). Comparte un porcentaje del total y un color; la tarjeta TOTAL sigue el mismo formato. El botón Ver detalle permanece en el encabezado.
+- En **Materia Prima por Proveedor/Talla — Mensual**, el selector visible dice **Proveedor / Talla**. “Talla” corresponde al campo técnico `Talla`, históricamente llamado gramaje en partes internas del código y datos.
+- Sus vistas son **Tabla**, **Gráfica comparativa** y **Embudo**. El embudo reemplaza la antigua gráfica de tendencia lineal: suma los tres meses visibles por proveedor o talla y ordena el total de mayor a menor. Es una comparación de volumen acumulado, no un flujo de conversión entre etapas.
+- El selector de proveedores afecta las tres vistas. El mismo proveedor conserva un color estable en la tarjeta combinada, gráfica comparativa y embudo mediante una asignación basada en su nombre; el color no cambia al variar el orden por libras.
+
+Nota: NO se usa la tabla `dbo.MateriaPrima` (es de otro dominio: liquidación de exportación WSO/embarque, y no tiene la talla de recepción).
 
 ---
 

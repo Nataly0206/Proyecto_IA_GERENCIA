@@ -5,6 +5,7 @@ import type { ApexOptions } from 'apexcharts';
 import { ChartConfig, ChartSort, DataRow } from '../../types';
 import { formatPeriodo, formatValue } from '../../utils/format';
 import { CHART_COLORS } from '../../theme';
+import { categoryColor } from '../../utils/categoryColors';
 import { useFilters } from '../../context/FiltersContext';
 
 interface DynamicChartProps {
@@ -102,6 +103,44 @@ export default function DynamicChart({ config, data }: DynamicChartProps) {
     return <Chart options={options} series={series} type={config.type} height={height} />;
   }
 
+  /* ---- Embudo: total del período por categoría, ordenado de mayor a menor ---- */
+  if (config.type === 'funnel') {
+    const yField = Array.isArray(config.yField) ? config.yField[0] : config.yField;
+    const funnelRows = [...rows].sort((a, b) => Number(b[yField] ?? 0) - Number(a[yField] ?? 0));
+    const labels = funnelRows.map((row) => String(row[config.xField] ?? ''));
+    const funnelColors = config.colorByLabel
+      ? labels.map((label) => categoryColor(label, colors))
+      : labels.map((_label, index) => colors[index % colors.length]);
+    const options: ApexOptions = {
+      chart: { type: 'bar', fontFamily: 'Inter, sans-serif', toolbar: { show: false } },
+      colors: funnelColors,
+      plotOptions: {
+        bar: {
+          horizontal: true,
+          distributed: true,
+          barHeight: '80%',
+          borderRadius: 4,
+          isFunnel: true,
+        },
+      },
+      xaxis: {
+        categories: labels,
+        labels: { formatter: (value: string) => tooltipFormatter(Number(value)) },
+      },
+      yaxis: { labels: { style: { colors: '#64748b', fontSize: isMobile ? '10px' : '12px', fontWeight: 600 } } },
+      dataLabels: {
+        enabled: true,
+        formatter: (value: number, opts) => `${labels[opts.dataPointIndex]}: ${tooltipFormatter(Number(value))}`,
+        style: { fontSize: isMobile ? '10px' : '12px', fontWeight: 700, colors: ['#fff'] },
+        dropShadow: { enabled: false },
+      },
+      legend: { show: false },
+      tooltip: { y: { formatter: tooltipFormatter } },
+      grid: { borderColor: '#e2e8f0' },
+    };
+    return <Chart options={options} series={[{ name: config.unitLabel ?? 'Libras', data: funnelRows.map((row) => Number(row[yField] ?? 0)) }]} type="bar" height={height} />;
+  }
+
   /* ---- type "table" / "cards" se renderizan en otros componentes, no aquí ---- */
   if (config.type === 'table' || config.type === 'cards') return null;
 
@@ -158,6 +197,9 @@ export default function DynamicChart({ config, data }: DynamicChartProps) {
     }));
   }
 
+  const chartColors = config.colorByLabel && config.seriesField
+    ? series.map((item) => categoryColor(item.name, colors))
+    : colors;
   const isHorizontal = config.type === 'bar';
   const apexType = config.type === 'column' ? 'bar' : config.type;
   const isLineLike = config.type === 'line' || config.type === 'area';
@@ -177,7 +219,7 @@ export default function DynamicChart({ config, data }: DynamicChartProps) {
               ? [{
                   seriesIndex,
                   dataPointIndex,
-                  fillColor: colors[seriesIndex % colors.length],
+                  fillColor: chartColors[seriesIndex % chartColors.length],
                   strokeColor: '#ffffff',
                   size: 4,
                 }]
@@ -196,7 +238,7 @@ export default function DynamicChart({ config, data }: DynamicChartProps) {
       toolbar: { show: false },
       zoom: { enabled: isLineLike },
     },
-    colors,
+    colors: chartColors,
     plotOptions: {
       bar: {
         horizontal: isHorizontal,
@@ -230,7 +272,7 @@ export default function DynamicChart({ config, data }: DynamicChartProps) {
       },
     },
     stroke: isLineLike
-      ? { show: true, curve: config.lineCurve ?? 'smooth', width: 3, colors }
+      ? { show: true, curve: config.lineCurve ?? 'smooth', width: 3, colors: chartColors }
       : { show: true, width: 1, colors: ['transparent'] },
     xaxis: config.visibleDatePointsOnly
       ? {

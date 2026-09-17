@@ -6,30 +6,14 @@ import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
 import ProcessFilters from '../components/filters/ProcessFilters';
 import ResumenCards from '../components/live/ResumenCards';
-import ChartWidget from '../components/charts/ChartWidget';
+import MateriaPrimaProveedorCombinedCards from '../components/charts/MateriaPrimaProveedorCombinedCards';
 import MateriaPrimaProveedorWidget from '../components/charts/MateriaPrimaProveedorWidget';
 import MateriaPrimaTallaTable from '../components/charts/MateriaPrimaTallaTable';
 import { useProcesoResumen } from '../hooks/useDashboardData';
-import { ChartConfig, CompraMpResumen, DataRow } from '../types';
+import { CompraMpResumen } from '../types';
 import { formatPeriodo } from '../utils/format';
-import { compraMpWidgets } from '../config/dashboardConfig';
 
-const [porProveedor] = compraMpWidgets;
 const TABLE_H = 460;
-
-/** "Entero" = equivalente en libras de camarón entero antes de pelar/limpiar.
- *  WSO (whole shell-on, lo que se recibe) rinde ~65% del peso entero, así
- *  que el entero equivalente es WSO ÷ 0.65. */
-const WSO_A_ENTERO_FACTOR = 0.65;
-const porProveedorEntero: ChartConfig = {
-  ...porProveedor,
-  id: 'compra-mp-por-proveedor-entero',
-  title: 'Materia Prima por Proveedor Entero',
-  subtitle: 'Equivalente en libras enteras (WSO ÷ 0.65) · rango de fechas del filtro',
-  unitLabel: 'lbs enteras (equiv.)',
-};
-const toEntero = (rows: DataRow[]): DataRow[] =>
-  rows.map((r) => ({ ...r, libras: Number(r.libras ?? 0) / WSO_A_ENTERO_FACTOR }));
 
 export default function CompraMateriaPrimaPage({ userId }: { userId: string }) {
   const { data, isLoading, isError, error, dataUpdatedAt } =
@@ -48,12 +32,12 @@ export default function CompraMateriaPrimaPage({ userId }: { userId: string }) {
     >
       <ProcessFilters
         title="Filtros de compra de materia prima"
-        hint="Los contadores muestran la semana y el mes en curso; el desglose por proveedor responde al rango de fechas."
+        hint="Los contadores muestran libras WSO del día efectivo, semana y mes; el desglose por proveedor responde al rango de fechas."
         hideTurno
       />
 
       <ResumenCards
-        title="Materia Prima — Semana y mes en curso"
+        title="Materia Prima WSO — Día, semana y mes"
         icon={<ShoppingCartOutlinedIcon color="primary" sx={{ fontSize: 16 }} />}
         liveBadge={false}
         isLoading={isLoading}
@@ -63,27 +47,18 @@ export default function CompraMateriaPrimaPage({ userId }: { userId: string }) {
         periodoLabel={semana}
         emptyText="Sin materia prima registrada."
         metrics={[
-          { label: 'Libras recibidas Hoy', value: data?.librasRecibidasHoy ?? 0, unit: 'lbs' },
-          { label: 'Libras recibidas — semana', value: data?.librasRecibidasSemana ?? 0, unit: 'lbs' },
-          { label: 'Libras recibidas — mes', value: data?.librasRecibidasMes ?? 0, unit: 'lbs' },
-          { label: 'Libras promedio por semana', value: data?.librasPromedioSemana ?? 0, unit: 'lbs/semana' },
+          { label: 'Libras WSO recibidas — hoy', value: data?.librasRecibidasHoy ?? 0, unit: 'lbs' },
+          { label: 'Libras WSO recibidas — semana', value: data?.librasRecibidasSemana ?? 0, unit: 'lbs' },
+          { label: 'Libras WSO recibidas — mes', value: data?.librasRecibidasMes ?? 0, unit: 'lbs' },
+          { label: 'Promedio WSO por semana', value: data?.librasPromedioSemana ?? 0, unit: 'lbs/semana' },
         ]}
       />
 
-      <ChartWidget
-        config={porProveedor}
-        actions={
-          <Button
-            size="small"
-            variant="outlined"
-            startIcon={showDetalle ? <VisibilityOffOutlinedIcon sx={{ fontSize: 16 }} /> : <VisibilityOutlinedIcon sx={{ fontSize: 16 }} />}
-            onClick={() => setShowDetalle((v) => !v)}
-            sx={{ fontSize: 11, fontWeight: 700, py: 0.4 }}
-          >
-            {showDetalle ? 'Ocultar Detalle' : 'Ver Detalle'}
-          </Button>
-        }
-      />
+      <MateriaPrimaProveedorCombinedCards actions={
+        <Button size="small" variant="outlined" startIcon={showDetalle ? <VisibilityOffOutlinedIcon sx={{ fontSize: 16 }} /> : <VisibilityOutlinedIcon sx={{ fontSize: 16 }} />} onClick={() => setShowDetalle((v) => !v)} sx={{ fontSize: 11, fontWeight: 700, py: 0.4 }}>
+          {showDetalle ? 'Ocultar Detalle' : 'Ver Detalle'}
+        </Button>
+      } />
 
       {showDetalle && (
         <MateriaPrimaTallaTable
@@ -93,8 +68,6 @@ export default function CompraMateriaPrimaPage({ userId }: { userId: string }) {
           emptyText="Sin materia prima registrada en el rango seleccionado."
         />
       )}
-
-      <ChartWidget config={porProveedorEntero} transform={toEntero} />
 
       <Box sx={{ height: TABLE_H, flexShrink: 0 }}>
         <MateriaPrimaProveedorWidget userId={userId} height={TABLE_H} />

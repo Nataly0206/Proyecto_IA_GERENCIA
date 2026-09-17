@@ -274,7 +274,7 @@ export type ProcesoResumen =
 /* Fase 2, el agente de IA generará estos objetos en tiempo real.      */
 /* ------------------------------------------------------------------ */
 
-export type ChartType = 'bar' | 'column' | 'line' | 'area' | 'donut' | 'pie' | 'table' | 'cards';
+export type ChartType = 'bar' | 'column' | 'line' | 'area' | 'donut' | 'pie' | 'funnel' | 'table' | 'cards';
 
 /* ------------------------------------------------------------------ */
 /* Tipos del Asistente IA                                              */
@@ -380,6 +380,8 @@ export interface ChartConfig {
   valueFormat?: ValueFormat;
   /** Paleta de colores personalizada */
   colors?: string[];
+  /** Mantiene el mismo color para una categoría según su etiqueta, aunque cambie el orden. */
+  colorByLabel?: boolean;
   /** Agrega al final una tarjeta con la suma de todos los valores */
   showTotalCard?: boolean;
   /** Etiqueta de unidad mostrada bajo el valor en type "cards" (default: "lbs netas") */

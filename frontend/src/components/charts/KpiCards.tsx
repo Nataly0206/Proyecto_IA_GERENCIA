@@ -3,6 +3,7 @@ import { Box, LinearProgress, Typography } from '@mui/material';
 import { ChartConfig, DataRow } from '../../types';
 import { formatValue } from '../../utils/format';
 import { CHART_COLORS } from '../../theme';
+import { categoryColor } from '../../utils/categoryColors';
 
 interface KpiCardsProps {
   config: ChartConfig;
@@ -63,7 +64,7 @@ export default function KpiCards({ config, data }: KpiCardsProps) {
         const value = Number(row[yField] ?? 0);
         const porcentaje = typeof row.porcentaje === 'number' ? (row.porcentaje as number) : null;
         const isTotal = row.__isTotalCard === true;
-        const color = isTotal ? '#164a8b' : colors[index % colors.length];
+        const color = isTotal ? '#164a8b' : config.colorByLabel ? categoryColor(label, colors) : colors[index % colors.length];
 
         return (
           <Box

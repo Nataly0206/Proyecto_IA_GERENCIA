@@ -472,10 +472,10 @@ todavía no se ha despachado (no tiene `FkEnvio`). Este saldo no equivale a comp
 ### Presentación actual del módulo
 
 - Los contadores **Hoy, Semana, Mes y Promedio por semana** son libras **WSO** de `AV_MateriaPrima.PesoLibras`. La interfaz los rotula explícitamente como WSO. No usan la conversión a entero.
-- **Materia Prima por Proveedor — WSO y Entero** es una sola sección y una sola fila de tarjetas. Cada proveedor ocupa una tarjeta con dos columnas: WSO registrado y Entero equivalente (`WSO ÷ 0.65`). Comparte un porcentaje del total y un color; la tarjeta TOTAL sigue el mismo formato. El botón Ver detalle permanece en el encabezado.
+- **Materia Prima por Proveedor — WSO y Entero** es una sola sección y una sola fila de tarjetas. Cada proveedor ocupa una tarjeta con dos columnas: WSO registrado y Entero equivalente (`WSO ÷ 0.65`). Comparte un porcentaje del total y un color exclusivo por proveedor; la tarjeta TOTAL sigue el mismo formato. El botón Ver detalle permanece en el encabezado.
 - En **Materia Prima por Proveedor/Talla — Mensual**, el selector visible dice **Proveedor / Talla**. “Talla” corresponde al campo técnico `Talla`, históricamente llamado gramaje en partes internas del código y datos.
 - Sus vistas son **Tabla**, **Gráfica comparativa** y **Embudo**. El embudo reemplaza la antigua gráfica de tendencia lineal: suma los tres meses visibles por proveedor o talla y ordena el total de mayor a menor. Es una comparación de volumen acumulado, no un flujo de conversión entre etapas.
-- El selector de proveedores afecta las tres vistas. El mismo proveedor conserva un color estable en la tarjeta combinada, gráfica comparativa y embudo mediante una asignación basada en su nombre; el color no cambia al variar el orden por libras.
+- El selector de proveedores afecta las tres vistas. El mismo proveedor conserva un color estable en la tarjeta combinada, gráfica comparativa y embudo mediante una asignación basada en su nombre. Los proveedores operativos conocidos tienen colores explícitos distintos; los nuevos reciben un color HSL derivado de su nombre. El color no cambia al variar el orden por libras.
 
 Nota: NO se usa la tabla `dbo.MateriaPrima` (es de otro dominio: liquidación de exportación WSO/embarque, y no tiene la talla de recepción).
 

@@ -294,14 +294,10 @@ export async function getIqfTiempoReal(): Promise<IqfLiveResponse> {
       ] as const;
     }),
   );
-  const nombres = new Set(
-    catalogoRows.map((row) => pickString(row, 'Linea')).filter(Boolean),
-  );
-  for (const linea of conDatos.keys()) {
-    if (linea) nombres.add(linea);
-  }
-  const lineas = Array.from(nombres)
-    .sort()
+  // La fuente de catálogo también devuelve alias cortos (IQF 1, IQF 2,
+  // IQF 3). La vista solo debe exponer las tres líneas canónicas, ya que
+  // los datos de producción fueron normalizados con esos mismos nombres.
+  const lineas = Object.values(IQF_LINE_NAMES)
     .map((linea) => {
       const numeroIqf = linea.match(/\bIQF\s*[-#]?\s*(\d+)\b/i)?.[1];
       return conDatos.get(linea) ?? {
@@ -765,18 +761,26 @@ export async function getIqfHorasTrabajadas(filters: DashboardFilters): Promise<
   return [...cells.values()].sort((a, b) => a.periodo.localeCompare(b.periodo) || a.linea.localeCompare(b.linea));
 }
 
-/** Misma ventana calendario que Rendimientos IQF — Mensual. */
+/**
+ * Misma ventana calendario que Rendimientos IQF — Mensual. El valor de cada
+ * celda es el promedio de las libras/hora diarias del mes (promedio por
+ * día), no la suma de horas trabajadas del mes.
+ */
 export async function getIqfHorasTrabajadasMes(filters: DashboardFilters, meses: number): Promise<{ periodo: string; linea: string; horas: number }[]> {
   const hoy = new Date();
   const inicio = new Date(hoy.getFullYear(), hoy.getMonth() - (meses - 1), 1);
-  const daily = await getIqfHorasTrabajadas({ ...filters, fechaInicial: formatDate(inicio), fechaFinal: formatDate(hoy) });
-  const cells = new Map<string, { periodo: string; linea: string; horas: number }>();
+  const groups = await fetchIqfGroups(formatDate(inicio), formatDate(hoy), filters.turno);
+  const daily = aggregateCells(groups, (dia) => dia);
+  const cells = new Map<string, { periodo: string; linea: string; rateSum: number; dias: number }>();
   for (const row of daily) {
     const periodo = row.periodo.slice(0, 7);
     const key = `${periodo}|${row.linea}`;
-    const cell = cells.get(key) ?? { periodo, linea: row.linea, horas: 0 };
-    cell.horas += row.horas;
+    const cell = cells.get(key) ?? { periodo, linea: row.linea, rateSum: 0, dias: 0 };
+    cell.rateSum += row.librasPorHora;
+    cell.dias += 1;
     cells.set(key, cell);
   }
-  return [...cells.values()].sort((a, b) => a.periodo.localeCompare(b.periodo) || a.linea.localeCompare(b.linea));
+  return [...cells.values()]
+    .map((c) => ({ periodo: c.periodo, linea: c.linea, horas: round2(c.rateSum / c.dias) }))
+    .sort((a, b) => a.periodo.localeCompare(b.periodo) || a.linea.localeCompare(b.linea));
 }

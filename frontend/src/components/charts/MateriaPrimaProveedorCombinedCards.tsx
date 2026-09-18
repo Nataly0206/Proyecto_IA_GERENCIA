@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useMemo, useState } from 'react';
+import { Dispatch, ReactNode, SetStateAction, useMemo, useState } from 'react';
 import { Alert, Box, Button, Card, CardContent, Checkbox, Divider, FormControlLabel, LinearProgress, Popover, Skeleton, Stack, Typography } from '@mui/material';
 import PeopleAltOutlinedIcon from '@mui/icons-material/PeopleAltOutlined';
 import { useWidgetData } from '../../hooks/useDashboardData';
@@ -6,22 +6,10 @@ import { formatValue } from '../../utils/format';
 import { categoryColor } from '../../utils/categoryColors';
 
 const WSO_A_ENTERO_FACTOR = 0.65;
-const STORAGE_KEY = 'compra-mp-proveedores-wso-entero-ocultos:v1';
 type ProviderRow = { proveedor: string; libras: number; porcentaje: number; total?: boolean };
 
-function readHidden(userId: string): Set<string> {
-  try {
-    const raw = localStorage.getItem(`${STORAGE_KEY}:${userId}`);
-    const parsed: unknown = raw ? JSON.parse(raw) : [];
-    return new Set(Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : []);
-  } catch {
-    return new Set();
-  }
-}
-
-export default function MateriaPrimaProveedorCombinedCards({ userId, actions }: { userId: string; actions?: ReactNode }) {
+export default function MateriaPrimaProveedorCombinedCards({ hidden, setHidden, actions }: { hidden: Set<string>; setHidden: Dispatch<SetStateAction<Set<string>>>; actions?: ReactNode }) {
   const { data, isLoading, isError, error } = useWidgetData('compra-mp-por-proveedor');
-  const [hidden, setHidden] = useState<Set<string>>(() => readHidden(userId));
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const providers = useMemo<ProviderRow[]>(() => (data ?? []).map((row) => ({
     proveedor: String(row.proveedor ?? 'Sin proveedor'),
@@ -37,14 +25,6 @@ export default function MateriaPrimaProveedorCombinedCards({ userId, actions }: 
       ...(visible.length > 0 ? [{ proveedor: 'TOTAL', libras: total, porcentaje: 100, total: true }] : []),
     ];
   }, [hidden, providers]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(`${STORAGE_KEY}:${userId}`, JSON.stringify(Array.from(hidden)));
-    } catch {
-      // La selección continúa funcionando durante la sesión si el almacenamiento está bloqueado.
-    }
-  }, [hidden, userId]);
 
   const toggleProvider = (provider: string) => {
     setHidden((current) => {

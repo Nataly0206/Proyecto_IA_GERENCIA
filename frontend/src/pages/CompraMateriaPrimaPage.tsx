@@ -12,6 +12,7 @@ import MateriaPrimaTallaTable from '../components/charts/MateriaPrimaTallaTable'
 import { useProcesoResumen } from '../hooks/useDashboardData';
 import { CompraMpResumen } from '../types';
 import { formatPeriodo } from '../utils/format';
+import { useHiddenProveedores } from '../utils/hiddenProveedores';
 
 const TABLE_H = 460;
 const WSO_A_HOSO_FACTOR = 0.65;
@@ -21,6 +22,7 @@ export default function CompraMateriaPrimaPage({ userId }: { userId: string }) {
   const { data, isLoading, isError, error, dataUpdatedAt } =
     useProcesoResumen<CompraMpResumen>('compra-mp-resumen');
   const [showDetalle, setShowDetalle] = useState(false);
+  const [hiddenProveedores, setHiddenProveedores] = useHiddenProveedores(userId);
 
   const semana =
     data && data.semanaInicio
@@ -49,14 +51,14 @@ export default function CompraMateriaPrimaPage({ userId }: { userId: string }) {
         periodoLabel={semana}
         emptyText="Sin materia prima registrada."
         metrics={[
-          { label: 'Libras HOSO — hoy', value: toHoso(data?.librasRecibidasHoy), unit: 'lbs HOSO' },
-          { label: 'Libras HOSO — semana', value: toHoso(data?.librasRecibidasSemana), unit: 'lbs HOSO' },
-          { label: 'Libras HOSO — mes', value: toHoso(data?.librasRecibidasMes), unit: 'lbs HOSO' },
-          { label: 'Promedio HOSO por semana', value: toHoso(data?.librasPromedioSemana), unit: 'lbs HOSO/semana' },
+          { label: 'Libras — hoy', value: toHoso(data?.librasRecibidasHoy), unit: 'lbs' },
+          { label: 'Libras — semana', value: toHoso(data?.librasRecibidasSemana), unit: 'lbs' },
+          { label: 'Libras — mes', value: toHoso(data?.librasRecibidasMes), unit: 'lbs' },
+          { label: 'Promedio por semana', value: toHoso(data?.librasPromedioSemana), unit: 'lbs/semana' },
         ]}
       />
 
-      <MateriaPrimaProveedorCombinedCards userId={userId} actions={
+      <MateriaPrimaProveedorCombinedCards hidden={hiddenProveedores} setHidden={setHiddenProveedores} actions={
         <Button size="small" variant="outlined" startIcon={showDetalle ? <VisibilityOffOutlinedIcon sx={{ fontSize: 16 }} /> : <VisibilityOutlinedIcon sx={{ fontSize: 16 }} />} onClick={() => setShowDetalle((v) => !v)} sx={{ fontSize: 11, fontWeight: 700, py: 0.4 }}>
           {showDetalle ? 'Ocultar Detalle' : 'Ver Detalle'}
         </Button>
@@ -68,6 +70,7 @@ export default function CompraMateriaPrimaPage({ userId }: { userId: string }) {
           subtitle="Libras por proveedor y talla · rango de fechas del filtro · fuente: AV_MateriaPrima"
           icon={<Inventory2OutlinedIcon color="primary" sx={{ fontSize: 16 }} />}
           emptyText="Sin materia prima registrada en el rango seleccionado."
+          hiddenProviders={hiddenProveedores}
         />
       )}
 

@@ -21,6 +21,7 @@ interface Props {
   subtitle?: string;
   emptyText?: string;
   maxHeight?: number;
+  hiddenProviders?: Set<string>;
 }
 
 interface SourceRow {
@@ -43,9 +44,14 @@ export default function MateriaPrimaTallaTable({
   subtitle,
   emptyText = 'Sin datos para los filtros seleccionados.',
   maxHeight = 460,
+  hiddenProviders,
 }: Props) {
   const { data, isLoading, isError, error, dataUpdatedAt } = useWidgetData('compra-mp-por-talla');
-  const rows = (data ?? []) as unknown as SourceRow[];
+  const allRows = (data ?? []) as unknown as SourceRow[];
+  const rows = useMemo(
+    () => (hiddenProviders?.size ? allRows.filter((row) => !hiddenProviders.has(row.proveedor)) : allRows),
+    [allRows, hiddenProviders],
+  );
 
   const report = useMemo(() => {
     const tallas = Array.from(new Set(rows.map((row) => row.talla))).sort(

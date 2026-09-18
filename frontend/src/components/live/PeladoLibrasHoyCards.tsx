@@ -64,7 +64,7 @@ function EstiloCard({
         >
           {formatValue(estilo.libras, decimal ? 'decimal' : 'number')}
           <Typography component="span" variant="caption" color="text.secondary" ml={0.5}>
-            lbs
+            (lbs/h)
           </Typography>
         </Typography>
       </CardContent>

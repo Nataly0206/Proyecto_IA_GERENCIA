@@ -130,7 +130,7 @@ export default function ChartWidget({ config, actions, transform, workedHours }:
             )}
             {config.subtitle && (
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.3 }}>
-                {showHours ? (workedHours === 'mes' ? 'Últimos 12 meses · horas acumuladas por IQF y promedio por mes' : 'Rango de fechas seleccionado · horas por IQF y promedio por día') : config.subtitle}
+                {showHours ? (workedHours === 'mes' ? 'Últimos 12 meses · libras por hora promedio por día' : 'Rango de fechas seleccionado · horas por IQF y promedio por día') : config.subtitle}
               </Typography>
             )}
           </Box>

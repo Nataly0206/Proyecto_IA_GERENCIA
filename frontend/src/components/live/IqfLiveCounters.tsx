@@ -15,6 +15,9 @@ import { IqfLiveLine } from '../../types';
 
 function LiveCard({ linea, total = false }: { linea: IqfLiveLine; total?: boolean }) {
   const color = total ? '#164a8b' : linea.libras > 0 ? '#2e7d32' : '#94a3b8';
+  const displayName = total
+    ? linea.linea
+    : linea.linea.replace(/^(IQF\s*#\s*\d+).*$/i, '$1');
 
   return (
     <Card
@@ -31,7 +34,7 @@ function LiveCard({ linea, total = false }: { linea: IqfLiveLine; total?: boolea
       <CardContent sx={{ py: 1.25, px: 1.75, '&:last-child': { pb: 1.25 } }}>
         <Stack direction="row" justifyContent="space-between" alignItems="flex-start" mb={0.5} spacing={0.5}>
           <Typography variant="body2" fontWeight={700} noWrap sx={{ minWidth: 0 }} title={linea.linea}>
-            {linea.linea}
+            {displayName}
           </Typography>
           <Stack alignItems="flex-end" spacing={0.25} sx={{ minWidth: 0 }}>
             <Chip
@@ -91,7 +94,12 @@ function LiveCard({ linea, total = false }: { linea: IqfLiveLine; total?: boolea
 
 export default function IqfLiveCounters() {
   const { data, isLoading, isError, error, dataUpdatedAt } = useIqfLive();
-  const lineasIqf = data?.lineas.filter((linea) => /\bIQF\s*[-#]?\s*[123]\b/i.test(linea.linea)) ?? [];
+  const lineasIqf = data ? [1, 2, 3].flatMap((number) => {
+    const matches = data.lineas.filter((linea) =>
+      new RegExp(`\\bIQF\\s*[-#]?\\s*${number}\\b`, 'i').test(linea.linea));
+    const canonical = matches.find((linea) => linea.linea.includes('(')) ?? matches[0];
+    return canonical ? [canonical] : [];
+  }) : [];
   const totalIqf = lineasIqf.reduce((total, linea) => total + linea.libras, 0);
   const promedioLibrasPorHora = lineasIqf.length > 0
     ? lineasIqf.reduce((total, linea) => total + linea.librasPorHora, 0) / lineasIqf.length
@@ -132,25 +140,25 @@ export default function IqfLiveCounters() {
         </Alert>
       )}
 
-      {!isLoading && !isError && (data?.lineas.length ?? 0) === 0 && (
+      {!isLoading && !isError && lineasIqf.length === 0 && (
         <Alert severity="info" sx={{ py: 0.5 }}>
           Sin producción IQF registrada para el turno seleccionado.
         </Alert>
       )}
 
-      {!isLoading && !isError && data && data.lineas.length > 0 && (
+      {!isLoading && !isError && data && lineasIqf.length > 0 && (
         <Box
           sx={{
             display: 'grid',
             gridTemplateColumns: {
               xs: 'repeat(2, minmax(0, 1fr))',
-              sm: `repeat(${data.lineas.length + 1}, minmax(0, 1fr))`,
+              sm: `repeat(${lineasIqf.length + 1}, minmax(0, 1fr))`,
             },
             gap: 1,
             '& > :last-child:nth-of-type(odd)': { gridColumn: { xs: '1 / -1', sm: 'auto' } },
           }}
         >
-          {data.lineas.map((linea) => (
+          {lineasIqf.map((linea) => (
             <LiveCard key={linea.linea} linea={linea} />
           ))}
           <LiveCard

@@ -19,7 +19,6 @@ import {
 import PeopleAltOutlinedIcon from '@mui/icons-material/PeopleAltOutlined';
 import TableChartOutlinedIcon from '@mui/icons-material/TableChartOutlined';
 import InsertChartOutlinedIcon from '@mui/icons-material/InsertChartOutlined';
-import FilterAltOutlinedIcon from '@mui/icons-material/FilterAltOutlined';
 import { ChartConfig, CompraMpMateriaPrimaRow, DataRow } from '../../types';
 import { useWidgetData } from '../../hooks/useDashboardData';
 import PivotTable from './PivotTable';
@@ -29,7 +28,7 @@ import ErrorBoundary from '../ErrorBoundary';
 const STORAGE_KEY = 'compra-mp-proveedores-ocultos:v1';
 
 type Dimension = 'proveedor' | 'gramaje';
-type ViewMode = 'chart' | 'table' | 'funnel';
+type ViewMode = 'chart' | 'table';
 
 function readHidden(userId: string): Set<string> {
   try {
@@ -104,23 +103,17 @@ export default function MateriaPrimaProveedorWidget({ userId, height }: { userId
     return Array.from(map.values()).map((c) => ({ ...c, libras: Number(c.libras.toFixed(2)) }));
   }, [rows, hidden, dimension]);
 
-  const funnelRows: DataRow[] = useMemo(() => {
-    const totals = new Map<string, number>();
-    for (const row of chartRows) totals.set(String(row.serie), (totals.get(String(row.serie)) ?? 0) + Number(row.libras));
-    return [...totals].map(([serie, libras]) => ({ serie, libras: Number(libras.toFixed(2)) }));
-  }, [chartRows]);
-
   const dimensionLabel = dimension === 'proveedor' ? 'Proveedor' : 'Talla';
   const baseConfig: ChartConfig = {
     id: 'compra-mp-materia-prima',
-    type: view === 'table' ? 'table' : view === 'funnel' ? 'funnel' : 'column',
+    type: view === 'table' ? 'table' : 'column',
     title: `Materia Prima por ${dimensionLabel} — Mensual`,
-    subtitle: view === 'funnel' ? `Embudo · total WSO de los últimos 3 meses con datos por ${dimensionLabel.toLowerCase()}` : `Últimos 3 meses con datos · libras WSO por mes y ${dimensionLabel.toLowerCase()} · fuente: AV_MateriaPrima`,
+    subtitle: `Últimos 3 meses con datos · libras WSO por mes y ${dimensionLabel.toLowerCase()} · fuente: AV_MateriaPrima`,
     endpoint: 'compra-mp-materia-prima',
-    xField: view === 'funnel' ? 'serie' : 'periodo',
+    xField: 'periodo',
     xLabel: 'Mes',
     yField: 'libras',
-    seriesField: view === 'funnel' ? undefined : 'serie',
+    seriesField: 'serie',
     totalAggregation: 'sum',
     valueFormat: 'number',
     unitLabel: 'lbs WSO',
@@ -172,9 +165,6 @@ export default function MateriaPrimaProveedorWidget({ userId, height }: { userId
               </ToggleButton>
               <ToggleButton value="chart" aria-label="Vista de gráfica">
                 <Tooltip title="Gráfica comparativa"><InsertChartOutlinedIcon sx={{ fontSize: 14 }} /></Tooltip>
-              </ToggleButton>
-              <ToggleButton value="funnel" aria-label="Vista de embudo">
-                <Tooltip title="Gráfica de embudo"><FilterAltOutlinedIcon sx={{ fontSize: 14 }} /></Tooltip>
               </ToggleButton>
             </ToggleButtonGroup>
           </Stack>
@@ -243,7 +233,7 @@ export default function MateriaPrimaProveedorWidget({ userId, height }: { userId
               {view === 'table' ? (
                 <PivotTable config={baseConfig} data={chartRows} />
               ) : (
-                <DynamicChart config={baseConfig} data={view === 'funnel' ? funnelRows : chartRows} />
+                <DynamicChart config={baseConfig} data={chartRows} />
               )}
             </Box>
           </ErrorBoundary>

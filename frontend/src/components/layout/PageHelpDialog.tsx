@@ -94,7 +94,7 @@ const PAGE_HELP: Record<DashboardView, PageHelp> = {
     sections: [
       { title: 'Semana en curso', body: 'Los indicadores muestran las libras exportadas de lunes a domingo, repartidas entre Francia, UK, AC Holding y terceros (todo lo que no es de los tres anteriores), más el total de la semana.' },
       { title: 'Contenedores exportados', body: 'La tabla principal muestra una sola fila por contenedor, con fecha, referencia, cliente, cantidad de estilos, másteres, anillos por máster y libras totales. Así se ve directamente con cuántas libras salió cada contenedor. “Ver detalle” abre su desglose por cliente y estilo, con los mismos datos que antes aparecían como varias filas.' },
-      { title: 'Por estilo y por cliente', body: 'El estilo explica la mezcla exportada y el cliente identifica el destino comercial. Las tarjetas por estilo responden al rango de fechas del filtro; la tabla mensual por cliente muestra los últimos 6 meses.' },
+      { title: 'Por estilo y por cliente', body: 'El estilo explica la mezcla exportada y el cliente identifica el destino comercial. Las tarjetas por estilo responden al rango de fechas del filtro; la tabla mensual muestra los últimos 6 meses y su botón Clientes permite elegir cuáles mostrar. La selección se guarda en tu cuenta y se recupera al iniciar sesión desde otro dispositivo.' },
     ],
     dataNote: 'Los nombres de clientes se muestran porque son necesarios para comprobar el cumplimiento de cada pedido y contenedor.',
   },

@@ -3,6 +3,7 @@ import * as controller from '../controllers/dashboard.controller';
 import * as procesos from '../controllers/procesos.controller';
 import { asyncHandler } from '../middleware/errorHandler';
 import { requirePermission } from '../middleware/sessionAuth';
+import { getUserPreference, saveUserPreference } from '../services/user-preferences.service';
 
 const router = Router();
 
@@ -13,6 +14,7 @@ const descabezado = requirePermission('descabezado');
 const clasificado = requirePermission('clasificado');
 const exportaciones = requirePermission('exportaciones');
 const compraMp = requirePermission('compra_materia_prima');
+const EXPORT_CLIENTS_PREFERENCE = 'exportaciones.clientes-mensual.ocultos';
 
 router.get('/libras-netas-proceso', iqf, asyncHandler(controller.getLibrasNetasPorProceso));
 router.get('/libras-netas-proceso-dia', iqf, asyncHandler(controller.getLibrasNetasPorProcesoDia));
@@ -59,6 +61,22 @@ router.get('/exportaciones-resumen', exportaciones, asyncHandler(procesos.getExp
 router.get('/exportaciones-por-estilo', exportaciones, asyncHandler(procesos.getExportacionesPorEstilo));
 router.get('/exportaciones-contenedores', exportaciones, asyncHandler(procesos.getExportacionesContenedores));
 router.get('/exportaciones-por-cliente-mes', exportaciones, asyncHandler(procesos.getExportacionesPorClienteMes));
+router.get('/exportaciones-preferencias-clientes', exportaciones, asyncHandler(async (_req, res) => {
+  const hiddenClients = await getUserPreference<string[]>(res.locals.authUser.id, EXPORT_CLIENTS_PREFERENCE);
+  res.json({ hiddenClients });
+}));
+router.put('/exportaciones-preferencias-clientes', exportaciones, asyncHandler(async (req, res) => {
+  const hiddenClients = req.body?.hiddenClients;
+  if (!Array.isArray(hiddenClients)
+    || hiddenClients.length > 500
+    || !hiddenClients.every((client) => typeof client === 'string' && client.length <= 500)) {
+    res.status(400).json({ error: 'La selección de clientes no es válida.' });
+    return;
+  }
+  const normalized = Array.from(new Set(hiddenClients)) as string[];
+  await saveUserPreference(res.locals.authUser.id, EXPORT_CLIENTS_PREFERENCE, normalized);
+  res.json({ message: 'Preferencia de clientes guardada.', hiddenClients: normalized });
+}));
 
 /* Compra de materia prima */
 router.get('/compra-mp-resumen', compraMp, asyncHandler(procesos.getCompraMpResumen));

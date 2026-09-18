@@ -30,6 +30,7 @@ export async function assertAuthDatabaseReady(): Promise<void> {
     IF OBJECT_ID('dbo.dashboard_usuarios', 'U') IS NULL
        OR OBJECT_ID('dbo.dashboard_usuarios_permisos', 'U') IS NULL
        OR OBJECT_ID('dbo.dashboard_password_resets', 'U') IS NULL
+       OR OBJECT_ID('dbo.dashboard_usuarios_preferencias', 'U') IS NULL
       THROW 51000, 'La base de autenticación no está migrada. Ejecuta npm run migrate.', 1;
   `);
 }

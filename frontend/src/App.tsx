@@ -152,7 +152,7 @@ export default function App() {
         ) : view === 'clasificado' ? (
           <ClasificadoPage />
         ) : view === 'exportaciones' ? (
-          <ExportacionesPage />
+          <ExportacionesPage userId={user.id} />
         ) : view === 'inventory' ? (
           <InventoryPage userId={user.id} />
         ) : view === 'power-bi' ? (

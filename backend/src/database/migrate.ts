@@ -176,6 +176,25 @@ async function migrate(): Promise<void> {
       END;
     `);
 
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT 1 FROM dbo.dashboard_migraciones WHERE version = 6)
+      BEGIN
+        CREATE TABLE dbo.dashboard_usuarios_preferencias (
+          usuario_id UNIQUEIDENTIFIER NOT NULL,
+          clave NVARCHAR(80) NOT NULL,
+          valor NVARCHAR(MAX) NOT NULL,
+          actualizado_en DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+          CONSTRAINT PK_dashboard_usuarios_preferencias PRIMARY KEY (usuario_id, clave),
+          CONSTRAINT FK_dashboard_usuarios_preferencias_usuario
+            FOREIGN KEY (usuario_id) REFERENCES dbo.dashboard_usuarios(id) ON DELETE CASCADE,
+          CONSTRAINT CK_dashboard_usuarios_preferencias_json CHECK (ISJSON(valor) = 1)
+        );
+
+        INSERT INTO dbo.dashboard_migraciones (version, nombre)
+        VALUES (6, N'crear preferencias generales por usuario');
+      END;
+    `);
+
     console.log(`[migrate] Base [${databaseName}] lista y actualizada.`);
   } finally {
     await pool.close();

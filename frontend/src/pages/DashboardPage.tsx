@@ -146,6 +146,7 @@ export default function DashboardPage() {
           sx={{
             minWidth: 0,
             minHeight: { xs: 'auto', md: 0 },
+            height: { xs: 'auto', md: heights.iqf + CARD_CHROME },
             display: 'flex',
             flexDirection: 'column',
           }}
@@ -156,6 +157,7 @@ export default function DashboardPage() {
           sx={{
             minWidth: 0,
             minHeight: { xs: 'auto', md: 0 },
+            height: { xs: 'auto', md: heights.iqf + CARD_CHROME },
             display: 'flex',
             flexDirection: 'column',
           }}

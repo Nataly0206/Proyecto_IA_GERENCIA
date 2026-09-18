@@ -1,17 +1,14 @@
 import nodemailer from 'nodemailer';
 import { env } from '../config/env';
 
-export async function sendTemporaryPassword(
-  recipient: { nombre: string; correo: string; usuario: string },
-  temporaryPassword: string,
-): Promise<void> {
+function mailTransporter() {
   if (env.MAIL_MAILER !== 'smtp') {
     throw new Error('MAIL_MAILER debe estar configurado como smtp.');
   }
   if (!env.MAIL_HOST || !env.MAIL_FROM_ADDRESS) {
     throw new Error('El correo no está configurado. Define MAIL_HOST y MAIL_FROM_ADDRESS.');
   }
-  const transporter = nodemailer.createTransport({
+  return nodemailer.createTransport({
     host: env.MAIL_HOST,
     port: env.MAIL_PORT,
     secure: env.MAIL_ENCRYPTION === 'ssl' || env.MAIL_PORT === 465,
@@ -20,7 +17,13 @@ export async function sendTemporaryPassword(
       ? { user: env.MAIL_USERNAME, pass: env.MAIL_PASSWORD }
       : undefined,
   });
-  await transporter.sendMail({
+}
+
+export async function sendTemporaryPassword(
+  recipient: { nombre: string; correo: string; usuario: string },
+  temporaryPassword: string,
+): Promise<void> {
+  await mailTransporter().sendMail({
     from: { name: env.MAIL_FROM_NAME, address: env.MAIL_FROM_ADDRESS },
     to: recipient.correo,
     subject: 'Acceso al Dashboard Gerencial',
@@ -32,6 +35,26 @@ export async function sendTemporaryPassword(
       `Contraseña temporal: ${temporaryPassword}`,
       '',
       'Por seguridad, el sistema te pedirá crear una contraseña nueva al ingresar.',
+    ].join('\n'),
+  });
+}
+
+export async function sendPasswordResetCode(
+  recipient: { nombre: string; correo: string },
+  code: string,
+): Promise<void> {
+  await mailTransporter().sendMail({
+    from: { name: env.MAIL_FROM_NAME, address: env.MAIL_FROM_ADDRESS },
+    to: recipient.correo,
+    subject: 'Código para restablecer tu contraseña',
+    text: [
+      `Hola ${recipient.nombre},`,
+      '',
+      'Recibimos una solicitud para restablecer tu contraseña del Dashboard Gerencial.',
+      `Tu código es: ${code}`,
+      '',
+      'El código vence en 15 minutos y solo puede utilizarse una vez.',
+      'Si no hiciste esta solicitud, puedes ignorar este correo.',
     ].join('\n'),
   });
 }

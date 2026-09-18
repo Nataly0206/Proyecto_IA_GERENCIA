@@ -6,10 +6,31 @@ import {
   sessionAuth,
   setSessionCookie,
 } from '../middleware/sessionAuth';
-import { authenticate, changePassword } from '../services/auth.service';
+import {
+  authenticate,
+  changePassword,
+  createPasswordResetCode,
+  invalidatePasswordResetCode,
+  resetPasswordWithCode,
+} from '../services/auth.service';
+import { sendPasswordResetCode } from '../services/mail.service';
 
 const router = Router();
 const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiados intentos. Espera 15 minutos antes de volver a intentar.' },
+});
+const recoveryRequestLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiadas solicitudes. Espera 15 minutos antes de volver a intentar.' },
+});
+const recoveryAttemptLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 10,
   standardHeaders: true,
@@ -43,6 +64,56 @@ router.post('/login', loginLimiter, async (req, res, next) => {
     await setSessionCookie(res, user.id);
     res.setHeader('Cache-Control', 'no-store');
     res.json({ authenticated: true, user });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/forgot-password', recoveryRequestLimiter, async (req, res, next) => {
+  const identifier = typeof req.body?.identifier === 'string' ? req.body.identifier.trim() : '';
+  if (!/^[a-zA-Z0-9._-]{3,60}$/.test(identifier)) {
+    res.status(400).json({ error: 'Ingresa un nombre de usuario válido.' });
+    return;
+  }
+  try {
+    const recovery = await createPasswordResetCode(identifier);
+    if (recovery) {
+      try {
+        await sendPasswordResetCode(recovery, recovery.code);
+      } catch (error) {
+        await invalidatePasswordResetCode(identifier).catch(() => undefined);
+        throw error;
+      }
+    }
+    res.json({ message: 'Si la cuenta existe, enviaremos un código al correo registrado.' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/reset-password', recoveryAttemptLimiter, async (req, res, next) => {
+  try {
+    const identifier = typeof req.body?.identifier === 'string' ? req.body.identifier.trim() : '';
+    const code = typeof req.body?.code === 'string' ? req.body.code.trim() : '';
+    const password = typeof req.body?.password === 'string' ? req.body.password : '';
+    const confirmation = typeof req.body?.confirmation === 'string' ? req.body.confirmation : '';
+    if (!/^[a-zA-Z0-9._-]{3,60}$/.test(identifier) || !/^\d{6}$/.test(code)) {
+      res.status(400).json({ error: 'El usuario o el código no son válidos.' });
+      return;
+    }
+    if (password.length < 10 || password.length > 128) {
+      res.status(400).json({ error: 'La contraseña debe tener entre 10 y 128 caracteres.' });
+      return;
+    }
+    if (password !== confirmation) {
+      res.status(400).json({ error: 'Las contraseñas no coinciden.' });
+      return;
+    }
+    if (!await resetPasswordWithCode(identifier, code, password)) {
+      res.status(400).json({ error: 'El código es incorrecto, expiró o alcanzó el límite de intentos.' });
+      return;
+    }
+    res.json({ message: 'Contraseña actualizada correctamente. Ya puedes iniciar sesión.' });
   } catch (error) {
     next(error);
   }

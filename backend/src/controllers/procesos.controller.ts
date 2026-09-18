@@ -11,6 +11,7 @@ import { withTtlCache } from '../utils/ttlCache';
 
 const REPORT_CACHE_MS = 5 * 60 * 1000;
 const LIVE_CACHE_MS = 60 * 1000;
+const EXPORT_CACHE_MS = 15 * 60 * 1000;
 
 type FilterHandler = (f: ReturnType<typeof parseFilters>) => Promise<unknown>;
 type MonthHandler = (f: ReturnType<typeof parseFilters>, meses: number) => Promise<unknown>;
@@ -49,10 +50,10 @@ function monthlyReport(key: string, handler: MonthHandler, defaultMeses = 12) {
 }
 
 /** Contador en vivo sin filtros. */
-function live(key: string, handler: () => Promise<unknown>) {
+function live(key: string, handler: () => Promise<unknown>, ttlMs = LIVE_CACHE_MS) {
   return async (req: Request, res: Response): Promise<void> => {
     const forceRefresh = req.query.refresh === 'true';
-    res.json(await withTtlCache(`${key}:current`, LIVE_CACHE_MS, handler, forceRefresh));
+    res.json(await withTtlCache(`${key}:current`, ttlMs, handler, forceRefresh));
   };
 }
 
@@ -75,7 +76,7 @@ export const getClasificadoPorTallaDia = report('clasificado-por-talla-dia', pro
 export const getClasificadoPorTallaMes = monthlyReport('clasificado-por-talla-mes', procesos.getClasificadoPorTallaMes);
 
 /* Exportaciones */
-export const getExportacionesResumen = live('exportaciones-resumen', procesos.getExportacionesResumen);
+export const getExportacionesResumen = live('exportaciones-resumen', procesos.getExportacionesResumen, EXPORT_CACHE_MS);
 export const getExportacionesPorEstilo = report('exportaciones-por-estilo', procesos.getExportacionesPorEstilo);
 export const getExportacionesContenedores = report('exportaciones-contenedores', procesos.getExportacionesContenedores);
 export const getExportacionesPorClienteMes = monthlyReport('exportaciones-por-cliente-mes', procesos.getExportacionesPorClienteMes, 6);

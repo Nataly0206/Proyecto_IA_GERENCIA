@@ -22,7 +22,7 @@ type InventoryItem = Record<Dimension, string> & { pesoKilos: number; cantidadSe
 type Filters = Partial<Record<Dimension, string[]>>;
 type AggregateRow = Record<Dimension, string> & { pesoKilos: number; cantidadSerial: number };
 type DisplayRow =
-  | { type: 'detail'; row: AggregateRow; key: string }
+  | { type: 'detail'; row: AggregateRow; rowSpans: Partial<Record<Dimension, number>>; key: string }
   | { type: 'subtotal'; field: Dimension; label: string; pesoKilos: number; cantidadSerial: number; key: string };
 
 const DEFAULT_ROWS: Dimension[] = ['nombreCliente', 'estiloFinal', 'nombreItem'];
@@ -36,6 +36,7 @@ const CLIENT_NAME_MIGRATIONS: Record<string, string> = {
   'LYONS SEAFOODS LTD': 'LFF UK 2026 FRESCO',
 };
 const PREFERENCES_KEY = 'inventory-preferences';
+type InventoryPreferences = { rowFields: Dimension[]; filters: Filters };
 const formatKilos = (value: number) => value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const formatSerials = (value: number) => value.toLocaleString('en-US', { maximumFractionDigits: 0 });
 
@@ -56,18 +57,19 @@ function aggregate(items: InventoryItem[], fields: Dimension[]): AggregateRow[] 
   return Array.from(groups.values()).sort((a, b) => fields.map((field) => a[field]).join('|').localeCompare(fields.map((field) => b[field]).join('|')));
 }
 
-function readPreferences(userId: string): { rowFields: Dimension[]; filters: Filters } {
+function normalizePreferences(value: unknown): InventoryPreferences {
   try {
-    const parsed = JSON.parse(localStorage.getItem(`${PREFERENCES_KEY}:${userId}`) ?? '{}') as {
-      rowFields?: unknown;
-      filters?: unknown;
-    };
+    const parsed = value as { rowFields?: unknown; filters?: unknown };
     const rowFields = Array.isArray(parsed.rowFields)
       ? parsed.rowFields.filter((field): field is Dimension => typeof field === 'string' && field in DIMENSIONS)
       : [];
     const filters: Filters = {};
-    if (parsed.filters && typeof parsed.filters === 'object') {
-      for (const [field, values] of Object.entries(parsed.filters)) {
+    const savedFilters = parsed.filters;
+    const hasSavedFilters = savedFilters !== null
+      && typeof savedFilters === 'object'
+      && !Array.isArray(savedFilters);
+    if (hasSavedFilters) {
+      for (const [field, values] of Object.entries(savedFilters as Record<string, unknown>)) {
         if (field in DIMENSIONS && Array.isArray(values)) {
           filters[field as Dimension] = values
             .filter((value): value is string => typeof value === 'string')
@@ -75,11 +77,24 @@ function readPreferences(userId: string): { rowFields: Dimension[]; filters: Fil
         }
       }
     }
-    const hasActiveFilters = Object.values(filters).some((values) => (values?.length ?? 0) > 0);
     return {
       rowFields: rowFields.length > 0 ? rowFields : DEFAULT_ROWS,
-      filters: hasActiveFilters ? filters : DEFAULT_FILTERS,
+      // Un objeto vacío también es una preferencia válida: significa que el
+      // usuario eligió mostrar todos los valores y no debe recibir nuevamente
+      // los filtros predeterminados al volver a Inventario.
+      filters: hasSavedFilters ? filters : DEFAULT_FILTERS,
     };
+  } catch {
+    return { rowFields: DEFAULT_ROWS, filters: DEFAULT_FILTERS };
+  }
+}
+
+function readPreferences(userId: string): InventoryPreferences {
+  try {
+    const stored = localStorage.getItem(`${PREFERENCES_KEY}:${userId}`);
+    return stored === null
+      ? { rowFields: DEFAULT_ROWS, filters: DEFAULT_FILTERS }
+      : normalizePreferences(JSON.parse(stored));
   } catch {
     return { rowFields: DEFAULT_ROWS, filters: DEFAULT_FILTERS };
   }
@@ -94,6 +109,7 @@ export default function InventoryPage({ userId }: { userId: string }) {
   const [filterAnchor, setFilterAnchor] = useState<HTMLElement | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [preferencesUserId, setPreferencesUserId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true); setError('');
@@ -105,12 +121,42 @@ export default function InventoryPage({ userId }: { userId: string }) {
   }, []);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
+    let active = true;
+    setPreferencesUserId(null);
+    apiClient.get<{ preferences: InventoryPreferences | null }>('/inventory/preferences')
+      .then(({ data }) => {
+        if (!active) return;
+        const preferences = data.preferences
+          ? normalizePreferences(data.preferences)
+          : readPreferences(userId);
+        setRowFields(preferences.rowFields);
+        setFilters(preferences.filters);
+        setPreferencesUserId(userId);
+      })
+      .catch(() => {
+        if (!active) return;
+        const preferences = readPreferences(userId);
+        setRowFields(preferences.rowFields);
+        setFilters(preferences.filters);
+      });
+    return () => { active = false; };
+  }, [userId]);
+  useEffect(() => {
+    const preferences = { rowFields, filters };
     try {
-      localStorage.setItem(`${PREFERENCES_KEY}:${userId}`, JSON.stringify({ rowFields, filters }));
+      localStorage.setItem(`${PREFERENCES_KEY}:${userId}`, JSON.stringify(preferences));
     } catch {
-      // El almacenamiento puede estar bloqueado o lleno; la tabla continúa funcionando en la sesión actual.
+      // El almacenamiento local es solo respaldo; la preferencia principal se guarda en la API.
     }
   }, [filters, rowFields, userId]);
+  useEffect(() => {
+    if (preferencesUserId !== userId) return;
+    const preferences = { rowFields, filters };
+    const timeout = window.setTimeout(() => {
+      void apiClient.put('/inventory/preferences', preferences).catch(() => undefined);
+    }, 300);
+    return () => window.clearTimeout(timeout);
+  }, [filters, preferencesUserId, rowFields, userId]);
 
   const availableFields = (Object.keys(DIMENSIONS) as Dimension[]).filter((field) => !rowFields.includes(field));
   const filteredItems = useMemo(() => items.filter((item) =>
@@ -123,7 +169,7 @@ export default function InventoryPage({ userId }: { userId: string }) {
     const result: DisplayRow[] = [];
     rows.forEach((row, rowIndex) => {
       const detailKey = rowFields.map((field) => row[field]).join('|');
-      result.push({ type: 'detail', row, key: `detail-${detailKey}-${rowIndex}` });
+      result.push({ type: 'detail', row, rowSpans: {}, key: `detail-${detailKey}-${rowIndex}` });
       const next = rows[rowIndex + 1];
       [...subtotalFields].reverse().forEach((field) => {
         const fieldIndex = rowFields.indexOf(field);
@@ -141,6 +187,31 @@ export default function InventoryPage({ userId }: { userId: string }) {
           key: `subtotal-${field}-${prefix.map((prefixField) => row[prefixField]).join('|')}`,
         });
       });
+    });
+
+    let previousDetail: AggregateRow | undefined;
+    result.forEach((displayRow, displayIndex) => {
+      if (displayRow.type !== 'detail') return;
+      rowFields.forEach((field, fieldIndex) => {
+        const prefix = rowFields.slice(0, fieldIndex + 1);
+        const startsGroup = !previousDetail
+          || prefix.some((prefixField) => previousDetail?.[prefixField] !== displayRow.row[prefixField]);
+        if (!startsGroup) return;
+
+        let rowSpan = 1;
+        for (let nextIndex = displayIndex + 1; nextIndex < result.length; nextIndex += 1) {
+          const nextRow = result[nextIndex];
+          if (nextRow.type === 'subtotal') {
+            if (rowFields.indexOf(nextRow.field) <= fieldIndex) break;
+            rowSpan += 1;
+            continue;
+          }
+          if (prefix.some((prefixField) => nextRow.row[prefixField] !== displayRow.row[prefixField])) break;
+          rowSpan += 1;
+        }
+        displayRow.rowSpans[field] = rowSpan;
+      });
+      previousDetail = displayRow.row;
     });
     return result;
   }, [rows, rowFields]);
@@ -207,8 +278,8 @@ export default function InventoryPage({ userId }: { userId: string }) {
             <TableCell align="right" sx={{ minWidth: 120, fontWeight: 800 }}>Peso kilos</TableCell><TableCell align="right" sx={{ minWidth: 120, fontWeight: 800 }}>Cantidad serial</TableCell>
           </TableRow></TableHead><TableBody>
             {displayRows.map((displayRow) => displayRow.type === 'detail'
-              ? <TableRow key={displayRow.key} hover>{rowFields.map((field) => <TableCell key={field}>{displayRow.row[field]}</TableCell>)}<TableCell align="right">{formatKilos(displayRow.row.pesoKilos)}</TableCell><TableCell align="right">{formatSerials(displayRow.row.cantidadSerial)}</TableCell></TableRow>
-              : <TableRow key={displayRow.key} sx={{ bgcolor: displayRow.field === 'estiloFinal' ? 'rgba(15, 118, 110, 0.07)' : 'rgba(22, 74, 139, 0.07)', '& td': { fontWeight: 800, borderTop: '2px solid', borderBottom: '2px solid', borderColor: displayRow.field === 'estiloFinal' ? 'secondary.main' : 'primary.main' } }}><TableCell colSpan={rowFields.length}>Subtotal {DIMENSIONS[displayRow.field]}: {displayRow.label}</TableCell><TableCell align="right">{formatKilos(displayRow.pesoKilos)}</TableCell><TableCell align="right">{formatSerials(displayRow.cantidadSerial)}</TableCell></TableRow>)}
+              ? <TableRow key={displayRow.key} hover>{rowFields.map((field) => displayRow.rowSpans[field] ? <TableCell key={field} rowSpan={displayRow.rowSpans[field]} align="center" sx={{ verticalAlign: 'middle', bgcolor: 'background.paper', fontWeight: 600 }}>{displayRow.row[field]}</TableCell> : null)}<TableCell align="right">{formatKilos(displayRow.row.pesoKilos)}</TableCell><TableCell align="right">{formatSerials(displayRow.row.cantidadSerial)}</TableCell></TableRow>
+              : <TableRow key={displayRow.key} sx={{ bgcolor: displayRow.field === 'estiloFinal' ? 'rgba(15, 118, 110, 0.07)' : 'rgba(22, 74, 139, 0.07)', '& td': { fontWeight: 800, borderTop: '2px solid', borderBottom: '2px solid', borderColor: displayRow.field === 'estiloFinal' ? 'secondary.main' : 'primary.main' } }}><TableCell colSpan={rowFields.length - rowFields.indexOf(displayRow.field)}>Subtotal {DIMENSIONS[displayRow.field]}: {displayRow.label}</TableCell><TableCell align="right">{formatKilos(displayRow.pesoKilos)}</TableCell><TableCell align="right">{formatSerials(displayRow.cantidadSerial)}</TableCell></TableRow>)}
             <TableRow sx={{ bgcolor: 'primary.main', '& td': { color: 'primary.contrastText', fontWeight: 800, borderTop: '3px double', borderBottom: '3px double', borderColor: 'primary.contrastText', textDecoration: 'underline', textUnderlineOffset: '3px' } }}><TableCell colSpan={rowFields.length}>Gran total</TableCell><TableCell align="right">{formatKilos(totalPeso)}</TableCell><TableCell align="right">{formatSerials(totalSerial)}</TableCell></TableRow>
           </TableBody></Table>}
       </TableContainer>

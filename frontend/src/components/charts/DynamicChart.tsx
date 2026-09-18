@@ -19,8 +19,8 @@ interface AxisPoint {
 }
 
 type ChartSeries =
-  | { name: string; data: (number | null)[] }
-  | { name: string; data: AxisPoint[] };
+  | { name: string; data: (number | null)[]; type?: 'line' }
+  | { name: string; data: AxisPoint[]; type?: 'line' };
 
 function applySort(data: DataRow[], sort?: ChartSort): DataRow[] {
   if (!sort) return data;
@@ -34,6 +34,13 @@ function applySort(data: DataRow[], sort?: ChartSort): DataRow[] {
 const ISO_PERIOD = /^\d{4}-\d{2}(-\d{2})?$/;
 const labelOf = (value: string): string =>
   ISO_PERIOD.test(value) ? formatPeriodo(value) : value;
+
+const monthAxisParts = (value: string): string | string[] => {
+  const match = /^(\d{4})-(\d{2})$/.exec(value);
+  if (!match) return labelOf(value);
+  const formatted = formatPeriodo(value);
+  return [formatted.slice(0, 3), match[1]];
+};
 
 function eachIsoDate(start: string, end: string): string[] {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end)) return [];
@@ -169,7 +176,7 @@ export default function DynamicChart({ config, data }: DynamicChartProps) {
     for (const r of rows) {
       cell.set(`${String(r[config.xField])}|${String(r[seriesField])}`, Number(r[yField] ?? 0));
     }
-    categories = xValues.map(labelOf);
+    categories = xValues.map((value) => config.monthYearAxis ? value : labelOf(value));
     series = seriesNames.map((name): ChartSeries => {
       // En la gráfica diaria se omiten por completo las fechas sin valor
       // para esta línea. Así ApexCharts conecta sus observaciones reales
@@ -188,6 +195,22 @@ export default function DynamicChart({ config, data }: DynamicChartProps) {
         data: xValues.map((x) => cell.get(`${x}|${name}`) ?? null),
       };
     });
+    if (config.showPeriodAverageSeries) {
+      const weightField = config.weightField ?? 'grupos';
+      series.push({
+        name: 'Promedio general',
+        ...(config.type === 'column' && { type: 'line' as const }),
+        data: xValues.map((x) => {
+          const periodRows = rows.filter((row) => String(row[config.xField] ?? '') === x);
+          const totalWeight = periodRows.reduce((sum, row) => sum + Number(row[weightField] ?? 1), 0);
+          if (totalWeight <= 0) return null;
+          return periodRows.reduce(
+            (sum, row) => sum + Number(row[yField] ?? 0) * Number(row[weightField] ?? 1),
+            0,
+          ) / totalWeight;
+        }),
+      });
+    }
   } else {
     const yFields = Array.isArray(config.yField) ? config.yField : [config.yField];
     categories = rows.map((r) => labelOf(String(r[config.xField] ?? '')));
@@ -203,6 +226,7 @@ export default function DynamicChart({ config, data }: DynamicChartProps) {
   const isHorizontal = config.type === 'bar';
   const apexType = config.type === 'column' ? 'bar' : config.type;
   const isLineLike = config.type === 'line' || config.type === 'area';
+  const hasMixedAverage = config.type === 'column' && config.showPeriodAverageSeries;
   const displayDataLabels = showChartValues;
   const dateTickStep = config.adaptiveDateTicks
     ? adaptiveStepFor(categories.length)
@@ -271,7 +295,9 @@ export default function DynamicChart({ config, data }: DynamicChartProps) {
         dropShadow: { enabled: false },
       },
     },
-    stroke: isLineLike
+    stroke: hasMixedAverage
+      ? { show: true, curve: 'straight', width: series.map((item) => item.name === 'Promedio general' ? 3 : 0) }
+      : isLineLike
       ? { show: true, curve: config.lineCurve ?? 'smooth', width: 3, colors: chartColors }
       : { show: true, width: 1, colors: ['transparent'] },
     xaxis: config.visibleDatePointsOnly
@@ -295,11 +321,11 @@ export default function DynamicChart({ config, data }: DynamicChartProps) {
           },
         }
       : {
-          categories,
+          categories: config.monthYearAxis ? categories.map(monthAxisParts) : categories,
           labels: {
-            rotate: isMobile ? -60 : -45,
+            rotate: config.monthYearAxis ? 0 : isMobile ? -60 : -45,
             trim: true,
-            style: { fontSize: isMobile ? '10px' : '12px', colors: '#64748b', fontWeight: 600 },
+            style: { fontSize: config.monthYearAxis ? (isMobile ? '10px' : '11px') : isMobile ? '10px' : '12px', colors: '#64748b', fontWeight: 600 },
             ...(!isHorizontal && dateTickStep > 1 && {
               formatter: (value: string) => {
                 const index = categories.indexOf(value);

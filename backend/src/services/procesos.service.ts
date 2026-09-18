@@ -28,6 +28,7 @@ import {
   DESCABEZADO_POR_DIA_QUERY,
   DESCABEZADO_POR_MES_QUERY,
   DESCABEZADO_RESUMEN_QUERY,
+  EXPORTACIONES_CLIENTE_MES_QUERY,
   EXPORTACIONES_CONTENEDORES_QUERY,
   EXPORTACIONES_RESUMEN_QUERY,
   RECEPCION_REMISIONES_QUERY,
@@ -164,6 +165,7 @@ export async function getDescabezadoResumen(): Promise<DescabezadoResumen> {
     librasDescabezadasSemana: round2(pickNumber(r, 'LibrasDescabezadasSemana')),
     librasDescabezadasMes: round2(pickNumber(r, 'LibrasDescabezadasMes')),
     personasDia: pickNumber(r, 'PersonasDia'),
+    librasPromedioPorHora: round2(pickNumber(r, 'LibrasPromedioPorHora')),
   };
 }
 
@@ -213,6 +215,7 @@ export async function getClasificadoResumen(): Promise<ClasificadoResumen> {
     librasClasificadasHoy: round2(pickNumber(r, 'LibrasClasificadasHoy')),
     librasClasificadasSemana: round2(pickNumber(r, 'LibrasClasificadasSemana')),
     librasClasificadasMes: round2(pickNumber(r, 'LibrasClasificadasMes')),
+    librasClasificadasPorHora: round2(pickNumber(r, 'LibrasClasificadasPorHora')),
   };
 }
 
@@ -351,7 +354,7 @@ interface ExportGroup {
   unidades: number;
 }
 
-const EXPORT_GROUPS_CACHE_MS = 5 * 60 * 1000;
+const EXPORT_GROUPS_CACHE_MS = 15 * 60 * 1000;
 
 /** Varios widgets de Exportaciones comparten el mismo rango de fechas del
  *  filtro; se cachea por rango para no repetir el escaneo de `AV_Envios`
@@ -378,12 +381,27 @@ export async function getExportacionesPorEstilo(f: DashboardFilters): Promise<Da
     .map(({ valor, libras, porcentaje }) => ({ estilo: valor, libras, porcentaje }));
 }
 
-/** Detalle por contenedor: una fila por (contenedor, estilo, cliente) con
- *  másteres, anillos por máster y libras. */
+/** Una fila resumen por contenedor. `detalle` conserva el desglose anterior
+ *  por estilo y cliente para abrirlo bajo demanda en la interfaz. */
 export async function getExportacionesContenedores(f: DashboardFilters): Promise<DataRow[]> {
   const groups = await fetchExportGroups(f.fechaInicial, f.fechaFinal);
-  return groups
-    .map((g) => ({
+  const map = new Map<string, {
+    fecha: string; contenedor: string; referencia: string; clientes: Set<string>;
+    estilos: Set<string>; masteres: number; unidades: number; libras: number; detalle: DataRow[];
+  }>();
+  for (const g of groups) {
+    const fecha = g.dia.slice(0, 10);
+    const key = `${fecha}|${g.contenedor}|${g.referencia}`;
+    const acc = map.get(key) ?? {
+      fecha, contenedor: g.contenedor, referencia: g.referencia, clientes: new Set<string>(),
+      estilos: new Set<string>(), masteres: 0, unidades: 0, libras: 0, detalle: [],
+    };
+    acc.clientes.add(g.cliente);
+    acc.estilos.add(g.estilo);
+    acc.masteres += g.masteres;
+    acc.unidades += g.unidades;
+    acc.libras += g.libras;
+    acc.detalle.push({
       fecha: g.dia.slice(0, 10),
       contenedor: g.contenedor,
       referencia: g.referencia,
@@ -392,29 +410,34 @@ export async function getExportacionesContenedores(f: DashboardFilters): Promise
       masteres: g.masteres,
       anillosXMaster: g.masteres > 0 ? round2(g.unidades / g.masteres) : 0,
       libras: round2(g.libras),
+    });
+    map.set(key, acc);
+  }
+  return Array.from(map.values())
+    .map((c) => ({
+      fecha: c.fecha,
+      contenedor: c.contenedor,
+      referencia: c.referencia,
+      cliente: Array.from(c.clientes).sort().join(', '),
+      estilos: c.estilos.size,
+      masteres: c.masteres,
+      anillosXMaster: c.masteres > 0 ? round2(c.unidades / c.masteres) : 0,
+      libras: round2(c.libras),
+      detalle: c.detalle.sort((a, b) => String(a.estilo).localeCompare(String(b.estilo))),
     }))
     .sort((a, b) => b.fecha.localeCompare(a.fecha) || a.contenedor.localeCompare(b.contenedor));
 }
 
-/** Contenedores exportados por período y cliente (para tabla pivote). */
-function exportContainersByPeriod(groups: ExportGroup[], periodOf: (d: string) => string): DataRow[] {
-  const map = new Map<string, { periodo: string; cliente: string; contenedores: Set<string> }>();
-  for (const g of groups) {
-    if (!g.dia || !g.contenedor) continue;
-    const periodo = periodOf(g.dia);
-    const key = `${periodo}|${g.cliente}`;
-    const acc = map.get(key) ?? { periodo, cliente: g.cliente, contenedores: new Set<string>() };
-    acc.contenedores.add(g.contenedor);
-    map.set(key, acc);
-  }
-  return Array.from(map.values())
-    .map((c) => ({ periodo: c.periodo, cliente: c.cliente, contenedores: c.contenedores.size }))
-    .sort((a, b) => a.periodo.localeCompare(b.periodo) || a.cliente.localeCompare(b.cliente));
-}
-
 export async function getExportacionesPorClienteMes(_f: DashboardFilters, meses: number): Promise<DataRow[]> {
   const [ini, fin] = monthWindow(meses);
-  return exportContainersByPeriod(await fetchExportGroups(ini, fin), (d) => d.slice(0, 7));
+  return withTtlCache(`exportClientMonth:${ini}:${fin}`, EXPORT_GROUPS_CACHE_MS, async () => {
+    const rows = await runQuery(EXPORTACIONES_CLIENTE_MES_QUERY, dateParams(ini, fin));
+    return rows.map((row) => ({
+      periodo: pickString(row, 'Mes'),
+      cliente: pickString(row, 'Cliente') || 'Sin cliente',
+      contenedores: pickNumber(row, 'Contenedores'),
+    }));
+  });
 }
 
 /* ================================================================== */

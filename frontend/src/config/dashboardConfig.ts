@@ -55,6 +55,8 @@ export const dashboardWidgets: ChartConfig[] = [
     weightField: 'grupos',
     altChartType: 'column',
     trendChartType: 'line',
+    monthYearAxis: true,
+    showPeriodAverageSeries: true,
     valueFormat: 'decimal',
     gridSpan: { xs: 12, md: 6 },
   },

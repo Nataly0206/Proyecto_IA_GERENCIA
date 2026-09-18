@@ -160,6 +160,18 @@ interface IqfGroup {
   rate: number;
 }
 
+const IQF_LINE_NAMES: Record<string, string> = {
+  '1': 'IQF # 1 (Espiral)',
+  '2': 'IQF # 2 (Lineal)',
+  '3': 'IQF # 3 (Lineal)',
+};
+
+function normalizeIqfLine(value: string): string {
+  const line = value.trim();
+  const number = line.match(/\bIQF\s*[-#]?\s*(\d+)\b/i)?.[1];
+  return number ? (IQF_LINE_NAMES[number] ?? line) : line;
+}
+
 async function fetchIqfGroups(
   fechaInicial: string,
   fechaFinal: string,
@@ -173,7 +185,7 @@ async function fetchIqfGroups(
       const horas = pickNumber(row, 'TiempoHorasDecimales');
       return {
         dia: pickString(row, 'Dia'),
-        linea: pickString(row, 'Linea'),
+        linea: normalizeIqfLine(pickString(row, 'Linea')),
         libras,
         horas,
         rate: horas > 0 ? libras / horas : 0,
@@ -263,7 +275,7 @@ export async function getIqfTiempoReal(): Promise<IqfLiveResponse> {
   const dia = pickString(catalogoRows[0] ?? rows[0] ?? {}, 'Dia') || formatDate(new Date());
   const conDatos = new Map(
     rows.map((row) => {
-      const linea = pickString(row, 'Linea');
+      const linea = normalizeIqfLine(pickString(row, 'Linea'));
       const numeroIqf = linea.match(/\bIQF\s*[-#]?\s*(\d+)\b/i)?.[1];
       const minutosDesdeUltima = pickNumber(row, 'MinutosDesdeUltima');
       return [
@@ -525,9 +537,10 @@ export async function getPeladoTiempoReal(): Promise<PeladoLiveResponse> {
 /* ------------------------------------------------------------------ */
 
 export async function getPeladoLibrasHoy(): Promise<PeladoLibrasHoyResponse> {
-  const [catalogRows, rows] = await Promise.all([
+  const [catalogRows, rows, transcurridoRows] = await Promise.all([
     runStbQuery(PELADO_LIBRAS_HOY_ESTILOS_QUERY, []),
     runStbQuery(PELADO_LIBRAS_HOY_QUERY, []),
+    runStbQuery(PELADO_MINUTOS_TRANSCURRIDOS_HOY_QUERY, []),
   ]);
   if (catalogRows.length === 0) {
     catalogRows.push(...(await runStbQuery(PELADO_LIBRAS_HOY_ESTILOS_FALLBACK_QUERY, [])));
@@ -547,8 +560,17 @@ export async function getPeladoLibrasHoy(): Promise<PeladoLibrasHoyResponse> {
     .map((estilo) => ({ estilo, libras: librasPorEstilo.get(estilo) ?? 0 }))
     .sort((a, b) => b.libras - a.libras);
   const total = round2(estilos.reduce((acc, e) => acc + e.libras, 0));
+  const minutosTranscurridos = pickNumber(transcurridoRows[0] ?? {}, 'MinutosTranscurridos');
+  const horasTranscurridas = minutosTranscurridos > 0 ? minutosTranscurridos / 60 : 0;
+  const librasPorHoraPromedio = horasTranscurridas > 0 ? round2(total / horasTranscurridas) : 0;
 
-  return { dia: formatDate(new Date()), actualizado: new Date().toISOString(), estilos, total };
+  return {
+    dia: formatDate(new Date()),
+    actualizado: new Date().toISOString(),
+    estilos,
+    total,
+    librasPorHoraPromedio,
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -733,7 +755,7 @@ export async function getIqfHorasTrabajadas(filters: DashboardFilters): Promise<
   for (const row of rows) {
     if (filters.turno && !matchesTurno(pickString(row, 'Turno'), filters.turno)) continue;
     const periodo = pickString(row, 'Dia').slice(0, 10);
-    const linea = pickString(row, 'Linea');
+    const linea = normalizeIqfLine(pickString(row, 'Linea'));
     const key = `${periodo}|${linea}`;
     const cell = cells.get(key) ?? { periodo, linea, horas: 0 };
     cell.horas += pickNumber(row, 'Horas');

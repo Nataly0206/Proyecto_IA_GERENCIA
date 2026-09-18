@@ -14,6 +14,8 @@ import { CompraMpResumen } from '../types';
 import { formatPeriodo } from '../utils/format';
 
 const TABLE_H = 460;
+const WSO_A_HOSO_FACTOR = 0.65;
+const toHoso = (value: number | undefined): number => (value ?? 0) / WSO_A_HOSO_FACTOR;
 
 export default function CompraMateriaPrimaPage({ userId }: { userId: string }) {
   const { data, isLoading, isError, error, dataUpdatedAt } =
@@ -32,12 +34,12 @@ export default function CompraMateriaPrimaPage({ userId }: { userId: string }) {
     >
       <ProcessFilters
         title="Filtros de compra de materia prima"
-        hint="Los contadores muestran libras WSO del día efectivo, semana y mes; el desglose por proveedor responde al rango de fechas."
+        hint="Los contadores muestran libras HOSO equivalentes (valor ÷ 0.65) del día efectivo, semana y mes; el desglose por proveedor responde al rango de fechas."
         hideTurno
       />
 
       <ResumenCards
-        title="Materia Prima WSO — Día, semana y mes"
+        title="Materia Prima HOSO — Día, semana y mes"
         icon={<ShoppingCartOutlinedIcon color="primary" sx={{ fontSize: 16 }} />}
         liveBadge={false}
         isLoading={isLoading}
@@ -47,14 +49,14 @@ export default function CompraMateriaPrimaPage({ userId }: { userId: string }) {
         periodoLabel={semana}
         emptyText="Sin materia prima registrada."
         metrics={[
-          { label: 'Libras WSO recibidas — hoy', value: data?.librasRecibidasHoy ?? 0, unit: 'lbs' },
-          { label: 'Libras WSO recibidas — semana', value: data?.librasRecibidasSemana ?? 0, unit: 'lbs' },
-          { label: 'Libras WSO recibidas — mes', value: data?.librasRecibidasMes ?? 0, unit: 'lbs' },
-          { label: 'Promedio WSO por semana', value: data?.librasPromedioSemana ?? 0, unit: 'lbs/semana' },
+          { label: 'Libras HOSO — hoy', value: toHoso(data?.librasRecibidasHoy), unit: 'lbs HOSO' },
+          { label: 'Libras HOSO — semana', value: toHoso(data?.librasRecibidasSemana), unit: 'lbs HOSO' },
+          { label: 'Libras HOSO — mes', value: toHoso(data?.librasRecibidasMes), unit: 'lbs HOSO' },
+          { label: 'Promedio HOSO por semana', value: toHoso(data?.librasPromedioSemana), unit: 'lbs HOSO/semana' },
         ]}
       />
 
-      <MateriaPrimaProveedorCombinedCards actions={
+      <MateriaPrimaProveedorCombinedCards userId={userId} actions={
         <Button size="small" variant="outlined" startIcon={showDetalle ? <VisibilityOffOutlinedIcon sx={{ fontSize: 16 }} /> : <VisibilityOutlinedIcon sx={{ fontSize: 16 }} />} onClick={() => setShowDetalle((v) => !v)} sx={{ fontSize: 11, fontWeight: 700, py: 0.4 }}>
           {showDetalle ? 'Ocultar Detalle' : 'Ver Detalle'}
         </Button>

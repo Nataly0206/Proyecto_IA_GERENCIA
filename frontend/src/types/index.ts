@@ -155,6 +155,7 @@ export interface PeladoLibrasHoyResponse {
   actualizado: string; // ISO timestamp de la lectura
   estilos: PeladoLibrasHoyEstilo[];
   total: number;
+  librasPorHoraPromedio: number;
 }
 
 /** Libras peladas hoy por talla (fuente: STB_data.dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS) */
@@ -213,6 +214,7 @@ export interface DescabezadoResumen {
   librasDescabezadasSemana: number;
   librasDescabezadasMes: number;
   personasDia: number;
+  librasPromedioPorHora: number;
 }
 
 export interface ClasificadoResumen {
@@ -223,6 +225,7 @@ export interface ClasificadoResumen {
   librasClasificadasHoy: number;
   librasClasificadasSemana: number;
   librasClasificadasMes: number;
+  librasClasificadasPorHora: number;
 }
 
 export interface ExportacionesResumen {
@@ -361,6 +364,10 @@ export interface ChartConfig {
   lineCurve?: 'straight' | 'smooth' | 'stepline';
   /** Muestra un marcador por cada observación aunque se reduzcan las etiquetas del eje */
   showAllDataMarkers?: boolean;
+  /** Presenta meses abreviados y el año en una segunda línea del eje X. */
+  monthYearAxis?: boolean;
+  /** Agrega a la gráfica una serie con el promedio ponderado de cada período. */
+  showPeriodAverageSeries?: boolean;
   /** Campo de peso para promedios ponderados al totalizar (type "table") */
   weightField?: string;
   /** Operación utilizada para los totales de una tabla pivote */

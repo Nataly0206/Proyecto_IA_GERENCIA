@@ -78,7 +78,7 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
       {
         heading: 'Fórmulas y cálculos',
         bullets: [
-          'Libras recibidas = `SUM(R_REMISIONES_PLANTA_DETALLE.LIBRAS)` de bins no anulados / no rechazados.',
+          'Los contadores se rotulan “Libras recibidas HOSO”. Libras recibidas = `SUM(R_REMISIONES_PLANTA_DETALLE.LIBRAS)` de bins no anulados / no rechazados.',
           'Detalle de remisiones: `LibrasRemision` se suma (la vista abre la fila por el indicador `Procesado`); `LibrasCola`, `LibrasCabeza` y `LibrasBasura` se toman con `MAX` porque son constantes por remisión-laguna.',
           'Total cola + cabeza = `LibrasCola + LibrasCabeza`. Rendimiento finca = `LibrasCola / LibrasRemision`. Rendimiento planta = `LibrasCola / (LibrasCola + LibrasCabeza)`. Se calculan en `procesos.service.ts` y se expresan en porcentaje (0–100).',
           'Fila de Total en la tabla: suma de libras y rendimientos ponderados (Σcola ÷ Σremisión y Σcola ÷ Σ(cola+cabeza)), calculada en `WidgetDataTable`.',
@@ -111,7 +111,7 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
       {
         heading: 'Filtros y parámetros',
         bullets: [
-          'Resumen: libras de hoy, lunes a hoy y primer día del mes a hoy; solo detalle no anulado.',
+          'Resumen: libras de hoy, lunes a hoy y primer día del mes a hoy; solo detalle no anulado. La tarjeta de libras promedio por hora usa exclusivamente el día actual.',
           'Por día: rango de fechas del filtro. Mensual: últimos 12 meses.',
           'Descabezado ya no filtra por turno.',
         ],
@@ -122,6 +122,7 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
           'Libras descabezadas al día = `SUM(DES_ASIG_LBRS_EMPLEADOS_DET.LIBRAS)` no anulado del día.',
           'Personas descabezando por día = `COUNT(DISTINCT el.ID_EMPLEADO)` del día; no se suma entre filas.',
           'Cola + cabezas = total entero procesado. Libras por hora = total ÷ horas efectivas entre el primer y último registro diario.',
+          'En `descabezado-resumen`, `librasPromedioPorHora` aplica esa misma fórmula a hoy: `SUM(V_TrazabilidadDescabezadoPBI.LIBRAS_ENTERO) ÷ horas efectivas`; devuelve 0 cuando no existe una jornada válida.',
           'Personas = `COUNT(DISTINCT ID_EMPLEADO)`; en mensual cada empleado se cuenta una sola vez por mes.',
         ],
       },
@@ -153,7 +154,7 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
       {
         heading: 'Filtros y parámetros',
         bullets: [
-          'Resumen: libras de `h.FECHA = @Hoy`, de la semana en curso (`@Lunes`–`@Domingo`, sin depender de `@@DATEFIRST`) y del mes en curso (`@PrimerDiaMes`–`@Hoy`); siempre `d.ANULADO = 0`.',
+          'Resumen: libras de `h.FECHA = @Hoy`, de la semana en curso (`@Lunes`–`@Domingo`, sin depender de `@@DATEFIRST`) y del mes en curso (`@PrimerDiaMes`–`@Hoy`); siempre `d.ANULADO = 0`. La tarjeta por hora usa el día actual.',
           'Inventario: saldo actual (`EnInventario = 1 AND Transferido = 0 AND Procesado = 0`); se agrupa por `IdTallaFinal` → `DCP_TALLAS` y por `FincaPBI`.',
           'Detalle por máquina: `h.FECHA BETWEEN @Fecha_Inicial AND @Fecha_Final AND d.ANULADO = 0`, agrupado por fecha, turno, responsable y talla. Turno filtrado en TypeScript. Vista mensual = 12 meses.',
         ],
@@ -162,8 +163,10 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
         heading: 'Fórmulas y cálculos',
         bullets: [
           'Libras clasificadas = `SUM(CL_LLENADO_RECIPIENTES_D.LIBRAS_NETA)` no anulado.',
+          'Libras clasificadas por hora = libras netas no anuladas de hoy ÷ horas entre `MIN(HORA_INICIO)` y `MAX(HORA_FINAL)` de hoy. Si el intervalo es cero o no existe, el resumen devuelve 0.',
           'Inventario: `bins = COUNT(*)`, `libras = SUM(CL_InventarioClasificado.LibrasNetas)` por talla, con columna de Total. El endpoint también calcula finca predominante y días represado (`hoy − MIN(Fecha)` del bin más antiguo), aunque la tabla actual solo muestra Talla × Bins/Libras.',
           'Los nombres son identificadores de mesa (catálogo `DCP_RESPONSABLES`), no producción individual.',
+          'Interfaz: `Libras Clasificadas por Talla` se carga como tabla Talla/Libras/Total en un diálogo al pulsar `Ver por talla` en la esquina superior derecha de `Libras Clasificadas por Máquina`; conserva el rango y turno activos.',
         ],
       },
       {
@@ -195,7 +198,9 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
           'Por sala (hoy): el mismo detalle base de la card por estilo, resuelto mediante `DCP_LINEAS.ID_SALA`. Los registros sin catálogo de sala se conservan como “Sin sala” para no perder libras.',
           '"Personas activas" por sala = `COUNT(DISTINCT ID_EMPLEADO)` con registro de pelado hoy. "Libras últimos 30 min" mantiene su ventana en vivo.',
           '"Libras hoy" por sala = acumulado del día; "Libras por hora" = "Libras hoy" ÷ horas transcurridas del día (`DATEDIFF` desde el primer registro de destajo de hoy de toda la planta hasta `GETDATE()`, mismo divisor para todas las salas). La tabla se ordena por nº de sala y lleva fila de totales.',
+          'La card `Libras por hora promedio` de `Libras Peladas Hoy por Estilo` usa el total de todos los estilos dividido entre ese mismo tiempo transcurrido, por lo que concilia con el total de libras por hora de las salas.',
           'Botón "Por talla · hoy": libras peladas del día en curso agrupadas por `dbo.DCP_TALLAS.NOMBRE_TALLA` (mismo criterio que `/pelado-libras-hoy` por estilo, así el total por talla concilia con el total por estilo). Independiente del filtro de fechas; consulta perezosa al abrir el diálogo.',
+          'Botón `Ver por talla`: se ubica en la esquina superior derecha de `Libras Peladas por Estilo` y monta bajo demanda una tabla Talla/Libras/Total con `/pelado-por-talla`; conserva el rango y turno globales. El detalle dejó de mostrarse permanentemente en la página.',
           'Órdenes activas / tiempo real: la BD no tiene un conteo real de personal en planta (módulo legado `CodigosBin` / `MovimientosInvProceso` vacío). Se aproxima con órdenes de `dbo.AV_Produccion_Diaria_2020` (`FechaHoraTorre`) con lectura en los últimos 15 min y `NombreTipoProceso IN (\'IQF PEELED\', \'IQF COOK PEELED\', \'PD BLOCK\', \'FRESH PEELED\')`.',
         ],
       },
@@ -212,6 +217,7 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
         heading: 'Fórmulas y cálculos',
         bullets: [
           'Libras peladas (rango) = `SUM(PES_ASIGNACION_LIBRAS_EMPLEADOS_DET.LIBRAS)`.',
+          'Libras por hora promedio de hoy = `total` de `/pelado-libras-hoy` ÷ (`PELADO_MINUTOS_TRANSCURRIDOS_HOY_QUERY.MinutosTranscurridos / 60`); devuelve 0 cuando todavía no hay un intervalo válido.',
           'Empleados = `COUNT(DISTINCT IdEmpleado)` de `V_PagosxPeladoIndividualPBI` en el período; no se suman empleados entre filas.',
           'Total por estilo = total por talla = suma de libras de todas las salas, incluyendo “Sin sala”.',
         ],
@@ -262,6 +268,8 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
           'Libras netas = `SUM(PesoLibras)` agrupado por proceso y turno.',
           'Libras/hora por grupo = `SUM(PesoLibras) / (DATEDIFF(MINUTE, MIN(FechaHoraTorre), MAX(FechaHoraTorre)) / 60)`.',
           'Rendimiento del período = promedio simple de los `librasPorHora` de los grupos (`rateSum / grupos`), NO `SUM(libras) / SUM(horas)` — así lo calcula el reporte oficial. Ver `fetchIqfGroups` / `aggregate*` en `dashboard.service.ts`.',
+          'Los nombres se normalizan en `normalizeIqfLine`: `IQF # 1 (Espiral)`, `IQF # 2 (Lineal)` e `IQF # 3 (Lineal)`. Se aplica tanto a rendimiento como a horas antes de agregar las celdas.',
+          'La gráfica mensual agrega `Promedio general` por mes: `SUM(librasPorHora × grupos) / SUM(grupos)` entre los IQF válidos. En columnas se dibuja como línea; la tabla conserva solamente las columnas de cada IQF y su Grand Total ponderado.',
           'Horas por turno = `DATEDIFF(MINUTE, MIN(FechaHoraTorre), MAX(FechaHoraTorre)) / 60.0`. Diario suma turnos seleccionados por equipo/día; Mensual suma esas horas diarias por equipo/mes, sin medir un intervalo de todo el mes. No descuenta pausas.',
           'Columna promedio de fila = suma de horas de sus equipos válidos / número de equipos válidos. Promedio por equipo = total de horas / períodos válidos del equipo. Promedio general = suma de todas las horas / número de celdas equipo/período válidas. Pie de la columna Promedio = media de los promedios de fila. Celdas ausentes se excluyen; mantener precisión y formatear dos decimales al mostrar.',
           'Las horas del endpoint de rendimiento tienen agrupación adicional por estilo/ejecutivo/grupo; no equivalen a las horas trabajadas del modo 30.',
@@ -273,6 +281,7 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
         bullets: [
           'Diario: “Rendimientos IQF x Hora — Diario” / “Horas Trabajadas por IQF — Diario”. Mensual: “Rendimientos IQF x Hora — Mensual” / “Horas Trabajadas por IQF — Mensual”. Listas independientes y ancho ajustado al texto.',
           'Ambos indicadores comparten Tabla/Gráfica en Diario y Tabla/Gráfica/Tendencia en Mensual. `ChartWidget` conserva `view` al cambiar `report` y muestra el contenido del indicador seleccionado.',
+          'Las tarjetas diaria y mensual tienen la misma altura fija en escritorio. `monthYearAxis` muestra el mes abreviado y el año en una segunda línea; `showPeriodAverageSeries` habilita el promedio mensual solo para el rendimiento.',
           'Horas usa `IqfWorkedHoursTable` en Tabla y `DynamicChart` en Gráfica/Tendencia, con `yField = horas`, formato decimal y la misma configuración temporal del reporte. Diario usa línea, Mensual columnas o línea de tendencia. La tabla muestra “Promedio diario” o “Promedio mensual” y el promedio general; no muestra total del período.',
         ],
       },
@@ -297,19 +306,19 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
       {
         heading: 'Tablas y vistas de origen',
         bullets: [
-          'Vista `dbo.AV_Envios` (`FechaCarga`, `NumeroContenedor`, `ReferenciaEnvio`, `NombreGrupo`, `Empresa`, `EstiloFinal`, `CodigoMaster`, `PesoLibras`, `CantidadSerial`). Vista pesada: ~19M filas a nivel de serial (caja individual) sobre `dbo.Seriales`, sin índice utilizable por `FechaCarga`.',
+          'La información procede de `Envios`, `Masteres`, `Seriales`, `OrdenesProduccion`, `AV_Items` y `AV_LotesRemision`. Ya no se consulta directamente la vista completa `AV_Envios`, que une muchas tablas ajenas a esta pantalla y trabaja sobre ~19M seriales.',
         ],
       },
       {
         heading: 'Filtros y parámetros',
         bullets: [
           'Contenedores: `FechaCarga BETWEEN @Fecha_Inicial AND @Fecha_Final` y `NumeroContenedor` no vacío (el despacho/fresco/reempaque interno no lleva contenedor, así que ese filtro ya los excluye).',
-          'Detalle agrupado por contenedor + estilo + cliente únicamente (no por código de exportación ni item: agregar por esas dos columnas fragmentaba cada contenedor en ~5-6 filas y disparaba el costo de la agregación sobre la vista de ~14s a menos de 2s).',
+          'SQL agrupa primero por contenedor + estilo + cliente. El servicio devuelve una fila principal por fecha/contenedor/referencia y guarda esas agrupaciones en `detalle`; “Ver detalle” las muestra bajo demanda.',
           'Cliente = `COALESCE(NULLIF(NombreGrupo, \'\'), NULLIF(Empresa, \'\'), \'Sin cliente\')`.',
           'Resumen semana en curso: lunes-domingo calculado sin depender de `@@DATEFIRST` — `DATEADD(DAY, -(DATEDIFF(DAY, 0, @Hoy) % 7), @Hoy)`.',
           'Francia: `NombreGrupo LIKE \'%FRANCIA%\'`. UK: `NombreGrupo LIKE \'%LFF%\' OR LIKE \'%UK%\'`. AC Holding: `NombreGrupo LIKE \'%AC HOLDING%\'`. Terceros = resto (no cae en las tres anteriores), así que los 4 buckets siempre suman el total.',
           'Vista mensual por cliente = últimos 6 meses (agregación en el servicio); ya no hay vista diaria por cliente.',
-          '`fetchExportGroups` (procesos.service.ts) cachea 5 min por rango de fechas: varios widgets de esta página comparten el mismo rango del filtro y antes repetían el escaneo completo de la vista una vez por widget.',
+          '`fetchExportGroups` cachea 15 min por rango: Por Estilo y Contenedores comparten una sola consulta, incluso si se solicitan simultáneamente. Resumen usa caché de 15 min y el mensual tiene una consulta SQL agregada y caché propia de 15 min.',
         ],
       },
       {
@@ -317,13 +326,14 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
         bullets: [
           'Libras exportadas = `SUM(PesoLibras)`, agregado en una sola pasada con `SUM(CASE...)` (no con un CTE referenciado varias veces: SQL Server no lo materializa y cada referencia repetía el escaneo completo de la vista, ~25-30s → ~1-3s con una sola pasada).',
           'Másteres = `COUNT(DISTINCT CodigoMaster)`.',
+          'Fila principal por contenedor: libras = suma del detalle; anillos/máster = `SUM(Unidades) / SUM(Másteres)`; estilos = cantidad de estilos distintos. La fila Total suma contenedores, másteres y libras.',
         ],
       },
       {
         heading: 'Endpoints y archivos',
         bullets: [
           '`/exportaciones-resumen` · `/exportaciones-contenedores` · `/exportaciones-por-estilo` · `/exportaciones-por-cliente-mes`',
-          'Archivos: `procesos.queries.ts` (`EXPORTACIONES_CONTENEDORES_QUERY`, `EXPORTACIONES_RESUMEN_QUERY`), `procesos.service.ts` (`getExportaciones*`); front `frontend/src/pages/ExportacionesPage.tsx`.',
+          'Archivos: `procesos.queries.ts` (`EXPORTACIONES_CONTENEDORES_QUERY`, `EXPORTACIONES_CLIENTE_MES_QUERY`, `EXPORTACIONES_RESUMEN_QUERY`), `procesos.service.ts` (`getExportaciones*`); front `ExportacionesPage.tsx` y `ExportContainersTable.tsx`.',
         ],
       },
       ARQUITECTURA_COMUN,
@@ -338,7 +348,7 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
         heading: 'Tablas y vistas de origen',
         bullets: [
           'Única fuente: vista `dbo.AV_MateriaPrima` (`DiaProduccion2024`, `NombrePropietario`, `NombreGrupo`, `Talla` — gramaje del camarón, ej. "51/60" —, `Item` — código de producto, ej. "STB COLA FRESCO51/60" —, `TipoMateria` — "FRESCO" casi siempre, a veces "SALMUERA" —, `PesoLibras`, `CantidadSerial`, `SubTotal`). En los últimos meses casi toda la vista es `fkTipo = 4` / `NombreTipoProceso = \'FRESH TAIL\'` (registro fresco de materia prima).',
-          'Los contadores Hoy/Semana/Mes/Promedio son WSO: `dbo.AV_MateriaPrima.PesoLibras`; no aplican el factor de conversión a entero. Libras recibidas hoy: filtrado de `@Hoy` a `@Hoy`, usando la misma fecha efectiva que semana y mes.',
+          'La API `/compra-mp-resumen` devuelve sumas base de `dbo.AV_MateriaPrima.PesoLibras`. Los cuatro contadores visibles son HOSO: el frontend aplica `valor / 0.65` a Hoy, Semana, Mes y Promedio semanal mediante `toHoso`. La fecha efectiva sigue siendo la última fecha registrada, limitada a hoy.',
           'Nota: NO se usa la tabla `dbo.MateriaPrima` (esa tabla es de otro dominio — liquidación de exportación WSO/embarque — y no tiene el gramaje de recepción; se verificó por inspección directa de columnas).',
         ],
       },
@@ -398,7 +408,7 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
         bullets: [
           'No hay filtro de fechas ni turno: se trae el inventario disponible completo y el agrupado / filtrado se hace en el navegador (pivot).',
           '`SUM(PesoKilos)` y `SUM(CantidadSerial)` agrupados por todas las dimensiones (cliente, orden, código externo, fecha de producción, item, estilo, talla, empaque, tipo, disponibilidad).',
-          'Las preferencias de agrupación y los filtros de columna se guardan en `localStorage` por usuario, solo en este navegador.',
+          'Las preferencias de agrupación y los filtros de columna se guardan por usuario en `dbo.dashboard_inventario_preferencias`. `localStorage` queda únicamente como respaldo y para migrar selecciones anteriores.',
         ],
       },
       {

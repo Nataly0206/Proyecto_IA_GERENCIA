@@ -1,10 +1,9 @@
 import { Box, Stack } from '@mui/material';
 import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined';
-import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import ProcessFilters from '../components/filters/ProcessFilters';
 import ResumenCards from '../components/live/ResumenCards';
 import ChartWidget from '../components/charts/ChartWidget';
-import WidgetDataTable from '../components/charts/WidgetDataTable';
+import ExportContainersTable from '../components/charts/ExportContainersTable';
 import { useProcesoResumen } from '../hooks/useDashboardData';
 import { ExportacionesResumen } from '../types';
 import { formatPeriodo } from '../utils/format';
@@ -53,23 +52,7 @@ export default function ExportacionesPage() {
 
       <ChartWidget config={porEstilo} />
 
-      <WidgetDataTable
-        title="Contenedores Exportados — Detalle"
-        subtitle="Por contenedor, estilo y cliente · rango de fechas del filtro"
-        icon={<Inventory2OutlinedIcon color="primary" sx={{ fontSize: 16 }} />}
-        endpoint="exportaciones-contenedores"
-        defaultSortKey="fecha"
-        emptyText="Sin contenedores exportados en el rango seleccionado."
-        columns={[
-          { key: 'fecha', label: 'Fecha', format: 'periodo' },
-          { key: 'contenedor', label: 'Contenedor' },
-          { key: 'cliente', label: 'Cliente' },
-          { key: 'estilo', label: 'Estilo' },
-          { key: 'masteres', label: 'Másteres', format: 'number' },
-          { key: 'anillosXMaster', label: 'Anillos/máster', format: 'decimal' },
-          { key: 'libras', label: 'Libras', format: 'number' },
-        ]}
-      />
+      <ExportContainersTable />
 
       <Box sx={{ height: TABLE_H, flexShrink: 0 }}>
         <ChartWidget config={porClienteMes} />

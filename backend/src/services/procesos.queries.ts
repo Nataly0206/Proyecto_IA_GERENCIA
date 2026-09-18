@@ -21,8 +21,9 @@
  *   `ID_TANQUE` no se usa desde 2023. Inventario disponible en
  *   `CL_InventarioClasificado` (`EnInventario=1 AND Transferido=0 AND
  *   Procesado=0`).
- * - Exportaciones: vista `AV_Envios` (contenedor, `NombreGrupo`,
- *   `EstiloFinal`, `NoOrdenCompra` = código de exportación, `CodigoMaster`).
+ * - Exportaciones: consulta reducida sobre `Envios`, `Masteres`, `Seriales`,
+ *   `OrdenesProduccion`, `AV_Items` y `AV_LotesRemision`; evita recorrer las
+ *   muchas uniones no utilizadas de la vista general `AV_Envios`.
  * - Compra MP: vista `AV_OrdenesCompraClientes` (avance de órdenes por
  *   cliente, `AnillosXMaster`, `KGFaltantes`), tabla `OrdenesCompra`
  *   (`FechaOrdenCompra` para el conteo de órdenes de la semana) y vista
@@ -101,11 +102,22 @@ GROUP BY v.FechaRemision, v.IdRemisionPlanta,
 /* DESCABEZADO (STB_data)                                              */
 /* ================================================================== */
 
-/** Libras descabezadas hoy, semana y mes, más empleados distintos de hoy. */
+/** Libras descabezadas hoy, semana y mes, empleados distintos y rendimiento de hoy. */
 export const DESCABEZADO_RESUMEN_QUERY = `
 DECLARE @Dia date = CAST(GETDATE() AS date);
 DECLARE @Lunes date = DATEADD(DAY, -(DATEDIFF(DAY, 0, @Dia) % 7), @Dia);
 DECLARE @PrimerDiaMes date = DATEADD(DAY, 1 - DAY(@Dia), @Dia);
+DECLARE @HorasHoy float = (
+  SELECT DATEDIFF(SECOND, MIN(CAST(d.HORA AS time)), MAX(CAST(d.HORA AS time))) / 3600.0
+    FROM dbo.DES_ASIG_LBRS_EMPLEADOS h
+    JOIN dbo.DES_ASIG_LBRS_EMPLEADOS_DET d ON d.ID_ASIG_LBRS_EMPLEADO = h.ID_ASIG_LBRS_EMPLEADO
+   WHERE h.FECHA = @Dia AND d.ANULADO = 0
+);
+DECLARE @TotalEnteroHoy float = (
+  SELECT ISNULL(SUM(LIBRAS_ENTERO), 0)
+    FROM dbo.V_TrazabilidadDescabezadoPBI
+   WHERE FECHA_DESCABEZADO = @Dia
+);
 
 ;WITH det AS (
   SELECT h.FECHA, d.LIBRAS, el.ID_EMPLEADO
@@ -118,7 +130,8 @@ SELECT
   (SELECT ISNULL(SUM(LIBRAS), 0) FROM det WHERE FECHA = @Dia) AS LibrasDescabezadasDia,
   (SELECT ISNULL(SUM(LIBRAS), 0) FROM det WHERE FECHA BETWEEN @Lunes AND @Dia) AS LibrasDescabezadasSemana,
   (SELECT ISNULL(SUM(LIBRAS), 0) FROM det) AS LibrasDescabezadasMes,
-  (SELECT COUNT(DISTINCT ID_EMPLEADO) FROM det WHERE FECHA = @Dia) AS PersonasDia
+  (SELECT COUNT(DISTINCT ID_EMPLEADO) FROM det WHERE FECHA = @Dia) AS PersonasDia,
+  CASE WHEN ISNULL(@HorasHoy, 0) > 0 THEN @TotalEnteroHoy / @HorasHoy ELSE 0 END AS LibrasPromedioPorHora
 `;
 
 /** Detalle diario. Empleados y horas se agregan antes de unirlos con la
@@ -202,6 +215,12 @@ DECLARE @Hoy date = CAST(GETDATE() AS date);
 DECLARE @Lunes date = DATEADD(DAY, -(DATEDIFF(DAY, 0, @Hoy) % 7), @Hoy);
 DECLARE @Domingo date = DATEADD(DAY, 6, @Lunes);
 DECLARE @PrimerDiaMes date = DATEADD(DAY, 1 - DAY(@Hoy), @Hoy);
+DECLARE @HorasClasificadoHoy float = (
+  SELECT DATEDIFF(SECOND, MIN(d.HORA_INICIO), MAX(d.HORA_FINAL)) / 3600.0
+    FROM dbo.CL_LLENADO_RECIPIENTES h
+    JOIN dbo.CL_LLENADO_RECIPIENTES_D d ON d.ID_LLENADO_RECIPIENTE = h.ID_LLENADO_RECIPIENTE
+   WHERE h.FECHA = @Hoy AND d.ANULADO = 0
+);
 
 SELECT
   CONVERT(varchar(10), @Lunes, 23) AS SemanaInicio,
@@ -217,7 +236,13 @@ SELECT
   (SELECT ISNULL(SUM(d.LIBRAS_NETA), 0)
      FROM dbo.CL_LLENADO_RECIPIENTES h
      JOIN dbo.CL_LLENADO_RECIPIENTES_D d ON d.ID_LLENADO_RECIPIENTE = h.ID_LLENADO_RECIPIENTE
-    WHERE h.FECHA BETWEEN @PrimerDiaMes AND @Hoy AND d.ANULADO = 0) AS LibrasClasificadasMes
+    WHERE h.FECHA BETWEEN @PrimerDiaMes AND @Hoy AND d.ANULADO = 0) AS LibrasClasificadasMes,
+  CASE WHEN ISNULL(@HorasClasificadoHoy, 0) > 0 THEN
+    (SELECT ISNULL(SUM(d.LIBRAS_NETA), 0)
+       FROM dbo.CL_LLENADO_RECIPIENTES h
+       JOIN dbo.CL_LLENADO_RECIPIENTES_D d ON d.ID_LLENADO_RECIPIENTE = h.ID_LLENADO_RECIPIENTE
+      WHERE h.FECHA = @Hoy AND d.ANULADO = 0) / @HorasClasificadoHoy
+    ELSE 0 END AS LibrasClasificadasPorHora
 `;
 
 /**
@@ -309,20 +334,42 @@ GROUP BY h.FECHA, d.IdTurno,
  */
 export const EXPORTACIONES_CONTENEDORES_QUERY = `
 SELECT
-  v.FechaCarga AS Dia,
-  v.NumeroContenedor AS Contenedor,
-  v.ReferenciaEnvio AS Referencia,
-  COALESCE(NULLIF(LTRIM(RTRIM(v.NombreGrupo)), ''), NULLIF(LTRIM(RTRIM(v.Empresa)), ''), 'Sin cliente') AS Cliente,
-  COALESCE(NULLIF(LTRIM(RTRIM(v.EstiloFinal)), ''), 'Sin estilo') AS Estilo,
-  COUNT(DISTINCT v.CodigoMaster) AS Masteres,
-  SUM(v.PesoLibras) AS Libras,
-  SUM(v.CantidadSerial) AS Unidades
-FROM dbo.AV_Envios v
-WHERE v.FechaCarga BETWEEN @Fecha_Inicial AND @Fecha_Final
-  AND v.NumeroContenedor IS NOT NULL AND LTRIM(RTRIM(v.NumeroContenedor)) <> ''
-GROUP BY v.FechaCarga, v.NumeroContenedor, v.ReferenciaEnvio,
-  COALESCE(NULLIF(LTRIM(RTRIM(v.NombreGrupo)), ''), NULLIF(LTRIM(RTRIM(v.Empresa)), ''), 'Sin cliente'),
-  COALESCE(NULLIF(LTRIM(RTRIM(v.EstiloFinal)), ''), 'Sin estilo')
+  e.FechaCarga AS Dia,
+  e.NumeroContenedor AS Contenedor,
+  e.ReferenciaEnvio AS Referencia,
+  COALESCE(NULLIF(LTRIM(RTRIM(lr.NombreGrupo)), ''), NULLIF(LTRIM(RTRIM(lr.Empresa)), ''), 'Sin cliente') AS Cliente,
+  COALESCE(NULLIF(LTRIM(RTRIM(i.EstiloFinal)), ''), 'Sin estilo') AS Estilo,
+  COUNT(DISTINCT m.CodigoMaster) AS Masteres,
+  SUM(i.PesoLibras) AS Libras,
+  SUM(s.Cantidad) AS Unidades
+FROM dbo.Envios e
+JOIN dbo.Masteres m ON m.FkEnvio = e.IdEnvio
+JOIN dbo.Seriales s ON s.FkMaster = m.IdMaster
+JOIN dbo.OrdenesProduccion op ON op.IdOrdenProduccion = s.FkOrdenProduccion
+JOIN dbo.AV_Items i ON i.IdItem = op.FkItem
+JOIN dbo.AV_LotesRemision lr ON lr.IdLoteRemision = op.FkLoteRemision
+WHERE e.FechaCarga BETWEEN @Fecha_Inicial AND @Fecha_Final
+  AND e.NumeroContenedor IS NOT NULL AND e.NumeroContenedor <> ''
+GROUP BY e.FechaCarga, e.NumeroContenedor, e.ReferenciaEnvio,
+  COALESCE(NULLIF(LTRIM(RTRIM(lr.NombreGrupo)), ''), NULLIF(LTRIM(RTRIM(lr.Empresa)), ''), 'Sin cliente'),
+  COALESCE(NULLIF(LTRIM(RTRIM(i.EstiloFinal)), ''), 'Sin estilo')
+`;
+
+/** Conteo mensual directo en SQL; evita descargar el detalle de seis meses. */
+export const EXPORTACIONES_CLIENTE_MES_QUERY = `
+SELECT
+  CONVERT(varchar(7), e.FechaCarga, 23) AS Mes,
+  COALESCE(NULLIF(LTRIM(RTRIM(lr.NombreGrupo)), ''), NULLIF(LTRIM(RTRIM(lr.Empresa)), ''), 'Sin cliente') AS Cliente,
+  COUNT(DISTINCT e.NumeroContenedor) AS Contenedores
+FROM dbo.Envios e
+JOIN dbo.Masteres m ON m.FkEnvio = e.IdEnvio
+JOIN dbo.Seriales s ON s.FkMaster = m.IdMaster
+JOIN dbo.OrdenesProduccion op ON op.IdOrdenProduccion = s.FkOrdenProduccion
+JOIN dbo.AV_LotesRemision lr ON lr.IdLoteRemision = op.FkLoteRemision
+WHERE e.FechaCarga BETWEEN @Fecha_Inicial AND @Fecha_Final
+  AND e.NumeroContenedor IS NOT NULL AND e.NumeroContenedor <> ''
+GROUP BY CONVERT(varchar(7), e.FechaCarga, 23),
+  COALESCE(NULLIF(LTRIM(RTRIM(lr.NombreGrupo)), ''), NULLIF(LTRIM(RTRIM(lr.Empresa)), ''), 'Sin cliente')
 `;
 
 /**
@@ -346,18 +393,23 @@ DECLARE @Domingo date = DATEADD(DAY, 6, @Lunes);
 SELECT
   CONVERT(varchar(10), @Lunes, 23) AS SemanaInicio,
   CONVERT(varchar(10), @Domingo, 23) AS SemanaFin,
-  ISNULL(SUM(CASE WHEN v.NombreGrupo LIKE '%FRANCIA%' THEN v.PesoLibras ELSE 0 END), 0) AS LibrasFrancia,
-  ISNULL(SUM(CASE WHEN v.NombreGrupo LIKE '%LFF%' OR v.NombreGrupo LIKE '%UK%' THEN v.PesoLibras ELSE 0 END), 0) AS LibrasUK,
-  ISNULL(SUM(CASE WHEN v.NombreGrupo LIKE '%AC HOLDING%' THEN v.PesoLibras ELSE 0 END), 0) AS LibrasACHolding,
+  ISNULL(SUM(CASE WHEN v.NombreGrupo LIKE '%FRANCIA%' THEN i.PesoLibras ELSE 0 END), 0) AS LibrasFrancia,
+  ISNULL(SUM(CASE WHEN v.NombreGrupo LIKE '%LFF%' OR v.NombreGrupo LIKE '%UK%' THEN i.PesoLibras ELSE 0 END), 0) AS LibrasUK,
+  ISNULL(SUM(CASE WHEN v.NombreGrupo LIKE '%AC HOLDING%' THEN i.PesoLibras ELSE 0 END), 0) AS LibrasACHolding,
   ISNULL(SUM(CASE
     WHEN v.NombreGrupo NOT LIKE '%FRANCIA%'
      AND v.NombreGrupo NOT LIKE '%LFF%' AND v.NombreGrupo NOT LIKE '%UK%'
      AND v.NombreGrupo NOT LIKE '%AC HOLDING%'
-    THEN v.PesoLibras ELSE 0 END), 0) AS LibrasTerceros,
-  ISNULL(SUM(v.PesoLibras), 0) AS LibrasTotal
-FROM dbo.AV_Envios v
-WHERE v.FechaCarga BETWEEN @Lunes AND @Domingo
-  AND v.NumeroContenedor IS NOT NULL AND LTRIM(RTRIM(v.NumeroContenedor)) <> ''
+    THEN i.PesoLibras ELSE 0 END), 0) AS LibrasTerceros,
+  ISNULL(SUM(i.PesoLibras), 0) AS LibrasTotal
+FROM dbo.Envios e
+JOIN dbo.Masteres m ON m.FkEnvio = e.IdEnvio
+JOIN dbo.Seriales s ON s.FkMaster = m.IdMaster
+JOIN dbo.OrdenesProduccion op ON op.IdOrdenProduccion = s.FkOrdenProduccion
+JOIN dbo.AV_Items i ON i.IdItem = op.FkItem
+JOIN dbo.AV_LotesRemision v ON v.IdLoteRemision = op.FkLoteRemision
+WHERE e.FechaCarga BETWEEN @Lunes AND @Domingo
+  AND e.NumeroContenedor IS NOT NULL AND e.NumeroContenedor <> ''
 `;
 
 /* ================================================================== */

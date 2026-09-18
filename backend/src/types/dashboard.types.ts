@@ -146,6 +146,7 @@ export interface PeladoLibrasHoyResponse {
   actualizado: string;
   estilos: PeladoLibrasHoyEstilo[];
   total: number;
+  librasPorHoraPromedio: number;
 }
 
 /** Libras peladas hoy por talla (fuente: STB_data.dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS). */
@@ -216,6 +217,7 @@ export interface DescabezadoResumen {
   librasDescabezadasSemana: number;
   librasDescabezadasMes: number;
   personasDia: number;
+  librasPromedioPorHora: number;
 }
 
 /** Clasificado — libras clasificadas del día, la semana y el mes en curso. */
@@ -227,6 +229,7 @@ export interface ClasificadoResumen {
   librasClasificadasHoy: number;
   librasClasificadasSemana: number;
   librasClasificadasMes: number;
+  librasClasificadasPorHora: number;
 }
 
 /** Exportaciones — contadores de la semana en curso (lunes a domingo). */

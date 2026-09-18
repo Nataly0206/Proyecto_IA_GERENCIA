@@ -19,7 +19,7 @@ export default function IqfWorkedHoursTable({ mode = 'dia', view = 'table', conf
   const total = cells.reduce((sum, row) => sum + Number(row.horas), 0);
 
   return (
-    <Paper elevation={0} sx={{ p: config ? 0 : 1.5, border: config ? 0 : 1, borderColor: 'divider', flexShrink: 0 }}>
+    <Paper elevation={0} sx={{ p: config ? 0 : 1.5, border: config ? 0 : 1, borderColor: 'divider', flexShrink: 0, height: config ? '100%' : 'auto', minHeight: 0 }}>
       {!config && <>
       <Typography variant="subtitle2" fontWeight={800}>Horas Trabajadas por IQF — {monthly ? 'Mensual' : 'Diario'}</Typography>
       <Typography variant="caption" color="text.secondary">
@@ -43,12 +43,13 @@ export default function IqfWorkedHoursTable({ mode = 'dia', view = 'table', conf
               valueFormat: 'decimal',
               unitLabel: 'h',
               totalAggregation: 'sum',
+              showPeriodAverageSeries: false,
             }} data={cells} />
           </Box>
         </ErrorBoundary>
       ) : (
         <Box sx={{ mt: 1 }}>
-          <TableContainer sx={{ maxHeight: 340, border: 1, borderColor: 'divider', borderRadius: 1 }}>
+          <TableContainer sx={{ height: config?.height ?? 340, maxHeight: config?.height ?? 340, border: 1, borderColor: 'divider', borderRadius: 1 }}>
             <Table stickyHeader size="small" aria-label="Horas trabajadas por IQF" sx={{
               '& th': { bgcolor: '#f1f5f9', fontWeight: 800, whiteSpace: 'nowrap' },
               '& td': { whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' },
@@ -57,7 +58,7 @@ export default function IqfWorkedHoursTable({ mode = 'dia', view = 'table', conf
               <TableHead><TableRow>
                 <TableCell>{monthly ? 'Mes' : 'Fecha'}</TableCell>
                 {lines.map((line) => <TableCell key={line} align="right">
-                  <Tooltip title={line}><span>{line.match(/IQF\s*#?\s*(\d+)/i) ? `IQF ${line.match(/IQF\s*#?\s*(\d+)/i)?.[1]}` : line}</span></Tooltip>
+                  <Tooltip title={line}><span>{line}</span></Tooltip>
                 </TableCell>)}
                 <TableCell align="right">Promedio</TableCell>
               </TableRow></TableHead>

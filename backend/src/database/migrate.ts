@@ -139,6 +139,43 @@ async function migrate(): Promise<void> {
       END;
     `);
 
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT 1 FROM dbo.dashboard_migraciones WHERE version = 4)
+      BEGIN
+        CREATE TABLE dbo.dashboard_inventario_preferencias (
+          usuario_id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+          preferencias NVARCHAR(MAX) NOT NULL,
+          actualizado_en DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+          CONSTRAINT FK_dashboard_inventario_preferencias_usuario
+            FOREIGN KEY (usuario_id) REFERENCES dbo.dashboard_usuarios(id) ON DELETE CASCADE,
+          CONSTRAINT CK_dashboard_inventario_preferencias_json CHECK (ISJSON(preferencias) = 1)
+        );
+
+        INSERT INTO dbo.dashboard_migraciones (version, nombre)
+        VALUES (4, N'crear preferencias de inventario por usuario');
+      END;
+    `);
+
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT 1 FROM dbo.dashboard_migraciones WHERE version = 5)
+      BEGIN
+        CREATE TABLE dbo.dashboard_password_resets (
+          usuario_id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+          codigo_hash CHAR(64) NOT NULL,
+          expira_en DATETIME2 NOT NULL,
+          intentos TINYINT NOT NULL DEFAULT 0,
+          creado_en DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+          CONSTRAINT FK_dashboard_password_resets_usuario
+            FOREIGN KEY (usuario_id) REFERENCES dbo.dashboard_usuarios(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IX_dashboard_password_resets_expira
+          ON dbo.dashboard_password_resets(expira_en);
+
+        INSERT INTO dbo.dashboard_migraciones (version, nombre)
+        VALUES (5, N'crear codigos de recuperacion de contraseña');
+      END;
+    `);
+
     console.log(`[migrate] Base [${databaseName}] lista y actualizada.`);
   } finally {
     await pool.close();

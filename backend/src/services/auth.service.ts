@@ -29,8 +29,116 @@ export async function assertAuthDatabaseReady(): Promise<void> {
   await pool.request().query(`
     IF OBJECT_ID('dbo.dashboard_usuarios', 'U') IS NULL
        OR OBJECT_ID('dbo.dashboard_usuarios_permisos', 'U') IS NULL
+       OR OBJECT_ID('dbo.dashboard_password_resets', 'U') IS NULL
       THROW 51000, 'La base de autenticación no está migrada. Ejecuta npm run migrate.', 1;
   `);
+}
+
+const resetCodeHash = (code: string): string => crypto
+  .createHmac('sha256', env.SESSION_SECRET)
+  .update(code)
+  .digest('hex');
+
+export async function createPasswordResetCode(identifier: string): Promise<{
+  nombre: string;
+  correo: string;
+  code: string;
+} | null> {
+  const pool = await getAuthPool();
+  await pool.request().query('DELETE FROM dbo.dashboard_password_resets WHERE expira_en <= SYSUTCDATETIME()');
+  const userResult = await pool.request()
+    .input('identifier', sql.NVarChar(254), identifier.trim().toLowerCase())
+    .query<{ id: string; nombre: string; correo: string }>(`
+      SELECT id, nombre, correo
+      FROM dbo.dashboard_usuarios
+      WHERE activo = 1 AND LOWER(usuario) = @identifier
+    `);
+  const user = userResult.recordset[0];
+  if (!user) return null;
+
+  const code = crypto.randomInt(0, 1_000_000).toString().padStart(6, '0');
+  const expires = new Date(Date.now() + 15 * 60 * 1000);
+  await pool.request()
+    .input('userId', sql.UniqueIdentifier, user.id)
+    .input('codeHash', sql.Char(64), resetCodeHash(code))
+    .input('expires', sql.DateTime2, expires)
+    .query(`
+      MERGE dbo.dashboard_password_resets WITH (HOLDLOCK) AS target
+      USING (SELECT @userId AS usuario_id) AS source ON target.usuario_id = source.usuario_id
+      WHEN MATCHED THEN UPDATE SET
+        codigo_hash = @codeHash, expira_en = @expires, intentos = 0, creado_en = SYSUTCDATETIME()
+      WHEN NOT MATCHED THEN INSERT (usuario_id, codigo_hash, expira_en)
+        VALUES (@userId, @codeHash, @expires);
+    `);
+  return { nombre: user.nombre, correo: user.correo, code };
+}
+
+export async function invalidatePasswordResetCode(identifier: string): Promise<void> {
+  await (await getAuthPool()).request()
+    .input('identifier', sql.NVarChar(254), identifier.trim().toLowerCase())
+    .query(`
+      DELETE r FROM dbo.dashboard_password_resets r
+      JOIN dbo.dashboard_usuarios u ON u.id = r.usuario_id
+      WHERE LOWER(u.usuario) = @identifier
+    `);
+}
+
+export async function resetPasswordWithCode(
+  identifier: string,
+  code: string,
+  password: string,
+): Promise<boolean> {
+  const passwordHash = await bcrypt.hash(password, 12);
+  const pool = await getAuthPool();
+  const transaction = new sql.Transaction(pool);
+  await transaction.begin(sql.ISOLATION_LEVEL.SERIALIZABLE);
+  try {
+    const result = await new sql.Request(transaction)
+      .input('identifier', sql.NVarChar(254), identifier.trim().toLowerCase())
+      .query<{ usuario_id: string; codigo_hash: string; intentos: number; expira_en: Date }>(`
+        SELECT r.usuario_id, r.codigo_hash, r.intentos, r.expira_en
+        FROM dbo.dashboard_password_resets r WITH (UPDLOCK, HOLDLOCK)
+        JOIN dbo.dashboard_usuarios u ON u.id = r.usuario_id
+        WHERE u.activo = 1
+          AND LOWER(u.usuario) = @identifier
+      `);
+    const reset = result.recordset[0];
+    const valid = reset
+      && reset.intentos < 5
+      && new Date(reset.expira_en).getTime() > Date.now()
+      && crypto.timingSafeEqual(Buffer.from(reset.codigo_hash), Buffer.from(resetCodeHash(code)));
+
+    if (!valid) {
+      if (reset) {
+        await new sql.Request(transaction)
+          .input('userId', sql.UniqueIdentifier, reset.usuario_id)
+          .query(`
+            UPDATE dbo.dashboard_password_resets
+            SET intentos = CASE WHEN intentos < 255 THEN intentos + 1 ELSE intentos END
+            WHERE usuario_id = @userId
+          `);
+      }
+      await transaction.commit();
+      return false;
+    }
+
+    await new sql.Request(transaction)
+      .input('userId', sql.UniqueIdentifier, reset.usuario_id)
+      .input('passwordHash', sql.NVarChar(100), passwordHash)
+      .query(`
+        UPDATE dbo.dashboard_usuarios
+        SET password_hash = @passwordHash, debe_cambiar_password = 0,
+          actualizado_en = SYSUTCDATETIME()
+        WHERE id = @userId;
+        DELETE FROM dbo.dashboard_sesiones WHERE usuario_id = @userId;
+        DELETE FROM dbo.dashboard_password_resets WHERE usuario_id = @userId;
+      `);
+    await transaction.commit();
+    return true;
+  } catch (error) {
+    await transaction.rollback();
+    throw error;
+  }
 }
 
 async function fetchPermisos(userId: string): Promise<Permiso[]> {

@@ -54,6 +54,12 @@ export default function DescabezadoPage() {
             value: data?.librasDescabezadasMes ?? 0,
             unit: 'lbs',
           },
+          {
+            label: 'Libras promedio por hora',
+            value: data?.librasPromedioPorHora ?? 0,
+            unit: 'lbs/h',
+            format: 'decimal',
+          },
         ]}
       />
 

@@ -2,7 +2,7 @@
 
 Este documento es una guía independiente para ubicar, interpretar y consultar los datos del Dashboard Gerencial. Incluye la ubicación en pantalla, el comportamiento de los filtros, las fuentes SQL, las fórmulas y ejemplos de consultas. No requiere leer otra documentación ni el código para usarlo.
 
-**Alcance:** los ocho módulos de datos: IQF, Pelado, Recepción, Descabezado, Clasificado, Exportaciones, Compra de Materia Prima e Inventario. Las funciones descritas corresponden al código revisado el 16 de septiembre de 2026; la mayoría de los indicadores se revisaron desde el código. Las horas IQF del 1 al 15 de enero de 2026 sí se verificaron contra PlantaEmpacadora, como se detalla en su sección.
+**Alcance:** los ocho módulos de datos: IQF, Pelado, Recepción, Descabezado, Clasificado, Exportaciones, Compra de Materia Prima e Inventario. Las funciones descritas corresponden al código revisado el 17 de septiembre de 2026; la mayoría de los indicadores se revisaron desde el código. Las horas IQF del 1 al 15 de enero de 2026 sí se verificaron contra PlantaEmpacadora, como se detalla en su sección.
 
 ## Propuesta de menú de consulta rápida por módulo
 
@@ -21,11 +21,11 @@ Todas las consultas son GET. Las fuentes SQL, uniones y condiciones completas de
 | Opción del menú | Resumen que debe mostrar al seleccionarla | Endpoint y campos | Base / fuente principal |
 | --- | --- | --- | --- |
 | **IQF** | IQF 1, IQF 2 e IQF 3: libras acumuladas hoy, última lectura y estado de actividad. **Total de los tres IQF** en libras | `/api/dashboard/iqf-tiempo-real`: `dia`, `actualizado`, `lineas[].linea`, `.libras`, `.ultimaCaja`, `.activa`; total calculado sobre las tres líneas seleccionadas | `PlantaEmpacadora.dbo.AV_Produccion_Diaria_2020`; `SUM(PesoLibras)` por `LineaEquipoIQF` para hoy |
-| **Pelado** | Libras peladas hoy por estilo y total del día. Ver detalle permite abrir tallas o salas, con libras, personas registradas y pago por sala | `/api/dashboard/pelado-libras-hoy`: `dia`, `actualizado`, `estilos`, `total`; detalle con `/api/dashboard/pelado-libras-hoy-talla` y `/api/dashboard/pelado-por-sala` | `STB_data.dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS` y `dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS_DET`, catálogos de estilo/talla/sala |
-| **Recepción** | Libras recibidas hoy, semana y mes; libras pendientes de procesar, identificadas como saldo global | `/api/dashboard/recepcion-resumen`: `dia`, `actualizado`, `librasRecibidasHoy`, `librasRecibidasSemana`, `librasRecibidasMes`, `librasPendientesProcesar` | `STB_data.dbo.R_REMISIONES_PLANTA` y `dbo.R_REMISIONES_PLANTA_DETALLE` |
-| **Descabezado** | Libras descabezadas hoy, semana y mes; personas que registraron descabezado hoy | `/api/dashboard/descabezado-resumen`: `dia`, `actualizado`, `librasDescabezadasDia`, `librasDescabezadasSemana`, `librasDescabezadasMes`, `personasDia` | `STB_data.dbo.DES_ASIG_LBRS_EMPLEADOS`, `dbo.DES_ASIG_LBRS_EMPLEADOS_DET` y `dbo.DES_EMPLEADOS_LINEAS` |
-| **Clasificado** | Libras clasificadas hoy, semana y mes. Ver detalle ofrece inventario clasificado disponible por talla, en bins y libras | `/api/dashboard/clasificado-resumen`: `dia`, `actualizado`, `librasClasificadasHoy`, `librasClasificadasSemana`, `librasClasificadasMes`; existencias con `/api/dashboard/clasificado-inventario` | `STB_data.dbo.CL_LLENADO_RECIPIENTES` y `dbo.CL_LLENADO_RECIPIENTES_D`; existencias desde `dbo.CL_InventarioClasificado` |
-| **Exportaciones** | Libras de la semana actual a Francia, UK, AC Holding y terceros; total exportado. Encabezado con inicio y fin de semana | `/api/dashboard/exportaciones-resumen`: `semanaInicio`, `semanaFin`, `actualizado`, `librasFrancia`, `librasUK`, `librasACHolding`, `librasTerceros`, `librasTotal` | `PlantaEmpacadora.dbo.AV_Envios`; fecha `FechaCarga`, contenedor no vacío |
+| **Pelado** | Libras peladas hoy por estilo, total del día y libras por hora promedio. Ver detalle permite abrir tallas o salas, con libras, personas registradas y pago por sala | `/api/dashboard/pelado-libras-hoy`: `dia`, `actualizado`, `estilos`, `total`, `librasPorHoraPromedio`; detalle con `/api/dashboard/pelado-libras-hoy-talla` y `/api/dashboard/pelado-por-sala` | `STB_data.dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS` y `dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS_DET`, catálogos de estilo/talla/sala |
+| **Recepción** | Libras recibidas HOSO hoy, semana y mes; libras pendientes de procesar, identificadas como saldo global | `/api/dashboard/recepcion-resumen`: `dia`, `actualizado`, `librasRecibidasHoy`, `librasRecibidasSemana`, `librasRecibidasMes`, `librasPendientesProcesar` | `STB_data.dbo.R_REMISIONES_PLANTA` y `dbo.R_REMISIONES_PLANTA_DETALLE` |
+| **Descabezado** | Libras descabezadas hoy, semana y mes; personas que registraron descabezado hoy; libras promedio por hora de hoy | `/api/dashboard/descabezado-resumen`: `dia`, `actualizado`, `librasDescabezadasDia`, `librasDescabezadasSemana`, `librasDescabezadasMes`, `personasDia`, `librasPromedioPorHora` | Asignaciones: `STB_data.dbo.DES_ASIG_LBRS_EMPLEADOS`, `_DET` y `dbo.DES_EMPLEADOS_LINEAS`; total entero: `dbo.V_TrazabilidadDescabezadoPBI` |
+| **Clasificado** | Libras clasificadas hoy, semana y mes; libras clasificadas por hora de hoy. Ver detalle ofrece inventario clasificado disponible por talla, en bins y libras | `/api/dashboard/clasificado-resumen`: `dia`, `actualizado`, `librasClasificadasHoy`, `librasClasificadasSemana`, `librasClasificadasMes`, `librasClasificadasPorHora`; existencias con `/api/dashboard/clasificado-inventario` | `STB_data.dbo.CL_LLENADO_RECIPIENTES` y `dbo.CL_LLENADO_RECIPIENTES_D`; existencias desde `dbo.CL_InventarioClasificado` |
+| **Exportaciones** | Libras de la semana actual a Francia, UK, AC Holding y terceros; total exportado. Encabezado con inicio y fin de semana | `/api/dashboard/exportaciones-resumen`: `semanaInicio`, `semanaFin`, `actualizado`, `librasFrancia`, `librasUK`, `librasACHolding`, `librasTerceros`, `librasTotal` | Tablas base de envíos, másteres y seriales en `PlantaEmpacadora`; fecha `Envios.FechaCarga`, contenedor no vacío |
 | **Compra de Materia Prima** | Libras recibidas en el día efectivo, su semana y mes; promedio semanal. Etiquetar el día como **última fecha registrada**, ya que puede ser anterior a hoy | `/api/dashboard/compra-mp-resumen`: `librasRecibidasHoy`, `librasRecibidasSemana`, `librasRecibidasMes`, `librasPromedioSemana`, `semanaInicio`, `semanaFin`, `actualizado`. **Mejora necesaria:** exponer `HoyEfectivo` en la respuesta para mostrar la fecha exacta; actualmente el servicio no lo devuelve | `PlantaEmpacadora.dbo.AV_MateriaPrima`; fecha `DiaProduccion2024`, resumen anclado a la última fecha registrada limitada a hoy |
 | **Inventario** | Peso kilos y cantidad serial del producto terminado actual, separados por DISPONIBLE, PENDIENTE, RETENIDO y CUARENTENADO. Destacar el total DISPONIBLE | `/api/inventory`: `items[].disponibilidad`, `.pesoKilos`, `.cantidadSerial`; agrupar y sumar por disponibilidad en el consumidor | `PlantaEmpacadora.dbo.Seriales` y uniones descritas en Inventario; es una foto actual |
 
@@ -199,7 +199,7 @@ Las fuentes de unión y fórmulas ampliadas están incluidas en las secciones de
 | Recepción por remisión/finca/laguna | `STB_data.dbo.RemisionesPlantaPBI` | `LibrasRemision`, `LibrasCola`, `LibrasCabeza`, `LibrasBasura`; agregación descrita en Recepción | `FechaRemision`; `/api/dashboard/recepcion-remisiones?fechaInicial=INICIO&fechaFinal=FIN`; sin turno |
 | Descabezado por día | `STB_data.dbo.V_TrazabilidadDescabezadoPBI` y tablas de asignación | Cola, cabeza, total; personas y horas desde asignación | `FECHA_DESCABEZADO` y cabecera `FECHA`; `/api/dashboard/descabezado-por-dia?fechaInicial=INICIO&fechaFinal=FIN`; sin turno |
 | Clasificado por talla o responsable | `STB_data.dbo.CL_LLENADO_RECIPIENTES` y `dbo.CL_LLENADO_RECIPIENTES_D` | `SUM(LIBRAS_NETA)` no anuladas; `DCP_TALLAS` o `DCP_RESPONSABLES` | Cabecera `FECHA`; `/api/dashboard/clasificado-por-talla?fechaInicial=INICIO&fechaFinal=FIN` o `/api/dashboard/clasificado-por-maquina` con las mismas fechas; turno opcional |
-| Exportaciones por contenedor/cliente | `PlantaEmpacadora.dbo.AV_Envios` | `SUM(PesoLibras)`; contenedor no vacío; másteres distintos por `CodigoMaster` | `FechaCarga`; `/api/dashboard/exportaciones-contenedores?fechaInicial=INICIO&fechaFinal=FIN`; sin turno |
+| Exportaciones por contenedor/cliente | `Envios` + `Masteres` + `Seriales` + `OrdenesProduccion` + `AV_Items` + `AV_LotesRemision` | Una fila principal por contenedor con libras totales; `detalle` conserva cliente/estilo; contenedor no vacío | `FechaCarga`; `/api/dashboard/exportaciones-contenedores?fechaInicial=INICIO&fechaFinal=FIN`; sin turno |
 | Compra por proveedor/talla | `PlantaEmpacadora.dbo.AV_MateriaPrima` | `SUM(PesoLibras)`; proveedor desde `NombrePropietario` o `NombreGrupo`, talla desde `Talla` | `CAST(DiaProduccion2024 AS date)`; `/api/dashboard/compra-mp-por-talla?fechaInicial=INICIO&fechaFinal=FIN`; sin turno |
 | Existencias de producto terminado | `PlantaEmpacadora.dbo.Seriales` y uniones de Inventario | `pesoKilos`, `cantidadSerial`; dimensiones y disponibilidad en cada registro | `/api/inventory`, respuesta `items`; sin fechas ni turno. Filtrar registros en el consumidor |
 
@@ -221,28 +221,28 @@ Para límites por categoría o valor numérico, indicar el criterio sobre la res
 | IQF | Mismo bloque, modo Día | Sí | Sí | Desglose diario del rango |
 | IQF | Mismo bloque, modo Mensual | No | Sí | Últimos 12 meses |
 | IQF | **Rendimientos IQF x Hora — Diario** | Sí | Sí | Columna de cada línea; unidad lbs/h |
-| IQF | **Rendimientos IQF x Hora — Mensual** | No | Sí | Últimos 12 meses |
+| IQF | **Rendimientos IQF x Hora — Mensual** | No | Sí | Últimos 12 meses; cada IQF y línea de promedio general por mes |
 | IQF | **Horas Trabajadas por IQF — Diario**, lista del reporte diario | Sí | Sí | Horas por equipo/día y promedios |
 | IQF | **Horas Trabajadas por IQF — Mensual**, lista del reporte mensual | No | Sí | Últimos 12 meses, horas acumuladas y promedio por mes |
 | IQF | Contadores en vivo por línea | No | No | Día actual; actividad reciente |
-| Pelado | **Libras Peladas por Estilo** y **Detalle de Libras Peladas por Talla** | Sí | Sí | Totales por estilo y por talla del rango |
-| Pelado | Tarjetas de libras de hoy y tabla por sala | No | No | Día actual; personal y pago por sala en la tabla |
+| Pelado | **Libras Peladas por Estilo** y botón **Ver por talla** | Sí | Sí | Estilos visibles; el botón abre bajo demanda una tabla Talla/Libras/Total con el mismo rango y turno |
+| Pelado | **Libras Peladas Hoy por Estilo** y tabla por sala | No | No | Día actual; cards por estilo, total y libras por hora promedio; personal y pago por sala en la tabla |
 | Recepción | **Remisiones Recibidas — Detalle** | Sí | No | Una fila por remisión, finca y laguna |
-| Recepción | **Recepción de Camarón — Hoy**, contadores | No | No | Hoy, semana, mes; pendientes = saldo global |
+| Recepción | **Recepción de Camarón — Hoy**, contadores | No | No | Libras recibidas HOSO hoy, semana y mes; pendientes = saldo global |
 | Descabezado | **Libras Descabezadas — Diario** | Sí | No | Libras, personas y rendimiento por fecha |
 | Descabezado | **Libras Descabezadas — Mensual** | No | No | Últimos 12 meses; personas únicas por mes |
-| Descabezado | **Descabezado — Hoy**, contadores | No | No | Hoy, semana y mes actuales |
-| Clasificado | **Libras Clasificadas por Máquina**, **Libras Clasificadas por Talla**, **Clasificado por Talla — Diario** | Sí | Sí | Totales del rango o desglose diario |
+| Descabezado | **Descabezado — Hoy**, contadores | No | No | Hoy, semana y mes actuales; personas y libras promedio por hora de hoy |
+| Clasificado | **Libras Clasificadas por Máquina** y botón **Ver por talla**; **Clasificado por Talla — Diario** | Sí | Sí | Máquina y detalle emergente por talla usan el rango y turno; desglose diario en la tabla |
 | Clasificado | **Clasificado por Talla — Mensual** | No | Sí | Últimos 12 meses |
-| Clasificado | **Clasificado — Libras**, contadores | No | No | Hoy, semana y mes actuales |
+| Clasificado | **Clasificado — Libras**, contadores | No | No | Hoy, semana y mes actuales; libras clasificadas por hora de hoy |
 | Clasificado | **Inventario de Clasificado Disponible** y su detalle | No | No | Existencias actuales por talla; detalle de origen y destino |
-| Exportaciones | **Libras Exportadas por Estilo** y **Contenedores Exportados — Detalle** | Sí | No | Libras por estilo; detalle de contenedor, estilo y cliente |
+| Exportaciones | **Libras Exportadas por Estilo** y **Contenedores Exportados** | Sí | No | Una fila por contenedor con sus libras totales; Ver detalle abre cliente y estilo |
 | Exportaciones | **Exportaciones — Semana en curso** | No | No | Lunes a domingo de la semana actual |
 | Exportaciones | **Contenedores Exportados por Cliente — Mensual** | No | No | Últimos 6 meses |
 | Compra de Materia Prima | **Materia Prima por Proveedor — WSO y Entero** | Sí | No | Una tarjeta por proveedor: WSO y equivalente Entero lado a lado, porcentaje compartido |
 | Compra de Materia Prima | **Ver Detalle** → **Detalle de Materia Prima por Talla** | Sí | No | Cruce proveedor × talla |
 | Compra de Materia Prima | **Materia Prima por Proveedor/Talla — Mensual**, selector Proveedor/Talla | No | No | Últimos 3 meses con datos; selección local de proveedores |
-| Compra de Materia Prima | **Materia Prima WSO — Día, semana y mes**, contadores | No | No | Libras WSO; se anclan a la última fecha registrada, limitada a hoy |
+| Compra de Materia Prima | **Materia Prima HOSO — Día, semana y mes**, contadores | No | No | Libras HOSO = valor de API ÷ 0.65; se anclan a la última fecha registrada, limitada a hoy |
 | Inventario | Tabla pivote, columnas **Peso kilos** y **Cantidad serial** | No | No | Existencias actuales; filtros propios por valores de columnas |
 
 **Disponibilidad en API y en pantalla:** Pelado tiene endpoints diarios, mensuales y de personal, pero la página actual solo monta los bloques de hoy, estilo, talla y sala. No indicar al usuario que existe un selector diario/mensual o una tarjeta histórica de personal en esa página. Esos datos se consultan por API. Compra de Materia Prima también tiene un endpoint por item que no está montado como bloque en la página actual.
@@ -270,7 +270,7 @@ Las fechas son ejemplos reproducibles; sustituirlas por las solicitadas.
 | “Cuánto recibió una finca en agosto y qué rendimiento tuvo” | Recepción → fijar agosto → Remisiones Recibidas — Detalle → seleccionar sus filas en la respuesta si se requiere consolidar | Separar libras remisión, cola y cabeza; recalcular el rendimiento con totales, no promediar porcentajes sin ponderación |
 | “Cuántas personas descabezaron durante agosto” | Consultar `/descabezado-por-dia-mes` y ubicar agosto si está en la ventana | Personas únicas del mes; sumar personas diarias repetiría empleados |
 | “Clasificado de talla 41/50 del turno A en una semana” | Clasificado → fijar fechas, Turno A → tarjeta por talla o tabla diaria | Producción del rango; el inventario clasificado es un dato distinto |
-| “Qué se exportó a un cliente en agosto” | Exportaciones → fijar agosto → Contenedores Exportados — Detalle → seleccionar el cliente en la respuesta | Libras y contenedores del rango; contar contenedores distintos, ya que uno puede ocupar varias filas |
+| “Qué se exportó a un cliente en agosto” | Exportaciones → fijar agosto → Contenedores Exportados → Ver detalle en cada contenedor | La tabla principal da libras por contenedor; el diálogo permite comprobar cliente y estilo sin duplicar el contenedor en la vista principal |
 | “Materia prima de un proveedor por talla en agosto” | Compra → fijar agosto → Ver Detalle → cruce proveedor/talla | Libras WSO registradas; Entero es una conversión, no una segunda recepción |
 | “Inventario disponible para un cliente y una talla” | Inventario → agregar Cliente, Talla y Disponibilidad a FILAS → filtrar columnas → DISPONIBLE y valores solicitados | Peso en kilos y cantidad serial actuales; revisar otros filtros activos |
 | “Datos con 1,000 a 5,000 libras” | Consultar el endpoint del rango de fechas; conservar filas cuyo valor `libras` esté entre esos límites | Es un filtro numérico adicional sobre resultados, no los campos Desde/Hasta; aclarar si el límite aplica al día, talla, proceso o total |
@@ -285,7 +285,7 @@ En **CAMPOS**, arrastrar las dimensiones requeridas a **FILAS**. El orden determ
 
 Dimensiones disponibles: Nombre cliente, Nombre cliente principal, N.º orden compra, Código externo, Fecha producción, Código item, Estilo final, Nombre item, Marca, Talla, Empaque, Tipo item y Disponibilidad. Fecha producción filtra valores concretos de fecha, no un intervalo Desde/Hasta. No hay filtro numérico en Peso kilos o Cantidad serial.
 
-La vista conserva preferencias por usuario en el navegador. Sin preferencias activas se inicia con los clientes **FRANCIA DP 2026 FRESCO** y **LFF UK 2026 FRESCO**; por ello la vista inicial puede mostrar solo parte de la bodega. Revisar el filtro de cliente antes de afirmar que el Gran total representa todo el inventario. Quitar un campo de FILAS no borra un filtro guardado de ese campo; volver a agregarlo para revisar o limpiar su restricción.
+La vista conserva las preferencias en la cuenta del usuario mediante `dbo.dashboard_inventario_preferencias`, por lo que se recuperan también en otros navegadores o dispositivos. `localStorage` se usa solo como respaldo y para migrar selecciones anteriores. Sin preferencias activas se inicia con los clientes **FRANCIA DP 2026 FRESCO** y **LFF UK 2026 FRESCO**; por ello la vista inicial puede mostrar solo parte de la bodega. Revisar el filtro de cliente antes de afirmar que el Gran total representa todo el inventario. Quitar un campo de FILAS no borra un filtro guardado de ese campo; volver a agregarlo para revisar o limpiar su restricción.
 
 **Gran total** suma los registros que cumplen los filtros; no sumar otra vez las filas de subtotal. **Peso kilos** es kg; para comparar con libras, convertir kg × 2.2046226218 e indicar la conversión. **Cantidad serial** no equivale automáticamente a másteres o contenedores. **Actualizar** vuelve a cargar existencias actuales.
 
@@ -317,7 +317,7 @@ Los endpoints de resumen/en vivo y los de inventario clasificado ignoran fechas 
 | Recepción, detalle | `RemisionesPlantaPBI.FechaRemision` | Fecha de remisión; la vista limita internamente a fechas posteriores a `2025-01-01` |
 | Descabezado | `V_TrazabilidadDescabezadoPBI.FECHA_DESCABEZADO`; cabecera de asignación `FECHA` para personal/horas | Día descabezado y día de asignación, según indicador |
 | Clasificado | `CL_LLENADO_RECIPIENTES.FECHA` | Día del llenado/clasificado |
-| Exportaciones | `AV_Envios.FechaCarga` | Fecha de carga, no fecha de orden de compra ni producción |
+| Exportaciones | `Envios.FechaCarga` | Fecha de carga, no fecha de orden de compra ni producción |
 | Compra de Materia Prima | `CAST(AV_MateriaPrima.DiaProduccion2024 AS date)` | Fecha registrada de materia prima |
 | Inventario | Sin rango en API | Existencia actual; Fecha producción es una dimensión local |
 
@@ -372,6 +372,10 @@ se hace en varios reportes después en TypeScript (`backend/src/services/*.servi
 
 `fkTipo`: 0=RECEPCIÓN (producción), 1=REPROCESO, 2=RE-EMPAQUE (excluido de netas), 4=REGISTRO FRESCO/FRESH TAIL (excluido, es compra de materia prima).
 
+Los cuatro reportes usan los mismos nombres normalizados: **IQF # 1 (Espiral)**, **IQF # 2 (Lineal)** e **IQF # 3 (Lineal)**. Esto aplica a Rendimientos y Horas Trabajadas, tanto Diario como Mensual, aunque la fuente entregue variantes como `IQF 1`.
+
+Las vistas de Rendimiento y Horas tienen el mismo alto para conservar la simetría al cambiar la lista desplegable. En la gráfica de **Rendimientos IQF x Hora — Mensual**, el eje muestra el mes abreviado (`ene`, `feb`, etc.) y el año debajo. Las columnas representan el promedio de libras por hora de cada IQF en cada mes y la línea **Promedio general** representa `SUM(librasPorHora × grupos) ÷ SUM(grupos)` de los IQF válidos del mes. La vista de Horas Trabajadas conserva sus promedios propios y no mezcla esta serie de rendimiento.
+
 ---
 
 ## 2. Pelado
@@ -385,8 +389,11 @@ talla y sala. Base: `STB_data` (más un proxy en `PlantaEmpacadora` para
 | Libras peladas por estilo / talla (rango, día, mes) | `dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS` + `_DET`; estilo vía `PES_ASIGNACION_RECIPIENTES_LINEAS`→`PES_ESTILOS`; talla vía `DCP_TALLAS` | `SUM(LIBRAS)` del detalle no anulado | `GET /pelado-por-estilo` / `-por-talla` (`-dia`, `-mes`) |
 | Personal (headcount) y pago | vista `dbo.V_PagosxPeladoIndividualPBI` | `COUNT(DISTINCT IdEmpleado)`, `SUM(libras)`, `SUM(Valor)` | `GET /pelado-personal` (`-dia`, `-mes`) |
 | Libras peladas hoy por estilo / talla | mismo detalle base (`PES_ASIGNACION_LIBRAS_EMPLEADOS[_DET]`), siempre `FECHA = GETDATE()` | `SUM(LIBRAS)`, independiente del filtro de fechas | `GET /pelado-libras-hoy` / `-libras-hoy-talla` |
+| Libras por hora promedio de hoy | mismo detalle; hora del registro en `PES_ASIGNACION_LIBRAS_EMPLEADOS_DET.HORA` | total de libras peladas hoy ÷ horas desde el primer registro válido de hoy hasta la hora actual; devuelve 0 si todavía no existe un intervalo válido | `GET /pelado-libras-hoy`, campo `librasPorHoraPromedio` |
 | Actividad y pago por sala (hoy) | mismo detalle, resuelto vía `DCP_LINEAS.ID_SALA`→`PES_SALAS` | `SUM(LIBRAS)`, `SUM(VALOR)`, `COUNT(DISTINCT empleado)` por sala; libras/hora = libras hoy ÷ horas desde el primer registro del día | `GET /pelado-por-sala` |
 | "Órdenes activas" (proxy de actividad, no hay conteo real de personal en planta) | `dbo.AV_Produccion_Diaria_2020` (**PlantaEmpacadora**), `FechaHoraTorre` | Órdenes con lectura en los últimos 15 min y proceso `IQF PEELED / IQF COOK PEELED / PD BLOCK / FRESH PEELED` | `GET /pelado-tiempo-real` |
+
+En la pantalla, **Detalle de Libras Peladas por Talla** no se muestra como una sección permanente. Se abre como tabla al pulsar **Ver por talla** en la esquina superior derecha de **Libras Peladas por Estilo**. La tabla contiene **Talla**, **Libras peladas** y una fila **Total**, y utiliza el rango de fechas y turno seleccionados.
 
 ---
 
@@ -397,7 +404,7 @@ a proceso. Base: `STB_data`. Sin filtro de turno.
 
 | Dato | Vista/Tabla SQL | Cómo se calcula | Endpoint |
 | --- | --- | --- | --- |
-| Libras recibidas hoy / semana / mes | `dbo.R_REMISIONES_PLANTA` + `dbo.R_REMISIONES_PLANTA_DETALLE` | `SUM(LIBRAS)` de bins no anulados/rechazados (`ANULADA=0 AND RECHAZADA=0`) | `GET /recepcion-resumen` |
+| Libras recibidas HOSO hoy / semana / mes | `dbo.R_REMISIONES_PLANTA` + `dbo.R_REMISIONES_PLANTA_DETALLE` | `SUM(LIBRAS)` de bins no anulados/rechazados (`ANULADA=0 AND RECHAZADA=0`) | `GET /recepcion-resumen` |
 | Libras pendientes de procesar (saldo global, sin fecha) | mismas tablas | `SUM(LIBRAS)` donde `CERRADA=0 AND PROCESADO=0` | `GET /recepcion-resumen` |
 | Detalle por remisión/finca/laguna: libras remisión, cola, cabeza, basura, rendimientos | vista `dbo.RemisionesPlantaPBI` (misma que Power BI) | `LibrasRemision` se suma; `LibrasCola/Cabeza/Basura` con `MAX` (son constantes por remisión-laguna); rendimiento finca = cola÷remisión; rendimiento planta = cola÷(cola+cabeza) | `GET /recepcion-remisiones` |
 
@@ -413,6 +420,7 @@ rendimiento por hora. Base: `STB_data`. Sin filtro de turno.
 | Dato | Vista/Tabla SQL | Cómo se calcula | Endpoint |
 | --- | --- | --- | --- |
 | Libras descabezadas hoy/semana/mes + personas hoy | `dbo.DES_ASIG_LBRS_EMPLEADOS` + `dbo.DES_ASIG_LBRS_EMPLEADOS_DET`; personas vía `dbo.DES_EMPLEADOS_LINEAS` | `SUM(LIBRAS)` no anulado; personas = `COUNT(DISTINCT ID_EMPLEADO)` | `GET /descabezado-resumen` |
+| Libras promedio por hora de hoy | `dbo.V_TrazabilidadDescabezadoPBI` para el total entero; tablas de asignación para las horas | `SUM(LIBRAS_ENTERO)` del día ÷ horas entre el primer y último `HORA` no anulado del día; devuelve 0 si no hay una jornada válida | `GET /descabezado-resumen`, campo `librasPromedioPorHora` |
 | Cola, cabezas, total, libras/hora por día o mes | vista `dbo.V_TrazabilidadDescabezadoPBI` (libras) + tablas de arriba (personas/horas) | libras/hora = total ÷ horas efectivas (entre primer y último registro del día); en mensual cada persona se cuenta una sola vez por mes | `GET /descabezado-por-dia` y `/descabezado-por-dia-mes` |
 
 ---
@@ -425,11 +433,14 @@ clasificado disponible. Base: `STB_data`. Sí respeta turno.
 | Dato | Vista/Tabla SQL | Cómo se calcula | Endpoint |
 | --- | --- | --- | --- |
 | Libras clasificadas hoy/semana/mes | `dbo.CL_LLENADO_RECIPIENTES` + `dbo.CL_LLENADO_RECIPIENTES_D` | `SUM(LIBRAS_NETA)` no anulado | `GET /clasificado-resumen` |
+| Libras clasificadas por hora de hoy | mismas tablas; horarios en `CL_LLENADO_RECIPIENTES_D.HORA_INICIO/HORA_FINAL` | libras netas no anuladas de hoy ÷ horas entre el inicio más temprano y el final más tardío; devuelve 0 sin intervalo válido | `GET /clasificado-resumen`, campo `librasClasificadasPorHora` |
 | Inventario clasificado disponible (bins, libras, finca, talla) | `dbo.CL_InventarioClasificado` | `EnInventario=1 AND Transferido=0 AND Procesado=0`; `bins=COUNT(*)`, `libras=SUM(LibrasNetas)` por talla (`DCP_TALLAS`) | `GET /clasificado-inventario` |
 | Detalle cruzado de inventario (finca/laguna/remisión/lote/talla/destino) | `dbo.CL_InventarioClasificado` + `CL_LLENADO_RECIPIENTES[_D]` + `CL_TipoProducto` | mismo filtro que arriba, desglosado | `GET /clasificado-inventario-detalle` |
 | Libras por máquina (responsable de mesa) / por talla | `dbo.CL_LLENADO_RECIPIENTES_D` + `dbo.DCP_RESPONSABLES` (= "máquina") + `DCP_TALLAS` | `SUM(LIBRAS_NETA)` agrupado; turno filtrado en código | `GET /clasificado-por-maquina` / `-por-talla` (`-dia`, `-mes`) |
 
 Nota: "máquina" en la UI es en realidad el responsable de mesa (`DCP_RESPONSABLES`); el campo `ID_TANQUE` ya no se usa desde 2023.
+
+En la pantalla, **Libras Clasificadas por Talla** permanece oculto hasta pulsar **Ver por talla** en la esquina superior derecha de **Libras Clasificadas por Máquina**. El diálogo usa el mismo rango de fechas y turno seleccionados.
 
 ---
 
@@ -440,10 +451,10 @@ y el resumen semanal por destino. Base: `PlantaEmpacadora`. Sin turno.
 
 | Dato | Vista/Tabla SQL | Cómo se calcula | Endpoint |
 | --- | --- | --- | --- |
-| Libras exportadas esta semana por destino (Francia/UK/AC Holding/Terceros) | vista `dbo.AV_Envios` | `SUM(PesoLibras)` con `NumeroContenedor` no vacío; destino por `NombreGrupo LIKE '%FRANCIA%' / '%LFF%' o '%UK%' / '%AC HOLDING%'`; Terceros = el resto | `GET /exportaciones-resumen` |
-| Libras exportadas por estilo (rango) | `dbo.AV_Envios` | `SUM(PesoLibras)` agrupado por `EstiloFinal` | `GET /exportaciones-por-estilo` |
-| Detalle por contenedor (másteres, anillos/máster, libras) | `dbo.AV_Envios` | agrupado por contenedor + estilo + cliente; `Másteres=COUNT(DISTINCT CodigoMaster)` | `GET /exportaciones-contenedores` |
-| Contenedores por cliente y mes (últimos 6 meses) | `dbo.AV_Envios` | `COUNT(DISTINCT contenedor)` por mes/cliente | `GET /exportaciones-por-cliente-mes` |
+| Libras exportadas esta semana por destino (Francia/UK/AC Holding/Terceros) | tablas base `Envios`→`Masteres`→`Seriales`→`OrdenesProduccion`, más `AV_Items` y `AV_LotesRemision` | `SUM(AV_Items.PesoLibras)` con contenedor no vacío; destino por `NombreGrupo LIKE '%FRANCIA%' / '%LFF%' o '%UK%' / '%AC HOLDING%'`; Terceros = el resto | `GET /exportaciones-resumen` |
+| Libras exportadas por estilo (rango) | mismas tablas base | `SUM(AV_Items.PesoLibras)` agrupado por `EstiloFinal` | `GET /exportaciones-por-estilo` |
+| Contenedores exportados y detalle | `Envios`, `Masteres`, `Seriales`, `OrdenesProduccion`, `AV_Items`, `AV_LotesRemision` | principal: una fila por contenedor con libras totales; botón Ver detalle: cliente + estilo + másteres + anillos/máster + libras | `GET /exportaciones-contenedores`; cada fila contiene `detalle[]` |
+| Contenedores por cliente y mes (últimos 6 meses) | tablas base de exportación | `COUNT(DISTINCT NumeroContenedor)` agregado directamente en SQL por mes/cliente | `GET /exportaciones-por-cliente-mes` |
 
 **"Libras que faltan por exportar":** hoy **no existe** un endpoint
 dedicado para esto — hubo una tabla "Órdenes Pendientes de Exportación"
@@ -462,7 +473,7 @@ todavía no se ha despachado (no tiene `FkEnvio`). Este saldo no equivale a comp
 
 | Dato | Vista/Tabla SQL | Cómo se calcula | Endpoint |
 | --- | --- | --- | --- |
-| Libras WSO recibidas hoy/semana/mes + promedio WSO semanal | vista `dbo.AV_MateriaPrima` (única fuente) | `SUM(PesoLibras)`; "hoy efectivo" = última fecha con filas, limitada a hoy; semana y mes se anclan a esa fecha. Promedio semanal = libras WSO del mes ÷ semanas transcurridas de lunes a domingo, incluyendo semanas parciales | `GET /compra-mp-resumen` |
+| Libras HOSO hoy/semana/mes + promedio HOSO semanal | vista `dbo.AV_MateriaPrima` (única fuente) | `SUM(PesoLibras) ÷ 0.65` en la presentación; "hoy efectivo" = última fecha con filas, limitada a hoy; semana y mes se anclan a esa fecha. Promedio HOSO semanal = (libras base del mes ÷ número de semanas transcurridas) ÷ 0.65; las semanas se cuentan de lunes a domingo e incluyen semanas parciales | `GET /compra-mp-resumen` |
 | Libras WSO por proveedor (rango) | `dbo.AV_MateriaPrima` | `SUM(PesoLibras)`; proveedor = `NombrePropietario` o, si vacío, `NombreGrupo` | `GET /compra-mp-por-proveedor` |
 | Equivalente entero por proveedor | Derivado de las libras WSO anteriores | `libras WSO ÷ 0.65`; conversión solo de presentación | `GET /compra-mp-por-proveedor`, transformado en frontend |
 | Por tipo/proveedor/item | `dbo.AV_MateriaPrima` | `SUM(PesoLibras)`, `SUM(CantidadSerial)` agrupado por `TipoMateria`, proveedor, `Item` | `GET /compra-mp-por-item` |
@@ -471,7 +482,7 @@ todavía no se ha despachado (no tiene `FkEnvio`). Este saldo no equivale a comp
 
 ### Presentación actual del módulo
 
-- Los contadores **Hoy, Semana, Mes y Promedio por semana** son libras **WSO** de `AV_MateriaPrima.PesoLibras`. La interfaz los rotula explícitamente como WSO. No usan la conversión a entero.
+- Los contadores **Hoy, Semana, Mes y Promedio por semana** se muestran en libras **HOSO**. El endpoint devuelve valores base de `AV_MateriaPrima.PesoLibras` y el frontend divide cada uno entre `0.65` antes de mostrarlo. Las fechas y ventanas del resumen no cambian.
 - **Materia Prima por Proveedor — WSO y Entero** es una sola sección y una sola fila de tarjetas. Cada proveedor ocupa una tarjeta con dos columnas: WSO registrado y Entero equivalente (`WSO ÷ 0.65`). Comparte un porcentaje del total y un color exclusivo por proveedor; la tarjeta TOTAL sigue el mismo formato. El botón Ver detalle permanece en el encabezado.
 - En **Materia Prima por Proveedor/Talla — Mensual**, el selector visible dice **Proveedor / Talla**. “Talla” corresponde al campo técnico `Talla`, históricamente llamado gramaje en partes internas del código y datos.
 - Sus vistas son **Tabla**, **Gráfica comparativa** y **Embudo**. El embudo reemplaza la antigua gráfica de tendencia lineal: suma los tres meses visibles por proveedor o talla y ordena el total de mayor a menor. Es una comparación de volumen acumulado, no un flujo de conversión entre etapas.
@@ -506,7 +517,7 @@ foto del inventario actual, explorable como tabla pivote en el navegador.
 | ¿Cuánto camarón llegó de finca? | Recepción | `R_REMISIONES_PLANTA[_DETALLE]`, vista `RemisionesPlantaPBI` | STB_data |
 | ¿Cuánto se descabezó y con cuánta gente? | Descabezado | `DES_ASIG_LBRS_EMPLEADOS[_DET]`, `V_TrazabilidadDescabezadoPBI` | STB_data |
 | ¿Qué inventario clasificado hay disponible por talla? | Clasificado | `CL_InventarioClasificado` | STB_data |
-| ¿Qué se exportó y a quién? | Exportaciones | vista `AV_Envios` | PlantaEmpacadora |
+| ¿Qué se exportó y a quién? | Exportaciones | `Envios`, `Masteres`, `Seriales`, `OrdenesProduccion`, `AV_Items`, `AV_LotesRemision` | PlantaEmpacadora |
 | ¿Cuánta materia prima (camarón entero) entró? | Compra de Materia Prima | vista `AV_MateriaPrima` | PlantaEmpacadora |
 | ¿Qué producto terminado hay listo sin despachar? | Inventario | `Seriales`, `OrdenesProduccion`, `AV_Items`, `Masteres` | PlantaEmpacadora |
 

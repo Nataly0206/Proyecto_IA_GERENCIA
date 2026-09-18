@@ -13,14 +13,23 @@ import { usePeladoLibrasHoy } from '../../hooks/useDashboardData';
 import { formatPeriodo, formatValue } from '../../utils/format';
 import { PeladoLibrasHoyEstilo } from '../../types';
 
-function EstiloCard({ estilo, total = false }: { estilo: PeladoLibrasHoyEstilo; total?: boolean }) {
-  const color = total ? '#164a8b' : estilo.libras > 0 ? '#2e7d32' : '#94a3b8';
+function EstiloCard({
+  estilo,
+  badge,
+  decimal = false,
+}: {
+  estilo: PeladoLibrasHoyEstilo;
+  badge?: string;
+  decimal?: boolean;
+}) {
+  const destacado = Boolean(badge);
+  const color = destacado ? '#164a8b' : estilo.libras > 0 ? '#2e7d32' : '#94a3b8';
 
   return (
     <Card
       sx={{
         borderTop: `3px solid ${color}`,
-        bgcolor: total
+        bgcolor: destacado
           ? 'rgba(22,74,139,0.06)'
           : estilo.libras > 0
             ? 'rgba(46,125,50,0.03)'
@@ -33,10 +42,10 @@ function EstiloCard({ estilo, total = false }: { estilo: PeladoLibrasHoyEstilo; 
           <Typography variant="body2" fontWeight={700} noWrap sx={{ minWidth: 0 }} title={estilo.estilo}>
             {estilo.estilo}
           </Typography>
-          {total && (
+          {badge && (
             <Chip
               size="small"
-              label="Total del día"
+              label={badge}
               sx={{
                 bgcolor: `${color}18`,
                 color,
@@ -53,7 +62,7 @@ function EstiloCard({ estilo, total = false }: { estilo: PeladoLibrasHoyEstilo; 
           fontWeight={800}
           sx={{ color: estilo.libras > 0 ? '#164a8b' : 'text.secondary', lineHeight: 1.1 }}
         >
-          {formatValue(estilo.libras)}
+          {formatValue(estilo.libras, decimal ? 'decimal' : 'number')}
           <Typography component="span" variant="caption" color="text.secondary" ml={0.5}>
             lbs
           </Typography>
@@ -106,7 +115,7 @@ export default function PeladoLibrasHoyCards() {
             display: 'grid',
             gridTemplateColumns: {
               xs: 'repeat(2, minmax(0, 1fr))',
-              sm: `repeat(${Math.min(data.estilos.length + 1, 6)}, minmax(0, 1fr))`,
+              sm: `repeat(${Math.min(data.estilos.length + 2, 6)}, minmax(0, 1fr))`,
             },
             gap: 1,
             '& > :last-child:nth-of-type(odd)': { gridColumn: { xs: '1 / -1', sm: 'auto' } },
@@ -115,7 +124,12 @@ export default function PeladoLibrasHoyCards() {
           {data.estilos.map((estilo) => (
             <EstiloCard key={estilo.estilo} estilo={estilo} />
           ))}
-          <EstiloCard total estilo={{ estilo: 'Total', libras: data.total }} />
+          <EstiloCard badge="Total del día" estilo={{ estilo: 'Total', libras: data.total }} />
+          <EstiloCard
+            badge="Promedio del día"
+            decimal
+            estilo={{ estilo: 'Libras por hora promedio', libras: data.librasPorHoraPromedio }}
+          />
         </Box>
       )}
     </Box>

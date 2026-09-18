@@ -134,8 +134,17 @@ SELECT
   CASE WHEN ISNULL(@HorasHoy, 0) > 0 THEN @TotalEnteroHoy / @HorasHoy ELSE 0 END AS LibrasPromedioPorHora
 `;
 
-/** Detalle diario. Empleados y horas se agregan antes de unirlos con la
- * trazabilidad para evitar multiplicar personas o libras. */
+/**
+ * Detalle diario. Empleados y horas se agregan antes de unirlos con la
+ * producción para evitar multiplicar personas o libras.
+ *
+ * Cola/Cabezas/Total salen de `Des_PesadoColaHeader` + `Des_PesadoCola`
+ * (Libras Brutas y Netas del pesado de cola), agrupado por la fecha propia
+ * de la cabecera de pesado — la misma fuente y agrupación que el reporte
+ * "REPORTE RESUMENES PESADO" del sistema de planta en modo Detalle
+ * (verificado contra sus totales). Antes se usaba
+ * `V_TrazabilidadDescabezadoPBI`, que no coincide con ese reporte.
+ */
 export const DESCABEZADO_POR_DIA_QUERY = `
 ;WITH personal AS (
   SELECT h.FECHA AS Dia,
@@ -147,13 +156,14 @@ export const DESCABEZADO_POR_DIA_QUERY = `
   WHERE h.FECHA BETWEEN @Fecha_Inicial AND @Fecha_Final AND d.ANULADO = 0
   GROUP BY h.FECHA
 ), produccion AS (
-  SELECT FECHA_DESCABEZADO AS Dia,
-    SUM(LIBRAS_COLA) AS Cola,
-    SUM(LIBRAS_DESCABEZADO) AS Cabezas,
-    SUM(LIBRAS_ENTERO) AS Total
-  FROM dbo.V_TrazabilidadDescabezadoPBI
-  WHERE FECHA_DESCABEZADO BETWEEN @Fecha_Inicial AND @Fecha_Final
-  GROUP BY FECHA_DESCABEZADO
+  SELECT h.Fecha AS Dia,
+    SUM(c.LibrasBrutas) AS Cola,
+    SUM(c.LibrasNetas) AS Cabezas,
+    SUM(c.LibrasBrutas) AS Total
+  FROM dbo.Des_PesadoColaHeader h
+  JOIN dbo.Des_PesadoCola c ON c.IdPesadoColaHeader = h.IdPesadoColaHeader
+  WHERE h.Fecha BETWEEN @Fecha_Inicial AND @Fecha_Final
+  GROUP BY h.Fecha
 )
 SELECT p.Dia, p.Personas, ISNULL(r.Cola, 0) AS Cola,
   ISNULL(r.Cabezas, 0) AS Cabezas, ISNULL(r.Total, 0) AS Total,

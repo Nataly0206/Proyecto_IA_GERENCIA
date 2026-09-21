@@ -8,6 +8,7 @@ import {
   TableBody,
   TableCell,
   TableContainer,
+  TableFooter,
   TableHead,
   TableRow,
   TableSortLabel,
@@ -47,6 +48,8 @@ interface WidgetDataTableProps {
   subtitle?: string;
   emptyText?: string;
   maxHeight?: number;
+  /** Mantiene las filas de resumen visibles al desplazar la tabla. */
+  stickySummary?: boolean;
   /** Variante visual para tablas operativas con mayor densidad de datos. */
   variant?: 'default' | 'recepcion';
 }
@@ -76,6 +79,7 @@ export default function WidgetDataTable({
   subtitle,
   emptyText = 'Sin datos para los filtros seleccionados.',
   maxHeight = 420,
+  stickySummary = false,
   variant = 'default',
 }: WidgetDataTableProps) {
   const { data, isLoading, isError, error, dataUpdatedAt } = useWidgetData(endpoint);
@@ -272,6 +276,8 @@ export default function WidgetDataTable({
                   ))}
                 </TableRow>
               ))}
+            </TableBody>
+            {(totals || averages) && <TableFooter>
               {totals && (
                 <TableRow
                   sx={{
@@ -280,6 +286,7 @@ export default function WidgetDataTable({
                       bgcolor: isRecepcion ? '#dfeafa' : '#f1f5f9',
                       color: isRecepcion ? '#123a6d' : '#172033',
                       borderTop: isRecepcion ? '2px solid #9db9da' : '2px solid rgba(148, 163, 184, 0.45)',
+                      ...(stickySummary && { position: 'sticky', bottom: averages ? 38 : 0, zIndex: 2, height: 38, py: 0.5 }),
                     },
                   }}
                 >
@@ -305,6 +312,7 @@ export default function WidgetDataTable({
                       bgcolor: isRecepcion ? '#edf3fb' : '#f8fafc',
                       color: isRecepcion ? '#123a6d' : '#172033',
                       borderTop: '1px solid rgba(148, 163, 184, 0.3)',
+                      ...(stickySummary && { position: 'sticky', bottom: 0, zIndex: 2, height: 38, py: 0.5 }),
                     },
                   }}
                 >
@@ -322,7 +330,7 @@ export default function WidgetDataTable({
                   ))}
                 </TableRow>
               )}
-            </TableBody>
+            </TableFooter>}
           </Table>
         </TableContainer>
       )}

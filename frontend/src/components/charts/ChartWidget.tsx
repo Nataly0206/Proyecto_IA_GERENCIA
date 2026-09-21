@@ -29,6 +29,9 @@ interface ChartWidgetProps {
   workedHours?: 'dia' | 'mes';
   /** Controles adicionales mostrados en la cabecera, junto al selector tabla/gráfica */
   actions?: ReactNode;
+  columnOrder?: string[];
+  onColumnReorder?: (source: string, target: string) => void;
+  emptyText?: string;
   /**
    * Transforma las filas ya fetcheadas antes de renderizarlas — para
    * reutilizar el mismo endpoint con una vista derivada (p. ej. un factor
@@ -45,7 +48,7 @@ type ViewMode = 'table' | 'chart' | 'trend';
  * DynamicChart. Si el config declara `altChartType`, muestra un selector
  * para alternar entre vista de tabla y gráfica comparativa.
  */
-export default function ChartWidget({ config, actions, transform, workedHours }: ChartWidgetProps) {
+export default function ChartWidget({ config, actions, columnOrder, onColumnReorder, emptyText = 'Sin datos para los filtros seleccionados.', transform, workedHours }: ChartWidgetProps) {
   const { data, isLoading, isError, error } = useWidgetData(config.endpoint);
   const [view, setView] = useState<ViewMode>('chart');
   const [report, setReport] = useState<'rate' | 'hours'>('rate');
@@ -130,7 +133,7 @@ export default function ChartWidget({ config, actions, transform, workedHours }:
             )}
             {config.subtitle && (
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.3 }}>
-                {showHours ? (workedHours === 'mes' ? 'Últimos 12 meses · libras por hora promedio por día' : 'Rango de fechas seleccionado · horas por IQF y promedio por día') : config.subtitle}
+                {showHours ? (workedHours === 'mes' ? 'Últimos 12 meses · promedio de horas trabajadas por día de cada mes' : 'Rango de fechas seleccionado · horas por IQF y promedio por día') : config.subtitle}
               </Typography>
             )}
           </Box>
@@ -193,7 +196,7 @@ export default function ChartWidget({ config, actions, transform, workedHours }:
 
         {!showHours && !isLoading && !isError && (transformedData?.length ?? 0) === 0 && (
           <Alert severity="info" sx={{ mt: 2 }}>
-            Sin datos para los filtros seleccionados.
+            {emptyText}
           </Alert>
         )}
 
@@ -211,7 +214,7 @@ export default function ChartWidget({ config, actions, transform, workedHours }:
             ) : (
               <Box sx={{ flex: 1, minHeight: 0 }}>
                 {effectiveConfig.type === 'table' ? (
-                  <PivotTable config={effectiveConfig} data={transformedData} />
+                  <PivotTable config={effectiveConfig} data={transformedData} columnOrder={columnOrder} onColumnReorder={onColumnReorder} />
                 ) : (
                   <DynamicChart config={effectiveConfig} data={transformedData} />
                 )}

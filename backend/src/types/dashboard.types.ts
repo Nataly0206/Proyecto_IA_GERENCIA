@@ -137,6 +137,7 @@ export interface PeladoPersonalPeriodRow {
 export interface PeladoLibrasHoyEstilo {
   estilo: string;
   libras: number;
+  librasPorHora: number;
 }
 
 export interface PeladoLibrasHoyResponse {
@@ -183,6 +184,8 @@ export interface PeladoSalaRow {
   librasPorHora: number;
   pagoAcumuladoHoy: number;
   empleadosRegistrandoHoy: number;
+  /** Horas entre el primer y último registro de destajo de hoy en esta sala. */
+  horasTrabajadas: number;
 }
 
 export interface PeladoPorSalaResponse {

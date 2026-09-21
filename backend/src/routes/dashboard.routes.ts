@@ -4,6 +4,7 @@ import * as procesos from '../controllers/procesos.controller';
 import { asyncHandler } from '../middleware/errorHandler';
 import { requirePermission } from '../middleware/sessionAuth';
 import { getUserPreference, saveUserPreference } from '../services/user-preferences.service';
+import { getClassifiedSizeOrder, getClassifiedSizes, saveClassifiedSizeOrder } from '../services/shared-config.service';
 
 const router = Router();
 
@@ -55,11 +56,32 @@ router.get('/clasificado-por-maquina', clasificado, asyncHandler(procesos.getCla
 router.get('/clasificado-por-talla-dia', clasificado, asyncHandler(procesos.getClasificadoPorTallaDia));
 router.get('/clasificado-por-talla-mes', clasificado, asyncHandler(procesos.getClasificadoPorTallaMes));
 router.get('/clasificado-por-talla', clasificado, asyncHandler(procesos.getClasificadoPorTalla));
+router.get('/clasificado-orden-tallas', clasificado, asyncHandler(async (_req, res) => {
+  const [order, sizes] = await Promise.all([getClassifiedSizeOrder(), getClassifiedSizes()]);
+  res.json({ order, sizes });
+}));
+router.put('/clasificado-orden-tallas', clasificado, requirePermission('ordenar_tallas_clasificado'), asyncHandler(async (req, res) => {
+  const order: unknown = req.body?.order;
+  if (!Array.isArray(order) || order.length > 200
+    || !order.every((size) => typeof size === 'string' && size.length > 0 && size.length <= 100 && size.trim() === size)
+    || new Set(order).size !== order.length) {
+    res.status(400).json({ error: 'El orden de tallas no es válido.' });
+    return;
+  }
+  const validSizes = new Set(await getClassifiedSizes());
+  if (!order.every((size) => validSizes.has(size))) {
+    res.status(400).json({ error: 'El orden contiene tallas desconocidas.' });
+    return;
+  }
+  await saveClassifiedSizeOrder(order);
+  res.json({ order });
+}));
 
 /* Exportaciones */
 router.get('/exportaciones-resumen', exportaciones, asyncHandler(procesos.getExportacionesResumen));
 router.get('/exportaciones-por-estilo', exportaciones, asyncHandler(procesos.getExportacionesPorEstilo));
 router.get('/exportaciones-contenedores', exportaciones, asyncHandler(procesos.getExportacionesContenedores));
+router.get('/exportaciones-contenedor-detalle', exportaciones, asyncHandler(procesos.getExportacionesContenedorDetalle));
 router.get('/exportaciones-por-cliente-mes', exportaciones, asyncHandler(procesos.getExportacionesPorClienteMes));
 router.get('/exportaciones-preferencias-clientes', exportaciones, asyncHandler(async (_req, res) => {
   const hiddenClients = await getUserPreference<string[]>(res.locals.authUser.id, EXPORT_CLIENTS_PREFERENCE);

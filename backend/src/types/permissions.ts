@@ -9,6 +9,7 @@ export const PERMISOS = [
   'recepcion',
   'descabezado',
   'clasificado',
+  'ordenar_tallas_clasificado',
   'pelado',
   'iqf',
   'exportaciones',

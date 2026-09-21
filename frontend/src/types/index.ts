@@ -148,6 +148,7 @@ export interface PeladoPersonalPeriodRow extends DataRow {
 export interface PeladoLibrasHoyEstilo {
   estilo: string;
   libras: number;
+  librasPorHora: number;
 }
 
 export interface PeladoLibrasHoyResponse {
@@ -185,6 +186,7 @@ export interface PeladoSalaRow {
   librasPorHora: number;
   pagoAcumuladoHoy: number;
   empleadosRegistrandoHoy: number;
+  horasTrabajadas: number;
 }
 
 export interface PeladoPorSalaResponse {
@@ -366,6 +368,8 @@ export interface ChartConfig {
   showAllDataMarkers?: boolean;
   /** Presenta meses abreviados y el año en una segunda línea del eje X. */
   monthYearAxis?: boolean;
+  /** Muestra siempre la abreviatura del mes en las etiquetas del eje X. */
+  monthAbbreviationAxis?: boolean;
   /** Agrega a la gráfica una serie con el promedio ponderado de cada período. */
   showPeriodAverageSeries?: boolean;
   /** Campo de peso para promedios ponderados al totalizar (type "table") */

@@ -23,7 +23,7 @@ export default function IqfWorkedHoursTable({ mode = 'dia', view = 'table', conf
       {!config && <>
       <Typography variant="subtitle2" fontWeight={800}>Horas Trabajadas por IQF — {monthly ? 'Mensual' : 'Diario'}</Typography>
       <Typography variant="caption" color="text.secondary">
-        {monthly ? 'Últimos 12 meses y turno seleccionado · horas acumuladas por mes' : 'Rango de fechas y turno seleccionados · horas entre primera y última lectura de cada turno'}
+        {monthly ? 'Últimos 12 meses y turno seleccionado · promedio diario de horas trabajadas en cada mes' : 'Rango de fechas y turno seleccionados · horas entre primera y última lectura de cada turno'}
       </Typography>
       </>}
       {isLoading ? <Skeleton height={160} /> : isError ? (

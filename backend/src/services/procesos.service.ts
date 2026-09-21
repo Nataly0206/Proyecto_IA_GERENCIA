@@ -29,6 +29,7 @@ import {
   DESCABEZADO_POR_MES_QUERY,
   DESCABEZADO_RESUMEN_QUERY,
   EXPORTACIONES_CLIENTE_MES_QUERY,
+  EXPORTACIONES_CONTENEDOR_DETALLE_QUERY,
   EXPORTACIONES_CONTENEDORES_QUERY,
   EXPORTACIONES_RESUMEN_QUERY,
   RECEPCION_REMISIONES_QUERY,
@@ -287,7 +288,7 @@ async function fetchClasificado(fechaInicial: string, fechaFinal: string, turno?
     .map((row) => ({
       dia: pickString(row, 'Dia'),
       turno: turnoNombre(pickNumber(row, 'IdTurno')),
-      maquina: pickString(row, 'Maquina') || 'Sin responsable',
+      maquina: pickString(row, 'Maquina') || 'Sin máquina asignada',
       talla: pickString(row, 'Talla') || 'Sin talla',
       libras: pickNumber(row, 'Libras'),
     }))
@@ -347,6 +348,7 @@ interface ExportGroup {
   dia: string;
   contenedor: string;
   referencia: string;
+  codigoEmbarque: string;
   cliente: string;
   estilo: string;
   masteres: number;
@@ -366,6 +368,7 @@ async function fetchExportGroups(fechaInicial: string, fechaFinal: string): Prom
       dia: pickString(row, 'Dia'),
       contenedor: pickString(row, 'Contenedor'),
       referencia: pickString(row, 'Referencia'),
+      codigoEmbarque: pickString(row, 'CodigoEmbarque'),
       cliente: pickString(row, 'Cliente') || 'Sin cliente',
       estilo: pickString(row, 'Estilo') || 'Sin estilo',
       masteres: pickNumber(row, 'Masteres'),
@@ -386,17 +389,18 @@ export async function getExportacionesPorEstilo(f: DashboardFilters): Promise<Da
 export async function getExportacionesContenedores(f: DashboardFilters): Promise<DataRow[]> {
   const groups = await fetchExportGroups(f.fechaInicial, f.fechaFinal);
   const map = new Map<string, {
-    fecha: string; contenedor: string; referencia: string; clientes: Set<string>;
+    fecha: string; contenedor: string; referencia: string; codigosEmbarque: Set<string>; clientes: Set<string>;
     estilos: Set<string>; masteres: number; unidades: number; libras: number; detalle: DataRow[];
   }>();
   for (const g of groups) {
     const fecha = g.dia.slice(0, 10);
     const key = `${fecha}|${g.contenedor}|${g.referencia}`;
     const acc = map.get(key) ?? {
-      fecha, contenedor: g.contenedor, referencia: g.referencia, clientes: new Set<string>(),
+      fecha, contenedor: g.contenedor, referencia: g.referencia, codigosEmbarque: new Set<string>(), clientes: new Set<string>(),
       estilos: new Set<string>(), masteres: 0, unidades: 0, libras: 0, detalle: [],
     };
     acc.clientes.add(g.cliente);
+    if (g.codigoEmbarque.trim()) acc.codigosEmbarque.add(g.codigoEmbarque.trim());
     acc.estilos.add(g.estilo);
     acc.masteres += g.masteres;
     acc.unidades += g.unidades;
@@ -418,6 +422,7 @@ export async function getExportacionesContenedores(f: DashboardFilters): Promise
       fecha: c.fecha,
       contenedor: c.contenedor,
       referencia: c.referencia,
+      codigoEmbarque: Array.from(c.codigosEmbarque).sort().join(', '),
       cliente: Array.from(c.clientes).sort().join(', '),
       estilos: c.estilos.size,
       masteres: c.masteres,
@@ -426,6 +431,26 @@ export async function getExportacionesContenedores(f: DashboardFilters): Promise
       detalle: c.detalle.sort((a, b) => String(a.estilo).localeCompare(String(b.estilo))),
     }))
     .sort((a, b) => b.fecha.localeCompare(a.fecha) || a.contenedor.localeCompare(b.contenedor));
+}
+
+export async function getExportacionesContenedorDetalle(
+  fecha: string, contenedor: string, referencia: string,
+): Promise<DataRow[]> {
+  const rows = await runQuery(EXPORTACIONES_CONTENEDOR_DETALLE_QUERY, [
+    { name: 'Fecha', type: sql.Date, value: fecha },
+    { name: 'Contenedor', type: sql.NVarChar(100), value: contenedor },
+    { name: 'Referencia', type: sql.NVarChar(200), value: referencia },
+  ]);
+  return rows.map((row) => ({
+    fecha: pickString(row, 'Dia').slice(0, 10),
+    referencia: pickString(row, 'Referencia'),
+    codigoEmbarque: pickString(row, 'CodigoEmbarque'),
+    cliente: pickString(row, 'Cliente'),
+    ordenCompra: pickString(row, 'OrdenCompra'),
+    item: pickString(row, 'Item'),
+    libras: round2(pickNumber(row, 'Libras')),
+    cantidadSerial: pickNumber(row, 'CantidadSerial'),
+  }));
 }
 
 export async function getExportacionesPorClienteMes(_f: DashboardFilters, meses: number): Promise<DataRow[]> {

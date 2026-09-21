@@ -15,6 +15,7 @@ export default function ProcessFilters({
   subtitle,
   hint,
   hideTurno = false,
+  extra,
 }: {
   title?: string;
   subtitle?: string;
@@ -22,6 +23,8 @@ export default function ProcessFilters({
   hint?: ReactNode;
   /** Oculta el selector de turno cuando ningún widget de la página lo usa. */
   hideTurno?: boolean;
+  /** Controles adicionales específicos del módulo. */
+  extra?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const resolvedSubtitle =
@@ -80,6 +83,7 @@ export default function ProcessFilters({
       <Collapse in={open}>
         <Box sx={{ pt: 1.25 }}>
           <GlobalFilters hideTurno={hideTurno} />
+          {extra && <Box sx={{ mt: 1.25 }}>{extra}</Box>}
           {hint && (
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
               {hint}

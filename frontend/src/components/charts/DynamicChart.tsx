@@ -323,9 +323,16 @@ export default function DynamicChart({ config, data }: DynamicChartProps) {
       : {
           categories: config.monthYearAxis ? categories.map(monthAxisParts) : categories,
           labels: {
-            rotate: config.monthYearAxis ? 0 : isMobile ? -60 : -45,
-            trim: true,
-            style: { fontSize: config.monthYearAxis ? (isMobile ? '10px' : '11px') : isMobile ? '10px' : '12px', colors: '#64748b', fontWeight: 600 },
+            show: true,
+            rotate: config.monthYearAxis || config.monthAbbreviationAxis ? 0 : isMobile ? -60 : -45,
+            trim: !config.monthAbbreviationAxis,
+            ...(config.monthAbbreviationAxis && { hideOverlappingLabels: false, minHeight: 28 }),
+            style: { fontSize: config.monthYearAxis || config.monthAbbreviationAxis ? (isMobile ? '10px' : '11px') : isMobile ? '10px' : '12px', colors: '#64748b', fontWeight: 600 },
+            ...(config.monthAbbreviationAxis && {
+              formatter: (value: string) => /^\d{4}-\d{2}$/.test(value)
+                ? formatPeriodo(value).slice(0, 3)
+                : value.slice(0, 3),
+            }),
             ...(!isHorizontal && dateTickStep > 1 && {
               formatter: (value: string) => {
                 const index = categories.indexOf(value);

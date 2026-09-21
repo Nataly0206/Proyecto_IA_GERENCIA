@@ -75,7 +75,7 @@ export function useWidgetData(endpoint: DashboardEndpoint) {
   const filtersAreValid = !getDateFilterError(filters);
   const cacheKey = browserCacheKey([
     'widget',
-    endpoint,
+    endpoint === 'iqf-horas-trabajadas-mes' ? `${endpoint}:promedio-horas-v2` : endpoint,
     filters.fechaInicial,
     filters.fechaFinal,
     filters.turno,
@@ -133,6 +133,7 @@ export function usePeladoLibrasHoy() {
   const queryKey = ['dashboard', 'pelado-libras-hoy'] as const;
   const cacheKey = browserCacheKey(['pelado-libras-hoy', 'current']);
   const cached = readBrowserCache<PeladoLibrasHoyResponse>(cacheKey, LIVE_REFRESH_INTERVAL_MS);
+  const currentCache = cached?.data.estilos.every((estilo) => typeof estilo.librasPorHora === 'number') ? cached : null;
 
   const query = useQuery<PeladoLibrasHoyResponse>({
     queryKey,
@@ -141,8 +142,8 @@ export function usePeladoLibrasHoy() {
       writeBrowserCache(cacheKey, data);
       return data;
     },
-    initialData: cached?.data,
-    initialDataUpdatedAt: cached?.updatedAt,
+    initialData: currentCache?.data,
+    initialDataUpdatedAt: currentCache?.updatedAt,
     staleTime: LIVE_REFRESH_INTERVAL_MS,
     refetchInterval: LIVE_REFRESH_INTERVAL_MS,
     refetchIntervalInBackground: true,
@@ -197,6 +198,7 @@ export function usePeladoPorSala() {
   const queryKey = ['dashboard', 'pelado-por-sala'] as const;
   const cacheKey = browserCacheKey(['pelado-por-sala', 'current']);
   const cached = readBrowserCache<PeladoPorSalaResponse>(cacheKey, LIVE_REFRESH_INTERVAL_MS);
+  const currentCache = cached?.data.salas.every((sala) => typeof sala.horasTrabajadas === 'number') ? cached : null;
 
   const query = useQuery<PeladoPorSalaResponse>({
     queryKey,
@@ -205,8 +207,8 @@ export function usePeladoPorSala() {
       writeBrowserCache(cacheKey, data);
       return data;
     },
-    initialData: cached?.data,
-    initialDataUpdatedAt: cached?.updatedAt,
+    initialData: currentCache?.data,
+    initialDataUpdatedAt: currentCache?.updatedAt,
     staleTime: LIVE_REFRESH_INTERVAL_MS,
     refetchInterval: LIVE_REFRESH_INTERVAL_MS,
     refetchIntervalInBackground: true,

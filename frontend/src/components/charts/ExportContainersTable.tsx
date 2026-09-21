@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   Alert,
   Box,
@@ -20,20 +21,35 @@ import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import CloseOutlinedIcon from '@mui/icons-material/CloseOutlined';
 import { DataRow } from '../../types';
+import { apiClient } from '../../api/client';
 import { useWidgetData } from '../../hooks/useDashboardData';
 import { formatPeriodo, formatValue } from '../../utils/format';
+import { convertPounds, WeightUnit } from '../../utils/weightUnits';
 
 const HEADER_SX = { fontWeight: 800, bgcolor: '#f1f5f9', color: '#172033', whiteSpace: 'nowrap' } as const;
 const TOTAL_SX = { fontWeight: 800, bgcolor: '#e8eef7', borderTop: '2px solid #b8c7d9' } as const;
 
-export default function ExportContainersTable() {
+export default function ExportContainersTable({ weightUnit }: { weightUnit: WeightUnit }) {
   const { data, isLoading, isError, error, dataUpdatedAt } = useWidgetData('exportaciones-contenedores');
   const [selected, setSelected] = useState<DataRow | null>(null);
   const rows = useMemo(
     () => [...(data ?? [])].sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)) || String(a.contenedor).localeCompare(String(b.contenedor))),
     [data],
   );
-  const detail = (selected?.detalle as DataRow[] | undefined) ?? [];
+  const detailQuery = useQuery<DataRow[]>({
+    queryKey: ['exportaciones-contenedor-detalle', selected?.fecha, selected?.contenedor, selected?.referencia],
+    queryFn: async () => {
+      const { data } = await apiClient.get<DataRow[]>('/dashboard/exportaciones-contenedor-detalle', {
+        params: { fecha: selected?.fecha, contenedor: selected?.contenedor, referencia: selected?.referencia ?? '' },
+      });
+      return data;
+    },
+    enabled: Boolean(selected),
+    staleTime: 15 * 60 * 1000,
+  });
+  const detail = detailQuery.data ?? [];
+  const detailTotalLibras = detail.reduce((sum, row) => sum + Number(row.libras ?? 0), 0);
+  const detailTotalSerial = detail.reduce((sum, row) => sum + Number(row.cantidadSerial ?? 0), 0);
   const totalLibras = rows.reduce((sum, row) => sum + Number(row.libras ?? 0), 0);
   const totalMasteres = rows.reduce((sum, row) => sum + Number(row.masteres ?? 0), 0);
 
@@ -61,12 +77,13 @@ export default function ExportContainersTable() {
               <TableRow>
                 <TableCell sx={HEADER_SX}>Fecha</TableCell>
                 <TableCell sx={HEADER_SX}>Contenedor</TableCell>
-                <TableCell sx={HEADER_SX}>Referencia</TableCell>
+                <TableCell sx={HEADER_SX}>Ship</TableCell>
+                <TableCell sx={HEADER_SX}>Código embarque</TableCell>
                 <TableCell sx={HEADER_SX}>Cliente</TableCell>
                 <TableCell align="right" sx={HEADER_SX}>Estilos</TableCell>
                 <TableCell align="right" sx={HEADER_SX}>Másteres</TableCell>
                 <TableCell align="right" sx={HEADER_SX}>Anillos/máster</TableCell>
-                <TableCell align="right" sx={HEADER_SX}>Libras totales</TableCell>
+                <TableCell align="right" sx={HEADER_SX}>{weightUnit === 'kg' ? 'Kg totales' : 'Libras totales'}</TableCell>
                 <TableCell align="right" sx={HEADER_SX}>Detalle</TableCell>
               </TableRow>
             </TableHead>
@@ -76,11 +93,12 @@ export default function ExportContainersTable() {
                   <TableCell>{formatPeriodo(String(row.fecha ?? ''))}</TableCell>
                   <TableCell sx={{ fontWeight: 800 }}>{String(row.contenedor ?? '—')}</TableCell>
                   <TableCell>{String(row.referencia ?? '—')}</TableCell>
+                  <TableCell>{String(row.codigoEmbarque || '—')}</TableCell>
                   <TableCell>{String(row.cliente ?? '—')}</TableCell>
                   <TableCell align="right">{formatValue(Number(row.estilos ?? 0))}</TableCell>
                   <TableCell align="right">{formatValue(Number(row.masteres ?? 0))}</TableCell>
                   <TableCell align="right">{formatValue(Number(row.anillosXMaster ?? 0), 'decimal')}</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 800, color: 'primary.main' }}>{formatValue(Number(row.libras ?? 0))}</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 800, color: 'primary.main' }}>{formatValue(convertPounds(Number(row.libras ?? 0), weightUnit), weightUnit === 'kg' ? 'decimal' : 'number')}</TableCell>
                   <TableCell align="right">
                     <Button size="small" variant="outlined" startIcon={<VisibilityOutlinedIcon />} onClick={() => setSelected(row)} sx={{ whiteSpace: 'nowrap', fontWeight: 700 }}>
                       Ver detalle
@@ -90,10 +108,10 @@ export default function ExportContainersTable() {
               ))}
               <TableRow>
                 <TableCell sx={TOTAL_SX}>Total</TableCell>
-                <TableCell colSpan={4} sx={TOTAL_SX}>{rows.length} contenedores</TableCell>
+                <TableCell colSpan={5} sx={TOTAL_SX}>{rows.length} contenedores</TableCell>
                 <TableCell align="right" sx={TOTAL_SX}>{formatValue(totalMasteres)}</TableCell>
                 <TableCell sx={TOTAL_SX} />
-                <TableCell align="right" sx={TOTAL_SX}>{formatValue(totalLibras)}</TableCell>
+                <TableCell align="right" sx={TOTAL_SX}>{formatValue(convertPounds(totalLibras, weightUnit), weightUnit === 'kg' ? 'decimal' : 'number')}</TableCell>
                 <TableCell sx={TOTAL_SX} />
               </TableRow>
             </TableBody>
@@ -106,32 +124,66 @@ export default function ExportContainersTable() {
           <Box>
             <Typography variant="subtitle1" fontWeight={800}>Detalle del contenedor {String(selected?.contenedor ?? '')}</Typography>
             <Typography variant="caption" color="text.secondary">
-              {selected ? `${formatPeriodo(String(selected.fecha))} · ${formatValue(Number(selected.libras ?? 0))} lbs totales` : ''}
+              {selected ? `${formatPeriodo(String(selected.fecha))} · ${formatValue(convertPounds(Number(selected.libras ?? 0), weightUnit), weightUnit === 'kg' ? 'decimal' : 'number')} ${weightUnit} totales` : ''}
             </Typography>
           </Box>
           <IconButton aria-label="Cerrar detalle del contenedor" onClick={() => setSelected(null)}><CloseOutlinedIcon /></IconButton>
         </DialogTitle>
         <DialogContent dividers sx={{ p: 1.5 }}>
+          {detailQuery.isLoading && <Box sx={{ py: 5, display: 'grid', placeItems: 'center' }}><CircularProgress size={32} /></Box>}
+          {detailQuery.isError && <Alert severity="error">No se pudo cargar el reporte del contenedor.</Alert>}
+          {!detailQuery.isLoading && !detailQuery.isError && detail.length === 0 && <Alert severity="info">Este contenedor no tiene detalle disponible.</Alert>}
+          {!detailQuery.isLoading && !detailQuery.isError && detail.length > 0 && (
           <TableContainer sx={{ maxHeight: '65vh', border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
             <Table size="small" stickyHeader>
               <TableHead><TableRow>
+                <TableCell sx={HEADER_SX}>Fecha carga</TableCell>
                 <TableCell sx={HEADER_SX}>Cliente</TableCell>
-                <TableCell sx={HEADER_SX}>Estilo</TableCell>
-                <TableCell align="right" sx={HEADER_SX}>Másteres</TableCell>
-                <TableCell align="right" sx={HEADER_SX}>Anillos/máster</TableCell>
-                <TableCell align="right" sx={HEADER_SX}>Libras</TableCell>
+                <TableCell sx={HEADER_SX}>Ship</TableCell>
+                <TableCell sx={HEADER_SX}>Código embarque</TableCell>
+                <TableCell sx={HEADER_SX}>N.º orden compra</TableCell>
+                <TableCell sx={HEADER_SX}>Nombre ítem</TableCell>
+                <TableCell align="right" sx={HEADER_SX}>{weightUnit === 'kg' ? 'Peso kg' : 'Peso libras'}</TableCell>
+                <TableCell align="right" sx={HEADER_SX}>Cantidad serial</TableCell>
               </TableRow></TableHead>
               <TableBody>
-                {detail.map((row, index) => <TableRow key={`${row.cliente}|${row.estilo}|${index}`} hover>
-                  <TableCell>{String(row.cliente ?? '—')}</TableCell>
-                  <TableCell>{String(row.estilo ?? '—')}</TableCell>
-                  <TableCell align="right">{formatValue(Number(row.masteres ?? 0))}</TableCell>
-                  <TableCell align="right">{formatValue(Number(row.anillosXMaster ?? 0), 'decimal')}</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 700 }}>{formatValue(Number(row.libras ?? 0))}</TableCell>
-                </TableRow>)}
+                {detail.map((row, index) => {
+                  const previous = detail[index - 1];
+                  const next = detail[index + 1];
+                  const orderKey = (item: DataRow) => `${item.cliente}|${item.codigoEmbarque}|${item.ordenCompra}`;
+                  const sameOrderAsPrevious = previous && orderKey(previous) === orderKey(row);
+                  const endOfOrder = !next || orderKey(next) !== orderKey(row);
+                  const firstGroupRow = !previous || previous.cliente !== row.cliente || previous.codigoEmbarque !== row.codigoEmbarque;
+                  const orderRows = endOfOrder ? detail.filter((item) => orderKey(item) === orderKey(row)) : [];
+                  return [
+                    <TableRow key={`item-${index}`} hover>
+                      <TableCell>{firstGroupRow ? formatPeriodo(String(row.fecha ?? '')) : ''}</TableCell>
+                      <TableCell>{firstGroupRow ? String(row.cliente || '—') : ''}</TableCell>
+                      <TableCell>{firstGroupRow ? String(row.referencia || '—') : ''}</TableCell>
+                      <TableCell>{firstGroupRow ? String(row.codigoEmbarque || '—') : ''}</TableCell>
+                      <TableCell>{sameOrderAsPrevious ? '' : String(row.ordenCompra || '—')}</TableCell>
+                      <TableCell>{String(row.item || '—')}</TableCell>
+                      <TableCell align="right">{formatValue(convertPounds(Number(row.libras ?? 0), weightUnit), 'decimal')}</TableCell>
+                      <TableCell align="right">{formatValue(Number(row.cantidadSerial ?? 0))}</TableCell>
+                    </TableRow>,
+                    ...(endOfOrder && orderRows.length > 1 ? [
+                      <TableRow key={`subtotal-${index}`} sx={{ bgcolor: '#f3f7fc' }}>
+                        <TableCell colSpan={6} sx={{ fontWeight: 700 }}>{String(row.ordenCompra || 'Sin orden')} Total</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 700 }}>{formatValue(convertPounds(orderRows.reduce((sum, item) => sum + Number(item.libras ?? 0), 0), weightUnit), 'decimal')}</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 700 }}>{formatValue(orderRows.reduce((sum, item) => sum + Number(item.cantidadSerial ?? 0), 0))}</TableCell>
+                      </TableRow>,
+                    ] : []),
+                  ];
+                })}
+                <TableRow>
+                  <TableCell colSpan={6} sx={TOTAL_SX}>Total general</TableCell>
+                  <TableCell align="right" sx={TOTAL_SX}>{formatValue(convertPounds(detailTotalLibras, weightUnit), 'decimal')}</TableCell>
+                  <TableCell align="right" sx={TOTAL_SX}>{formatValue(detailTotalSerial)}</TableCell>
+                </TableRow>
               </TableBody>
             </Table>
           </TableContainer>
+          )}
         </DialogContent>
       </Dialog>
     </Box>

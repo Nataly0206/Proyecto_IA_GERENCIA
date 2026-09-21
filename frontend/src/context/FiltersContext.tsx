@@ -1,6 +1,7 @@
 import { createContext, ReactNode, useContext, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import { DashboardFilters } from '../types';
+import type { DashboardView } from '../components/layout/DashboardLayout';
 
 interface FiltersContextValue {
   filters: DashboardFilters;
@@ -29,9 +30,28 @@ function readStoredShowChartValues(): boolean {
   }
 }
 
-export function FiltersProvider({ children }: { children: ReactNode }) {
-  const [filters, setFilters] = useState<DashboardFilters>(buildDefaultFilters);
+export function FiltersProvider({ children, view }: { children: ReactNode; view: DashboardView | null }) {
+  const [filtersByView, setFiltersByView] = useState<Partial<Record<DashboardView, DashboardFilters>>>({});
+  const filters = view ? filtersByView[view] ?? buildDefaultFilters() : buildDefaultFilters();
   const [showChartValues, setShowChartValuesState] = useState(readStoredShowChartValues);
+
+  const setFilters = (nextFilters: DashboardFilters) => {
+    if (!view) return;
+    setFiltersByView((previous) => ({ ...previous, [view]: nextFilters }));
+  };
+
+  const updateFilter: FiltersContextValue['updateFilter'] = (key, val) => {
+    if (!view) return;
+    setFiltersByView((previous) => ({
+      ...previous,
+      [view]: { ...(previous[view] ?? buildDefaultFilters()), [key]: val },
+    }));
+  };
+
+  const resetFilters = () => {
+    if (!view) return;
+    setFiltersByView((previous) => ({ ...previous, [view]: buildDefaultFilters() }));
+  };
 
   const setShowChartValues = (show: boolean) => {
     setShowChartValuesState(show);
@@ -49,8 +69,8 @@ export function FiltersProvider({ children }: { children: ReactNode }) {
       showChartValues,
       setShowChartValues,
       setFilters,
-      updateFilter: (key, val) => setFilters((prev) => ({ ...prev, [key]: val })),
-      resetFilters: () => setFilters(buildDefaultFilters()),
+      updateFilter,
+      resetFilters,
     }),
     [filters, showChartValues],
   );

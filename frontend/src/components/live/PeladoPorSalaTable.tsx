@@ -18,6 +18,7 @@ import {
   TableFooter,
   TableHead,
   TableRow,
+  TextField,
   Typography,
 } from '@mui/material';
 import MeetingRoomOutlinedIcon from '@mui/icons-material/MeetingRoomOutlined';
@@ -76,8 +77,13 @@ const salaNum = (nombre: string) => Number(nombre.replace(/\D/g, '')) || 0;
 export default function PeladoPorSalaTable() {
   const { data, isLoading, isError, error, dataUpdatedAt } = usePeladoPorSala();
   const [tallaOpen, setTallaOpen] = useState(false);
+  const [minHours, setMinHours] = useState('');
 
-  const salas = [...(data?.salas ?? [])].sort((a, b) => salaNum(a.sala) - salaNum(b.sala));
+  const parsedHours = Number(minHours);
+  const hoursThreshold = minHours !== '' && Number.isFinite(parsedHours) && parsedHours >= 0 ? parsedHours : null;
+  const salas = [...(data?.salas ?? [])]
+    .filter((sala) => hoursThreshold === null || sala.horasTrabajadas > hoursThreshold)
+    .sort((a, b) => salaNum(a.sala) - salaNum(b.sala));
   const maxLibrasHoy = salas.reduce((m, s) => Math.max(m, s.librasPeladasHoy), 0);
   const totales = salas.reduce(
     (acc, s) => ({
@@ -85,14 +91,14 @@ export default function PeladoPorSalaTable() {
       librasUltimos30Min: acc.librasUltimos30Min + s.librasUltimos30Min,
       librasPeladasHoy: acc.librasPeladasHoy + s.librasPeladasHoy,
       librasPorHora: acc.librasPorHora + s.librasPorHora,
-      empleadosRegistrandoHoy: acc.empleadosRegistrandoHoy + s.empleadosRegistrandoHoy,
+      horasTrabajadas: acc.horasTrabajadas + s.horasTrabajadas,
     }),
     {
       personasActivas: 0,
       librasUltimos30Min: 0,
       librasPeladasHoy: 0,
       librasPorHora: 0,
-      empleadosRegistrandoHoy: 0,
+      horasTrabajadas: 0,
     },
   );
 
@@ -146,15 +152,21 @@ export default function PeladoPorSalaTable() {
             )}
           </Stack>
 
-          <Button
-            size="small"
-            variant="outlined"
-            startIcon={<StraightenOutlinedIcon sx={{ fontSize: 16 }} />}
-            onClick={() => setTallaOpen(true)}
-            sx={{ flexShrink: 0, textTransform: 'none', fontWeight: 700, fontSize: 12, py: 0.4 }}
-          >
-            Por talla · hoy
-          </Button>
+          <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap" useFlexGap>
+            <TextField size="small" type="number" label="Horas trabajadas >" value={minHours}
+              onChange={(event) => setMinHours(event.target.value)}
+              inputProps={{ min: 0, step: 0.25, 'aria-label': 'Mostrar salas con más de estas horas trabajadas' }}
+              sx={{ width: 160, '& .MuiInputBase-input': { py: 0.7 } }} />
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<StraightenOutlinedIcon sx={{ fontSize: 16 }} />}
+              onClick={() => setTallaOpen(true)}
+              sx={{ flexShrink: 0, textTransform: 'none', fontWeight: 700, fontSize: 12, py: 0.4 }}
+            >
+              Por talla · hoy
+            </Button>
+          </Stack>
         </Box>
 
         {isLoading && <Skeleton variant="rounded" height={240} />}
@@ -171,7 +183,11 @@ export default function PeladoPorSalaTable() {
           </Alert>
         )}
 
-        {!isLoading && !isError && data && data.salas.length > 0 && (
+        {!isLoading && !isError && data && data.salas.length > 0 && salas.length === 0 && (
+          <Alert severity="info" sx={{ py: 0.5 }}>Ninguna sala supera el límite de horas indicado.</Alert>
+        )}
+
+        {!isLoading && !isError && data && salas.length > 0 && (
           <TableContainer
             sx={{
               maxHeight: 360,
@@ -192,7 +208,7 @@ export default function PeladoPorSalaTable() {
                   <HeadCell label="Libras 30 min" unit="lbs · en vivo" />
                   <HeadCell label="Libras hoy" unit="lbs · acumulado" />
                   <HeadCell label="Libras / hora" unit="lbs · promedio" />
-                  <HeadCell label="Empleados hoy" unit="con destajo" />
+                  <HeadCell label="Horas trabajadas" unit="h · primer a último registro" />
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -271,7 +287,7 @@ export default function PeladoPorSalaTable() {
                     </TableCell>
 
                     <TableCell align="right" sx={BODY_NUM_SX}>
-                      {formatValue(sala.empleadosRegistrandoHoy)}
+                      {formatValue(sala.horasTrabajadas, 'decimal')}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -279,7 +295,7 @@ export default function PeladoPorSalaTable() {
               <TableFooter>
                 <TableRow>
                   <TableCell sx={{ ...FOOT_CELL_SX, fontSize: 11, letterSpacing: 0.4, textTransform: 'uppercase', color: '#64748b' }}>
-                    Total planta
+                    {hoursThreshold === null ? 'Total planta' : 'Total visible'}
                   </TableCell>
                   <TableCell align="right" sx={FOOT_CELL_SX}>{formatValue(totales.personasActivas)}</TableCell>
                   <TableCell align="right" sx={FOOT_CELL_SX}>{formatValue(totales.librasUltimos30Min)}</TableCell>
@@ -287,7 +303,7 @@ export default function PeladoPorSalaTable() {
                   <TableCell align="right" sx={{ ...FOOT_CELL_SX, color: 'primary.main' }}>
                     {formatValue(totales.librasPorHora)}
                   </TableCell>
-                  <TableCell align="right" sx={FOOT_CELL_SX}>{formatValue(totales.empleadosRegistrandoHoy)}</TableCell>
+                  <TableCell align="right" sx={FOOT_CELL_SX}>{formatValue(totales.horasTrabajadas, 'decimal')}</TableCell>
                 </TableRow>
               </TableFooter>
             </Table>

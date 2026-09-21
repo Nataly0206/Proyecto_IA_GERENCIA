@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Box, Button, Checkbox, Divider, FormControlLabel, Popover, Stack, Typography } from '@mui/material';
+import { Box, Button, Checkbox, Divider, FormControlLabel, Popover, Stack, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined';
 import PeopleAltOutlinedIcon from '@mui/icons-material/PeopleAltOutlined';
 import ProcessFilters from '../components/filters/ProcessFilters';
@@ -11,6 +11,7 @@ import { ExportacionesResumen } from '../types';
 import { formatPeriodo } from '../utils/format';
 import { exportacionesWidgets } from '../config/dashboardConfig';
 import { apiClient } from '../api/client';
+import { convertPounds, WeightUnit } from '../utils/weightUnits';
 
 const [porEstilo, porClienteMes] = exportacionesWidgets;
 const TABLE_H = 440;
@@ -31,6 +32,7 @@ export default function ExportacionesPage({ userId }: { userId: string }) {
     useProcesoResumen<ExportacionesResumen>('exportaciones-resumen');
   const { data: clientRows } = useWidgetData('exportaciones-por-cliente-mes');
   const [hiddenClients, setHiddenClients] = useState<Set<string>>(() => readHiddenClients(userId));
+  const [weightUnit, setWeightUnit] = useState<WeightUnit>('lbs');
   const [clientsAnchor, setClientsAnchor] = useState<HTMLElement | null>(null);
   const [preferencesUserId, setPreferencesUserId] = useState<string | null>(null);
   const clients = useMemo(() => Array.from(new Set(
@@ -96,6 +98,15 @@ export default function ExportacionesPage({ userId }: { userId: string }) {
         title="Filtros de exportaciones"
         hint="Los contadores muestran la semana en curso (lunes a domingo); las tarjetas y tablas responden al rango de fechas."
         hideTurno
+        extra={<Stack direction="row" alignItems="center" spacing={1}>
+          <Typography variant="body2" fontWeight={700}>Unidad de peso</Typography>
+          <ToggleButtonGroup size="small" exclusive value={weightUnit}
+            onChange={(_event, next: WeightUnit | null) => { if (next) setWeightUnit(next); }}
+            aria-label="Unidad de peso de exportaciones">
+            <ToggleButton value="lbs">lbs</ToggleButton>
+            <ToggleButton value="kg">kg</ToggleButton>
+          </ToggleButtonGroup>
+        </Stack>}
       />
 
       <ResumenCards
@@ -108,17 +119,18 @@ export default function ExportacionesPage({ userId }: { userId: string }) {
         updatedAt={dataUpdatedAt}
         emptyText="Sin contenedores exportados esta semana."
         metrics={[
-          { label: 'Libras a Francia', value: data?.librasFrancia ?? 0, unit: 'lbs' },
-          { label: 'Libras a UK', value: data?.librasUK ?? 0, unit: 'lbs' },
-          { label: 'Libras a AC Holding', value: data?.librasACHolding ?? 0, unit: 'lbs' },
-          { label: 'Libras a terceros', value: data?.librasTerceros ?? 0, unit: 'lbs' },
-          { label: 'Total exportado', value: data?.librasTotal ?? 0, unit: 'lbs', tone: 'good' },
+          { label: `${weightUnit === 'kg' ? 'Kg' : 'Libras'} a Francia`, value: convertPounds(data?.librasFrancia ?? 0, weightUnit), unit: weightUnit, format: weightUnit === 'kg' ? 'decimal' : 'number' },
+          { label: `${weightUnit === 'kg' ? 'Kg' : 'Libras'} a UK`, value: convertPounds(data?.librasUK ?? 0, weightUnit), unit: weightUnit, format: weightUnit === 'kg' ? 'decimal' : 'number' },
+          { label: `${weightUnit === 'kg' ? 'Kg' : 'Libras'} a AC Holding`, value: convertPounds(data?.librasACHolding ?? 0, weightUnit), unit: weightUnit, format: weightUnit === 'kg' ? 'decimal' : 'number' },
+          { label: `${weightUnit === 'kg' ? 'Kg' : 'Libras'} a terceros`, value: convertPounds(data?.librasTerceros ?? 0, weightUnit), unit: weightUnit, format: weightUnit === 'kg' ? 'decimal' : 'number' },
+          { label: 'Total exportado', value: convertPounds(data?.librasTotal ?? 0, weightUnit), unit: weightUnit, tone: 'good', format: weightUnit === 'kg' ? 'decimal' : 'number' },
         ]}
       />
 
-      <ChartWidget config={porEstilo} />
+      <ChartWidget config={{ ...porEstilo, title: `${weightUnit === 'kg' ? 'Kg' : 'Libras'} Exportadas por Estilo`, unitLabel: `${weightUnit} exportadas`, valueFormat: weightUnit === 'kg' ? 'decimal' : 'number' }}
+        transform={(rows) => rows.map((row) => ({ ...row, libras: convertPounds(Number(row.libras ?? 0), weightUnit) }))} />
 
-      <ExportContainersTable />
+      <ExportContainersTable weightUnit={weightUnit} />
 
       <Box sx={{ height: TABLE_H, flexShrink: 0 }}>
         <ChartWidget

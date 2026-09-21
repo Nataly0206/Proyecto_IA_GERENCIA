@@ -79,6 +79,21 @@ export const getClasificadoPorTallaMes = monthlyReport('clasificado-por-talla-me
 export const getExportacionesResumen = live('exportaciones-resumen', procesos.getExportacionesResumen, EXPORT_CACHE_MS);
 export const getExportacionesPorEstilo = report('exportaciones-por-estilo', procesos.getExportacionesPorEstilo);
 export const getExportacionesContenedores = report('exportaciones-contenedores', procesos.getExportacionesContenedores);
+export const getExportacionesContenedorDetalle = async (req: Request, res: Response): Promise<void> => {
+  const fecha = String(req.query.fecha ?? '');
+  const contenedor = String(req.query.contenedor ?? '');
+  const referencia = String(req.query.referencia ?? '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || !contenedor || contenedor.length > 100 || referencia.length > 200) {
+    res.status(400).json({ error: 'Los datos del contenedor no son válidos.' });
+    return;
+  }
+  res.json(await withTtlCache(
+    JSON.stringify(['exportaciones-contenedor-detalle', fecha, contenedor, referencia]),
+    EXPORT_CACHE_MS,
+    () => procesos.getExportacionesContenedorDetalle(fecha, contenedor, referencia),
+    req.query.refresh === 'true',
+  ));
+};
 export const getExportacionesPorClienteMes = monthlyReport('exportaciones-por-cliente-mes', procesos.getExportacionesPorClienteMes, 6);
 
 /* Compra de materia prima */

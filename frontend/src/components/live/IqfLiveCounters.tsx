@@ -84,7 +84,7 @@ function LiveCard({ linea, total = false }: { linea: IqfLiveLine; total?: boolea
               whiteSpace: 'nowrap',
             }}
           >
-            {formatValue(linea.librasPorHora)} lbs/hora
+            {formatValue(linea.librasPorHora)} lbs/h
           </Typography>
         </Stack>
       </CardContent>

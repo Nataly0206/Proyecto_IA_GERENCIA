@@ -17,8 +17,8 @@
  *   "gramaje"). Personas vía `DES_EMPLEADOS_LINEAS`. Sin desglose por
  *   turno. `Des_PesadoCola.Fecha` está vacío, no sirve.
  * - Clasificado: `CL_LLENADO_RECIPIENTES` (+ `_D`), talla vía `DCP_TALLAS`,
- *   "máquina" = responsable de mesa (`DCP_RESPONSABLES`) porque
- *   `ID_TANQUE` no se usa desde 2023. Inventario disponible en
+ *   máquina vía `ID_TANQUE` → `CL_TANQUES`; el ID 0 queda sin asignar.
+ *   Inventario disponible en
  *   `CL_InventarioClasificado` (`EnInventario=1 AND Transferido=0 AND
  *   Procesado=0`).
  * - Exportaciones: consulta reducida sobre `Envios`, `Masteres`, `Seriales`,
@@ -308,21 +308,25 @@ GROUP BY
   COALESCE(NULLIF(LTRIM(RTRIM(tp.TipoProducto)), ''), CASE WHEN h.ENTERO = 1 THEN 'Entero' ELSE 'Nitido Cola' END)
 `;
 
-/** Libras clasificadas por día, turno, máquina (responsable) y talla. */
+/** Libras clasificadas por día, turno, tanque/máquina y talla. */
 export const CLASIFICADO_DETALLE_QUERY = `
 SELECT
   h.FECHA AS Dia,
   d.IdTurno AS IdTurno,
-  COALESCE(NULLIF(LTRIM(RTRIM(r.NOMBRES)), ''), 'Sin responsable') AS Maquina,
+  CASE WHEN tanque.ID_TANQUE IS NOT NULL
+    THEN CONCAT('Máquina ', tanque.ID_TANQUE)
+    ELSE 'Sin máquina asignada' END AS Maquina,
   COALESCE(NULLIF(LTRIM(RTRIM(t.NOMBRE_TALLA)), ''), 'Sin talla') AS Talla,
   SUM(d.LIBRAS_NETA) AS Libras
 FROM dbo.CL_LLENADO_RECIPIENTES h
 JOIN dbo.CL_LLENADO_RECIPIENTES_D d ON d.ID_LLENADO_RECIPIENTE = h.ID_LLENADO_RECIPIENTE
-LEFT JOIN dbo.DCP_RESPONSABLES r ON r.ID_RESPONSABLE = h.ID_RESPONSABLE
+LEFT JOIN dbo.CL_TANQUES tanque ON tanque.ID_TANQUE = h.ID_TANQUE
 LEFT JOIN dbo.DCP_TALLAS t ON t.ID_TALLA = d.ID_TALLA
 WHERE h.FECHA BETWEEN @Fecha_Inicial AND @Fecha_Final AND d.ANULADO = 0
 GROUP BY h.FECHA, d.IdTurno,
-  COALESCE(NULLIF(LTRIM(RTRIM(r.NOMBRES)), ''), 'Sin responsable'),
+  CASE WHEN tanque.ID_TANQUE IS NOT NULL
+    THEN CONCAT('Máquina ', tanque.ID_TANQUE)
+    ELSE 'Sin máquina asignada' END,
   COALESCE(NULLIF(LTRIM(RTRIM(t.NOMBRE_TALLA)), ''), 'Sin talla')
 `;
 
@@ -347,6 +351,7 @@ SELECT
   e.FechaCarga AS Dia,
   e.NumeroContenedor AS Contenedor,
   e.ReferenciaEnvio AS Referencia,
+  e.CodigoEmbarque AS CodigoEmbarque,
   COALESCE(NULLIF(LTRIM(RTRIM(lr.NombreGrupo)), ''), NULLIF(LTRIM(RTRIM(lr.Empresa)), ''), 'Sin cliente') AS Cliente,
   COALESCE(NULLIF(LTRIM(RTRIM(i.EstiloFinal)), ''), 'Sin estilo') AS Estilo,
   COUNT(DISTINCT m.CodigoMaster) AS Masteres,
@@ -360,9 +365,36 @@ JOIN dbo.AV_Items i ON i.IdItem = op.FkItem
 JOIN dbo.AV_LotesRemision lr ON lr.IdLoteRemision = op.FkLoteRemision
 WHERE e.FechaCarga BETWEEN @Fecha_Inicial AND @Fecha_Final
   AND e.NumeroContenedor IS NOT NULL AND e.NumeroContenedor <> ''
-GROUP BY e.FechaCarga, e.NumeroContenedor, e.ReferenciaEnvio,
+GROUP BY e.FechaCarga, e.NumeroContenedor, e.ReferenciaEnvio, e.CodigoEmbarque,
   COALESCE(NULLIF(LTRIM(RTRIM(lr.NombreGrupo)), ''), NULLIF(LTRIM(RTRIM(lr.Empresa)), ''), 'Sin cliente'),
   COALESCE(NULLIF(LTRIM(RTRIM(i.EstiloFinal)), ''), 'Sin estilo')
+`;
+
+/** Desglose de un contenedor abierto: una fila por cliente, orden e ítem. */
+export const EXPORTACIONES_CONTENEDOR_DETALLE_QUERY = `
+SELECT
+  e.FechaCarga AS Dia,
+  e.ReferenciaEnvio AS Referencia,
+  e.CodigoEmbarque AS CodigoEmbarque,
+  COALESCE(NULLIF(LTRIM(RTRIM(lr.NombreGrupo)), ''), NULLIF(LTRIM(RTRIM(lr.Empresa)), ''), 'Sin cliente') AS Cliente,
+  COALESCE(NULLIF(LTRIM(RTRIM(op.NoOrdenCompra)), ''), 'Sin orden') AS OrdenCompra,
+  COALESCE(NULLIF(LTRIM(RTRIM(i.Item)), ''), 'Sin ítem') AS Item,
+  SUM(i.PesoLibras) AS Libras,
+  COUNT(s.IdSerial) AS CantidadSerial
+FROM dbo.Envios e
+JOIN dbo.Masteres m ON m.FkEnvio = e.IdEnvio
+JOIN dbo.Seriales s ON s.FkMaster = m.IdMaster
+JOIN dbo.OrdenesProduccion op ON op.IdOrdenProduccion = s.FkOrdenProduccion
+JOIN dbo.AV_Items i ON i.IdItem = op.FkItem
+JOIN dbo.AV_LotesRemision lr ON lr.IdLoteRemision = op.FkLoteRemision
+WHERE e.FechaCarga = @Fecha
+  AND e.NumeroContenedor = @Contenedor
+  AND COALESCE(e.ReferenciaEnvio, '') = @Referencia
+GROUP BY e.FechaCarga, e.ReferenciaEnvio, e.CodigoEmbarque,
+  COALESCE(NULLIF(LTRIM(RTRIM(lr.NombreGrupo)), ''), NULLIF(LTRIM(RTRIM(lr.Empresa)), ''), 'Sin cliente'),
+  COALESCE(NULLIF(LTRIM(RTRIM(op.NoOrdenCompra)), ''), 'Sin orden'),
+  COALESCE(NULLIF(LTRIM(RTRIM(i.Item)), ''), 'Sin ítem')
+ORDER BY Cliente, CodigoEmbarque, OrdenCompra, Item
 `;
 
 /** Conteo mensual directo en SQL; evita descargar el detalle de seis meses. */

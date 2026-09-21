@@ -108,14 +108,14 @@ export const peladoWidgets: ChartConfig[] = [
 /* Módulos de proceso — mismos patrones ChartConfig que arriba        */
 /* ================================================================== */
 
-/** Clasificado por talla y por máquina (responsable de mesa). Las tablas
+/** Clasificado por talla y por máquina (tanque de clasificación). Las tablas
  *  diario/mensual pivotean por talla; las tarjetas cubren talla y máquina. */
 export const clasificadoWidgets: ChartConfig[] = [
   {
     id: 'clasificado-por-maquina',
     type: 'cards',
     title: 'Libras Clasificadas por Máquina',
-    subtitle: 'Responsable de mesa · rango de fechas y turno del filtro',
+    subtitle: 'Máquina de clasificación · rango de fechas y turno del filtro',
     endpoint: 'clasificado-por-maquina',
     xField: 'maquina',
     yField: 'libras',

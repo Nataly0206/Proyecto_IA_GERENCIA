@@ -117,7 +117,7 @@ Para una línea específica, agregar `AND a.LineaEquipoIQF = @Linea` con un par�
 
 **Ayuda dentro del módulo:** abrir **Detalles** para ver cómo elegir el indicador, las vistas disponibles, períodos, unidades y promedios. Abrir **Detalles de desarrollador** para ver fuentes SQL, agrupaciones, fórmulas, contratos de API, caché y archivos que implementan ambos reportes. Estos textos corresponden a las listas desplegables actuales, no al antiguo botón de horas.
 
-**Diario:** utiliza Desde/Hasta y Turno del reporte. **Mensual:** utiliza la misma ventana de últimos 12 meses que el rendimiento mensual (hasta hoy), independiente de Desde/Hasta; sí respeta Turno. Suma las horas diarias por equipo y mes; no calcula un intervalo entre primera y última lectura de todo el mes.
+**Diario:** utiliza Desde/Hasta y Turno del reporte. **Mensual:** utiliza la misma ventana de últimos 12 meses que el rendimiento mensual (hasta hoy), independiente de Desde/Hasta; sí respeta Turno. Promedia las horas diarias por equipo y mes sobre los días con registros válidos; no calcula un intervalo entre primera y última lectura de todo el mes.
 
 Fechas o meses en filas, equipos en columnas y una columna **Promedio** (por día o mes) = suma de horas de equipos con registro en esa fila ÷ cantidad de equipos con registro. No muestra una fila de total del período. Incluye la fila **Promedio diario** o **Promedio mensual** por equipo y promedio general al final = suma de horas de todas las celdas válidas ÷ cantidad de celdas equipo/período válidas. El pie de la columna Promedio muestra la media de los promedios de las filas. Las celdas sin registro se muestran como — y se excluyen de los promedios. No se redondea antes de agregar; se muestran dos decimales.
 
@@ -198,7 +198,7 @@ Las fuentes de unión y fórmulas ampliadas están incluidas en las secciones de
 | Personal y pago de pelado | `STB_data.dbo.V_PagosxPeladoIndividualPBI` | Empleados distintos por `IdEmpleado`, `SUM(libras)`, `SUM(Valor)` | `Fecha`; `/api/dashboard/pelado-personal?fechaInicial=INICIO&fechaFinal=FIN`; turno opcional |
 | Recepción por remisión/finca/laguna | `STB_data.dbo.RemisionesPlantaPBI` | `LibrasRemision`, `LibrasCola`, `LibrasCabeza`, `LibrasBasura`; agregación descrita en Recepción | `FechaRemision`; `/api/dashboard/recepcion-remisiones?fechaInicial=INICIO&fechaFinal=FIN`; sin turno |
 | Descabezado por día | `STB_data.dbo.V_TrazabilidadDescabezadoPBI` y tablas de asignación | Cola, cabeza, total; personas y horas desde asignación | `FECHA_DESCABEZADO` y cabecera `FECHA`; `/api/dashboard/descabezado-por-dia?fechaInicial=INICIO&fechaFinal=FIN`; sin turno |
-| Clasificado por talla o responsable | `STB_data.dbo.CL_LLENADO_RECIPIENTES` y `dbo.CL_LLENADO_RECIPIENTES_D` | `SUM(LIBRAS_NETA)` no anuladas; `DCP_TALLAS` o `DCP_RESPONSABLES` | Cabecera `FECHA`; `/api/dashboard/clasificado-por-talla?fechaInicial=INICIO&fechaFinal=FIN` o `/api/dashboard/clasificado-por-maquina` con las mismas fechas; turno opcional |
+| Clasificado por talla o máquina | `STB_data.dbo.CL_LLENADO_RECIPIENTES` y `dbo.CL_LLENADO_RECIPIENTES_D` | `SUM(LIBRAS_NETA)` no anuladas; `DCP_TALLAS` o `CL_TANQUES` por `ID_TANQUE` | Cabecera `FECHA`; `/api/dashboard/clasificado-por-talla?fechaInicial=INICIO&fechaFinal=FIN` o `/api/dashboard/clasificado-por-maquina` con las mismas fechas; turno opcional |
 | Exportaciones por contenedor/cliente | `Envios` + `Masteres` + `Seriales` + `OrdenesProduccion` + `AV_Items` + `AV_LotesRemision` | Una fila principal por contenedor con libras totales; `detalle` conserva cliente/estilo; contenedor no vacío | `FechaCarga`; `/api/dashboard/exportaciones-contenedores?fechaInicial=INICIO&fechaFinal=FIN`; sin turno |
 | Compra por proveedor/talla | `PlantaEmpacadora.dbo.AV_MateriaPrima` | `SUM(PesoLibras)`; proveedor desde `NombrePropietario` o `NombreGrupo`, talla desde `Talla` | `CAST(DiaProduccion2024 AS date)`; `/api/dashboard/compra-mp-por-talla?fechaInicial=INICIO&fechaFinal=FIN`; sin turno |
 | Existencias de producto terminado | `PlantaEmpacadora.dbo.Seriales` y uniones de Inventario | `pesoKilos`, `cantidadSerial`; dimensiones y disponibilidad en cada registro | `/api/inventory`, respuesta `items`; sin fechas ni turno. Filtrar registros en el consumidor |
@@ -223,7 +223,7 @@ Para límites por categoría o valor numérico, indicar el criterio sobre la res
 | IQF | **Rendimientos IQF x Hora — Diario** | Sí | Sí | Columna de cada línea; unidad lbs/h |
 | IQF | **Rendimientos IQF x Hora — Mensual** | No | Sí | Últimos 12 meses; cada IQF y línea de promedio general por mes |
 | IQF | **Horas Trabajadas por IQF — Diario**, lista del reporte diario | Sí | Sí | Horas por equipo/día y promedios |
-| IQF | **Horas Trabajadas por IQF — Mensual**, lista del reporte mensual | No | Sí | Últimos 12 meses, horas acumuladas y promedio por mes |
+| IQF | **Horas Trabajadas por IQF — Mensual**, lista del reporte mensual | No | Sí | Últimos 12 meses, promedio de horas trabajadas por día válido de cada mes |
 | IQF | Contadores en vivo por línea | No | No | Día actual; actividad reciente |
 | Pelado | **Libras Peladas por Estilo** y botón **Ver por talla** | Sí | Sí | Estilos visibles; el botón abre bajo demanda una tabla Talla/Libras/Total con el mismo rango y turno |
 | Pelado | **Libras Peladas Hoy por Estilo** y tabla por sala | No | No | Día actual; cards por estilo, total y libras por hora promedio; personal y pago por sala en la tabla |
@@ -390,7 +390,7 @@ talla y sala. Base: `STB_data` (más un proxy en `PlantaEmpacadora` para
 | Personal (headcount) y pago | vista `dbo.V_PagosxPeladoIndividualPBI` | `COUNT(DISTINCT IdEmpleado)`, `SUM(libras)`, `SUM(Valor)` | `GET /pelado-personal` (`-dia`, `-mes`) |
 | Libras peladas hoy por estilo / talla | mismo detalle base (`PES_ASIGNACION_LIBRAS_EMPLEADOS[_DET]`), siempre `FECHA = GETDATE()` | `SUM(LIBRAS)`, independiente del filtro de fechas | `GET /pelado-libras-hoy` / `-libras-hoy-talla` |
 | Libras por hora promedio de hoy | mismo detalle; hora del registro en `PES_ASIGNACION_LIBRAS_EMPLEADOS_DET.HORA` | total de libras peladas hoy ÷ horas desde el primer registro válido de hoy hasta la hora actual; devuelve 0 si todavía no existe un intervalo válido | `GET /pelado-libras-hoy`, campo `librasPorHoraPromedio` |
-| Actividad y pago por sala (hoy) | mismo detalle, resuelto vía `DCP_LINEAS.ID_SALA`→`PES_SALAS` | `SUM(LIBRAS)`, `SUM(VALOR)`, `COUNT(DISTINCT empleado)` por sala; libras/hora = libras hoy ÷ horas desde el primer registro del día | `GET /pelado-por-sala` |
+| Actividad y pago por sala (hoy) | mismo detalle, resuelto vía `DCP_LINEAS.ID_SALA`→`PES_SALAS` | `SUM(LIBRAS)`, `SUM(VALOR)`, `COUNT(DISTINCT empleado)` por sala; libras/hora = libras hoy ÷ horas desde el primer registro del día; horas trabajadas = intervalo entre primer y último destajo por sala | `GET /pelado-por-sala` |
 | "Órdenes activas" (proxy de actividad, no hay conteo real de personal en planta) | `dbo.AV_Produccion_Diaria_2020` (**PlantaEmpacadora**), `FechaHoraTorre` | Órdenes con lectura en los últimos 15 min y proceso `IQF PEELED / IQF COOK PEELED / PD BLOCK / FRESH PEELED` | `GET /pelado-tiempo-real` |
 
 En la pantalla, **Detalle de Libras Peladas por Talla** no se muestra como una sección permanente. Se abre como tabla al pulsar **Ver por talla** en la esquina superior derecha de **Libras Peladas por Estilo**. La tabla contiene **Talla**, **Libras peladas** y una fila **Total**, y utiliza el rango de fechas y turno seleccionados.
@@ -436,11 +436,13 @@ clasificado disponible. Base: `STB_data`. Sí respeta turno.
 | Libras clasificadas por hora de hoy | mismas tablas; horarios en `CL_LLENADO_RECIPIENTES_D.HORA_INICIO/HORA_FINAL` | libras netas no anuladas de hoy ÷ horas entre el inicio más temprano y el final más tardío; devuelve 0 sin intervalo válido | `GET /clasificado-resumen`, campo `librasClasificadasPorHora` |
 | Inventario clasificado disponible (bins, libras, finca, talla) | `dbo.CL_InventarioClasificado` | `EnInventario=1 AND Transferido=0 AND Procesado=0`; `bins=COUNT(*)`, `libras=SUM(LibrasNetas)` por talla (`DCP_TALLAS`) | `GET /clasificado-inventario` |
 | Detalle cruzado de inventario (finca/laguna/remisión/lote/talla/destino) | `dbo.CL_InventarioClasificado` + `CL_LLENADO_RECIPIENTES[_D]` + `CL_TipoProducto` | mismo filtro que arriba, desglosado | `GET /clasificado-inventario-detalle` |
-| Libras por máquina (responsable de mesa) / por talla | `dbo.CL_LLENADO_RECIPIENTES_D` + `dbo.DCP_RESPONSABLES` (= "máquina") + `DCP_TALLAS` | `SUM(LIBRAS_NETA)` agrupado; turno filtrado en código | `GET /clasificado-por-maquina` / `-por-talla` (`-dia`, `-mes`) |
+| Libras por máquina / por talla | `dbo.CL_LLENADO_RECIPIENTES` + `dbo.CL_LLENADO_RECIPIENTES_D` + `dbo.CL_TANQUES` + `DCP_TALLAS` | `SUM(LIBRAS_NETA)` agrupado; turno filtrado en código | `GET /clasificado-por-maquina` / `-por-talla` (`-dia`, `-mes`) |
 
-Nota: "máquina" en la UI es en realidad el responsable de mesa (`DCP_RESPONSABLES`); el campo `ID_TANQUE` ya no se usa desde 2023.
+Nota: "máquina" se obtiene de `CL_LLENADO_RECIPIENTES.ID_TANQUE`. Los registros sin ID válido, incluido 0, aparecen como “Sin máquina asignada” y se incluyen en el total.
 
 En la pantalla, **Libras Clasificadas por Talla** permanece oculto hasta pulsar **Ver por talla** en la esquina superior derecha de **Libras Clasificadas por Máquina**. El diálogo usa el mismo rango de fechas y turno seleccionados.
+
+El orden de columnas por talla de las tablas diaria y mensual se guarda en `dashboard_configuracion_compartida` de la base de autenticación. Todos los usuarios ven el mismo orden; solo administradores o usuarios con el permiso `ordenar_tallas_clasificado` pueden cambiarlo arrastrando encabezados dentro de cualquiera de las dos tablas.
 
 ---
 

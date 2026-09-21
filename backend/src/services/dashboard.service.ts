@@ -551,13 +551,17 @@ export async function getPeladoLibrasHoy(): Promise<PeladoLibrasHoyResponse> {
   );
   for (const estilo of librasPorEstilo.keys()) nombres.add(estilo);
 
-  const estilos = Array.from(nombres)
+  const estilosConLibras = Array.from(nombres)
     .sort()
     .map((estilo) => ({ estilo, libras: librasPorEstilo.get(estilo) ?? 0 }))
     .sort((a, b) => b.libras - a.libras);
-  const total = round2(estilos.reduce((acc, e) => acc + e.libras, 0));
+  const total = round2(estilosConLibras.reduce((acc, e) => acc + e.libras, 0));
   const minutosTranscurridos = pickNumber(transcurridoRows[0] ?? {}, 'MinutosTranscurridos');
   const horasTranscurridas = minutosTranscurridos > 0 ? minutosTranscurridos / 60 : 0;
+  const estilos = estilosConLibras.map((estilo) => ({
+    ...estilo,
+    librasPorHora: horasTranscurridas > 0 ? round2(estilo.libras / horasTranscurridas) : 0,
+  }));
   const librasPorHoraPromedio = horasTranscurridas > 0 ? round2(total / horasTranscurridas) : 0;
 
   return {
@@ -630,6 +634,7 @@ export async function getPeladoPorSala(): Promise<PeladoPorSalaResponse> {
         librasPorHora: horasTranscurridas > 0 ? round2(librasPeladasHoy / horasTranscurridas) : 0,
         pagoAcumuladoHoy: round2(pickNumber(row, 'PagoAcumuladoHoy')),
         empleadosRegistrandoHoy: empleadosHoy,
+        horasTrabajadas: round2(pickNumber(row, 'HorasTrabajadas')),
       };
     })
     .sort((a, b) => {
@@ -761,26 +766,25 @@ export async function getIqfHorasTrabajadas(filters: DashboardFilters): Promise<
   return [...cells.values()].sort((a, b) => a.periodo.localeCompare(b.periodo) || a.linea.localeCompare(b.linea));
 }
 
-/**
- * Misma ventana calendario que Rendimientos IQF — Mensual. El valor de cada
- * celda es el promedio de las libras/hora diarias del mes (promedio por
- * día), no la suma de horas trabajadas del mes.
- */
+/** Promedio de horas trabajadas por día válido de cada IQF en cada mes. */
 export async function getIqfHorasTrabajadasMes(filters: DashboardFilters, meses: number): Promise<{ periodo: string; linea: string; horas: number }[]> {
   const hoy = new Date();
   const inicio = new Date(hoy.getFullYear(), hoy.getMonth() - (meses - 1), 1);
-  const groups = await fetchIqfGroups(formatDate(inicio), formatDate(hoy), filters.turno);
-  const daily = aggregateCells(groups, (dia) => dia);
-  const cells = new Map<string, { periodo: string; linea: string; rateSum: number; dias: number }>();
+  const daily = await getIqfHorasTrabajadas({
+    ...filters,
+    fechaInicial: formatDate(inicio),
+    fechaFinal: formatDate(hoy),
+  });
+  const cells = new Map<string, { periodo: string; linea: string; hoursSum: number; dias: number }>();
   for (const row of daily) {
     const periodo = row.periodo.slice(0, 7);
     const key = `${periodo}|${row.linea}`;
-    const cell = cells.get(key) ?? { periodo, linea: row.linea, rateSum: 0, dias: 0 };
-    cell.rateSum += row.librasPorHora;
+    const cell = cells.get(key) ?? { periodo, linea: row.linea, hoursSum: 0, dias: 0 };
+    cell.hoursSum += row.horas;
     cell.dias += 1;
     cells.set(key, cell);
   }
   return [...cells.values()]
-    .map((c) => ({ periodo: c.periodo, linea: c.linea, horas: round2(c.rateSum / c.dias) }))
+    .map((c) => ({ periodo: c.periodo, linea: c.linea, horas: round2(c.hoursSum / c.dias) }))
     .sort((a, b) => a.periodo.localeCompare(b.periodo) || a.linea.localeCompare(b.linea));
 }

@@ -133,7 +133,7 @@ export default function App() {
   const view = currentView && canAccessView(user, currentView) ? currentView : defaultView(user);
 
   return (
-    <FiltersProvider>
+    <FiltersProvider view={view}>
       <DashboardLayout
         onLogout={logout}
         user={user}
@@ -150,7 +150,7 @@ export default function App() {
         ) : view === 'descabezado' ? (
           <DescabezadoPage />
         ) : view === 'clasificado' ? (
-          <ClasificadoPage />
+          <ClasificadoPage user={user} />
         ) : view === 'exportaciones' ? (
           <ExportacionesPage userId={user.id} />
         ) : view === 'inventory' ? (

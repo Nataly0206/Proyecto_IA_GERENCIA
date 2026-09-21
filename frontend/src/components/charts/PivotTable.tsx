@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import {
   Table,
   TableBody,
@@ -13,6 +14,8 @@ import { formatPeriodo, formatValue } from '../../utils/format';
 interface PivotTableProps {
   config: ChartConfig;
   data: DataRow[];
+  columnOrder?: string[];
+  onColumnReorder?: (source: string, target: string) => void;
 }
 
 interface Cell {
@@ -37,7 +40,8 @@ const TOTAL_SX = {
  * son promedios ponderados por weightField (número de grupos), lo que
  * reproduce exactamente los Grand Total del reporte oficial.
  */
-export default function PivotTable({ config, data }: PivotTableProps) {
+export default function PivotTable({ config, data, columnOrder, onColumnReorder }: PivotTableProps) {
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
   const valueField = Array.isArray(config.yField) ? config.yField[0] : config.yField;
   const colField = config.seriesField ?? 'linea';
   const weightField = config.weightField ?? 'grupos';
@@ -59,10 +63,17 @@ export default function PivotTable({ config, data }: PivotTableProps) {
     }
     return {
       periodos: Array.from(rowSet).sort(),
-      columnas: Array.from(colSet).sort(),
+      columnas: Array.from(colSet).sort((a, b) => {
+        const aPosition = columnOrder?.indexOf(a) ?? -1;
+        const bPosition = columnOrder?.indexOf(b) ?? -1;
+        if (aPosition >= 0 && bPosition >= 0) return aPosition - bPosition;
+        if (aPosition >= 0) return -1;
+        if (bPosition >= 0) return 1;
+        return a.localeCompare(b);
+      }),
       cells: cellMap,
     };
-  }, [data, config.xField, colField, valueField, weightField]);
+  }, [data, config.xField, colField, valueField, weightField, columnOrder]);
 
   const weightedAvg = (items: Cell[]): number | null => {
     const totalWeight = items.reduce((acc, c) => acc + c.weight, 0);
@@ -92,7 +103,27 @@ export default function PivotTable({ config, data }: PivotTableProps) {
           <TableRow>
             <TableCell sx={HEADER_SX}>{config.xLabel ?? 'Período'}</TableCell>
             {columnas.map((col) => (
-              <TableCell key={col} align="right" sx={HEADER_SX}>
+              <TableCell key={col} align="right" draggable={Boolean(onColumnReorder)}
+                title={onColumnReorder ? 'Arrastra para ordenar las columnas' : undefined}
+                onDragStart={onColumnReorder ? (event) => {
+                  event.dataTransfer.effectAllowed = 'move';
+                  event.dataTransfer.setData('text/plain', col);
+                } : undefined}
+                onDragOver={onColumnReorder ? (event) => {
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = 'move';
+                  setDropTarget(col);
+                } : undefined}
+                onDrop={onColumnReorder ? (event) => {
+                  event.preventDefault();
+                  const source = event.dataTransfer.getData('text/plain');
+                  setDropTarget(null);
+                  if (columnas.includes(source) && source !== col) onColumnReorder(source, col);
+                } : undefined}
+                onDragEnd={onColumnReorder ? () => setDropTarget(null) : undefined}
+                sx={{ ...HEADER_SX, ...(onColumnReorder && { cursor: 'grab', userSelect: 'none' }),
+                  ...(dropTarget === col && { boxShadow: 'inset 3px 0 #164a8b', bgcolor: '#e3eefb' }) }}>
+                {onColumnReorder && <DragIndicatorIcon sx={{ fontSize: 15, verticalAlign: 'middle', mr: 0.4, color: 'primary.main' }} />}
                 {col}
               </TableCell>
             ))}

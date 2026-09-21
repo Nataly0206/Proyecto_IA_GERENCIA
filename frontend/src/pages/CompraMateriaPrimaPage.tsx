@@ -75,7 +75,7 @@ export default function CompraMateriaPrimaPage({ userId }: { userId: string }) {
       )}
 
       <Box sx={{ height: TABLE_H, flexShrink: 0 }}>
-        <MateriaPrimaProveedorWidget userId={userId} height={TABLE_H} />
+        <MateriaPrimaProveedorWidget hidden={hiddenProveedores} height={TABLE_H} />
       </Box>
     </Stack>
   );

@@ -2,6 +2,7 @@ import { Dispatch, ReactNode, SetStateAction, useMemo, useState } from 'react';
 import { Alert, Box, Button, Card, CardContent, Checkbox, Divider, FormControlLabel, LinearProgress, Popover, Skeleton, Stack, Typography } from '@mui/material';
 import PeopleAltOutlinedIcon from '@mui/icons-material/PeopleAltOutlined';
 import { useWidgetData } from '../../hooks/useDashboardData';
+import type { CompraMpMateriaPrimaRow } from '../../types';
 import { formatValue } from '../../utils/format';
 import { categoryColor } from '../../utils/categoryColors';
 
@@ -10,13 +11,17 @@ type ProviderRow = { proveedor: string; libras: number; porcentaje: number; tota
 
 export default function MateriaPrimaProveedorCombinedCards({ hidden, setHidden, actions }: { hidden: Set<string>; setHidden: Dispatch<SetStateAction<Set<string>>>; actions?: ReactNode }) {
   const { data, isLoading, isError, error } = useWidgetData('compra-mp-por-proveedor');
+  const { data: monthlyData } = useWidgetData('compra-mp-materia-prima');
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const providers = useMemo<ProviderRow[]>(() => (data ?? []).map((row) => ({
     proveedor: String(row.proveedor ?? 'Sin proveedor'),
     libras: Number(row.libras ?? 0),
     porcentaje: 0,
   })), [data]);
-  const providerNames = useMemo(() => providers.map((row) => row.proveedor).sort(), [providers]);
+  const providerNames = useMemo(() => Array.from(new Set([
+    ...providers.map((row) => row.proveedor),
+    ...((monthlyData ?? []) as CompraMpMateriaPrimaRow[]).map((row) => row.proveedor),
+  ])).sort(), [providers, monthlyData]);
   const rows = useMemo<ProviderRow[]>(() => {
     const visible = providers.filter((row) => !hidden.has(row.proveedor));
     const total = visible.reduce((sum, row) => sum + row.libras, 0);

@@ -1,22 +1,16 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Alert,
   Box,
-  Button,
   Card,
   CardContent,
-  Checkbox,
   CircularProgress,
-  Divider,
-  FormControlLabel,
-  Popover,
   Stack,
   ToggleButton,
   ToggleButtonGroup,
   Tooltip,
   Typography,
 } from '@mui/material';
-import PeopleAltOutlinedIcon from '@mui/icons-material/PeopleAltOutlined';
 import TableChartOutlinedIcon from '@mui/icons-material/TableChartOutlined';
 import InsertChartOutlinedIcon from '@mui/icons-material/InsertChartOutlined';
 import { ChartConfig, CompraMpMateriaPrimaRow, DataRow } from '../../types';
@@ -25,26 +19,13 @@ import PivotTable from './PivotTable';
 import DynamicChart from './DynamicChart';
 import ErrorBoundary from '../ErrorBoundary';
 
-const STORAGE_KEY = 'compra-mp-proveedores-ocultos:v1';
-
 type Dimension = 'proveedor' | 'gramaje';
 type ViewMode = 'chart' | 'table';
 
-function readHidden(userId: string): Set<string> {
-  try {
-    const raw = localStorage.getItem(`${STORAGE_KEY}:${userId}`);
-    const parsed: unknown = raw ? JSON.parse(raw) : [];
-    return new Set(Array.isArray(parsed) ? parsed.filter((p): p is string => typeof p === 'string') : []);
-  } catch {
-    return new Set();
-  }
-}
-
 /**
  * Tarjeta única de "Materia Prima por Proveedor/Talla — Mensual": libras
- * recibidas por año/mes/talla/proveedor, con un selector de proveedores
- * (checklist persistida en localStorage por usuario) que decide qué
- * proveedores se dibujan. Ventana fija de 3 meses (endpoint
+ * recibidas por año/mes/talla/proveedor, con la selección de proveedores
+ * compartida con las tarjetas WSO y Entero. Ventana fija de 3 meses (endpoint
  * `compra-mp-materia-prima`, independiente del filtro de fechas). Antes
  * había dos tarjetas separadas (una fija por proveedor + esta); se
  * fusionaron en una sola porque, con el toggle en "Proveedor", mostraban
@@ -56,37 +37,12 @@ function readHidden(userId: string): Set<string> {
  * por talla) — renderiza PivotTable/DynamicChart directamente, igual que
  * hace ChartWidget internamente.
  */
-export default function MateriaPrimaProveedorWidget({ userId, height }: { userId: string; height?: number }) {
+export default function MateriaPrimaProveedorWidget({ hidden, height }: { hidden: Set<string>; height?: number }) {
   const { data, isLoading, isError, error } = useWidgetData('compra-mp-materia-prima');
   const rows = (data ?? []) as CompraMpMateriaPrimaRow[];
 
   const [dimension, setDimension] = useState<Dimension>('proveedor');
   const [view, setView] = useState<ViewMode>('chart');
-  const [hidden, setHidden] = useState<Set<string>>(() => readHidden(userId));
-  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
-
-  const proveedores = useMemo(
-    () => Array.from(new Set(rows.map((r) => r.proveedor))).sort(),
-    [rows],
-  );
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(`${STORAGE_KEY}:${userId}`, JSON.stringify(Array.from(hidden)));
-    } catch {
-      // El almacenamiento puede estar bloqueado o lleno; el filtro sigue funcionando en esta sesión.
-    }
-  }, [hidden, userId]);
-
-  const toggleProveedor = (proveedor: string) => {
-    setHidden((prev) => {
-      const next = new Set(prev);
-      if (next.has(proveedor)) next.delete(proveedor); else next.add(proveedor);
-      return next;
-    });
-  };
-
-  const visibleCount = proveedores.length - proveedores.filter((p) => hidden.has(p)).length;
 
   /** Filas visibles, re-agregadas a { periodo, serie, libras } — una fila
    *  por (mes, serie) para que PivotTable / DynamicChart puedan pivotear. */
@@ -117,8 +73,11 @@ export default function MateriaPrimaProveedorWidget({ userId, height }: { userId
     totalAggregation: 'sum',
     valueFormat: 'number',
     unitLabel: 'lbs WSO',
-    height,
+    // La tarjeta también contiene título y controles: reservarles espacio
+    // evita que ApexCharts dibuje el eje X fuera del borde inferior.
+    height: height ? Math.max(height - 100, 240) : undefined,
     colorByLabel: true,
+    monthAbbreviationAxis: true,
   };
 
   return (
@@ -134,15 +93,6 @@ export default function MateriaPrimaProveedorWidget({ userId, height }: { userId
             </Typography>
           </Box>
           <Stack direction="row" spacing={1} alignItems="center" justifyContent={{ xs: 'flex-end', sm: 'initial' }} sx={{ flexShrink: 0, flexWrap: 'wrap', rowGap: 1 }}>
-            <Button
-              size="small"
-              variant="outlined"
-              startIcon={<PeopleAltOutlinedIcon sx={{ fontSize: 16 }} />}
-              onClick={(e) => setAnchorEl(e.currentTarget)}
-              sx={{ fontSize: 11, fontWeight: 700, py: 0.4 }}
-            >
-              Proveedores ({visibleCount}/{proveedores.length})
-            </Button>
             <ToggleButtonGroup
               size="small"
               exclusive
@@ -170,43 +120,6 @@ export default function MateriaPrimaProveedorWidget({ userId, height }: { userId
           </Stack>
         </Stack>
 
-        <Popover
-          open={Boolean(anchorEl)}
-          anchorEl={anchorEl}
-          onClose={() => setAnchorEl(null)}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-        >
-          <Box sx={{ p: 1.5, minWidth: 220, maxHeight: 320, overflowY: 'auto' }}>
-            <Stack direction="row" justifyContent="space-between" alignItems="center" mb={0.5}>
-              <Typography variant="caption" fontWeight={800} color="text.secondary">PROVEEDORES</Typography>
-              <Stack direction="row" spacing={1}>
-                <Button size="small" sx={{ fontSize: 11, minWidth: 0, p: 0 }} onClick={() => setHidden(new Set())}>Todos</Button>
-                <Button size="small" sx={{ fontSize: 11, minWidth: 0, p: 0 }} onClick={() => setHidden(new Set(proveedores))}>Ninguno</Button>
-              </Stack>
-            </Stack>
-            <Divider sx={{ mb: 0.5 }} />
-            <Stack spacing={0}>
-              {proveedores.map((proveedor) => (
-                <FormControlLabel
-                  key={proveedor}
-                  sx={{ '& .MuiFormControlLabel-label': { fontSize: 13 }, ml: 0 }}
-                  control={
-                    <Checkbox
-                      size="small"
-                      checked={!hidden.has(proveedor)}
-                      onChange={() => toggleProveedor(proveedor)}
-                    />
-                  }
-                  label={proveedor}
-                />
-              ))}
-              {proveedores.length === 0 && (
-                <Typography variant="caption" color="text.secondary">Sin proveedores en el período.</Typography>
-              )}
-            </Stack>
-          </Box>
-        </Popover>
-
         {isLoading && (
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: height ?? 340 }}>
             <CircularProgress size={32} />
@@ -223,7 +136,7 @@ export default function MateriaPrimaProveedorWidget({ userId, height }: { userId
           <Alert severity="info" sx={{ mt: 2 }}>
             {rows.length === 0
               ? 'Sin datos de materia prima en los últimos 3 meses.'
-              : 'Ningún proveedor seleccionado — marca al menos uno en "Proveedores".'}
+              : 'Ningún proveedor seleccionado — marca al menos uno en “Proveedores” en WSO y Entero.'}
           </Alert>
         )}
 

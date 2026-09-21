@@ -195,6 +195,21 @@ async function migrate(): Promise<void> {
       END;
     `);
 
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT 1 FROM dbo.dashboard_migraciones WHERE version = 7)
+      BEGIN
+        CREATE TABLE dbo.dashboard_configuracion_compartida (
+          clave NVARCHAR(80) NOT NULL PRIMARY KEY,
+          valor NVARCHAR(MAX) NOT NULL,
+          actualizado_en DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+          CONSTRAINT CK_dashboard_configuracion_compartida_json CHECK (ISJSON(valor) = 1)
+        );
+
+        INSERT INTO dbo.dashboard_migraciones (version, nombre)
+        VALUES (7, N'crear configuración compartida');
+      END;
+    `);
+
     console.log(`[migrate] Base [${databaseName}] lista y actualizada.`);
   } finally {
     await pool.close();

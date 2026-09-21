@@ -1,6 +1,6 @@
 import { DragEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Alert, Autocomplete, Box, Button, Checkbox, Chip, CircularProgress, IconButton, Paper,
+  Alert, Autocomplete, Box, Button, Checkbox, Chip, CircularProgress, Collapse, IconButton, Paper,
   Popover, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField,
   Tooltip, Typography,
 } from '@mui/material';
@@ -8,6 +8,8 @@ import FilterListIcon from '@mui/icons-material/FilterList';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import RefreshOutlinedIcon from '@mui/icons-material/RefreshOutlined';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { apiClient } from '../api/client';
 
 const DIMENSIONS = {
@@ -107,6 +109,7 @@ export default function InventoryPage({ userId }: { userId: string }) {
   const [filters, setFilters] = useState<Filters>(savedPreferences.filters);
   const [filterField, setFilterField] = useState<Dimension | null>(null);
   const [filterAnchor, setFilterAnchor] = useState<HTMLElement | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [preferencesUserId, setPreferencesUserId] = useState<string | null>(null);
@@ -244,7 +247,17 @@ export default function InventoryPage({ userId }: { userId: string }) {
       </Stack>
 
       <Paper elevation={0} sx={{ border: 1, borderColor: 'divider', p: 1.25 }}>
-        <Stack spacing={1}>
+        <Stack direction="row" alignItems="center" justifyContent="space-between">
+          <Typography variant="subtitle2" fontWeight={800}>Filtros y agrupación</Typography>
+          <Tooltip title={filtersOpen ? 'Ocultar filtros' : 'Mostrar filtros'}>
+            <IconButton size="small" onClick={() => setFiltersOpen((open) => !open)}
+              aria-label={filtersOpen ? 'Ocultar filtros' : 'Mostrar filtros'} aria-expanded={filtersOpen}>
+              {filtersOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+            </IconButton>
+          </Tooltip>
+        </Stack>
+        <Collapse in={filtersOpen}>
+        <Stack spacing={1} sx={{ pt: 1 }}>
           <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap" useFlexGap>
             <Typography variant="caption" fontWeight={800} color="text.secondary" sx={{ width: 110 }}>CAMPOS</Typography>
             {availableFields.map((field) => (
@@ -259,6 +272,7 @@ export default function InventoryPage({ userId }: { userId: string }) {
             <Typography variant="caption" color="text.secondary">Arrastra campos aquí para incluirlos y reordenarlos</Typography>
           </Stack>
         </Stack>
+        </Collapse>
       </Paper>
 
       {error && <Alert severity="error" action={<Button color="inherit" onClick={() => void load()}>Reintentar</Button>}>{error}</Alert>}

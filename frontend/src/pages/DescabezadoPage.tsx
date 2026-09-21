@@ -45,12 +45,12 @@ export default function DescabezadoPage() {
             tone: 'good',
           },
           {
-            label: 'Libras descabezadas en la semana',
+            label: 'Libras descabezadas semana',
             value: data?.librasDescabezadasSemana ?? 0,
             unit: 'lbs',
           },
           {
-            label: 'Libras descabezadas en el mes',
+            label: 'Libras descabezadas mes',
             value: data?.librasDescabezadasMes ?? 0,
             unit: 'lbs',
           },
@@ -71,6 +71,7 @@ export default function DescabezadoPage() {
           endpoint="descabezado-por-dia"
           defaultSortKey="fecha"
           maxHeight={TABLE_H}
+          stickySummary
           columns={[
             { key: 'fecha', label: 'Fecha', format: 'periodo' },
             { key: 'personas', label: 'Personas', format: 'number', total: 'sum', average: true },
@@ -89,6 +90,7 @@ export default function DescabezadoPage() {
           endpoint="descabezado-por-dia-mes"
           defaultSortKey="fecha"
           maxHeight={TABLE_H}
+          stickySummary
           columns={[
             { key: 'fecha', label: 'Fecha' },
             { key: 'personas', label: 'Personas', format: 'number', total: 'sum', average: true },

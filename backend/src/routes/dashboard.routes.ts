@@ -66,6 +66,7 @@ router.get('/descabezado-por-dia-mes', descabezado, asyncHandler(procesos.getDes
 
 /* Clasificado */
 router.get('/clasificado-resumen', clasificado, asyncHandler(procesos.getClasificadoResumen));
+router.get('/clasificado-por-maquina-hoy', clasificado, asyncHandler(procesos.getClasificadoPorMaquinaHoy));
 router.get('/clasificado-inventario', clasificado, asyncHandler(procesos.getClasificadoInventario));
 router.get('/clasificado-inventario-detalle', clasificado, asyncHandler(procesos.getClasificadoInventarioDetalle));
 router.get('/clasificado-por-maquina', clasificado, asyncHandler(procesos.getClasificadoPorMaquina));

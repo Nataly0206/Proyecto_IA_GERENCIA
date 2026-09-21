@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Box, Button, Stack } from '@mui/material';
 import ShoppingCartOutlinedIcon from '@mui/icons-material/ShoppingCartOutlined';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
@@ -19,10 +19,14 @@ const WSO_A_HOSO_FACTOR = 0.65;
 const toHoso = (value: number | undefined): number => (value ?? 0) / WSO_A_HOSO_FACTOR;
 
 export default function CompraMateriaPrimaPage({ userId }: { userId: string }) {
-  const { data, isLoading, isError, error, dataUpdatedAt } =
-    useProcesoResumen<CompraMpResumen>('compra-mp-resumen');
   const [showDetalle, setShowDetalle] = useState(false);
   const [hiddenProveedores, setHiddenProveedores] = useHiddenProveedores(userId);
+  const excludedProveedores = useMemo(
+    () => Array.from(hiddenProveedores).sort().join(','),
+    [hiddenProveedores],
+  );
+  const { data, isLoading, isError, error, dataUpdatedAt } =
+    useProcesoResumen<CompraMpResumen>('compra-mp-resumen', excludedProveedores ? { excluded: excludedProveedores } : undefined);
 
   const semana =
     data && data.semanaInicio
@@ -36,7 +40,7 @@ export default function CompraMateriaPrimaPage({ userId }: { userId: string }) {
     >
       <ProcessFilters
         title="Filtros de compra de materia prima"
-        hint="Los contadores muestran libras HOSO equivalentes (valor ÷ 0.65) del día efectivo, semana y mes; el desglose por proveedor responde al rango de fechas."
+        hint="Los contadores muestran libras HOSO equivalentes (valor ÷ 0.65) del día efectivo, semana y mes, excluyendo los proveedores ocultos en “Proveedores”; el desglose por proveedor responde al rango de fechas."
         hideTurno
       />
 

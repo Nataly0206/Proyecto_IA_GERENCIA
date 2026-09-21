@@ -16,11 +16,9 @@ import { PeladoLibrasHoyEstilo } from '../../types';
 function EstiloCard({
   estilo,
   badge,
-  promedio = false,
 }: {
   estilo: PeladoLibrasHoyEstilo;
   badge?: string;
-  promedio?: boolean;
 }) {
   const destacado = Boolean(badge);
   const color = destacado ? '#164a8b' : estilo.libras > 0 ? '#2e7d32' : '#94a3b8';
@@ -62,34 +60,31 @@ function EstiloCard({
 
         <Stack direction="row" justifyContent="space-between" alignItems="baseline" spacing={2}>
           <Typography
-            variant={promedio ? 'body2' : 'h6'}
-            fontWeight={promedio ? 900 : 800}
+            variant="h6"
+            fontWeight={800}
             sx={{
-              color: promedio ? '#000' : estilo.libras > 0 ? '#164a8b' : 'text.secondary',
-              fontSize: promedio ? { xs: 15, sm: 16 } : undefined,
-              lineHeight: promedio ? 1.25 : 1.1,
+              color: estilo.libras > 0 ? '#164a8b' : 'text.secondary',
+              lineHeight: 1.1,
               whiteSpace: 'nowrap',
             }}
           >
             {formatValue(estilo.libras)}
             <Typography component="span" variant="caption" color="text.secondary" ml={0.5}>
-              {promedio ? 'lbs/h' : 'lbs'}
+              lbs
             </Typography>
           </Typography>
-          {!badge && (
-            <Typography
-              variant="body2"
-              sx={{
-                color: '#000',
-                fontSize: { xs: 15, sm: 16 },
-                fontWeight: 900,
-                lineHeight: 1.25,
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {formatValue(estilo.librasPorHora ?? 0)} lbs/h
-            </Typography>
-          )}
+          <Typography
+            variant="body2"
+            sx={{
+              color: '#000',
+              fontSize: { xs: 15, sm: 16 },
+              fontWeight: 900,
+              lineHeight: 1.25,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {formatValue(estilo.librasPorHora ?? 0)} lbs/h
+          </Typography>
         </Stack>
       </CardContent>
     </Card>
@@ -98,6 +93,7 @@ function EstiloCard({
 
 export default function PeladoLibrasHoyCards() {
   const { data, isLoading, isError, error, dataUpdatedAt } = usePeladoLibrasHoy();
+  const estilosConLibras = data?.estilos.filter((estilo) => estilo.libras > 0) ?? [];
 
   return (
     <Box>
@@ -127,29 +123,24 @@ export default function PeladoLibrasHoyCards() {
         </Alert>
       )}
 
-      {!isLoading && !isError && (data?.estilos.length ?? 0) === 0 && (
+      {!isLoading && !isError && estilosConLibras.length === 0 && (
         <Alert severity="info" sx={{ py: 0.5 }}>
           Sin producción de pelado registrada hoy.
         </Alert>
       )}
 
-      {!isLoading && !isError && data && data.estilos.length > 0 && (
+      {!isLoading && !isError && data && estilosConLibras.length > 0 && (
         <Box
           sx={{
             display: 'grid',
-            gridTemplateColumns: `repeat(${data.estilos.length + 2}, minmax(0, 1fr))`,
+            gridTemplateColumns: `repeat(${estilosConLibras.length + 1}, minmax(0, 1fr))`,
             gap: { xs: 0.35, sm: 1 },
           }}
         >
-          {data.estilos.map((estilo) => (
+          {estilosConLibras.map((estilo) => (
             <EstiloCard key={estilo.estilo} estilo={estilo} />
           ))}
           <EstiloCard badge="Total del día" estilo={{ estilo: 'Total', libras: data.total, librasPorHora: data.librasPorHoraPromedio }} />
-          <EstiloCard
-            badge="Promedio del día"
-            promedio
-            estilo={{ estilo: 'lbs/h promedio', libras: data.librasPorHoraPromedio, librasPorHora: data.librasPorHoraPromedio }}
-          />
         </Box>
       )}
     </Box>

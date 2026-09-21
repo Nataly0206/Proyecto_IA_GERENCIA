@@ -240,18 +240,31 @@ WITH Registros AS (
   SELECT Dia, Sala, Libras, Horas FROM SalaDia
   WHERE @MinHours IS NULL OR Horas > @MinHours
 ), Totales AS (
-  SELECT Dia, SUM(Libras) AS Libras, SUM(Horas) AS Horas
+  SELECT Dia, SUM(Libras) AS Libras
   FROM SalasIncluidas GROUP BY Dia
 ), Personas AS (
   SELECT r.Dia, COUNT(DISTINCT r.IdEmpleado) AS Personas
   FROM Registros r
   JOIN SalasIncluidas s ON s.Dia = r.Dia AND s.Sala = r.Sala
   GROUP BY r.Dia
+), PlantaDia AS (
+  -- Ventana real del día (primer a último registro entre las salas
+  -- incluidas), NO la suma de la ventana de cada sala — un día tiene
+  -- como máximo 24 horas aunque varias salas trabajen en paralelo.
+  SELECT r.Dia,
+    CASE WHEN COUNT(r.Hora) > 1
+      THEN DATEDIFF(SECOND, MIN(r.Hora), MAX(r.Hora)) / 3600.0
+      ELSE 0 END AS Horas
+  FROM Registros r
+  JOIN SalasIncluidas s ON s.Dia = r.Dia AND s.Sala = r.Sala
+  GROUP BY r.Dia
 )
-SELECT t.Dia, ISNULL(p.Personas, 0) AS Personas, t.Libras, t.Horas,
-  CASE WHEN t.Horas > 0 THEN t.Libras / t.Horas ELSE 0 END AS LibrasPorHoraPromedio
+SELECT t.Dia, ISNULL(p.Personas, 0) AS Personas, t.Libras,
+  ISNULL(pd.Horas, 0) AS Horas,
+  CASE WHEN ISNULL(pd.Horas, 0) > 0 THEN t.Libras / pd.Horas ELSE 0 END AS LibrasPorHoraPromedio
 FROM Totales t
 LEFT JOIN Personas p ON p.Dia = t.Dia
+LEFT JOIN PlantaDia pd ON pd.Dia = t.Dia
 ORDER BY t.Dia
 `;
 

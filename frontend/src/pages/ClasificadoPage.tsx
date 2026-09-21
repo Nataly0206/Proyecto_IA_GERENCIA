@@ -12,6 +12,7 @@ import CloseOutlinedIcon from '@mui/icons-material/CloseOutlined';
 import PrecisionManufacturingOutlinedIcon from '@mui/icons-material/PrecisionManufacturingOutlined';
 import ProcessFilters from '../components/filters/ProcessFilters';
 import ResumenCards from '../components/live/ResumenCards';
+import ClasificadoPorMaquinaHoyCards from '../components/live/ClasificadoPorMaquinaHoyCards';
 import ChartWidget from '../components/charts/ChartWidget';
 import ClasificadoTallaWidget from '../components/charts/ClasificadoTallaWidget';
 import InventarioTallaTable from '../components/charts/InventarioTallaTable';
@@ -150,6 +151,8 @@ export default function ClasificadoPage({ user }: { user: AuthUser }) {
         hint="Los contadores muestran el día, la semana y el mes en curso; el inventario es el disponible ahora. Las tarjetas y las tablas por talla responden al rango de fechas y turno."
       />
 
+      <ClasificadoPorMaquinaHoyCards />
+
       <ResumenCards
         title="Clasificado — Libras"
         icon={<SortOutlinedIcon color="primary" sx={{ fontSize: 16 }} />}
@@ -177,10 +180,9 @@ export default function ClasificadoPage({ user }: { user: AuthUser }) {
             unit: 'lbs',
           },
           {
-            label: 'Libras clasificadas por hora',
+            label: 'Libras clasificadas por hora hoy',
             value: data?.librasClasificadasPorHora ?? 0,
             unit: 'lbs/h',
-            format: 'decimal',
           },
         ]}
       />

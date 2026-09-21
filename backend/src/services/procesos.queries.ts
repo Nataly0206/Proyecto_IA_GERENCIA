@@ -359,6 +359,31 @@ GROUP BY h.FECHA, d.IdTurno,
     ELSE 'Sin máquina asignada' END
 `;
 
+/**
+ * Libras clasificadas hoy por máquina, con horas trabajadas (mismo
+ * criterio que `@HorasClasificadoHoy` en `CLASIFICADO_RESUMEN_QUERY`, pero
+ * por máquina) para poder calcular libras/hora en vivo por máquina.
+ */
+export const CLASIFICADO_POR_MAQUINA_HOY_QUERY = `
+DECLARE @Hoy date = CAST(GETDATE() AS date);
+
+SELECT
+  CASE WHEN tanque.ID_TANQUE IS NOT NULL
+    THEN CONCAT('Máquina ', tanque.ID_TANQUE)
+    ELSE 'Sin máquina asignada' END AS Maquina,
+  SUM(d.LIBRAS_NETA) AS Libras,
+  CASE WHEN COUNT(d.HORA_INICIO) > 0
+    THEN DATEDIFF(SECOND, MIN(d.HORA_INICIO), MAX(d.HORA_FINAL)) / 3600.0
+    ELSE 0 END AS Horas
+FROM dbo.CL_LLENADO_RECIPIENTES h
+JOIN dbo.CL_LLENADO_RECIPIENTES_D d ON d.ID_LLENADO_RECIPIENTE = h.ID_LLENADO_RECIPIENTE
+LEFT JOIN dbo.CL_TANQUES tanque ON tanque.ID_TANQUE = h.ID_TANQUE
+WHERE h.FECHA = @Hoy AND d.ANULADO = 0
+GROUP BY CASE WHEN tanque.ID_TANQUE IS NOT NULL
+    THEN CONCAT('Máquina ', tanque.ID_TANQUE)
+    ELSE 'Sin máquina asignada' END
+`;
+
 /* ================================================================== */
 /* EXPORTACIONES (PlantaEmpacadora)                                    */
 /* ================================================================== */

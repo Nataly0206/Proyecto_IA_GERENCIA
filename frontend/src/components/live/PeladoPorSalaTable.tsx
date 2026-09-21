@@ -159,14 +159,12 @@ export default function PeladoPorSalaTable({ userId }: { userId: string }) {
       librasUltimos30Min: acc.librasUltimos30Min + s.librasUltimos30Min,
       librasPeladasHoy: acc.librasPeladasHoy + s.librasPeladasHoy,
       librasPorHora: acc.librasPorHora + s.librasPorHora,
-      horasTrabajadas: acc.horasTrabajadas + s.horasTrabajadas,
     }),
     {
       personasActivas: 0,
       librasUltimos30Min: 0,
       librasPeladasHoy: 0,
       librasPorHora: 0,
-      horasTrabajadas: 0,
     },
   );
 
@@ -417,7 +415,7 @@ export default function PeladoPorSalaTable({ userId }: { userId: string }) {
                   <TableCell align="right" sx={{ ...FOOT_CELL_SX, color: 'primary.main' }}>
                     {formatValue(totales.librasPorHora)}
                   </TableCell>
-                  <TableCell align="right" sx={FOOT_CELL_SX}>{formatValue(totales.horasTrabajadas, 'decimal')}</TableCell>
+                  <TableCell align="right" sx={FOOT_CELL_SX}>{formatValue(data?.horasTranscurridas ?? 0, 'decimal')}</TableCell>
                 </TableRow>
               </TableFooter>
             </Table>
@@ -442,8 +440,8 @@ export default function PeladoPorSalaTable({ userId }: { userId: string }) {
                     <HeadCell label="Fecha" align="left" />
                     <HeadCell label="Personas" />
                     <HeadCell label="Total libras" unit="lbs" />
-                    <HeadCell label="lbs/h promedio" unit="libras / horas de salas incluidas" />
-                    <HeadCell label="Horas trabajadas" unit="h · suma de salas incluidas" />
+                    <HeadCell label="lbs/h promedio" unit="libras / ventana de operación del día" />
+                    <HeadCell label="Horas trabajadas" unit="h · primer a último registro del día" />
                   </TableRow></TableHead>
                   <TableBody>{dailyQuery.data?.map((row) =>
                     <TableRow key={row.fecha} hover>

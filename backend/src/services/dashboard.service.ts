@@ -435,12 +435,23 @@ function aggregateDimensionByPeriod(
 export async function getPeladoPorEstiloDia(
   filters: DashboardFilters,
 ): Promise<PeladoStylePeriodRow[]> {
-  const [groups, horasPorDia] = await Promise.all([
+  const [groups, horasPorDia, personalGroups] = await Promise.all([
     fetchPeladoDimensionDailyGroups(filters.fechaInicial, filters.fechaFinal),
     getPeladoHorasTrabajadasPorDia(filters),
+    fetchPeladoPersonalGroups(filters.fechaInicial, filters.fechaFinal),
   ]);
+  const personasPorDia = new Map(
+    aggregatePeladoPersonalByPeriod(personalGroups, filters.turno, (dia) => dia)
+      .map((p) => [p.periodo, p.empleados]),
+  );
   return aggregateDimensionByPeriod(groups, filters.turno, 'estilo', (dia) => dia)
-    .map(({ periodo, valor, libras }) => ({ periodo, estilo: valor, libras, horasTrabajadas: horasPorDia.get(periodo) ?? 0 }));
+    .map(({ periodo, valor, libras }) => ({
+      periodo,
+      estilo: valor,
+      libras,
+      horasTrabajadas: horasPorDia.get(periodo) ?? 0,
+      personas: personasPorDia.get(periodo) ?? 0,
+    }));
 }
 
 /**

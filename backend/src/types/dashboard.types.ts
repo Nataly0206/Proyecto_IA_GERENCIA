@@ -75,6 +75,8 @@ export interface PeladoStylePeriodRow {
   libras: number;
   /** Horas trabajadas en planta ese período (solo vista diaria; igual para todas las filas del mismo período). */
   horasTrabajadas?: number;
+  /** Personas (headcount real) que trabajaron ese período (solo vista diaria; igual para todas las filas del mismo período). */
+  personas?: number;
 }
 
 export interface PeladoTallaRow {
@@ -261,4 +263,18 @@ export interface CompraMpResumen {
   librasRecibidasSemana: number;
   librasRecibidasMes: number;
   librasPromedioSemana: number;
+}
+
+/** Libras clasificadas hoy por máquina, con libras/hora (fuente: CL_LLENADO_RECIPIENTES). */
+export interface ClasificadoPorMaquinaHoyItem {
+  maquina: string;
+  libras: number;
+  horas: number;
+  librasPorHora: number;
+}
+
+export interface ClasificadoPorMaquinaHoyResponse {
+  dia: string;
+  actualizado: string;
+  maquinas: ClasificadoPorMaquinaHoyItem[];
 }

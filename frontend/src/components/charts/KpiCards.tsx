@@ -142,7 +142,7 @@ export default function KpiCards({ config, data }: KpiCardsProps) {
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  {formatValue(rateValue, 'decimal')} {config.rateUnit ?? 'lbs/h'}
+                  {formatValue(rateValue, 'number')} {config.rateUnit ?? 'lbs/h'}
                 </Typography>
               </Stack>
             ) : (

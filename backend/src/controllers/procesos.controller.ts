@@ -68,6 +68,7 @@ export const getDescabezadoPorDiaMes = monthlyReport('descabezado-por-dia-mes:pe
 
 /* Clasificado */
 export const getClasificadoResumen = live('clasificado-resumen', procesos.getClasificadoResumen);
+export const getClasificadoPorMaquinaHoy = live('clasificado-por-maquina-hoy', procesos.getClasificadoPorMaquinaHoy);
 export const getClasificadoInventario = live('clasificado-inventario', procesos.getClasificadoInventario);
 export const getClasificadoInventarioDetalle = live('clasificado-inventario-detalle', procesos.getClasificadoInventarioDetalle);
 export const getClasificadoPorMaquina = report('clasificado-por-maquina', procesos.getClasificadoPorMaquina);
@@ -97,7 +98,21 @@ export const getExportacionesContenedorDetalle = async (req: Request, res: Respo
 export const getExportacionesPorClienteMes = monthlyReport('exportaciones-por-cliente-mes', procesos.getExportacionesPorClienteMes, 6);
 
 /* Compra de materia prima */
-export const getCompraMpResumen = live('compra-mp-resumen', procesos.getCompraMpResumen);
+export const getCompraMpResumen = async (req: Request, res: Response): Promise<void> => {
+  const excludedRaw = req.query.excluded;
+  const excluded = Array.isArray(excludedRaw)
+    ? excludedRaw.map(String)
+    : typeof excludedRaw === 'string' && excludedRaw !== ''
+      ? excludedRaw.split(',').map((s) => s.trim()).filter(Boolean)
+      : [];
+  const forceRefresh = req.query.refresh === 'true';
+  res.json(await withTtlCache(
+    JSON.stringify(['compra-mp-resumen', [...excluded].sort()]),
+    LIVE_CACHE_MS,
+    () => procesos.getCompraMpResumen(excluded),
+    forceRefresh,
+  ));
+};
 export const getCompraMpPorProveedor = report('compra-mp-por-proveedor', procesos.getCompraMpPorProveedor);
 export const getCompraMpPorItem = report('compra-mp-por-item', procesos.getCompraMpPorItem);
 export const getCompraMpPorTalla = report('compra-mp-por-talla', procesos.getCompraMpPorTalla);

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
+  Box,
   Button,
   Dialog,
   DialogContent,
@@ -17,6 +18,7 @@ import ChartWidget from './ChartWidget';
 import PeladoTallaWidget from './PeladoTallaWidget';
 import { peladoWidgets } from '../../config/dashboardConfig';
 
+const TABLE_H = 440;
 const BASE_TITLE = 'Libras Peladas por Estilo';
 const BASE_SUBTITLE = 'Rango de fechas y turno del filtro — fuente: STB_data';
 
@@ -25,13 +27,20 @@ const dailyTableConfig: ChartConfig = {
   altChartType: undefined,
   trendChartType: undefined,
   showAverageRow: true,
-  extraColumn: {
-    field: 'horasTrabajadas',
-    label: 'Horas Trabajadas',
-    unit: 'h · planta',
-    format: 'decimal',
-    aggregation: 'avg',
-  },
+  extraColumns: [
+    {
+      field: 'horasTrabajadas',
+      label: 'Horas Trabajadas',
+      unit: 'h · planta',
+      format: 'decimal',
+    },
+    {
+      field: 'personas',
+      label: 'Personas',
+      unit: 'pelando ese día',
+      format: 'number',
+    },
+  ],
 };
 
 type Vista = 'total' | 'diario';
@@ -61,42 +70,50 @@ export default function PeladoEstiloWidget() {
 
   const config = useMemo(() => (vista === 'diario' ? dailyTableConfig : totalConfig), [vista]);
 
+  const chartWidget = (
+    <ChartWidget
+      config={config}
+      actions={
+        <Stack direction="row" spacing={1}>
+          <ToggleButtonGroup
+            size="small"
+            exclusive
+            value={vista}
+            onChange={(_e, next: Vista | null) => next && setVista(next)}
+            sx={{ '& .MuiToggleButton-root': { px: 1.25, py: 0.5, fontSize: 11, fontWeight: 700, lineHeight: 1 } }}
+          >
+            <ToggleButton value="total" aria-label="Vista total">
+              <Tooltip title="Total del rango filtrado">
+                <span>Total</span>
+              </Tooltip>
+            </ToggleButton>
+            <ToggleButton value="diario" aria-label="Vista diaria">
+              <Tooltip title="Total diario">
+                <span>Diario</span>
+              </Tooltip>
+            </ToggleButton>
+          </ToggleButtonGroup>
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<VisibilityOutlinedIcon />}
+            onClick={() => setTallaOpen(true)}
+            sx={{ whiteSpace: 'nowrap', fontWeight: 700 }}
+          >
+            Ver por talla
+          </Button>
+        </Stack>
+      }
+    />
+  );
+
   return (
     <>
-      <ChartWidget
-        config={config}
-        actions={
-          <Stack direction="row" spacing={1}>
-            <ToggleButtonGroup
-              size="small"
-              exclusive
-              value={vista}
-              onChange={(_e, next: Vista | null) => next && setVista(next)}
-              sx={{ '& .MuiToggleButton-root': { px: 1.25, py: 0.5, fontSize: 11, fontWeight: 700, lineHeight: 1 } }}
-            >
-              <ToggleButton value="total" aria-label="Vista total">
-                <Tooltip title="Total del rango filtrado">
-                  <span>Total</span>
-                </Tooltip>
-              </ToggleButton>
-              <ToggleButton value="diario" aria-label="Vista diaria">
-                <Tooltip title="Total diario">
-                  <span>Diario</span>
-                </Tooltip>
-              </ToggleButton>
-            </ToggleButtonGroup>
-            <Button
-              size="small"
-              variant="outlined"
-              startIcon={<VisibilityOutlinedIcon />}
-              onClick={() => setTallaOpen(true)}
-              sx={{ whiteSpace: 'nowrap', fontWeight: 700 }}
-            >
-              Ver por talla
-            </Button>
-          </Stack>
-        }
-      />
+      {vista === 'diario' ? (
+        <Box sx={{ height: TABLE_H, flexShrink: 0 }}>{chartWidget}</Box>
+      ) : (
+        chartWidget
+      )}
       <Dialog open={tallaOpen} onClose={() => setTallaOpen(false)} fullWidth maxWidth="md">
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 1.5 }}>
           Detalle de Libras Peladas por Talla

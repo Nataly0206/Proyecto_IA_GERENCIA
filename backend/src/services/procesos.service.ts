@@ -10,6 +10,7 @@ import { runStbQuery } from './stb.service';
 import { matchesTurno, pickNumber, pickString } from '../utils/rows';
 import { withTtlCache } from '../utils/ttlCache';
 import {
+  ClasificadoPorMaquinaHoyResponse,
   ClasificadoResumen,
   CompraMpResumen,
   DescabezadoResumen,
@@ -21,6 +22,7 @@ import {
   CLASIFICADO_HORAS_MAQUINA_QUERY,
   CLASIFICADO_INVENTARIO_QUERY,
   CLASIFICADO_INVENTARIO_DETALLE_QUERY,
+  CLASIFICADO_POR_MAQUINA_HOY_QUERY,
   CLASIFICADO_RESUMEN_QUERY,
   COMPRA_MP_POR_ITEM_QUERY,
   COMPRA_MP_POR_TALLA_QUERY,
@@ -330,6 +332,29 @@ export async function getClasificadoPorMaquina(f: DashboardFilters): Promise<Dat
     });
 }
 
+/** Libras clasificadas hoy por máquina, en vivo, con libras/hora — mismo
+ *  criterio de "hoy" que `getClasificadoResumen` (GETDATE() directo). */
+export async function getClasificadoPorMaquinaHoy(): Promise<ClasificadoPorMaquinaHoyResponse> {
+  const rows = await runStbQuery(CLASIFICADO_POR_MAQUINA_HOY_QUERY, []);
+  const maquinas = rows
+    .map((row) => {
+      const libras = round2(pickNumber(row, 'Libras'));
+      const horas = round2(pickNumber(row, 'Horas'));
+      return {
+        maquina: pickString(row, 'Maquina') || 'Sin máquina asignada',
+        libras,
+        horas,
+        librasPorHora: horas > 0 ? round2(libras / horas) : 0,
+      };
+    })
+    .sort((a, b) => b.libras - a.libras);
+  return {
+    dia: formatDate(new Date()),
+    actualizado: new Date().toISOString(),
+    maquinas,
+  };
+}
+
 export async function getClasificadoPorTalla(f: DashboardFilters): Promise<DataRow[]> {
   const groups = await fetchClasificado(f.fechaInicial, f.fechaFinal, f.turno);
   return aggregateTotal(groups.map((g) => ({ valor: g.talla, libras: g.libras })))
@@ -512,18 +537,47 @@ function semanasDelMesActual(hoy = new Date()): number {
   return Math.max(1, Math.ceil((hoy.getDate() + primerDiaSemana) / 7));
 }
 
-export async function getCompraMpResumen(): Promise<CompraMpResumen> {
+/**
+ * Contadores superiores de Compra de Materia Prima, con los proveedores en
+ * `excludedProveedores` restados de día/semana/mes (mismo criterio que el
+ * filtro de proveedores de las tarjetas/tabla de abajo, para que ocultar un
+ * proveedor ahí también se refleje en estos contadores). Se resta con el
+ * detalle diario de `COMPRA_MP_POR_PROVEEDOR_QUERY` sobre la ventana más
+ * amplia que cubre semana y mes en curso, agregado por (día, proveedor).
+ */
+export async function getCompraMpResumen(excludedProveedores: string[] = []): Promise<CompraMpResumen> {
   const rows = await runQuery(COMPRA_MP_RESUMEN_QUERY, []);
   const r = rows[0] ?? {};
-  const librasRecibidasMes = round2(pickNumber(r, 'LibrasRecibidasMes'));
+  const semanaInicio = pickString(r, 'SemanaInicio');
+  const semanaFin = pickString(r, 'SemanaFin');
   const hoyEfectivo = pickString(r, 'HoyEfectivo');
+  let librasRecibidasHoy = round2(pickNumber(r, 'LibrasRecibidasHoy'));
+  let librasRecibidasSemana = round2(pickNumber(r, 'LibrasRecibidasSemana'));
+  let librasRecibidasMes = round2(pickNumber(r, 'LibrasRecibidasMes'));
   const anchor = hoyEfectivo ? new Date(`${hoyEfectivo}T00:00:00`) : new Date();
+
+  if (excludedProveedores.length > 0 && hoyEfectivo) {
+    const primerDiaMes = formatDate(new Date(anchor.getFullYear(), anchor.getMonth(), 1));
+    const desde = semanaInicio && semanaInicio < primerDiaMes ? semanaInicio : primerDiaMes;
+    const excluidos = new Set(excludedProveedores);
+    const detalle = await fetchCompraProveedor(desde, hoyEfectivo);
+    for (const g of detalle) {
+      if (!excluidos.has(g.valor)) continue;
+      if (g.dia === hoyEfectivo) librasRecibidasHoy -= g.libras;
+      if (g.dia >= semanaInicio && g.dia <= semanaFin) librasRecibidasSemana -= g.libras;
+      if (g.dia >= primerDiaMes && g.dia <= hoyEfectivo) librasRecibidasMes -= g.libras;
+    }
+    librasRecibidasHoy = round2(Math.max(librasRecibidasHoy, 0));
+    librasRecibidasSemana = round2(Math.max(librasRecibidasSemana, 0));
+    librasRecibidasMes = round2(Math.max(librasRecibidasMes, 0));
+  }
+
   return {
     actualizado: new Date().toISOString(),
-    semanaInicio: pickString(r, 'SemanaInicio'),
-    semanaFin: pickString(r, 'SemanaFin'),
-    librasRecibidasHoy: round2(pickNumber(r, 'LibrasRecibidasHoy')),
-    librasRecibidasSemana: round2(pickNumber(r, 'LibrasRecibidasSemana')),
+    semanaInicio,
+    semanaFin,
+    librasRecibidasHoy,
+    librasRecibidasSemana,
     librasRecibidasMes,
     librasPromedioSemana: round2(librasRecibidasMes / semanasDelMesActual(anchor)),
   };

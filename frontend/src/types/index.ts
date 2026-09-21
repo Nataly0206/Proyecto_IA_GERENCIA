@@ -159,6 +159,20 @@ export interface PeladoLibrasHoyResponse {
   librasPorHoraPromedio: number;
 }
 
+/** Libras clasificadas hoy por máquina, en vivo (fuente: CL_LLENADO_RECIPIENTES) */
+export interface ClasificadoPorMaquinaHoyItem extends DataRow {
+  maquina: string;
+  libras: number;
+  horas: number;
+  librasPorHora: number;
+}
+
+export interface ClasificadoPorMaquinaHoyResponse {
+  dia: string; // YYYY-MM-DD, siempre hoy
+  actualizado: string; // ISO timestamp de la lectura
+  maquinas: ClasificadoPorMaquinaHoyItem[];
+}
+
 /** Libras peladas hoy por talla (fuente: STB_data.dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS) */
 export interface PeladoLibrasHoyTalla {
   talla: string;
@@ -378,17 +392,16 @@ export interface ChartConfig {
   totalAggregation?: 'weightedAverage' | 'sum';
   /**
    * Columna auxiliar de una tabla pivote (type "table") con un valor por
-   * período (no desglosado por serie), por ejemplo horas trabajadas. Se
-   * muestra entre la columna de período y las columnas de serie.
+   * período (no desglosado por serie), por ejemplo horas trabajadas o
+   * personas. Se muestran, en orden, entre la columna de período y las
+   * columnas de serie.
    */
-  extraColumn?: {
+  extraColumns?: {
     field: string;
     label: string;
     unit?: string;
     format?: ValueFormat;
-    /** Operación para el total de la columna (por defecto 'avg') */
-    aggregation?: 'avg' | 'sum';
-  };
+  }[];
   /** Agrega una fila "Promedio" (media simple por columna) bajo el Grand Total de una tabla pivote, ambas fijas al fondo. */
   showAverageRow?: boolean;
   /**

@@ -2,6 +2,7 @@ import { apiClient } from './client';
 import {
   AiChatResponse,
   AiMessage,
+  ClasificadoPorMaquinaHoyResponse,
   DashboardEndpoint,
   DashboardFilters,
   DataRow,
@@ -51,6 +52,13 @@ export async function fetchPeladoPorSala(refresh = false): Promise<PeladoPorSala
   return data;
 }
 
+export async function fetchClasificadoPorMaquinaHoy(refresh = false): Promise<ClasificadoPorMaquinaHoyResponse> {
+  const { data } = await apiClient.get<ClasificadoPorMaquinaHoyResponse>('/dashboard/clasificado-por-maquina-hoy', {
+    params: refresh ? { refresh: 'true' } : undefined,
+  });
+  return data;
+}
+
 /** Endpoints "en vivo" de los módulos de proceso (contadores del día o
  *  la semana en curso, sin filtros). */
 export type ProcesoResumenEndpoint =
@@ -63,9 +71,10 @@ export type ProcesoResumenEndpoint =
 export async function fetchProcesoResumen<T>(
   endpoint: ProcesoResumenEndpoint,
   refresh = false,
+  extraParams?: Record<string, string>,
 ): Promise<T> {
   const { data } = await apiClient.get<T>(`/dashboard/${endpoint}`, {
-    params: refresh ? { refresh: 'true' } : undefined,
+    params: { ...extraParams, ...(refresh ? { refresh: 'true' } : {}) },
   });
   return data;
 }

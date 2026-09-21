@@ -50,7 +50,7 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder 
   const valueField = Array.isArray(config.yField) ? config.yField[0] : config.yField;
   const colField = config.seriesField ?? 'linea';
   const weightField = config.weightField ?? 'grupos';
-  const extraColumn = config.extraColumn;
+  const extraColumns = useMemo(() => config.extraColumns ?? [], [config.extraColumns]);
 
   const { periodos, columnas, cells } = useMemo(() => {
     const cellMap = new Map<string, Cell>();
@@ -82,22 +82,39 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder 
   }, [data, config.xField, colField, valueField, weightField, columnOrder]);
 
   const extraByPeriodo = useMemo(() => {
-    const map = new Map<string, number>();
-    if (!extraColumn) return map;
+    const result = new Map<string, Map<string, number>>();
+    if (extraColumns.length === 0) return result;
+    for (const col of extraColumns) result.set(col.field, new Map());
     for (const row of data) {
       const periodo = String(row[config.xField] ?? '');
-      if (periodo === '' || map.has(periodo)) continue;
-      const raw = row[extraColumn.field];
-      if (raw === undefined || raw === null) continue;
-      map.set(periodo, Number(raw));
+      if (periodo === '') continue;
+      for (const col of extraColumns) {
+        const perPeriodo = result.get(col.field)!;
+        if (perPeriodo.has(periodo)) continue;
+        const raw = row[col.field];
+        if (raw === undefined || raw === null) continue;
+        perPeriodo.set(periodo, Number(raw));
+      }
     }
-    return map;
-  }, [data, config.xField, extraColumn]);
+    return result;
+  }, [data, config.xField, extraColumns]);
 
-  const aggregateExtra = (values: number[]): number | null => {
+  /**
+   * Grand Total de una columna auxiliar (Horas Trabajadas, Personas):
+   * siempre es la suma, igual que el Grand Total de cualquier otra
+   * columna de la tabla — nunca un promedio, aunque el valor por sí
+   * mismo (ej. horas trabajadas ese día) no sea acumulable día a día de
+   * forma perfecta, para que "Total" siga significando total.
+   */
+  const sumExtra = (values: number[]): number | null => {
     if (values.length === 0) return null;
-    const sum = values.reduce((acc, v) => acc + v, 0);
-    return extraColumn?.aggregation === 'sum' ? sum : sum / values.length;
+    return values.reduce((acc, v) => acc + v, 0);
+  };
+  /** Promedio de una columna auxiliar: siempre divide entre la cantidad
+   *  total de días del período mostrado, igual que `simpleAverage`. */
+  const avgExtra = (values: number[]): number | null => {
+    if (periodos.length === 0) return null;
+    return values.reduce((acc, v) => acc + v, 0) / periodos.length;
   };
 
   const weightedAvg = (items: Cell[]): number | null => {
@@ -112,9 +129,16 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder 
     }
     return weightedAvg(items);
   };
+  /**
+   * Promedio por día del período mostrado: siempre divide entre la
+   * cantidad de días (`periodos.length`), no entre la cantidad de celdas
+   * con datos — de lo contrario cada columna (y el Grand Total) promedia
+   * sobre una cantidad de días distinta según cuántos días tuvo valores,
+   * dando un "promedio" que no guarda relación con el total de la columna.
+   */
   const simpleAverage = (items: Cell[]): number | null => {
-    if (items.length === 0) return null;
-    return items.reduce((acc, cell) => acc + cell.value, 0) / items.length;
+    if (periodos.length === 0) return null;
+    return items.reduce((acc, cell) => acc + cell.value, 0) / periodos.length;
   };
 
   const rowCells = (periodo: string): Cell[] =>
@@ -126,21 +150,21 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder 
     value === null || value === undefined ? '—' : formatValue(value, format ?? config.valueFormat ?? 'decimal');
 
   return (
-    <TableContainer sx={{ height: '100%', maxHeight: config.height ?? '100%', mt: 0.5, borderRadius: 1, border: '1px solid rgba(148, 163, 184, 0.18)' }}>
+    <TableContainer sx={{ height: '100%', maxHeight: config.height ?? 440, mt: 0.5, borderRadius: 1, border: '1px solid rgba(148, 163, 184, 0.18)' }}>
       <Table size="small" stickyHeader>
         <TableHead>
           <TableRow>
             <TableCell sx={HEADER_SX}>{config.xLabel ?? 'Período'}</TableCell>
-            {extraColumn && (
-              <TableCell align="right" sx={HEADER_SX}>
-                {extraColumn.label}
-                {extraColumn.unit && (
+            {extraColumns.map((extraCol) => (
+              <TableCell key={extraCol.field} align="right" sx={HEADER_SX}>
+                {extraCol.label}
+                {extraCol.unit && (
                   <Box component="span" sx={{ display: 'block', fontSize: 9, fontWeight: 600, color: '#64748b' }}>
-                    {extraColumn.unit}
+                    {extraCol.unit}
                   </Box>
                 )}
               </TableCell>
-            )}
+            ))}
             {columnas.map((col) => (
               <TableCell key={col} align="right" draggable={Boolean(onColumnReorder)}
                 title={onColumnReorder ? 'Arrastra para ordenar las columnas' : undefined}
@@ -175,11 +199,11 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder 
           {periodos.map((periodo) => (
             <TableRow key={periodo} hover>
               <TableCell sx={{ fontWeight: 600 }}>{formatPeriodo(periodo)}</TableCell>
-              {extraColumn && (
-                <TableCell align="right">
-                  {renderValue(extraByPeriodo.get(periodo) ?? null, extraColumn.format)}
+              {extraColumns.map((extraCol) => (
+                <TableCell key={extraCol.field} align="right">
+                  {renderValue(extraByPeriodo.get(extraCol.field)?.get(periodo) ?? null, extraCol.format)}
                 </TableCell>
-              )}
+              ))}
               {columnas.map((col) => (
                 <TableCell key={col} align="right">
                   {renderValue(cells.get(`${periodo}|${col}`)?.value ?? null)}
@@ -194,11 +218,13 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder 
         <TableFooter sx={{ position: 'sticky', bottom: 0, zIndex: 2 }}>
           <TableRow>
             <TableCell sx={TOTAL_SX}>Grand Total</TableCell>
-            {extraColumn && (
-              <TableCell align="right" sx={TOTAL_SX}>
-                {renderValue(aggregateExtra(periodos.map((p) => extraByPeriodo.get(p)).filter((v): v is number => v !== undefined)), extraColumn.format)}
+            {extraColumns.map((extraCol) => (
+              <TableCell key={extraCol.field} align="right" sx={TOTAL_SX}>
+                {renderValue(sumExtra(
+                  periodos.map((p) => extraByPeriodo.get(extraCol.field)?.get(p)).filter((v): v is number => v !== undefined),
+                ), extraCol.format)}
               </TableCell>
-            )}
+            ))}
             {columnas.map((col) => (
               <TableCell key={col} align="right" sx={TOTAL_SX}>
                 {renderValue(aggregate(colCells(col)))}
@@ -213,11 +239,13 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder 
           {config.showAverageRow && (
             <TableRow>
               <TableCell sx={AVERAGE_SX}>Promedio</TableCell>
-              {extraColumn && (
-                <TableCell align="right" sx={AVERAGE_SX}>
-                  {renderValue(aggregateExtra(periodos.map((p) => extraByPeriodo.get(p)).filter((v): v is number => v !== undefined)), extraColumn.format)}
+              {extraColumns.map((extraCol) => (
+                <TableCell key={extraCol.field} align="right" sx={AVERAGE_SX}>
+                  {renderValue(avgExtra(
+                    periodos.map((p) => extraByPeriodo.get(extraCol.field)?.get(p)).filter((v): v is number => v !== undefined),
+                  ), extraCol.format)}
                 </TableCell>
-              )}
+              ))}
               {columnas.map((col) => (
                 <TableCell key={col} align="right" sx={AVERAGE_SX}>
                   {renderValue(simpleAverage(colCells(col)))}

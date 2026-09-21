@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  fetchClasificadoPorMaquinaHoy,
   fetchIqfLive,
   fetchPeladoLibrasHoy,
   fetchPeladoLibrasHoyTalla,
@@ -10,6 +11,7 @@ import {
 } from '../api/dashboard.api';
 import { useFilters } from '../context/FiltersContext';
 import {
+  ClasificadoPorMaquinaHoyResponse,
   DashboardEndpoint,
   DataRow,
   IqfLiveResponse,
@@ -231,25 +233,56 @@ export function usePeladoPorSala() {
   return { ...query, refreshNow };
 }
 
+export function useClasificadoPorMaquinaHoy() {
+  const queryClient = useQueryClient();
+  const queryKey = ['dashboard', 'clasificado-por-maquina-hoy'] as const;
+  const cacheKey = browserCacheKey(['clasificado-por-maquina-hoy', 'current']);
+  const cached = readBrowserCache<ClasificadoPorMaquinaHoyResponse>(cacheKey, LIVE_REFRESH_INTERVAL_MS);
+
+  const query = useQuery<ClasificadoPorMaquinaHoyResponse>({
+    queryKey,
+    queryFn: async () => {
+      const data = await fetchClasificadoPorMaquinaHoy();
+      writeBrowserCache(cacheKey, data);
+      return data;
+    },
+    initialData: cached?.data,
+    initialDataUpdatedAt: cached?.updatedAt,
+    staleTime: LIVE_REFRESH_INTERVAL_MS,
+    refetchInterval: LIVE_REFRESH_INTERVAL_MS,
+    refetchIntervalInBackground: true,
+  });
+
+  const refreshNow = async (): Promise<ClasificadoPorMaquinaHoyResponse> => {
+    const data = await fetchClasificadoPorMaquinaHoy(true);
+    writeBrowserCache(cacheKey, data);
+    queryClient.setQueryData<ClasificadoPorMaquinaHoyResponse>(queryKey, data);
+    return data;
+  };
+
+  return { ...query, refreshNow };
+}
+
 /**
  * Contador "en vivo" de un módulo de proceso (Recepción, Descabezado,
  * Clasificado, Exportaciones, Compra MP). Mismo patrón que `useIqfLive`:
  * refresco automático cada 5 min + caché de navegador, y `refreshNow`
  * para el botón "Actualizar".
  */
-export function useProcesoResumen<T>(endpoint: ProcesoResumenEndpoint) {
+export function useProcesoResumen<T>(endpoint: ProcesoResumenEndpoint, extraParams?: Record<string, string>) {
   const queryClient = useQueryClient();
   const endpointCacheVersion = endpoint === 'descabezado-resumen'
     ? `${endpoint}:cabezas-hora-v2`
     : endpoint;
-  const queryKey = ['dashboard', endpointCacheVersion] as const;
-  const cacheKey = browserCacheKey([endpointCacheVersion, 'current']);
+  const hasExtraParams = Boolean(extraParams && Object.keys(extraParams).length > 0);
+  const queryKey = ['dashboard', endpointCacheVersion, extraParams ?? {}] as const;
+  const cacheKey = browserCacheKey([endpointCacheVersion, hasExtraParams ? extraParams : 'current']);
   const cached = readBrowserCache<T>(cacheKey, LIVE_REFRESH_INTERVAL_MS);
 
   const query = useQuery<T>({
     queryKey,
     queryFn: async () => {
-      const data = await fetchProcesoResumen<T>(endpoint);
+      const data = await fetchProcesoResumen<T>(endpoint, false, extraParams);
       writeBrowserCache(cacheKey, data);
       return data;
     },
@@ -261,7 +294,7 @@ export function useProcesoResumen<T>(endpoint: ProcesoResumenEndpoint) {
   });
 
   const refreshNow = async (): Promise<T> => {
-    const data = await fetchProcesoResumen<T>(endpoint, true);
+    const data = await fetchProcesoResumen<T>(endpoint, true, extraParams);
     writeBrowserCache(cacheKey, data);
     queryClient.setQueryData<T>(queryKey, data);
     return data;

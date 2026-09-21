@@ -109,7 +109,7 @@ export default function InventoryPage({ userId }: { userId: string }) {
   const [filters, setFilters] = useState<Filters>(savedPreferences.filters);
   const [filterField, setFilterField] = useState<Dimension | null>(null);
   const [filterAnchor, setFilterAnchor] = useState<HTMLElement | null>(null);
-  const [filtersOpen, setFiltersOpen] = useState(true);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [preferencesUserId, setPreferencesUserId] = useState<string | null>(null);

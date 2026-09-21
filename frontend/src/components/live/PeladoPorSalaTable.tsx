@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Alert,
   Box,
@@ -9,6 +9,7 @@ import {
   DialogContent,
   DialogTitle,
   IconButton,
+  InputAdornment,
   Skeleton,
   Stack,
   Table,
@@ -24,6 +25,8 @@ import {
 import MeetingRoomOutlinedIcon from '@mui/icons-material/MeetingRoomOutlined';
 import StraightenOutlinedIcon from '@mui/icons-material/StraightenOutlined';
 import CloseIcon from '@mui/icons-material/Close';
+import FilterAltOutlinedIcon from '@mui/icons-material/FilterAltOutlined';
+import { apiClient } from '../../api/client';
 import { usePeladoLibrasHoyTalla, usePeladoPorSala } from '../../hooks/useDashboardData';
 import { formatPeriodo, formatValue } from '../../utils/format';
 
@@ -73,14 +76,63 @@ function HeadCell({ label, unit, align = 'right' }: { label: string; unit?: stri
 }
 
 const salaNum = (nombre: string) => Number(nombre.replace(/\D/g, '')) || 0;
+const HOURS_STORAGE_KEY = 'pelado-salas-horas-minimas:v1';
 
-export default function PeladoPorSalaTable() {
+function readStoredHours(userId: string): string {
+  try {
+    const stored = localStorage.getItem(`${HOURS_STORAGE_KEY}:${userId}`);
+    return stored && Number.isFinite(Number(stored)) && Number(stored) >= 0 && Number(stored) <= 24 ? stored : '';
+  } catch {
+    return '';
+  }
+}
+
+export default function PeladoPorSalaTable({ userId }: { userId: string }) {
   const { data, isLoading, isError, error, dataUpdatedAt } = usePeladoPorSala();
   const [tallaOpen, setTallaOpen] = useState(false);
-  const [minHours, setMinHours] = useState('');
+  const [minHours, setMinHours] = useState(() => readStoredHours(userId));
+  const [preferencesUserId, setPreferencesUserId] = useState<string | null>(null);
+  const [preferenceError, setPreferenceError] = useState('');
 
   const parsedHours = Number(minHours);
-  const hoursThreshold = minHours !== '' && Number.isFinite(parsedHours) && parsedHours >= 0 ? parsedHours : null;
+  const hoursThreshold = minHours !== '' && Number.isFinite(parsedHours) && parsedHours >= 0 && parsedHours <= 24 ? parsedHours : null;
+  const validHours = minHours === '' || (Number.isFinite(parsedHours) && parsedHours >= 0 && parsedHours <= 24);
+
+  useEffect(() => {
+    let active = true;
+    setPreferencesUserId(null);
+    apiClient.get<{ minHours: number | null }>('/dashboard/pelado-preferencia-horas-sala')
+      .then(({ data }) => {
+        if (!active) return;
+        setMinHours(typeof data.minHours === 'number' && data.minHours >= 0 && data.minHours <= 24
+          ? String(data.minHours) : readStoredHours(userId));
+        setPreferencesUserId(userId);
+      })
+      .catch(() => {
+        if (active) setPreferenceError('No se pudo cargar el filtro de horas guardado.');
+      });
+    return () => { active = false; };
+  }, [userId]);
+
+  useEffect(() => {
+    try {
+      if (minHours === '') localStorage.removeItem(`${HOURS_STORAGE_KEY}:${userId}`);
+      else localStorage.setItem(`${HOURS_STORAGE_KEY}:${userId}`, minHours);
+    } catch {
+      // El filtro sigue activo durante la sesión.
+    }
+  }, [minHours, userId]);
+
+  useEffect(() => {
+    if (preferencesUserId !== userId || !validHours) return;
+    const timeout = window.setTimeout(() => {
+      void apiClient.put('/dashboard/pelado-preferencia-horas-sala', {
+        minHours: minHours === '' ? null : Number(minHours),
+      }).then(() => setPreferenceError(''))
+        .catch(() => setPreferenceError('No se pudo guardar el filtro de horas.'));
+    }, 300);
+    return () => window.clearTimeout(timeout);
+  }, [minHours, preferencesUserId, userId, validHours]);
   const salas = [...(data?.salas ?? [])]
     .filter((sala) => hoursThreshold === null || sala.horasTrabajadas > hoursThreshold)
     .sort((a, b) => salaNum(a.sala) - salaNum(b.sala));
@@ -108,20 +160,20 @@ export default function PeladoPorSalaTable() {
         <Box
           sx={{
             display: 'flex',
-            alignItems: 'flex-start',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
+            alignItems: 'center',
+            flexWrap: 'nowrap',
             gap: 1,
-            mb: 1,
+            mb: 1.25,
+            overflowX: 'auto',
+            whiteSpace: 'nowrap',
+            py: 0.25,
           }}
         >
           <Stack
             direction="row"
             alignItems="center"
             spacing={0.75}
-            flexWrap="wrap"
-            useFlexGap
-            sx={{ flex: 1, minWidth: 0 }}
+            sx={{ flexShrink: 0 }}
           >
             <Box
               sx={{
@@ -143,7 +195,7 @@ export default function PeladoPorSalaTable() {
               <Typography
                 variant="caption"
                 color="text.secondary"
-                sx={{ fontSize: 11, flexBasis: { xs: '100%', sm: 'auto' }, pl: { xs: 4.25, sm: 0 } }}
+                sx={{ fontSize: 11 }}
               >
                 {formatPeriodo(data.dia)} · actualizado {new Date(dataUpdatedAt).toLocaleTimeString()}
                 {data.horasTranscurridas > 0 &&
@@ -151,23 +203,32 @@ export default function PeladoPorSalaTable() {
               </Typography>
             )}
           </Stack>
-
-          <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap" useFlexGap>
-            <TextField size="small" type="number" label="Horas trabajadas >" value={minHours}
-              onChange={(event) => setMinHours(event.target.value)}
-              inputProps={{ min: 0, step: 0.25, 'aria-label': 'Mostrar salas con más de estas horas trabajadas' }}
-              sx={{ width: 160, '& .MuiInputBase-input': { py: 0.7 } }} />
-            <Button
-              size="small"
-              variant="outlined"
-              startIcon={<StraightenOutlinedIcon sx={{ fontSize: 16 }} />}
-              onClick={() => setTallaOpen(true)}
-              sx={{ flexShrink: 0, textTransform: 'none', fontWeight: 700, fontSize: 12, py: 0.4 }}
-            >
-              Por talla · hoy
-            </Button>
-          </Stack>
+          <Box sx={{ height: 24, borderLeft: '1px solid', borderColor: 'divider', ml: 'auto', mr: 0.5, flexShrink: 0 }} />
+          <FilterAltOutlinedIcon color="primary" sx={{ fontSize: 18, flexShrink: 0 }} />
+          <Typography variant="body2" fontWeight={700} sx={{ flexShrink: 0 }}>Mostrar salas con más de</Typography>
+          <TextField size="small" type="number" value={minHours}
+            onChange={(event) => setMinHours(event.target.value)}
+            error={!validHours}
+            inputProps={{ min: 0, max: 24, step: 0.25, 'aria-label': 'Horas trabajadas mínimas por sala' }}
+            InputProps={{ endAdornment: <InputAdornment position="end">h</InputAdornment> }}
+            sx={{ width: 110, flexShrink: 0, '& .MuiInputBase-input': { py: 0.7 } }} />
+          <Typography variant="body2" color="text.secondary" sx={{ flexShrink: 0 }}>trabajadas hoy</Typography>
+          {minHours !== '' && <Button size="small" sx={{ flexShrink: 0 }} onClick={() => setMinHours('')}>Quitar filtro</Button>}
+          <Typography variant="caption" color="text.secondary" sx={{ ml: 1, flexShrink: 0 }}>
+            {salas.length} de {data?.salas.length ?? 0} salas visibles
+          </Typography>
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<StraightenOutlinedIcon sx={{ fontSize: 16 }} />}
+            onClick={() => setTallaOpen(true)}
+            sx={{ flexShrink: 0, textTransform: 'none', fontWeight: 700, fontSize: 12, py: 0.4 }}
+          >
+            Por talla · hoy
+          </Button>
         </Box>
+        {!validHours && <Alert severity="warning" sx={{ mb: 1 }}>Ingresa un valor entre 0 y 24 horas.</Alert>}
+        {preferenceError && <Alert severity="error" onClose={() => setPreferenceError('')} sx={{ mb: 1 }}>{preferenceError}</Alert>}
 
         {isLoading && <Skeleton variant="rounded" height={240} />}
 

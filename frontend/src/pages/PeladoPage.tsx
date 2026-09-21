@@ -8,7 +8,7 @@ import PeladoLibrasHoyCards from '../components/live/PeladoLibrasHoyCards';
 import PeladoPorSalaTable from '../components/live/PeladoPorSalaTable';
 import PeladoEstiloWidget from '../components/charts/PeladoEstiloWidget';
 
-export default function PeladoPage() {
+export default function PeladoPage({ userId }: { userId: string }) {
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   return (
@@ -76,7 +76,7 @@ export default function PeladoPage() {
 
       <PeladoLibrasHoyCards />
       <PeladoEstiloWidget />
-      <PeladoPorSalaTable />
+      <PeladoPorSalaTable userId={userId} />
     </Stack>
   );
 }

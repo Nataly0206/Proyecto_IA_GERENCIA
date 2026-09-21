@@ -24,7 +24,7 @@ export default function RecepcionPage() {
       />
 
       <ResumenCards
-        title="Recepción de Camarón — Hoy"
+        title="Recepción de Camarón HOSO — Hoy"
         icon={<MoveToInboxOutlinedIcon color="primary" sx={{ fontSize: 16 }} />}
         isLoading={isLoading}
         isError={isError}
@@ -33,9 +33,9 @@ export default function RecepcionPage() {
         updatedAt={dataUpdatedAt}
         emptyText="Sin recepción registrada hoy."
         metrics={[
-          { label: 'Libras recibidas HOSO — hoy', value: data?.librasRecibidasHoy ?? 0, unit: 'lbs', tone: 'good' },
-          { label: 'Libras recibidas HOSO — semana', value: data?.librasRecibidasSemana ?? 0, unit: 'lbs' },
-          { label: 'Libras recibidas HOSO — mes', value: data?.librasRecibidasMes ?? 0, unit: 'lbs' },
+          { label: 'Libras recibidas — hoy', value: data?.librasRecibidasHoy ?? 0, unit: 'lbs', tone: 'good' },
+          { label: 'Libras recibidas — semana', value: data?.librasRecibidasSemana ?? 0, unit: 'lbs' },
+          { label: 'Libras recibidas — mes', value: data?.librasRecibidasMes ?? 0, unit: 'lbs' },
           {
             label: 'Pendientes de procesar',
             value: data?.librasPendientesProcesar ?? 0,

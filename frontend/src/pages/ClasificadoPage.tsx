@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, Box, Button, Checkbox, Dialog, DialogContent, DialogTitle, Divider, FormControlLabel, IconButton, Popover, Stack, Typography } from '@mui/material';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
@@ -23,7 +23,18 @@ import { clasificadoWidgets } from '../config/dashboardConfig';
 const [porMaquina, , porTallaDia, porTallaMes] = clasificadoWidgets;
 const TABLE_H = 440;
 const SIZE_ORDER_QUERY_KEY = ['clasificado', 'orden-tallas'] as const;
+const MACHINES_STORAGE_KEY = 'clasificado-maquinas-ocultas:v1';
 type SizeOrderResponse = { order: string[]; sizes: string[] };
+
+function readHiddenMachines(userId: string): Set<string> {
+  try {
+    const raw = localStorage.getItem(`${MACHINES_STORAGE_KEY}:${userId}`);
+    const parsed: unknown = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(parsed) ? parsed.filter((machine): machine is string => typeof machine === 'string') : []);
+  } catch {
+    return new Set();
+  }
+}
 
 export default function ClasificadoPage({ user }: { user: AuthUser }) {
   const queryClient = useQueryClient();
@@ -31,7 +42,9 @@ export default function ClasificadoPage({ user }: { user: AuthUser }) {
   const [orderSaving, setOrderSaving] = useState(false);
   const [orderError, setOrderError] = useState('');
   const [machineAnchor, setMachineAnchor] = useState<HTMLElement | null>(null);
-  const [hiddenMachines, setHiddenMachines] = useState<Set<string>>(new Set());
+  const [hiddenMachines, setHiddenMachines] = useState<Set<string>>(() => readHiddenMachines(user.id));
+  const [machinesPreferencesUserId, setMachinesPreferencesUserId] = useState<string | null>(null);
+  const [machinesSaveError, setMachinesSaveError] = useState('');
   const { data, isLoading, isError, error, dataUpdatedAt } =
     useProcesoResumen<ClasificadoResumen>('clasificado-resumen');
   const { data: machineData } = useWidgetData('clasificado-por-maquina');
@@ -52,6 +65,42 @@ export default function ClasificadoPage({ user }: { user: AuthUser }) {
     (machineData ?? []).map((row) => String(row.maquina ?? '')),
   )).filter(Boolean).sort(), [machineData]);
   const visibleMachines = machines.filter((machine) => !hiddenMachines.has(machine)).length;
+
+  useEffect(() => {
+    let active = true;
+    setMachinesPreferencesUserId(null);
+    apiClient.get<{ hiddenMachines: string[] | null }>('/dashboard/clasificado-preferencias-maquinas')
+      .then(({ data }) => {
+        if (!active) return;
+        setHiddenMachines(Array.isArray(data.hiddenMachines)
+          ? new Set(data.hiddenMachines)
+          : readHiddenMachines(user.id));
+        setMachinesPreferencesUserId(user.id);
+      })
+      .catch(() => {
+        if (active) setMachinesSaveError('No se pudo cargar la selección de máquinas guardada.');
+      });
+    return () => { active = false; };
+  }, [user.id]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(`${MACHINES_STORAGE_KEY}:${user.id}`, JSON.stringify(Array.from(hiddenMachines)));
+    } catch {
+      // La selección permanece activa durante esta sesión.
+    }
+  }, [hiddenMachines, user.id]);
+
+  useEffect(() => {
+    if (machinesPreferencesUserId !== user.id) return;
+    const timeout = window.setTimeout(() => {
+      void apiClient.put('/dashboard/clasificado-preferencias-maquinas', {
+        hiddenMachines: Array.from(hiddenMachines),
+      }).then(() => setMachinesSaveError(''))
+        .catch(() => setMachinesSaveError('No se pudo guardar la selección de máquinas.'));
+    }, 300);
+    return () => window.clearTimeout(timeout);
+  }, [hiddenMachines, machinesPreferencesUserId, user.id]);
 
   const toggleMachine = (machine: string) => {
     setHiddenMachines((previous) => {
@@ -186,6 +235,7 @@ export default function ClasificadoPage({ user }: { user: AuthUser }) {
           </Stack>
         </Box>
       </Popover>
+      {machinesSaveError && <Alert severity="error" onClose={() => setMachinesSaveError('')}>{machinesSaveError}</Alert>}
       <Dialog open={tallaOpen} onClose={() => setTallaOpen(false)} fullWidth maxWidth="md">
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 1.5 }}>
           Detalle de libras clasificadas por talla

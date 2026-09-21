@@ -166,7 +166,7 @@ export default function App() {
             }}
           />
         ) : view === 'pelado' ? (
-          <PeladoPage />
+          <PeladoPage userId={user.id} />
         ) : view === 'dashboard' ? (
           <DashboardPage />
         ) : (

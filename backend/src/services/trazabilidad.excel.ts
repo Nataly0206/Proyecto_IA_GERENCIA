@@ -58,11 +58,12 @@ export async function buildTrazabilidadExcel(rows: DataRow[], uk: boolean): Prom
   const detailRows: { number: number; values: string[] }[] = [];
   rows.forEach((record, index) => {
     const pounds = Number(record.libras ?? 0);
+    const lot = `${String(record.codigoItem ?? '').trim()}${String(record.po ?? '').trim()}`;
     const row = sheet.addRow([
       record.item, record.finca, record.laguna,
       record.fechaProduccion ? new Date(`${record.fechaProduccion}T00:00:00Z`) : null,
       record.codigoProduccion, Number(record.master ?? 0), pounds, pounds / 2.20462,
-      null, uk ? record.color : null,
+      lot || null, uk ? record.color : null,
     ]);
     row.height = 23;
     row.eachCell({ includeEmpty: true }, (cell, col) => {

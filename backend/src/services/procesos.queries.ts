@@ -478,7 +478,7 @@ SELECT
   e.ReferenciaEnvio AS Shipment, e.NumeroContenedor AS Contenedor,
   NULLIF(LTRIM(RTRIM(op.NoOrdenCompra)), '') AS PO,
   COALESCE(NULLIF(LTRIM(RTRIM(lr.NombreGrupo)), ''), NULLIF(LTRIM(RTRIM(lr.Empresa)), ''), '') AS Cliente,
-  i.Item AS Item, lr.Finca AS Finca, lr.laguna AS Laguna,
+  i.Item AS Item, i.CodigoItem AS CodigoItem, lr.Finca AS Finca, lr.laguna AS Laguna,
   CAST(DATEADD(MINUTE, -359, s.Created) AS date) AS FechaProduccion,
   op.OrdenProduccion AS CodigoProduccion,
   COUNT(DISTINCT m.IdMaster) AS Master,
@@ -495,7 +495,7 @@ WHERE e.FechaCarga = @Fecha AND e.NumeroContenedor = @Contenedor
   AND COALESCE(e.ReferenciaEnvio, '') = @Referencia
 GROUP BY e.ReferenciaEnvio, e.NumeroContenedor, op.NoOrdenCompra,
   COALESCE(NULLIF(LTRIM(RTRIM(lr.NombreGrupo)), ''), NULLIF(LTRIM(RTRIM(lr.Empresa)), ''), ''),
-  i.Item, lr.Finca, lr.laguna, CAST(DATEADD(MINUTE, -359, s.Created) AS date),
+  i.Item, i.CodigoItem, lr.Finca, lr.laguna, CAST(DATEADD(MINUTE, -359, s.Created) AS date),
   op.OrdenProduccion, c.NombreColor
 ORDER BY i.Item, lr.Finca, lr.laguna, FechaProduccion, op.OrdenProduccion
 `;

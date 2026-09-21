@@ -522,7 +522,8 @@ export async function getExportacionesTrazabilidad(fecha: string, contenedor: st
   return rows.map((row) => ({
     shipment: pickString(row, 'Shipment'), contenedor: pickString(row, 'Contenedor'),
     po: pickString(row, 'PO'), cliente: pickString(row, 'Cliente'),
-    item: pickString(row, 'Item'), finca: pickString(row, 'Finca'), laguna: pickString(row, 'Laguna'),
+    item: pickString(row, 'Item'), codigoItem: pickString(row, 'CodigoItem'),
+    finca: pickString(row, 'Finca'), laguna: pickString(row, 'Laguna'),
     fechaProduccion: pickString(row, 'FechaProduccion').slice(0, 10),
     codigoProduccion: pickString(row, 'CodigoProduccion'), master: pickNumber(row, 'Master'),
     libras: pickNumber(row, 'Libras'), color: pickString(row, 'Color'),

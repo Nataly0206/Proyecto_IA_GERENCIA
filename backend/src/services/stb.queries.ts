@@ -190,6 +190,49 @@ WHERE h.FECHA = CAST(GETDATE() AS DATE)
 GROUP BY COALESCE(s.NOMBRE_SALA, 'Sin sala')
 `;
 
+/** Actividad histórica diaria; el umbral se aplica por sala y fecha. */
+export const PELADO_POR_SALA_DIARIO_QUERY = `
+WITH Registros AS (
+  SELECT h.FECHA AS Dia,
+    COALESCE(s.NOMBRE_SALA, 'Sin sala') AS Sala,
+    k.ID_EMPLEADO AS IdEmpleado,
+    d.LIBRAS AS Libras,
+    d.HORA AS Hora
+  FROM dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS h
+  JOIN dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS_DET d
+    ON h.ID_ASIGNACION_LIBRAS_EMPLEADO = d.ID_ASIGNACION_LIBRAS_EMPLEADO
+  LEFT JOIN dbo.DCP_LINEAS l ON l.ID_LINEA = d.ID_LINEA_ACTUAL
+  LEFT JOIN dbo.PES_SALAS s ON s.ID_SALA = l.ID_SALA
+  LEFT JOIN dbo.PES_EMPLEADOS_LINEAS k ON k.ID_EMPLEADOS_LINEA = d.ID_EMPLEADO_LINEA
+  LEFT JOIN dbo.Cl_Turnos tr ON tr.IdTurno = d.ID_TURNO
+  WHERE h.FECHA BETWEEN @Fecha_Inicial AND @Fecha_Final
+    AND (@Turno IS NULL OR UPPER(LTRIM(RTRIM(tr.Turno))) = @Turno)
+), SalaDia AS (
+  SELECT Dia, Sala, SUM(Libras) AS Libras,
+    CASE WHEN COUNT(Hora) > 1
+      THEN DATEDIFF(SECOND, MIN(Hora), MAX(Hora)) / 3600.0
+      ELSE 0 END AS Horas
+  FROM Registros
+  GROUP BY Dia, Sala
+), SalasIncluidas AS (
+  SELECT Dia, Sala, Libras, Horas FROM SalaDia
+  WHERE @MinHours IS NULL OR Horas > @MinHours
+), Totales AS (
+  SELECT Dia, SUM(Libras) AS Libras, SUM(Horas) AS Horas
+  FROM SalasIncluidas GROUP BY Dia
+), Personas AS (
+  SELECT r.Dia, COUNT(DISTINCT r.IdEmpleado) AS Personas
+  FROM Registros r
+  JOIN SalasIncluidas s ON s.Dia = r.Dia AND s.Sala = r.Sala
+  GROUP BY r.Dia
+)
+SELECT t.Dia, ISNULL(p.Personas, 0) AS Personas, t.Libras, t.Horas,
+  CASE WHEN t.Horas > 0 THEN t.Libras / t.Horas ELSE 0 END AS LibrasPorHoraPromedio
+FROM Totales t
+LEFT JOIN Personas p ON p.Dia = t.Dia
+ORDER BY t.Dia
+`;
+
 /**
  * Ventana en vivo por sala (últimos 30 minutos), solo SALA #1 a SALA #6 y
  * misma restricción que `PELADO_POR_SALA_HOY_QUERY`. Solo cubre pelado

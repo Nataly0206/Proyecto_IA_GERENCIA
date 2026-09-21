@@ -37,6 +37,7 @@ router.get('/pelado-tiempo-real', pelado, asyncHandler(controller.getPeladoTiemp
 router.get('/pelado-libras-hoy', pelado, asyncHandler(controller.getPeladoLibrasHoy));
 router.get('/pelado-libras-hoy-talla', pelado, asyncHandler(controller.getPeladoLibrasHoyTalla));
 router.get('/pelado-por-sala', pelado, asyncHandler(controller.getPeladoPorSala));
+router.get('/pelado-por-sala-diario', pelado, asyncHandler(controller.getPeladoPorSalaDiario));
 router.get('/pelado-preferencia-horas-sala', pelado, asyncHandler(async (_req, res) => {
   const preference = await getUserPreference<{ minHours: number | null }>(res.locals.authUser.id, PEELING_SALA_HOURS_PREFERENCE);
   res.json({ minHours: preference?.minHours ?? null });

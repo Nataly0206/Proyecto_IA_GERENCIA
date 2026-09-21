@@ -256,6 +256,21 @@ export async function getPeladoPorSala(req: Request, res: Response): Promise<voi
   );
 }
 
+export async function getPeladoPorSalaDiario(req: Request, res: Response): Promise<void> {
+  const filters = parseFilters(req);
+  const raw = req.query.minHours;
+  const minHours = raw === undefined || raw === '' ? null : Number(raw);
+  if (minHours !== null && (!Number.isFinite(minHours) || minHours < 0 || minHours > 24)) {
+    throw new ApiError(400, 'minHours debe estar entre 0 y 24');
+  }
+  res.json(await withTtlCache(
+    JSON.stringify(['pelado-por-sala-diario', filters, minHours]),
+    REPORT_CACHE_MS,
+    () => dashboardService.getPeladoPorSalaDiario(filters, minHours),
+    req.query.refresh === 'true',
+  ));
+}
+
 export async function getPeladoPersonal(req: Request, res: Response): Promise<void> {
   const filters = parseFilters(req);
   const forceRefresh = req.query.refresh === 'true';

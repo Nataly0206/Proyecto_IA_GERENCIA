@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   Alert,
   Box,
@@ -26,7 +27,9 @@ import MeetingRoomOutlinedIcon from '@mui/icons-material/MeetingRoomOutlined';
 import StraightenOutlinedIcon from '@mui/icons-material/StraightenOutlined';
 import CloseIcon from '@mui/icons-material/Close';
 import FilterAltOutlinedIcon from '@mui/icons-material/FilterAltOutlined';
+import TodayOutlinedIcon from '@mui/icons-material/TodayOutlined';
 import { apiClient } from '../../api/client';
+import { useFilters } from '../../context/FiltersContext';
 import { usePeladoLibrasHoyTalla, usePeladoPorSala } from '../../hooks/useDashboardData';
 import { formatPeriodo, formatValue } from '../../utils/format';
 
@@ -77,6 +80,7 @@ function HeadCell({ label, unit, align = 'right' }: { label: string; unit?: stri
 
 const salaNum = (nombre: string) => Number(nombre.replace(/\D/g, '')) || 0;
 const HOURS_STORAGE_KEY = 'pelado-salas-horas-minimas:v1';
+type SalaDailyRow = { fecha: string; personas: number; libras: number; librasPorHoraPromedio: number };
 
 function readStoredHours(userId: string): string {
   try {
@@ -88,8 +92,10 @@ function readStoredHours(userId: string): string {
 }
 
 export default function PeladoPorSalaTable({ userId }: { userId: string }) {
+  const { filters } = useFilters();
   const { data, isLoading, isError, error, dataUpdatedAt } = usePeladoPorSala();
   const [tallaOpen, setTallaOpen] = useState(false);
+  const [diarioOpen, setDiarioOpen] = useState(false);
   const [minHours, setMinHours] = useState(() => readStoredHours(userId));
   const [preferencesUserId, setPreferencesUserId] = useState<string | null>(null);
   const [preferenceError, setPreferenceError] = useState('');
@@ -97,6 +103,14 @@ export default function PeladoPorSalaTable({ userId }: { userId: string }) {
   const parsedHours = Number(minHours);
   const hoursThreshold = minHours !== '' && Number.isFinite(parsedHours) && parsedHours >= 0 && parsedHours <= 24 ? parsedHours : null;
   const validHours = minHours === '' || (Number.isFinite(parsedHours) && parsedHours >= 0 && parsedHours <= 24);
+  const dailyQuery = useQuery<SalaDailyRow[]>({
+    queryKey: ['pelado-por-sala-diario', filters, hoursThreshold],
+    queryFn: async () => (await apiClient.get<SalaDailyRow[]>('/dashboard/pelado-por-sala-diario', {
+      params: { ...filters, minHours: hoursThreshold ?? undefined },
+    })).data,
+    enabled: diarioOpen && validHours,
+    staleTime: 5 * 60 * 1000,
+  });
 
   useEffect(() => {
     let active = true;
@@ -217,6 +231,11 @@ export default function PeladoPorSalaTable({ userId }: { userId: string }) {
           <Typography variant="caption" color="text.secondary" sx={{ ml: 1, flexShrink: 0 }}>
             {salas.length} de {data?.salas.length ?? 0} salas visibles
           </Typography>
+          <Button size="small" variant="outlined" startIcon={<TodayOutlinedIcon sx={{ fontSize: 16 }} />}
+            onClick={() => setDiarioOpen(true)} disabled={!validHours}
+            sx={{ flexShrink: 0, textTransform: 'none', fontWeight: 700, fontSize: 12, py: 0.4 }}>
+            Total diario
+          </Button>
           <Button
             size="small"
             variant="outlined"
@@ -372,6 +391,41 @@ export default function PeladoPorSalaTable({ userId }: { userId: string }) {
         )}
       </CardContent>
 
+      <Dialog open={diarioOpen} onClose={() => setDiarioOpen(false)} fullWidth maxWidth="md">
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 1.5 }}>
+          Actividad de Pelado por Sala — Total diario
+          <IconButton aria-label="Cerrar total diario por sala" onClick={() => setDiarioOpen(false)}><CloseIcon /></IconButton>
+        </DialogTitle>
+        <DialogContent dividers sx={{ p: 1.5 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+            {formatPeriodo(filters.fechaInicial)} a {formatPeriodo(filters.fechaFinal)}
+            {filters.turno ? ` · ${filters.turno}` : ' · todos los turnos'}
+            {hoursThreshold !== null ? ` · salas con más de ${hoursThreshold} h por día` : ' · todas las salas'}
+          </Typography>
+          {dailyQuery.isLoading && <Skeleton variant="rounded" height={220} />}
+          {dailyQuery.isError && <Alert severity="error">No se pudo cargar el total diario por sala.</Alert>}
+          {!dailyQuery.isLoading && !dailyQuery.isError && dailyQuery.data?.length === 0 &&
+            <Alert severity="info">Sin actividad para el período y límite de horas seleccionados.</Alert>}
+          {!dailyQuery.isLoading && !dailyQuery.isError && Boolean(dailyQuery.data?.length) &&
+            <TableContainer sx={{ maxHeight: '65vh', border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+              <Table size="small" stickyHeader>
+                <TableHead><TableRow>
+                  <HeadCell label="Fecha" align="left" />
+                  <HeadCell label="Personas" />
+                  <HeadCell label="Total libras" unit="lbs" />
+                  <HeadCell label="lbs/h promedio" unit="libras / horas de salas incluidas" />
+                </TableRow></TableHead>
+                <TableBody>{dailyQuery.data?.map((row) =>
+                  <TableRow key={row.fecha} hover>
+                    <TableCell>{formatPeriodo(row.fecha)}</TableCell>
+                    <TableCell align="right" sx={BODY_NUM_SX}>{formatValue(row.personas)}</TableCell>
+                    <TableCell align="right" sx={BODY_NUM_SX}>{formatValue(row.libras)}</TableCell>
+                    <TableCell align="right" sx={BODY_NUM_SX}>{formatValue(row.librasPorHoraPromedio, 'decimal')}</TableCell>
+                  </TableRow>)}</TableBody>
+              </Table>
+            </TableContainer>}
+        </DialogContent>
+      </Dialog>
       <PeladoTallaHoyDialog open={tallaOpen} onClose={() => setTallaOpen(false)} />
     </Card>
   );

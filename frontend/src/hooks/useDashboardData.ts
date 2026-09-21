@@ -73,9 +73,14 @@ function writeBrowserCache<T>(key: string, data: T): void {
 export function useWidgetData(endpoint: DashboardEndpoint) {
   const { filters } = useFilters();
   const filtersAreValid = !getDateFilterError(filters);
+  const endpointCacheVersion = endpoint === 'iqf-horas-trabajadas-mes'
+    ? `${endpoint}:promedio-horas-v2`
+    : endpoint === 'exportaciones-contenedores'
+      ? `${endpoint}:anillos-v2`
+      : endpoint;
   const cacheKey = browserCacheKey([
     'widget',
-    endpoint === 'iqf-horas-trabajadas-mes' ? `${endpoint}:promedio-horas-v2` : endpoint,
+    endpointCacheVersion,
     filters.fechaInicial,
     filters.fechaFinal,
     filters.turno,
@@ -83,7 +88,7 @@ export function useWidgetData(endpoint: DashboardEndpoint) {
   const cached = readBrowserCache<DataRow[]>(cacheKey, REFRESH_INTERVAL_MS);
 
   return useQuery<DataRow[]>({
-    queryKey: ['dashboard', endpoint, filters],
+    queryKey: ['dashboard', endpointCacheVersion, filters],
     queryFn: async () => {
       const data = await fetchWidgetData(endpoint, filters);
       writeBrowserCache(cacheKey, data);

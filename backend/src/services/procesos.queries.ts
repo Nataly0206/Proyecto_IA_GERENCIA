@@ -347,6 +347,14 @@ GROUP BY h.FECHA, d.IdTurno,
  * más legible (una fila por contenedor + estilo + cliente).
  */
 export const EXPORTACIONES_CONTENEDORES_QUERY = `
+WITH ItemAnillos AS (
+  SELECT pci.fkItem, MAX(pc.Unidades) AS AnillosPorMaster
+  FROM dbo.ProductosClienteItem pci
+  JOIN dbo.ProductosCliente pc ON pc.IDproducto = pci.fkProducto
+  WHERE pc.Unidades > 0
+  GROUP BY pci.fkItem
+  HAVING COUNT(DISTINCT pc.Unidades) = 1
+)
 SELECT
   e.FechaCarga AS Dia,
   e.NumeroContenedor AS Contenedor,
@@ -355,6 +363,7 @@ SELECT
   COALESCE(NULLIF(LTRIM(RTRIM(lr.NombreGrupo)), ''), NULLIF(LTRIM(RTRIM(lr.Empresa)), ''), 'Sin cliente') AS Cliente,
   COALESCE(NULLIF(LTRIM(RTRIM(i.EstiloFinal)), ''), 'Sin estilo') AS Estilo,
   COUNT(DISTINCT m.CodigoMaster) AS Masteres,
+  COUNT(DISTINCT m.CodigoMaster) * COALESCE(ia.AnillosPorMaster, 0) AS Anillos,
   SUM(i.PesoLibras) AS Libras,
   SUM(s.Cantidad) AS Unidades
 FROM dbo.Envios e
@@ -363,15 +372,24 @@ JOIN dbo.Seriales s ON s.FkMaster = m.IdMaster
 JOIN dbo.OrdenesProduccion op ON op.IdOrdenProduccion = s.FkOrdenProduccion
 JOIN dbo.AV_Items i ON i.IdItem = op.FkItem
 JOIN dbo.AV_LotesRemision lr ON lr.IdLoteRemision = op.FkLoteRemision
+LEFT JOIN ItemAnillos ia ON ia.fkItem = i.IdItem
 WHERE e.FechaCarga BETWEEN @Fecha_Inicial AND @Fecha_Final
   AND e.NumeroContenedor IS NOT NULL AND e.NumeroContenedor <> ''
 GROUP BY e.FechaCarga, e.NumeroContenedor, e.ReferenciaEnvio, e.CodigoEmbarque,
   COALESCE(NULLIF(LTRIM(RTRIM(lr.NombreGrupo)), ''), NULLIF(LTRIM(RTRIM(lr.Empresa)), ''), 'Sin cliente'),
-  COALESCE(NULLIF(LTRIM(RTRIM(i.EstiloFinal)), ''), 'Sin estilo')
+  COALESCE(NULLIF(LTRIM(RTRIM(i.EstiloFinal)), ''), 'Sin estilo'), i.IdItem, ia.AnillosPorMaster
 `;
 
 /** Desglose de un contenedor abierto: una fila por cliente, orden e ítem. */
 export const EXPORTACIONES_CONTENEDOR_DETALLE_QUERY = `
+WITH ItemAnillos AS (
+  SELECT pci.fkItem, MAX(pc.Unidades) AS AnillosPorMaster
+  FROM dbo.ProductosClienteItem pci
+  JOIN dbo.ProductosCliente pc ON pc.IDproducto = pci.fkProducto
+  WHERE pc.Unidades > 0
+  GROUP BY pci.fkItem
+  HAVING COUNT(DISTINCT pc.Unidades) = 1
+)
 SELECT
   e.FechaCarga AS Dia,
   e.ReferenciaEnvio AS Referencia,
@@ -379,6 +397,8 @@ SELECT
   COALESCE(NULLIF(LTRIM(RTRIM(lr.NombreGrupo)), ''), NULLIF(LTRIM(RTRIM(lr.Empresa)), ''), 'Sin cliente') AS Cliente,
   COALESCE(NULLIF(LTRIM(RTRIM(op.NoOrdenCompra)), ''), 'Sin orden') AS OrdenCompra,
   COALESCE(NULLIF(LTRIM(RTRIM(i.Item)), ''), 'Sin ítem') AS Item,
+  COALESCE(ia.AnillosPorMaster, 0) AS AnillosPorMaster,
+  COUNT(DISTINCT m.CodigoMaster) * COALESCE(ia.AnillosPorMaster, 0) AS Anillos,
   SUM(i.PesoLibras) AS Libras,
   COUNT(s.IdSerial) AS CantidadSerial
 FROM dbo.Envios e
@@ -387,13 +407,14 @@ JOIN dbo.Seriales s ON s.FkMaster = m.IdMaster
 JOIN dbo.OrdenesProduccion op ON op.IdOrdenProduccion = s.FkOrdenProduccion
 JOIN dbo.AV_Items i ON i.IdItem = op.FkItem
 JOIN dbo.AV_LotesRemision lr ON lr.IdLoteRemision = op.FkLoteRemision
+LEFT JOIN ItemAnillos ia ON ia.fkItem = i.IdItem
 WHERE e.FechaCarga = @Fecha
   AND e.NumeroContenedor = @Contenedor
   AND COALESCE(e.ReferenciaEnvio, '') = @Referencia
 GROUP BY e.FechaCarga, e.ReferenciaEnvio, e.CodigoEmbarque,
   COALESCE(NULLIF(LTRIM(RTRIM(lr.NombreGrupo)), ''), NULLIF(LTRIM(RTRIM(lr.Empresa)), ''), 'Sin cliente'),
   COALESCE(NULLIF(LTRIM(RTRIM(op.NoOrdenCompra)), ''), 'Sin orden'),
-  COALESCE(NULLIF(LTRIM(RTRIM(i.Item)), ''), 'Sin ítem')
+  COALESCE(NULLIF(LTRIM(RTRIM(i.Item)), ''), 'Sin ítem'), i.IdItem, ia.AnillosPorMaster
 ORDER BY Cliente, CodigoEmbarque, OrdenCompra, Item
 `;
 

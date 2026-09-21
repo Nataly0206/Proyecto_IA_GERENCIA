@@ -352,6 +352,7 @@ interface ExportGroup {
   cliente: string;
   estilo: string;
   masteres: number;
+  anillos: number;
   libras: number;
   unidades: number;
 }
@@ -362,7 +363,7 @@ const EXPORT_GROUPS_CACHE_MS = 15 * 60 * 1000;
  *  filtro; se cachea por rango para no repetir el escaneo de `AV_Envios`
  *  (vista de ~19M filas) una vez por widget. */
 async function fetchExportGroups(fechaInicial: string, fechaFinal: string): Promise<ExportGroup[]> {
-  return withTtlCache(`exportGroups:${fechaInicial}:${fechaFinal}`, EXPORT_GROUPS_CACHE_MS, async () => {
+  return withTtlCache(`exportGroups:anillos-v2:${fechaInicial}:${fechaFinal}`, EXPORT_GROUPS_CACHE_MS, async () => {
     const rows = await runQuery(EXPORTACIONES_CONTENEDORES_QUERY, dateParams(fechaInicial, fechaFinal));
     return rows.map((row) => ({
       dia: pickString(row, 'Dia'),
@@ -372,6 +373,7 @@ async function fetchExportGroups(fechaInicial: string, fechaFinal: string): Prom
       cliente: pickString(row, 'Cliente') || 'Sin cliente',
       estilo: pickString(row, 'Estilo') || 'Sin estilo',
       masteres: pickNumber(row, 'Masteres'),
+      anillos: pickNumber(row, 'Anillos'),
       libras: pickNumber(row, 'Libras'),
       unidades: pickNumber(row, 'Unidades'),
     }));
@@ -390,19 +392,20 @@ export async function getExportacionesContenedores(f: DashboardFilters): Promise
   const groups = await fetchExportGroups(f.fechaInicial, f.fechaFinal);
   const map = new Map<string, {
     fecha: string; contenedor: string; referencia: string; codigosEmbarque: Set<string>; clientes: Set<string>;
-    estilos: Set<string>; masteres: number; unidades: number; libras: number; detalle: DataRow[];
+    estilos: Set<string>; masteres: number; anillos: number; unidades: number; libras: number; detalle: DataRow[];
   }>();
   for (const g of groups) {
     const fecha = g.dia.slice(0, 10);
     const key = `${fecha}|${g.contenedor}|${g.referencia}`;
     const acc = map.get(key) ?? {
       fecha, contenedor: g.contenedor, referencia: g.referencia, codigosEmbarque: new Set<string>(), clientes: new Set<string>(),
-      estilos: new Set<string>(), masteres: 0, unidades: 0, libras: 0, detalle: [],
+      estilos: new Set<string>(), masteres: 0, anillos: 0, unidades: 0, libras: 0, detalle: [],
     };
     acc.clientes.add(g.cliente);
     if (g.codigoEmbarque.trim()) acc.codigosEmbarque.add(g.codigoEmbarque.trim());
     acc.estilos.add(g.estilo);
     acc.masteres += g.masteres;
+    acc.anillos += g.anillos;
     acc.unidades += g.unidades;
     acc.libras += g.libras;
     acc.detalle.push({
@@ -412,7 +415,7 @@ export async function getExportacionesContenedores(f: DashboardFilters): Promise
       cliente: g.cliente,
       estilo: g.estilo,
       masteres: g.masteres,
-      anillosXMaster: g.masteres > 0 ? round2(g.unidades / g.masteres) : 0,
+      anillos: g.anillos,
       libras: round2(g.libras),
     });
     map.set(key, acc);
@@ -426,7 +429,7 @@ export async function getExportacionesContenedores(f: DashboardFilters): Promise
       cliente: Array.from(c.clientes).sort().join(', '),
       estilos: c.estilos.size,
       masteres: c.masteres,
-      anillosXMaster: c.masteres > 0 ? round2(c.unidades / c.masteres) : 0,
+      anillos: c.anillos,
       libras: round2(c.libras),
       detalle: c.detalle.sort((a, b) => String(a.estilo).localeCompare(String(b.estilo))),
     }))
@@ -448,6 +451,8 @@ export async function getExportacionesContenedorDetalle(
     cliente: pickString(row, 'Cliente'),
     ordenCompra: pickString(row, 'OrdenCompra'),
     item: pickString(row, 'Item'),
+    anillosPorMaster: pickNumber(row, 'AnillosPorMaster'),
+    anillos: pickNumber(row, 'Anillos'),
     libras: round2(pickNumber(row, 'Libras')),
     cantidadSerial: pickNumber(row, 'CantidadSerial'),
   }));

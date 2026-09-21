@@ -23,6 +23,7 @@ import {
   PELADO_PERSONAL_DAILY_QUERY,
   PELADO_POR_SALA_ACTIVOS_QUERY,
   PELADO_POR_SALA_HOY_QUERY,
+  PELADO_POR_SALA_DIARIO_QUERY,
 } from './stb.queries';
 import { matchesTurno, pickNumber, pickString } from '../utils/rows';
 import {
@@ -649,6 +650,23 @@ export async function getPeladoPorSala(): Promise<PeladoPorSalaResponse> {
     horasTranscurridas,
     salas,
   };
+}
+
+export async function getPeladoPorSalaDiario(
+  filters: DashboardFilters, minHours: number | null,
+): Promise<{ fecha: string; personas: number; libras: number; librasPorHoraPromedio: number }[]> {
+  const turno = filters.turno ? `TURNO ${filters.turno.toUpperCase().replace('TURNO ', '')}` : null;
+  const rows = await runStbQuery(PELADO_POR_SALA_DIARIO_QUERY, [
+    ...dateParams(filters.fechaInicial, filters.fechaFinal),
+    { name: 'Turno', type: sql.VarChar(20), value: turno },
+    { name: 'MinHours', type: sql.Decimal(5, 2), value: minHours },
+  ]);
+  return rows.map((row) => ({
+    fecha: pickString(row, 'Dia').slice(0, 10),
+    personas: pickNumber(row, 'Personas'),
+    libras: round2(pickNumber(row, 'Libras')),
+    librasPorHoraPromedio: round2(pickNumber(row, 'LibrasPorHoraPromedio')),
+  }));
 }
 
 /* ------------------------------------------------------------------ */

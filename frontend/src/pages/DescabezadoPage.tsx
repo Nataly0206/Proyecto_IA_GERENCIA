@@ -77,7 +77,7 @@ export default function DescabezadoPage() {
             { key: 'personas', label: 'Personas', format: 'number', total: 'sum', average: true },
             { key: 'cola', label: 'Cola', format: 'number', total: 'sum', average: true },
             { key: 'cabezas', label: 'Cabezas', format: 'number', total: 'sum', average: true },
-            { key: 'librasPorHora', label: 'Libras por hora', format: 'decimal', total: { ratio: ['total', 'horas'] }, average: true },
+            { key: 'librasPorHora', label: 'Libras por hora', format: 'decimal', total: 'sum', average: true },
             { key: 'total', label: 'Total', format: 'number', total: 'sum', average: true },
           ]}
         />
@@ -96,7 +96,7 @@ export default function DescabezadoPage() {
             { key: 'personas', label: 'Personas', format: 'number', total: 'sum', average: true },
             { key: 'cola', label: 'Cola', format: 'number', total: 'sum', average: true },
             { key: 'cabezas', label: 'Cabezas', format: 'number', total: 'sum', average: true },
-            { key: 'librasPorHora', label: 'Libras por hora', format: 'decimal', total: { ratio: ['total', 'horas'] }, average: true },
+            { key: 'librasPorHora', label: 'Libras por hora', format: 'decimal', total: 'sum', average: true },
             { key: 'total', label: 'Total', format: 'number', total: 'sum', average: true },
           ]}
         />

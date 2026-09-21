@@ -190,6 +190,28 @@ WHERE h.FECHA = CAST(GETDATE() AS DATE)
 GROUP BY COALESCE(s.NOMBRE_SALA, 'Sin sala')
 `;
 
+/**
+ * Horas trabajadas en planta por día (desde el primer hasta el último
+ * registro de pelado de ese día), dentro del rango de fechas filtrado.
+ * A diferencia de `PELADO_POR_SALA_DIARIO_QUERY.Horas` (suma de la
+ * ventana de cada sala), esto es la ventana de la planta completa —
+ * la métrica que corresponde a un reporte que no está desglosado por
+ * sala, como "Libras Peladas por Estilo — Diario".
+ */
+export const PELADO_HORAS_TRABAJADAS_DIA_QUERY = `
+SELECT h.FECHA AS Dia,
+  CASE WHEN COUNT(d.HORA) > 1
+    THEN DATEDIFF(SECOND, MIN(d.HORA), MAX(d.HORA)) / 3600.0
+    ELSE 0 END AS Horas
+FROM dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS h
+JOIN dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS_DET d
+  ON h.ID_ASIGNACION_LIBRAS_EMPLEADO = d.ID_ASIGNACION_LIBRAS_EMPLEADO
+LEFT JOIN dbo.Cl_Turnos tr ON tr.IdTurno = d.ID_TURNO
+WHERE h.FECHA BETWEEN @Fecha_Inicial AND @Fecha_Final
+  AND (@Turno IS NULL OR UPPER(LTRIM(RTRIM(tr.Turno))) = @Turno)
+GROUP BY h.FECHA
+`;
+
 /** Actividad histórica diaria; el umbral se aplica por sala y fecha. */
 export const PELADO_POR_SALA_DIARIO_QUERY = `
 WITH Registros AS (

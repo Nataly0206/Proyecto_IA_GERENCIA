@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Box, LinearProgress, Typography } from '@mui/material';
+import { Box, LinearProgress, Stack, Typography } from '@mui/material';
 import { ChartConfig, DataRow } from '../../types';
 import { formatValue } from '../../utils/format';
 import { CHART_COLORS } from '../../theme';
@@ -18,6 +18,7 @@ function applySort(data: DataRow[], sort?: ChartConfig['sort']): DataRow[] {
 
 export default function KpiCards({ config, data }: KpiCardsProps) {
   const yField = Array.isArray(config.yField) ? config.yField[0] : config.yField;
+  const rateField = config.rateField;
   const rows = useMemo(() => {
     const sortedRows = applySort(data, config.sort);
     if (!config.showTotalCard) return sortedRows;
@@ -27,15 +28,24 @@ export default function KpiCards({ config, data }: KpiCardsProps) {
       return sum + (Number.isFinite(value) ? value : 0);
     }, 0);
 
-    return [
-      ...sortedRows,
-      {
-        [config.xField]: 'TOTAL',
-        [yField]: total,
-        __isTotalCard: true,
-      },
-    ];
-  }, [data, config.sort, config.showTotalCard, config.xField, yField]);
+    const totalRow: DataRow = {
+      [config.xField]: 'TOTAL',
+      [yField]: total,
+      __isTotalCard: true,
+    };
+
+    if (rateField) {
+      if (config.rateWeightField) {
+        const totalWeight = sortedRows.reduce((sum, row) => sum + Number(row[config.rateWeightField!] ?? 0), 0);
+        totalRow[rateField] = totalWeight > 0 ? total / totalWeight : 0;
+      } else {
+        const rates = sortedRows.map((row) => Number(row[rateField] ?? 0)).filter((v) => Number.isFinite(v));
+        totalRow[rateField] = rates.length > 0 ? rates.reduce((sum, v) => sum + v, 0) / rates.length : 0;
+      }
+    }
+
+    return [...sortedRows, totalRow];
+  }, [data, config.sort, config.showTotalCard, config.xField, yField, rateField, config.rateWeightField]);
   const format = config.valueFormat ?? 'number';
   const colors = config.colors ?? CHART_COLORS;
 
@@ -65,6 +75,7 @@ export default function KpiCards({ config, data }: KpiCardsProps) {
         const porcentaje = typeof row.porcentaje === 'number' ? (row.porcentaje as number) : null;
         const isTotal = row.__isTotalCard === true;
         const color = isTotal ? '#164a8b' : config.colorByLabel ? categoryColor(label, colors) : colors[index % colors.length];
+        const rateValue = rateField ? Number(row[rateField] ?? 0) : null;
 
         return (
           <Box
@@ -106,28 +117,60 @@ export default function KpiCards({ config, data }: KpiCardsProps) {
               {label}
             </Typography>
 
-            <Typography
-              sx={{
-                fontSize: { xs: '1.15rem', xl: '1.3rem' },
-                fontWeight: 800,
-                color: 'text.primary',
-                lineHeight: 1,
-              }}
-            >
-              {formatValue(value, format)}
-            </Typography>
-            <Typography
-              variant="caption"
-              sx={{
-                color: 'text.secondary',
-                mt: 0.2,
-                display: 'block',
-                fontSize: 10.5,
-                fontWeight: 500,
-              }}
-            >
-              {isTotal ? `${config.unitLabel ?? 'lbs netas'} en total` : config.unitLabel ?? 'lbs netas'}
-            </Typography>
+            {rateValue !== null ? (
+              <Stack direction="row" justifyContent="space-between" alignItems="baseline" spacing={1}>
+                <Typography
+                  sx={{
+                    fontSize: { xs: '1.05rem', xl: '1.2rem' },
+                    fontWeight: 800,
+                    color: 'text.primary',
+                    lineHeight: 1,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {formatValue(value, format)}
+                  <Typography component="span" variant="caption" color="text.secondary" ml={0.4}>
+                    {config.unitLabel ?? 'lbs'}
+                  </Typography>
+                </Typography>
+                <Typography
+                  sx={{
+                    fontSize: { xs: 14, xl: 15 },
+                    fontWeight: 900,
+                    color: '#000',
+                    lineHeight: 1.25,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {formatValue(rateValue, 'decimal')} {config.rateUnit ?? 'lbs/h'}
+                </Typography>
+              </Stack>
+            ) : (
+              <>
+                <Typography
+                  sx={{
+                    fontSize: { xs: '1.15rem', xl: '1.3rem' },
+                    fontWeight: 800,
+                    color: 'text.primary',
+                    lineHeight: 1,
+                  }}
+                >
+                  {formatValue(value, format)}
+                </Typography>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: 'text.secondary',
+                    mt: 0.2,
+                    display: 'block',
+                    fontSize: 10.5,
+                    fontWeight: 500,
+                  }}
+                >
+                  {isTotal ? `${config.unitLabel ?? 'lbs netas'} en total` : config.unitLabel ?? 'lbs netas'}
+                </Typography>
+              </>
+            )}
 
             {porcentaje !== null && (
               <Box mt={0.75}>

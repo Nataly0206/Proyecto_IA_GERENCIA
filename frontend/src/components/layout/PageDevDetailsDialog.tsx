@@ -105,7 +105,7 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
         bullets: [
           '`dbo.DES_ASIG_LBRS_EMPLEADOS` + `_DET` — personas, horas y libras de cabezas asignadas.',
           'Personas: `dbo.DES_EMPLEADOS_LINEAS` (`ID_EMPLEADO_LINEA` → `ID_EMPLEADO`).',
-          '`dbo.V_TrazabilidadDescabezadoPBI` — libras de cola, cabezas y total entero por fecha.',
+          '`dbo.Des_PesadoColaHeader` + `dbo.Des_PesadoCola` — libras netas de cola por fecha.',
         ],
       },
       {
@@ -121,8 +121,8 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
         bullets: [
           'Libras descabezadas al día = `SUM(DES_ASIG_LBRS_EMPLEADOS_DET.LIBRAS)` no anulado del día.',
           'Personas descabezando por día = `COUNT(DISTINCT el.ID_EMPLEADO)` del día; no se suma entre filas.',
-          'Cola + cabezas = total entero procesado. Libras por hora = total ÷ horas efectivas entre el primer y último registro diario.',
-          'En `descabezado-resumen`, `librasPromedioPorHora` aplica esa misma fórmula a hoy: `SUM(V_TrazabilidadDescabezadoPBI.LIBRAS_ENTERO) ÷ horas efectivas`; devuelve 0 cuando no existe una jornada válida.',
+          'Cola + cabezas = total entero procesado. Libras por hora = libras de cabezas ÷ horas efectivas entre el primer y último registro diario.',
+          'En `descabezado-resumen`, `librasPromedioPorHora` aplica esa misma fórmula a hoy: `cabezas asignadas ÷ horas efectivas`; devuelve 0 cuando no existe una jornada válida.',
           'Personas = `COUNT(DISTINCT ID_EMPLEADO)`; en mensual cada empleado se cuenta una sola vez por mes.',
         ],
       },

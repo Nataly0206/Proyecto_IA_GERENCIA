@@ -111,12 +111,13 @@ DECLARE @HorasHoy float = (
   SELECT DATEDIFF(SECOND, MIN(CAST(d.HORA AS time)), MAX(CAST(d.HORA AS time))) / 3600.0
     FROM dbo.DES_ASIG_LBRS_EMPLEADOS h
     JOIN dbo.DES_ASIG_LBRS_EMPLEADOS_DET d ON d.ID_ASIG_LBRS_EMPLEADO = h.ID_ASIG_LBRS_EMPLEADO
-   WHERE h.FECHA = @Dia AND d.ANULADO = 0
+   WHERE h.FECHA = @Dia AND ISNULL(d.ANULADO, 0) = 0
 );
-DECLARE @TotalEnteroHoy float = (
-  SELECT ISNULL(SUM(LIBRAS_ENTERO), 0)
-    FROM dbo.V_TrazabilidadDescabezadoPBI
-   WHERE FECHA_DESCABEZADO = @Dia
+DECLARE @CabezasHoy float = (
+  SELECT ISNULL(SUM(d.LIBRAS), 0)
+  FROM dbo.DES_ASIG_LBRS_EMPLEADOS h
+  JOIN dbo.DES_ASIG_LBRS_EMPLEADOS_DET d ON d.ID_ASIG_LBRS_EMPLEADO = h.ID_ASIG_LBRS_EMPLEADO
+  WHERE h.FECHA = @Dia AND ISNULL(d.ANULADO, 0) = 0
 );
 
 ;WITH det AS (
@@ -124,50 +125,47 @@ DECLARE @TotalEnteroHoy float = (
     FROM dbo.DES_ASIG_LBRS_EMPLEADOS h
     JOIN dbo.DES_ASIG_LBRS_EMPLEADOS_DET d ON d.ID_ASIG_LBRS_EMPLEADO = h.ID_ASIG_LBRS_EMPLEADO
     LEFT JOIN dbo.DES_EMPLEADOS_LINEAS el ON el.ID_EMPLEADO_LINEA = d.ID_EMPLEADO_LINEA
-   WHERE h.FECHA BETWEEN @PrimerDiaMes AND @Dia AND d.ANULADO = 0
+   WHERE h.FECHA BETWEEN @PrimerDiaMes AND @Dia AND ISNULL(d.ANULADO, 0) = 0
 )
 SELECT
   (SELECT ISNULL(SUM(LIBRAS), 0) FROM det WHERE FECHA = @Dia) AS LibrasDescabezadasDia,
   (SELECT ISNULL(SUM(LIBRAS), 0) FROM det WHERE FECHA BETWEEN @Lunes AND @Dia) AS LibrasDescabezadasSemana,
   (SELECT ISNULL(SUM(LIBRAS), 0) FROM det) AS LibrasDescabezadasMes,
   (SELECT COUNT(DISTINCT ID_EMPLEADO) FROM det WHERE FECHA = @Dia) AS PersonasDia,
-  CASE WHEN ISNULL(@HorasHoy, 0) > 0 THEN @TotalEnteroHoy / @HorasHoy ELSE 0 END AS LibrasPromedioPorHora
+  CASE WHEN ISNULL(@HorasHoy, 0) > 0 THEN @CabezasHoy / @HorasHoy ELSE 0 END AS LibrasPromedioPorHora
 `;
 
 /**
  * Detalle diario. Empleados y horas se agregan antes de unirlos con la
  * producción para evitar multiplicar personas o libras.
  *
- * Cola/Cabezas/Total salen de `Des_PesadoColaHeader` + `Des_PesadoCola`
- * (Libras Brutas y Netas del pesado de cola), agrupado por la fecha propia
- * de la cabecera de pesado — la misma fuente y agrupación que el reporte
- * "REPORTE RESUMENES PESADO" del sistema de planta en modo Detalle
- * (verificado contra sus totales). Antes se usaba
- * `V_TrazabilidadDescabezadoPBI`, que no coincide con ese reporte.
+ * Cola sale de las libras netas del pesado; cabezas, de las libras asignadas
+ * a empleados sin anular. Total es la suma de ambas fuentes por fecha.
  */
 export const DESCABEZADO_POR_DIA_QUERY = `
 ;WITH personal AS (
   SELECT h.FECHA AS Dia,
     COUNT(DISTINCT el.ID_EMPLEADO) AS Personas,
+    SUM(d.LIBRAS) AS Cabezas,
     DATEDIFF(SECOND, MIN(CAST(d.HORA AS time)), MAX(CAST(d.HORA AS time))) / 3600.0 AS Horas
   FROM dbo.DES_ASIG_LBRS_EMPLEADOS h
   JOIN dbo.DES_ASIG_LBRS_EMPLEADOS_DET d ON d.ID_ASIG_LBRS_EMPLEADO = h.ID_ASIG_LBRS_EMPLEADO
   LEFT JOIN dbo.DES_EMPLEADOS_LINEAS el ON el.ID_EMPLEADO_LINEA = d.ID_EMPLEADO_LINEA
-  WHERE h.FECHA BETWEEN @Fecha_Inicial AND @Fecha_Final AND d.ANULADO = 0
+  WHERE h.FECHA BETWEEN @Fecha_Inicial AND @Fecha_Final AND ISNULL(d.ANULADO, 0) = 0
   GROUP BY h.FECHA
 ), produccion AS (
   SELECT h.Fecha AS Dia,
-    SUM(c.LibrasBrutas) AS Cola,
-    SUM(c.LibrasNetas) AS Cabezas,
-    SUM(c.LibrasBrutas) AS Total
+    SUM(c.LibrasNetas) AS Cola
   FROM dbo.Des_PesadoColaHeader h
   JOIN dbo.Des_PesadoCola c ON c.IdPesadoColaHeader = h.IdPesadoColaHeader
   WHERE h.Fecha BETWEEN @Fecha_Inicial AND @Fecha_Final
   GROUP BY h.Fecha
 )
 SELECT p.Dia, p.Personas, ISNULL(r.Cola, 0) AS Cola,
-  ISNULL(r.Cabezas, 0) AS Cabezas, ISNULL(r.Total, 0) AS Total,
-  CASE WHEN p.Horas > 0 THEN ISNULL(r.Total, 0) / p.Horas ELSE 0 END AS LibrasPorHora,
+  ISNULL(p.Cabezas, 0) AS Cabezas,
+  ISNULL(r.Cola, 0) + ISNULL(p.Cabezas, 0) AS Total,
+  CASE WHEN p.Horas > 0
+    THEN ISNULL(p.Cabezas, 0) / p.Horas ELSE 0 END AS LibrasPorHora,
   p.Horas
 FROM personal p
 LEFT JOIN produccion r ON r.Dia = p.Dia
@@ -179,10 +177,11 @@ LEFT JOIN produccion r ON r.Dia = p.Dia
 export const DESCABEZADO_POR_MES_QUERY = `
 ;WITH jornadas AS (
   SELECT h.FECHA AS Dia,
+    SUM(d.LIBRAS) AS Cabezas,
     DATEDIFF(SECOND, MIN(CAST(d.HORA AS time)), MAX(CAST(d.HORA AS time))) / 3600.0 AS Horas
   FROM dbo.DES_ASIG_LBRS_EMPLEADOS h
   JOIN dbo.DES_ASIG_LBRS_EMPLEADOS_DET d ON d.ID_ASIG_LBRS_EMPLEADO = h.ID_ASIG_LBRS_EMPLEADO
-  WHERE h.FECHA BETWEEN @Fecha_Inicial AND @Fecha_Final AND d.ANULADO = 0
+  WHERE h.FECHA BETWEEN @Fecha_Inicial AND @Fecha_Final AND ISNULL(d.ANULADO, 0) = 0
   GROUP BY h.FECHA
 ), personal AS (
   SELECT CONVERT(varchar(7), h.FECHA, 23) AS Mes,
@@ -190,22 +189,25 @@ export const DESCABEZADO_POR_MES_QUERY = `
   FROM dbo.DES_ASIG_LBRS_EMPLEADOS h
   JOIN dbo.DES_ASIG_LBRS_EMPLEADOS_DET d ON d.ID_ASIG_LBRS_EMPLEADO = h.ID_ASIG_LBRS_EMPLEADO
   LEFT JOIN dbo.DES_EMPLEADOS_LINEAS el ON el.ID_EMPLEADO_LINEA = d.ID_EMPLEADO_LINEA
-  WHERE h.FECHA BETWEEN @Fecha_Inicial AND @Fecha_Final AND d.ANULADO = 0
+  WHERE h.FECHA BETWEEN @Fecha_Inicial AND @Fecha_Final AND ISNULL(d.ANULADO, 0) = 0
   GROUP BY CONVERT(varchar(7), h.FECHA, 23)
 ), horas AS (
-  SELECT CONVERT(varchar(7), Dia, 23) AS Mes, SUM(Horas) AS Horas
+  SELECT CONVERT(varchar(7), Dia, 23) AS Mes,
+    SUM(Horas) AS Horas, SUM(Cabezas) AS Cabezas
   FROM jornadas GROUP BY CONVERT(varchar(7), Dia, 23)
 ), produccion AS (
-  SELECT CONVERT(varchar(7), FECHA_DESCABEZADO, 23) AS Mes,
-    SUM(LIBRAS_COLA) AS Cola, SUM(LIBRAS_DESCABEZADO) AS Cabezas,
-    SUM(LIBRAS_ENTERO) AS Total
-  FROM dbo.V_TrazabilidadDescabezadoPBI
-  WHERE FECHA_DESCABEZADO BETWEEN @Fecha_Inicial AND @Fecha_Final
-  GROUP BY CONVERT(varchar(7), FECHA_DESCABEZADO, 23)
+  SELECT CONVERT(varchar(7), h.Fecha, 23) AS Mes,
+    SUM(c.LibrasNetas) AS Cola
+  FROM dbo.Des_PesadoColaHeader h
+  JOIN dbo.Des_PesadoCola c ON c.IdPesadoColaHeader = h.IdPesadoColaHeader
+  WHERE h.Fecha BETWEEN @Fecha_Inicial AND @Fecha_Final
+  GROUP BY CONVERT(varchar(7), h.Fecha, 23)
 )
 SELECT p.Mes, p.Personas, ISNULL(r.Cola, 0) AS Cola,
-  ISNULL(r.Cabezas, 0) AS Cabezas, ISNULL(r.Total, 0) AS Total,
-  CASE WHEN h.Horas > 0 THEN ISNULL(r.Total, 0) / h.Horas ELSE 0 END AS LibrasPorHora,
+  ISNULL(h.Cabezas, 0) AS Cabezas,
+  ISNULL(r.Cola, 0) + ISNULL(h.Cabezas, 0) AS Total,
+  CASE WHEN h.Horas > 0
+    THEN ISNULL(h.Cabezas, 0) / h.Horas ELSE 0 END AS LibrasPorHora,
   h.Horas
 FROM personal p
 LEFT JOIN horas h ON h.Mes = p.Mes
@@ -328,6 +330,33 @@ GROUP BY h.FECHA, d.IdTurno,
     THEN CONCAT('Máquina ', tanque.ID_TANQUE)
     ELSE 'Sin máquina asignada' END,
   COALESCE(NULLIF(LTRIM(RTRIM(t.NOMBRE_TALLA)), ''), 'Sin talla')
+`;
+
+/**
+ * Horas trabajadas por máquina, por día y turno (mismo criterio que
+ * `@HorasClasificadoHoy` en `CLASIFICADO_RESUMEN_QUERY`: desde el primer
+ * `HORA_INICIO` hasta el último `HORA_FINAL`), dentro del rango de fechas
+ * filtrado. El servicio suma estos tramos por máquina para obtener las
+ * horas totales del rango y calcular libras/hora.
+ */
+export const CLASIFICADO_HORAS_MAQUINA_QUERY = `
+SELECT
+  h.FECHA AS Dia,
+  d.IdTurno AS IdTurno,
+  CASE WHEN tanque.ID_TANQUE IS NOT NULL
+    THEN CONCAT('Máquina ', tanque.ID_TANQUE)
+    ELSE 'Sin máquina asignada' END AS Maquina,
+  CASE WHEN COUNT(d.HORA_INICIO) > 0
+    THEN DATEDIFF(SECOND, MIN(d.HORA_INICIO), MAX(d.HORA_FINAL)) / 3600.0
+    ELSE 0 END AS Horas
+FROM dbo.CL_LLENADO_RECIPIENTES h
+JOIN dbo.CL_LLENADO_RECIPIENTES_D d ON d.ID_LLENADO_RECIPIENTE = h.ID_LLENADO_RECIPIENTE
+LEFT JOIN dbo.CL_TANQUES tanque ON tanque.ID_TANQUE = h.ID_TANQUE
+WHERE h.FECHA BETWEEN @Fecha_Inicial AND @Fecha_Final AND d.ANULADO = 0
+GROUP BY h.FECHA, d.IdTurno,
+  CASE WHEN tanque.ID_TANQUE IS NOT NULL
+    THEN CONCAT('Máquina ', tanque.ID_TANQUE)
+    ELSE 'Sin máquina asignada' END
 `;
 
 /* ================================================================== */

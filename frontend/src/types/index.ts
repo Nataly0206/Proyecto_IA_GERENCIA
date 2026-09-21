@@ -377,6 +377,21 @@ export interface ChartConfig {
   /** Operación utilizada para los totales de una tabla pivote */
   totalAggregation?: 'weightedAverage' | 'sum';
   /**
+   * Columna auxiliar de una tabla pivote (type "table") con un valor por
+   * período (no desglosado por serie), por ejemplo horas trabajadas. Se
+   * muestra entre la columna de período y las columnas de serie.
+   */
+  extraColumn?: {
+    field: string;
+    label: string;
+    unit?: string;
+    format?: ValueFormat;
+    /** Operación para el total de la columna (por defecto 'avg') */
+    aggregation?: 'avg' | 'sum';
+  };
+  /** Agrega una fila "Promedio" (media simple por columna) bajo el Grand Total de una tabla pivote, ambas fijas al fondo. */
+  showAverageRow?: boolean;
+  /**
    * Vista alternativa de gráfica para widgets type "table": habilita el
    * selector Tabla/Gráfica y define el tipo de gráfica comparativa.
    */
@@ -397,6 +412,19 @@ export interface ChartConfig {
   showTotalCard?: boolean;
   /** Etiqueta de unidad mostrada bajo el valor en type "cards" (default: "lbs netas") */
   unitLabel?: string;
+  /**
+   * Campo con una tasa (p. ej. libras/hora) a mostrar junto al valor
+   * principal en type "cards", con el mismo estilo de dos valores que
+   * usan las tarjetas en vivo de Pelado e IQF.
+   */
+  rateField?: string;
+  /** Etiqueta de unidad de la tasa (default: "lbs/h") */
+  rateUnit?: string;
+  /**
+   * Campo de peso (p. ej. horas) para recalcular la tasa de la tarjeta
+   * "TOTAL" como suma(valor)/suma(peso) en vez de un promedio simple.
+   */
+  rateWeightField?: string;
   /** Alto del gráfico en px */
   height?: number;
   /** Tamaño del widget en la grilla responsive */

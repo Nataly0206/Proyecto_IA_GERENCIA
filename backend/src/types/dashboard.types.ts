@@ -73,6 +73,8 @@ export interface PeladoStylePeriodRow {
   periodo: string;
   estilo: string;
   libras: number;
+  /** Horas trabajadas en planta ese período (solo vista diaria; igual para todas las filas del mismo período). */
+  horasTrabajadas?: number;
 }
 
 export interface PeladoTallaRow {

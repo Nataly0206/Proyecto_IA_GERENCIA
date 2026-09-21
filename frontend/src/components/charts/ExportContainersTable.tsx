@@ -13,6 +13,7 @@ import {
   TableBody,
   TableCell,
   TableContainer,
+  TableFooter,
   TableHead,
   TableRow,
   Typography,
@@ -53,6 +54,7 @@ export default function ExportContainersTable({ weightUnit }: { weightUnit: Weig
   const detailTotalSerial = detail.reduce((sum, row) => sum + Number(row.cantidadSerial ?? 0), 0);
   const totalLibras = rows.reduce((sum, row) => sum + Number(row.libras ?? 0), 0);
   const totalMasteres = rows.reduce((sum, row) => sum + Number(row.masteres ?? 0), 0);
+  const totalAnillos = rows.reduce((sum, row) => sum + Number(row.anillos ?? 0), 0);
 
   return (
     <Box>
@@ -81,7 +83,6 @@ export default function ExportContainersTable({ weightUnit }: { weightUnit: Weig
                 <TableCell sx={HEADER_SX}>Ship</TableCell>
                 <TableCell sx={HEADER_SX}>Código embarque</TableCell>
                 <TableCell sx={HEADER_SX}>Cliente</TableCell>
-                <TableCell align="right" sx={HEADER_SX}>Estilos</TableCell>
                 <TableCell align="right" sx={HEADER_SX}>Másteres</TableCell>
                 <TableCell align="right" sx={HEADER_SX}>Total anillos</TableCell>
                 <TableCell align="right" sx={HEADER_SX}>{weightUnit === 'kg' ? 'Kg totales' : 'Libras totales'}</TableCell>
@@ -96,7 +97,6 @@ export default function ExportContainersTable({ weightUnit }: { weightUnit: Weig
                   <TableCell>{String(row.referencia ?? '—')}</TableCell>
                   <TableCell>{String(row.codigoEmbarque || '—')}</TableCell>
                   <TableCell>{String(row.cliente ?? '—')}</TableCell>
-                  <TableCell align="right">{formatValue(Number(row.estilos ?? 0))}</TableCell>
                   <TableCell align="right">{formatValue(Number(row.masteres ?? 0))}</TableCell>
                   <TableCell align="right">{formatValue(Number(row.anillos ?? 0))}</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 800, color: 'primary.main' }}>{formatValue(convertPounds(Number(row.libras ?? 0), weightUnit), weightUnit === 'kg' ? 'decimal' : 'number')}</TableCell>
@@ -107,20 +107,28 @@ export default function ExportContainersTable({ weightUnit }: { weightUnit: Weig
                   </TableCell>
                 </TableRow>
               ))}
+            </TableBody>
+            <TableFooter sx={{ position: 'sticky', bottom: 0, zIndex: 2 }}>
               <TableRow>
                 <TableCell sx={TOTAL_SX}>Total</TableCell>
-                <TableCell colSpan={5} sx={TOTAL_SX}>{rows.length} contenedores</TableCell>
+                <TableCell colSpan={4} sx={TOTAL_SX}>{rows.length} contenedores</TableCell>
                 <TableCell align="right" sx={TOTAL_SX}>{formatValue(totalMasteres)}</TableCell>
-                <TableCell sx={TOTAL_SX} />
+                <TableCell align="right" sx={TOTAL_SX}>{formatValue(totalAnillos)}</TableCell>
                 <TableCell align="right" sx={TOTAL_SX}>{formatValue(convertPounds(totalLibras, weightUnit), weightUnit === 'kg' ? 'decimal' : 'number')}</TableCell>
                 <TableCell sx={TOTAL_SX} />
               </TableRow>
-            </TableBody>
+            </TableFooter>
           </Table>
         </TableContainer>
       )}
 
-      <Dialog open={Boolean(selected)} onClose={() => setSelected(null)} fullWidth maxWidth="lg">
+      <Dialog
+        open={Boolean(selected)}
+        onClose={() => setSelected(null)}
+        fullWidth
+        maxWidth="xl"
+        PaperProps={{ sx: { height: '92vh', maxHeight: '92vh' } }}
+      >
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 1.5 }}>
           <Box>
             <Typography variant="subtitle1" fontWeight={800}>Detalle del contenedor {String(selected?.contenedor ?? '')}</Typography>
@@ -130,12 +138,12 @@ export default function ExportContainersTable({ weightUnit }: { weightUnit: Weig
           </Box>
           <IconButton aria-label="Cerrar detalle del contenedor" onClick={() => setSelected(null)}><CloseOutlinedIcon /></IconButton>
         </DialogTitle>
-        <DialogContent dividers sx={{ p: 1.5 }}>
+        <DialogContent dividers sx={{ p: 1.5, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           {detailQuery.isLoading && <Box sx={{ py: 5, display: 'grid', placeItems: 'center' }}><CircularProgress size={32} /></Box>}
           {detailQuery.isError && <Alert severity="error">No se pudo cargar el reporte del contenedor.</Alert>}
           {!detailQuery.isLoading && !detailQuery.isError && detail.length === 0 && <Alert severity="info">Este contenedor no tiene detalle disponible.</Alert>}
           {!detailQuery.isLoading && !detailQuery.isError && detail.length > 0 && (
-          <TableContainer sx={{ maxHeight: '65vh', border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+          <TableContainer sx={{ flex: 1, minHeight: 0, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
             <Table size="small" stickyHeader sx={{
               '& th, & td': {
                 borderRight: '1px solid #cbd5e1',

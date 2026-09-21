@@ -77,6 +77,8 @@ export function useWidgetData(endpoint: DashboardEndpoint) {
     ? `${endpoint}:promedio-horas-v2`
     : endpoint === 'exportaciones-contenedores'
       ? `${endpoint}:anillos-v2`
+      : endpoint === 'descabezado-por-dia' || endpoint === 'descabezado-por-dia-mes'
+        ? `${endpoint}:pesos-v3`
       : endpoint;
   const cacheKey = browserCacheKey([
     'widget',
@@ -237,8 +239,11 @@ export function usePeladoPorSala() {
  */
 export function useProcesoResumen<T>(endpoint: ProcesoResumenEndpoint) {
   const queryClient = useQueryClient();
-  const queryKey = ['dashboard', endpoint] as const;
-  const cacheKey = browserCacheKey([endpoint, 'current']);
+  const endpointCacheVersion = endpoint === 'descabezado-resumen'
+    ? `${endpoint}:cabezas-hora-v2`
+    : endpoint;
+  const queryKey = ['dashboard', endpointCacheVersion] as const;
+  const cacheKey = browserCacheKey([endpointCacheVersion, 'current']);
   const cached = readBrowserCache<T>(cacheKey, LIVE_REFRESH_INTERVAL_MS);
 
   const query = useQuery<T>({

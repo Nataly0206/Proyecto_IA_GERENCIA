@@ -18,6 +18,7 @@ import {
 } from '../types/dashboard.types';
 import {
   CLASIFICADO_DETALLE_QUERY,
+  CLASIFICADO_HORAS_MAQUINA_QUERY,
   CLASIFICADO_INVENTARIO_QUERY,
   CLASIFICADO_INVENTARIO_DETALLE_QUERY,
   CLASIFICADO_RESUMEN_QUERY,
@@ -295,10 +296,38 @@ async function fetchClasificado(fechaInicial: string, fechaFinal: string, turno?
     .filter((g) => !turno || matchesTurno(g.turno, turno));
 }
 
+/** Horas trabajadas por máquina en el rango filtrado: suma de tramos
+ *  (día, turno) desde el primer `HORA_INICIO` hasta el último `HORA_FINAL`. */
+async function fetchClasificadoHorasPorMaquina(
+  fechaInicial: string, fechaFinal: string, turno?: string,
+): Promise<Map<string, number>> {
+  const rows = await runStbQuery(CLASIFICADO_HORAS_MAQUINA_QUERY, dateParams(fechaInicial, fechaFinal));
+  const totales = new Map<string, number>();
+  for (const row of rows) {
+    const grupoTurno = turnoNombre(pickNumber(row, 'IdTurno'));
+    if (turno && !matchesTurno(grupoTurno, turno)) continue;
+    const maquina = pickString(row, 'Maquina') || 'Sin máquina asignada';
+    totales.set(maquina, (totales.get(maquina) ?? 0) + pickNumber(row, 'Horas'));
+  }
+  return totales;
+}
+
 export async function getClasificadoPorMaquina(f: DashboardFilters): Promise<DataRow[]> {
-  const groups = await fetchClasificado(f.fechaInicial, f.fechaFinal, f.turno);
+  const [groups, horasPorMaquina] = await Promise.all([
+    fetchClasificado(f.fechaInicial, f.fechaFinal, f.turno),
+    fetchClasificadoHorasPorMaquina(f.fechaInicial, f.fechaFinal, f.turno),
+  ]);
   return aggregateTotal(groups.map((g) => ({ valor: g.maquina, libras: g.libras })))
-    .map(({ valor, libras, porcentaje }) => ({ maquina: valor, libras, porcentaje }));
+    .map(({ valor, libras, porcentaje }) => {
+      const horas = round2(horasPorMaquina.get(valor) ?? 0);
+      return {
+        maquina: valor,
+        libras,
+        porcentaje,
+        horas,
+        librasPorHora: horas > 0 ? round2(libras / horas) : 0,
+      };
+    });
 }
 
 export async function getClasificadoPorTalla(f: DashboardFilters): Promise<DataRow[]> {

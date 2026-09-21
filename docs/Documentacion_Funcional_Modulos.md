@@ -420,8 +420,8 @@ rendimiento por hora. Base: `STB_data`. Sin filtro de turno.
 | Dato | Vista/Tabla SQL | Cómo se calcula | Endpoint |
 | --- | --- | --- | --- |
 | Libras descabezadas hoy/semana/mes + personas hoy | `dbo.DES_ASIG_LBRS_EMPLEADOS` + `dbo.DES_ASIG_LBRS_EMPLEADOS_DET`; personas vía `dbo.DES_EMPLEADOS_LINEAS` | `SUM(LIBRAS)` no anulado; personas = `COUNT(DISTINCT ID_EMPLEADO)` | `GET /descabezado-resumen` |
-| Libras promedio por hora de hoy | `dbo.V_TrazabilidadDescabezadoPBI` para el total entero; tablas de asignación para las horas | `SUM(LIBRAS_ENTERO)` del día ÷ horas entre el primer y último `HORA` no anulado del día; devuelve 0 si no hay una jornada válida | `GET /descabezado-resumen`, campo `librasPromedioPorHora` |
-| Cola, cabezas, total, libras/hora por día o mes | vista `dbo.V_TrazabilidadDescabezadoPBI` (libras) + tablas de arriba (personas/horas) | libras/hora = total ÷ horas efectivas (entre primer y último registro del día); en mensual cada persona se cuenta una sola vez por mes | `GET /descabezado-por-dia` y `/descabezado-por-dia-mes` |
+| Libras promedio por hora de hoy | tablas de asignación de descabezado para cabezas y horas | `SUM(libras de cabezas no anuladas)` ÷ horas entre el primer y último registro del día | `GET /descabezado-resumen`, campo `librasPromedioPorHora` |
+| Cola, cabezas, total, libras/hora por día o mes | `dbo.Des_PesadoColaHeader` + `Des_PesadoCola` y `DES_ASIG_LBRS_EMPLEADOS[_DET]` | cola = libras netas; cabezas = libras asignadas no anuladas; total = cola + cabezas; libras/hora = cabezas ÷ horas efectivas | `GET /descabezado-por-dia` y `/descabezado-por-dia-mes` |
 
 ---
 

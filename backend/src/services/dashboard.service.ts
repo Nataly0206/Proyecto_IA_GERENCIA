@@ -24,6 +24,7 @@ import {
   PELADO_POR_SALA_ACTIVOS_QUERY,
   PELADO_POR_SALA_HOY_QUERY,
   PELADO_POR_SALA_DIARIO_QUERY,
+  PELADO_HORAS_TRABAJADAS_DIA_QUERY,
 } from './stb.queries';
 import { matchesTurno, pickNumber, pickString } from '../utils/rows';
 import {
@@ -434,9 +435,12 @@ function aggregateDimensionByPeriod(
 export async function getPeladoPorEstiloDia(
   filters: DashboardFilters,
 ): Promise<PeladoStylePeriodRow[]> {
-  const groups = await fetchPeladoDimensionDailyGroups(filters.fechaInicial, filters.fechaFinal);
+  const [groups, horasPorDia] = await Promise.all([
+    fetchPeladoDimensionDailyGroups(filters.fechaInicial, filters.fechaFinal),
+    getPeladoHorasTrabajadasPorDia(filters),
+  ]);
   return aggregateDimensionByPeriod(groups, filters.turno, 'estilo', (dia) => dia)
-    .map(({ periodo, valor, libras }) => ({ periodo, estilo: valor, libras }));
+    .map(({ periodo, valor, libras }) => ({ periodo, estilo: valor, libras, horasTrabajadas: horasPorDia.get(periodo) ?? 0 }));
 }
 
 /**
@@ -654,7 +658,7 @@ export async function getPeladoPorSala(): Promise<PeladoPorSalaResponse> {
 
 export async function getPeladoPorSalaDiario(
   filters: DashboardFilters, minHours: number | null,
-): Promise<{ fecha: string; personas: number; libras: number; librasPorHoraPromedio: number }[]> {
+): Promise<{ fecha: string; personas: number; libras: number; librasPorHoraPromedio: number; horasTrabajadas: number }[]> {
   const turno = filters.turno ? `TURNO ${filters.turno.toUpperCase().replace('TURNO ', '')}` : null;
   const rows = await runStbQuery(PELADO_POR_SALA_DIARIO_QUERY, [
     ...dateParams(filters.fechaInicial, filters.fechaFinal),
@@ -666,7 +670,22 @@ export async function getPeladoPorSalaDiario(
     personas: pickNumber(row, 'Personas'),
     libras: round2(pickNumber(row, 'Libras')),
     librasPorHoraPromedio: round2(pickNumber(row, 'LibrasPorHoraPromedio')),
+    horasTrabajadas: round2(pickNumber(row, 'Horas')),
   }));
+}
+
+/**
+ * Horas trabajadas en planta por día, para adjuntar como columna en
+ * reportes diarios de pelado que no están desglosados por sala (por
+ * ejemplo, libras por estilo). Ver `PELADO_HORAS_TRABAJADAS_DIA_QUERY`.
+ */
+async function getPeladoHorasTrabajadasPorDia(filters: DashboardFilters): Promise<Map<string, number>> {
+  const turno = filters.turno ? `TURNO ${filters.turno.toUpperCase().replace('TURNO ', '')}` : null;
+  const rows = await runStbQuery(PELADO_HORAS_TRABAJADAS_DIA_QUERY, [
+    ...dateParams(filters.fechaInicial, filters.fechaFinal),
+    { name: 'Turno', type: sql.VarChar(20), value: turno },
+  ]);
+  return new Map(rows.map((row) => [pickString(row, 'Dia').slice(0, 10), round2(pickNumber(row, 'Horas'))]));
 }
 
 /* ------------------------------------------------------------------ */

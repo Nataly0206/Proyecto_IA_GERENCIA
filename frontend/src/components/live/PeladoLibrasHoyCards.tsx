@@ -16,11 +16,11 @@ import { PeladoLibrasHoyEstilo } from '../../types';
 function EstiloCard({
   estilo,
   badge,
-  decimal = false,
+  promedio = false,
 }: {
   estilo: PeladoLibrasHoyEstilo;
   badge?: string;
-  decimal?: boolean;
+  promedio?: boolean;
 }) {
   const destacado = Boolean(badge);
   const color = destacado ? '#164a8b' : estilo.libras > 0 ? '#2e7d32' : '#94a3b8';
@@ -38,12 +38,11 @@ function EstiloCard({
         minWidth: 0,
       }}
     >
-      <CardContent sx={{ py: { xs: 0.75, md: 1.25 }, px: { xs: 0.5, sm: 1, lg: 1.75 }, minWidth: 0, '&:last-child': { pb: { xs: 0.75, md: 1.25 } } }}>
-        <Stack direction={{ xs: 'column', lg: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', lg: 'center' }} mb={0.5} spacing={0.5}>
-          <Typography variant="body2" fontWeight={700} sx={{ minWidth: 0, fontSize: { xs: 9, sm: 11, lg: 14 }, lineHeight: 1.15, overflowWrap: 'anywhere' }} title={estilo.estilo}>
+      <CardContent sx={{ py: 1.25, px: 1.75, minWidth: 0, '&:last-child': { pb: 1.25 } }}>
+        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" mb={0.5} spacing={0.5}>
+          <Typography variant="body2" fontWeight={700} noWrap sx={{ minWidth: 0 }} title={estilo.estilo}>
             {estilo.estilo}
           </Typography>
-          {!badge && <Typography variant="body2" fontWeight={700} sx={{ display: { xs: 'none', lg: 'block' }, flexBasis: '45%', flexShrink: 0 }}>lbs/h</Typography>}
           {badge && (
             <Chip
               size="small"
@@ -61,22 +60,37 @@ function EstiloCard({
           )}
         </Stack>
 
-        <Box sx={{ display: 'grid', gridTemplateColumns: badge ? '1fr' : { xs: '1fr', lg: 'minmax(0, 1fr) minmax(0, .82fr)' }, alignItems: 'baseline', gap: { xs: 0.25, lg: 1 } }}>
-          <Typography variant="h6" fontWeight={800}
-            sx={{ color: estilo.libras > 0 ? '#164a8b' : 'text.secondary', lineHeight: 1.1, fontSize: { xs: 10, sm: 13, lg: 20 }, overflowWrap: 'anywhere' }}>
-            {formatValue(estilo.libras, decimal ? 'decimal' : 'number')}
-            <Typography component="span" variant="caption" color="text.secondary" sx={{ display: { xs: 'block', lg: 'inline' }, ml: { lg: 0.5 }, fontSize: { xs: 8, sm: 10, lg: 12 } }}>
-              {decimal ? 'lbs/h' : 'lbs'}
+        <Stack direction="row" justifyContent="space-between" alignItems="baseline" spacing={2}>
+          <Typography
+            variant={promedio ? 'body2' : 'h6'}
+            fontWeight={promedio ? 900 : 800}
+            sx={{
+              color: promedio ? '#000' : estilo.libras > 0 ? '#164a8b' : 'text.secondary',
+              fontSize: promedio ? { xs: 15, sm: 16 } : undefined,
+              lineHeight: promedio ? 1.25 : 1.1,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {formatValue(estilo.libras)}
+            <Typography component="span" variant="caption" color="text.secondary" ml={0.5}>
+              {promedio ? 'lbs/h' : 'lbs'}
             </Typography>
           </Typography>
-          {!badge && <Box sx={{ minWidth: 0 }}>
-            <Typography variant="caption" fontWeight={700} sx={{ display: { xs: 'block', lg: 'none' }, fontSize: { xs: 8, sm: 10 } }}>lbs/h</Typography>
-            <Typography variant="h6" fontWeight={800}
-              sx={{ color: (estilo.librasPorHora ?? 0) > 0 ? '#164a8b' : 'text.secondary', lineHeight: 1.1, fontSize: { xs: 10, sm: 13, lg: 20 }, overflowWrap: 'anywhere' }}>
-              {formatValue(estilo.librasPorHora ?? 0, 'decimal')}
+          {!badge && (
+            <Typography
+              variant="body2"
+              sx={{
+                color: '#000',
+                fontSize: { xs: 15, sm: 16 },
+                fontWeight: 900,
+                lineHeight: 1.25,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {formatValue(estilo.librasPorHora ?? 0)} lbs/h
             </Typography>
-          </Box>}
-        </Box>
+          )}
+        </Stack>
       </CardContent>
     </Card>
   );
@@ -133,7 +147,7 @@ export default function PeladoLibrasHoyCards() {
           <EstiloCard badge="Total del día" estilo={{ estilo: 'Total', libras: data.total, librasPorHora: data.librasPorHoraPromedio }} />
           <EstiloCard
             badge="Promedio del día"
-            decimal
+            promedio
             estilo={{ estilo: 'lbs/h promedio', libras: data.librasPorHoraPromedio, librasPorHora: data.librasPorHoraPromedio }}
           />
         </Box>

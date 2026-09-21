@@ -121,8 +121,10 @@ export const clasificadoWidgets: ChartConfig[] = [
     yField: 'libras',
     sort: { field: 'libras', direction: 'desc' },
     valueFormat: 'number',
-    unitLabel: 'lbs clasificadas',
+    unitLabel: 'lbs',
     showTotalCard: true,
+    rateField: 'librasPorHora',
+    rateWeightField: 'horas',
   },
   {
     id: 'clasificado-por-talla',

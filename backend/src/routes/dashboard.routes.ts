@@ -16,6 +16,8 @@ const clasificado = requirePermission('clasificado');
 const exportaciones = requirePermission('exportaciones');
 const compraMp = requirePermission('compra_materia_prima');
 const EXPORT_CLIENTS_PREFERENCE = 'exportaciones.clientes-mensual.ocultos';
+const CLASSIFIED_MACHINES_PREFERENCE = 'clasificado.maquinas.ocultas';
+const PEELING_SALA_HOURS_PREFERENCE = 'pelado.salas.horas-minimas';
 
 router.get('/libras-netas-proceso', iqf, asyncHandler(controller.getLibrasNetasPorProceso));
 router.get('/libras-netas-proceso-dia', iqf, asyncHandler(controller.getLibrasNetasPorProcesoDia));
@@ -35,6 +37,19 @@ router.get('/pelado-tiempo-real', pelado, asyncHandler(controller.getPeladoTiemp
 router.get('/pelado-libras-hoy', pelado, asyncHandler(controller.getPeladoLibrasHoy));
 router.get('/pelado-libras-hoy-talla', pelado, asyncHandler(controller.getPeladoLibrasHoyTalla));
 router.get('/pelado-por-sala', pelado, asyncHandler(controller.getPeladoPorSala));
+router.get('/pelado-preferencia-horas-sala', pelado, asyncHandler(async (_req, res) => {
+  const preference = await getUserPreference<{ minHours: number | null }>(res.locals.authUser.id, PEELING_SALA_HOURS_PREFERENCE);
+  res.json({ minHours: preference?.minHours ?? null });
+}));
+router.put('/pelado-preferencia-horas-sala', pelado, asyncHandler(async (req, res) => {
+  const minHours: unknown = req.body?.minHours;
+  if (minHours !== null && (typeof minHours !== 'number' || !Number.isFinite(minHours) || minHours < 0 || minHours > 24)) {
+    res.status(400).json({ error: 'El límite de horas debe estar entre 0 y 24.' });
+    return;
+  }
+  await saveUserPreference(res.locals.authUser.id, PEELING_SALA_HOURS_PREFERENCE, { minHours });
+  res.json({ minHours });
+}));
 router.get('/pelado-personal', pelado, asyncHandler(controller.getPeladoPersonal));
 router.get('/pelado-personal-dia', pelado, asyncHandler(controller.getPeladoPersonalDia));
 router.get('/pelado-personal-mes', pelado, asyncHandler(controller.getPeladoPersonalMes));
@@ -53,6 +68,21 @@ router.get('/clasificado-resumen', clasificado, asyncHandler(procesos.getClasifi
 router.get('/clasificado-inventario', clasificado, asyncHandler(procesos.getClasificadoInventario));
 router.get('/clasificado-inventario-detalle', clasificado, asyncHandler(procesos.getClasificadoInventarioDetalle));
 router.get('/clasificado-por-maquina', clasificado, asyncHandler(procesos.getClasificadoPorMaquina));
+router.get('/clasificado-preferencias-maquinas', clasificado, asyncHandler(async (_req, res) => {
+  const hiddenMachines = await getUserPreference<string[]>(res.locals.authUser.id, CLASSIFIED_MACHINES_PREFERENCE);
+  res.json({ hiddenMachines });
+}));
+router.put('/clasificado-preferencias-maquinas', clasificado, asyncHandler(async (req, res) => {
+  const hiddenMachines: unknown = req.body?.hiddenMachines;
+  if (!Array.isArray(hiddenMachines) || hiddenMachines.length > 500
+    || !hiddenMachines.every((machine) => typeof machine === 'string' && machine.length > 0 && machine.length <= 200)) {
+    res.status(400).json({ error: 'La selección de máquinas no es válida.' });
+    return;
+  }
+  const normalized = Array.from(new Set(hiddenMachines)) as string[];
+  await saveUserPreference(res.locals.authUser.id, CLASSIFIED_MACHINES_PREFERENCE, normalized);
+  res.json({ hiddenMachines: normalized });
+}));
 router.get('/clasificado-por-talla-dia', clasificado, asyncHandler(procesos.getClasificadoPorTallaDia));
 router.get('/clasificado-por-talla-mes', clasificado, asyncHandler(procesos.getClasificadoPorTallaMes));
 router.get('/clasificado-por-talla', clasificado, asyncHandler(procesos.getClasificadoPorTalla));

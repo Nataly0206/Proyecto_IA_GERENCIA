@@ -7,6 +7,7 @@
 import { Request, Response } from 'express';
 import { parseFilters } from './dashboard.controller';
 import * as procesos from '../services/procesos.service';
+import { buildTrazabilidadExcel } from '../services/trazabilidad.excel';
 import { withTtlCache } from '../utils/ttlCache';
 
 const REPORT_CACHE_MS = 5 * 60 * 1000;
@@ -94,6 +95,26 @@ export const getExportacionesContenedorDetalle = async (req: Request, res: Respo
     () => procesos.getExportacionesContenedorDetalle(fecha, contenedor, referencia),
     req.query.refresh === 'true',
   ));
+};
+export const descargarExportacionesTrazabilidad = async (req: Request, res: Response): Promise<void> => {
+  const fecha = String(req.query.fecha ?? '');
+  const contenedor = String(req.query.contenedor ?? '');
+  const referencia = String(req.query.referencia ?? '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || !contenedor || contenedor.length > 100 || referencia.length > 200) {
+    res.status(400).json({ error: 'Los datos del contenedor no son válidos.' });
+    return;
+  }
+  const rows = await procesos.getExportacionesTrazabilidad(fecha, contenedor, referencia);
+  if (!rows.length) {
+    res.status(404).json({ error: 'No hay trazabilidad para este contenedor.' });
+    return;
+  }
+  const uk = rows.some((row) => /\bUK\b/i.test(String(row.cliente ?? '')));
+  const buffer = await buildTrazabilidadExcel(rows, uk);
+  const filename = `Trazabilidad_${contenedor.replace(/[^a-zA-Z0-9_-]/g, '_')}_${fecha}.xlsx`;
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(buffer);
 };
 export const getExportacionesPorClienteMes = monthlyReport('exportaciones-por-cliente-mes', procesos.getExportacionesPorClienteMes, 6);
 

@@ -472,6 +472,34 @@ GROUP BY e.FechaCarga, e.ReferenciaEnvio, e.CodigoEmbarque,
 ORDER BY Cliente, CodigoEmbarque, OrdenCompra, Item
 `;
 
+/** Trazabilidad del mismo envío mostrado en el diálogo, a nivel de OP y origen. */
+export const EXPORTACIONES_TRAZABILIDAD_QUERY = `
+SELECT
+  e.ReferenciaEnvio AS Shipment, e.NumeroContenedor AS Contenedor,
+  NULLIF(LTRIM(RTRIM(op.NoOrdenCompra)), '') AS PO,
+  COALESCE(NULLIF(LTRIM(RTRIM(lr.NombreGrupo)), ''), NULLIF(LTRIM(RTRIM(lr.Empresa)), ''), '') AS Cliente,
+  i.Item AS Item, lr.Finca AS Finca, lr.laguna AS Laguna,
+  CAST(DATEADD(MINUTE, -359, s.Created) AS date) AS FechaProduccion,
+  op.OrdenProduccion AS CodigoProduccion,
+  COUNT(DISTINCT m.IdMaster) AS Master,
+  SUM(CAST(i.PesoLibras AS decimal(18,4))) AS Libras,
+  c.NombreColor AS Color
+FROM dbo.Envios e
+JOIN dbo.Masteres m ON m.FkEnvio = e.IdEnvio
+JOIN dbo.Seriales s ON s.FkMaster = m.IdMaster
+JOIN dbo.OrdenesProduccion op ON op.IdOrdenProduccion = s.FkOrdenProduccion
+JOIN dbo.AV_Items i ON i.IdItem = op.FkItem
+JOIN dbo.AV_LotesRemision lr ON lr.IdLoteRemision = op.FkLoteRemision
+LEFT JOIN dbo.Colores c ON c.PKcolor = op.fkColor
+WHERE e.FechaCarga = @Fecha AND e.NumeroContenedor = @Contenedor
+  AND COALESCE(e.ReferenciaEnvio, '') = @Referencia
+GROUP BY e.ReferenciaEnvio, e.NumeroContenedor, op.NoOrdenCompra,
+  COALESCE(NULLIF(LTRIM(RTRIM(lr.NombreGrupo)), ''), NULLIF(LTRIM(RTRIM(lr.Empresa)), ''), ''),
+  i.Item, lr.Finca, lr.laguna, CAST(DATEADD(MINUTE, -359, s.Created) AS date),
+  op.OrdenProduccion, c.NombreColor
+ORDER BY i.Item, lr.Finca, lr.laguna, FechaProduccion, op.OrdenProduccion
+`;
+
 /** Conteo mensual directo en SQL; evita descargar el detalle de seis meses. */
 export const EXPORTACIONES_CLIENTE_MES_QUERY = `
 SELECT

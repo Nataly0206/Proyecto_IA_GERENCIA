@@ -33,6 +33,7 @@ import {
   DESCABEZADO_RESUMEN_QUERY,
   EXPORTACIONES_CLIENTE_MES_QUERY,
   EXPORTACIONES_CONTENEDOR_DETALLE_QUERY,
+  EXPORTACIONES_TRAZABILIDAD_QUERY,
   EXPORTACIONES_CONTENEDORES_QUERY,
   EXPORTACIONES_RESUMEN_QUERY,
   RECEPCION_REMISIONES_QUERY,
@@ -509,6 +510,22 @@ export async function getExportacionesContenedorDetalle(
     anillos: pickNumber(row, 'Anillos'),
     libras: round2(pickNumber(row, 'Libras')),
     cantidadSerial: pickNumber(row, 'CantidadSerial'),
+  }));
+}
+
+export async function getExportacionesTrazabilidad(fecha: string, contenedor: string, referencia: string): Promise<DataRow[]> {
+  const rows = await runQuery(EXPORTACIONES_TRAZABILIDAD_QUERY, [
+    { name: 'Fecha', type: sql.Date, value: fecha },
+    { name: 'Contenedor', type: sql.NVarChar(100), value: contenedor },
+    { name: 'Referencia', type: sql.NVarChar(200), value: referencia },
+  ]);
+  return rows.map((row) => ({
+    shipment: pickString(row, 'Shipment'), contenedor: pickString(row, 'Contenedor'),
+    po: pickString(row, 'PO'), cliente: pickString(row, 'Cliente'),
+    item: pickString(row, 'Item'), finca: pickString(row, 'Finca'), laguna: pickString(row, 'Laguna'),
+    fechaProduccion: pickString(row, 'FechaProduccion').slice(0, 10),
+    codigoProduccion: pickString(row, 'CodigoProduccion'), master: pickNumber(row, 'Master'),
+    libras: pickNumber(row, 'Libras'), color: pickString(row, 'Color'),
   }));
 }
 

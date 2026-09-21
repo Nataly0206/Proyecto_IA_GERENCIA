@@ -21,6 +21,7 @@ import {
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import CloseOutlinedIcon from '@mui/icons-material/CloseOutlined';
+import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined';
 import { DataRow } from '../../types';
 import { apiClient } from '../../api/client';
 import { useWidgetData } from '../../hooks/useDashboardData';
@@ -33,6 +34,31 @@ const TOTAL_SX = { fontWeight: 800, bgcolor: '#e8eef7', borderTop: '2px solid #b
 export default function ExportContainersTable({ weightUnit }: { weightUnit: WeightUnit }) {
   const { data, isLoading, isError, error, dataUpdatedAt } = useWidgetData('exportaciones-contenedores');
   const [selected, setSelected] = useState<DataRow | null>(null);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState('');
+  const downloadTraceability = async () => {
+    if (!selected || downloading) return;
+    setDownloading(true);
+    setDownloadError('');
+    try {
+      const response = await apiClient.get('/dashboard/exportaciones-contenedor-trazabilidad', {
+        params: { fecha: selected.fecha, contenedor: selected.contenedor, referencia: selected.referencia ?? '' },
+        responseType: 'blob', timeout: 120000,
+      });
+      const url = URL.createObjectURL(response.data);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Trazabilidad_${String(selected.contenedor).replace(/[^a-zA-Z0-9_-]/g, '_')}_${selected.fecha}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch {
+      setDownloadError('No se pudo descargar la trazabilidad de este contenedor.');
+    } finally {
+      setDownloading(false);
+    }
+  };
   const rows = useMemo(
     () => [...(data ?? [])].sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)) || String(a.contenedor).localeCompare(String(b.contenedor))),
     [data],
@@ -136,9 +162,15 @@ export default function ExportContainersTable({ weightUnit }: { weightUnit: Weig
               {selected ? `${formatPeriodo(String(selected.fecha))} · ${formatValue(convertPounds(Number(selected.libras ?? 0), weightUnit), weightUnit === 'kg' ? 'decimal' : 'number')} ${weightUnit} totales` : ''}
             </Typography>
           </Box>
-          <IconButton aria-label="Cerrar detalle del contenedor" onClick={() => setSelected(null)}><CloseOutlinedIcon /></IconButton>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Button variant="contained" size="small" startIcon={<DownloadOutlinedIcon />} onClick={downloadTraceability} disabled={downloading || detailQuery.isLoading || detailQuery.isError || detail.length === 0}>
+              {downloading ? 'Descargando…' : 'Descargar Trazabilidad'}
+            </Button>
+            <IconButton aria-label="Cerrar detalle del contenedor" onClick={() => setSelected(null)}><CloseOutlinedIcon /></IconButton>
+          </Box>
         </DialogTitle>
         <DialogContent dividers sx={{ p: 1.5, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          {downloadError && <Alert severity="error" onClose={() => setDownloadError('')}>{downloadError}</Alert>}
           {detailQuery.isLoading && <Box sx={{ py: 5, display: 'grid', placeItems: 'center' }}><CircularProgress size={32} /></Box>}
           {detailQuery.isError && <Alert severity="error">No se pudo cargar el reporte del contenedor.</Alert>}
           {!detailQuery.isLoading && !detailQuery.isError && detail.length === 0 && <Alert severity="info">Este contenedor no tiene detalle disponible.</Alert>}

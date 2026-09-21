@@ -114,6 +114,7 @@ router.get('/exportaciones-resumen', exportaciones, asyncHandler(procesos.getExp
 router.get('/exportaciones-por-estilo', exportaciones, asyncHandler(procesos.getExportacionesPorEstilo));
 router.get('/exportaciones-contenedores', exportaciones, asyncHandler(procesos.getExportacionesContenedores));
 router.get('/exportaciones-contenedor-detalle', exportaciones, asyncHandler(procesos.getExportacionesContenedorDetalle));
+router.get('/exportaciones-contenedor-trazabilidad', exportaciones, asyncHandler(procesos.descargarExportacionesTrazabilidad));
 router.get('/exportaciones-por-cliente-mes', exportaciones, asyncHandler(procesos.getExportacionesPorClienteMes));
 router.get('/exportaciones-preferencias-clientes', exportaciones, asyncHandler(async (_req, res) => {
   const hiddenClients = await getUserPreference<string[]>(res.locals.authUser.id, EXPORT_CLIENTS_PREFERENCE);

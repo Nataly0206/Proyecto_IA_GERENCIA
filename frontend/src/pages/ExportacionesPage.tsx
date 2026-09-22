@@ -119,15 +119,15 @@ export default function ExportacionesPage({ userId }: { userId: string }) {
         updatedAt={dataUpdatedAt}
         emptyText="Sin contenedores exportados esta semana."
         metrics={[
-          { label: `${weightUnit === 'kg' ? 'Kg' : 'Libras'} a Francia`, value: convertPounds(data?.librasFrancia ?? 0, weightUnit), unit: weightUnit, format: weightUnit === 'kg' ? 'decimal' : 'number' },
-          { label: `${weightUnit === 'kg' ? 'Kg' : 'Libras'} a UK`, value: convertPounds(data?.librasUK ?? 0, weightUnit), unit: weightUnit, format: weightUnit === 'kg' ? 'decimal' : 'number' },
-          { label: `${weightUnit === 'kg' ? 'Kg' : 'Libras'} a AC Holding`, value: convertPounds(data?.librasACHolding ?? 0, weightUnit), unit: weightUnit, format: weightUnit === 'kg' ? 'decimal' : 'number' },
-          { label: `${weightUnit === 'kg' ? 'Kg' : 'Libras'} a terceros`, value: convertPounds(data?.librasTerceros ?? 0, weightUnit), unit: weightUnit, format: weightUnit === 'kg' ? 'decimal' : 'number' },
-          { label: 'Total exportado', value: convertPounds(data?.librasTotal ?? 0, weightUnit), unit: weightUnit, tone: 'good', format: weightUnit === 'kg' ? 'decimal' : 'number' },
+          { label: `${weightUnit === 'kg' ? 'Kg' : 'Libras'} a Francia`, value: convertPounds(data?.librasFrancia ?? 0, weightUnit), unit: weightUnit, format: 'number' },
+          { label: `${weightUnit === 'kg' ? 'Kg' : 'Libras'} a UK`, value: convertPounds(data?.librasUK ?? 0, weightUnit), unit: weightUnit, format: 'number' },
+          { label: `${weightUnit === 'kg' ? 'Kg' : 'Libras'} a AC Holding`, value: convertPounds(data?.librasACHolding ?? 0, weightUnit), unit: weightUnit, format: 'number' },
+          { label: `${weightUnit === 'kg' ? 'Kg' : 'Libras'} a terceros`, value: convertPounds(data?.librasTerceros ?? 0, weightUnit), unit: weightUnit, format: 'number' },
+          { label: 'Total exportado', value: convertPounds(data?.librasTotal ?? 0, weightUnit), unit: weightUnit, tone: 'good', format: 'number' },
         ]}
       />
 
-      <ChartWidget config={{ ...porEstilo, title: `${weightUnit === 'kg' ? 'Kg' : 'Libras'} Exportadas por Estilo`, unitLabel: `${weightUnit} exportadas`, valueFormat: weightUnit === 'kg' ? 'decimal' : 'number' }}
+      <ChartWidget config={{ ...porEstilo, title: `${weightUnit === 'kg' ? 'Kg' : 'Libras'} Exportadas por Estilo`, unitLabel: `${weightUnit} exportadas`, valueFormat: 'number' }}
         transform={(rows) => rows.map((row) => ({ ...row, libras: convertPounds(Number(row.libras ?? 0), weightUnit) }))} />
 
       <ExportContainersTable weightUnit={weightUnit} />

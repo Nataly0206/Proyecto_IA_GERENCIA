@@ -3,6 +3,9 @@ type DataRow = Record<string, unknown>;
 
 const PALE = 'FFE0E0E0';
 const BORDER = { style: 'thin' as const, color: { argb: 'FF222222' } };
+const POUNDS_PER_KILOGRAM = 2.2046;
+const kilogramsFormat = (value: number) =>
+  Math.abs(value - Math.round(value)) < 1e-9 ? '#,##0' : '#,##0.##########';
 
 export async function buildTrazabilidadExcel(rows: DataRow[], uk: boolean): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
@@ -38,10 +41,12 @@ export async function buildTrazabilidadExcel(rows: DataRow[], uk: boolean): Prom
     });
   });
   const addTotal = (label: string, group: DataRow[]) => {
+    const totalPounds = group.reduce((sum, item) => sum + Number(item.libras ?? 0), 0);
+    const totalKilograms = totalPounds / POUNDS_PER_KILOGRAM;
     const row = sheet.addRow([label, null, null, null, null,
       group.reduce((sum, item) => sum + Number(item.master ?? 0), 0),
-      group.reduce((sum, item) => sum + Number(item.libras ?? 0), 0),
-      group.reduce((sum, item) => sum + Number(item.libras ?? 0), 0) / 2.20462,
+      totalPounds,
+      totalKilograms,
     ]);
     sheet.mergeCells(`A${row.number}:E${row.number}`);
     row.height = 22;
@@ -53,16 +58,17 @@ export async function buildTrazabilidadExcel(rows: DataRow[], uk: boolean): Prom
     });
     row.getCell(6).numFmt = '#,##0';
     row.getCell(7).numFmt = uk ? '#,##0.0000' : '#,##0.00';
-    row.getCell(8).numFmt = uk ? '#,##0.0000' : '#,##0.00';
+    row.getCell(8).numFmt = kilogramsFormat(totalKilograms);
   };
   const detailRows: { number: number; values: string[] }[] = [];
   rows.forEach((record, index) => {
     const pounds = Number(record.libras ?? 0);
+    const kilograms = pounds / POUNDS_PER_KILOGRAM;
     const lot = `${String(record.codigoItem ?? '').trim()}${String(record.po ?? '').trim()}`;
     const row = sheet.addRow([
       record.item, record.finca, record.laguna,
       record.fechaProduccion ? new Date(`${record.fechaProduccion}T00:00:00Z`) : null,
-      record.codigoProduccion, Number(record.master ?? 0), pounds, pounds / 2.20462,
+      record.codigoProduccion, Number(record.master ?? 0), pounds, kilograms,
       lot || null, uk ? record.color : null,
     ]);
     row.height = 23;
@@ -75,7 +81,7 @@ export async function buildTrazabilidadExcel(rows: DataRow[], uk: boolean): Prom
     row.getCell(4).numFmt = 'dd-mmm-yyyy';
     row.getCell(6).numFmt = '#,##0';
     row.getCell(7).numFmt = uk ? '#,##0.0000' : '#,##0.00';
-    row.getCell(8).numFmt = uk ? '#,##0.0000' : '#,##0.00';
+    row.getCell(8).numFmt = kilogramsFormat(kilograms);
     detailRows.push({
       number: row.number,
       values: [record.item, record.finca, record.laguna, record.fechaProduccion]

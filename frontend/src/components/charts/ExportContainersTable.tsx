@@ -125,7 +125,7 @@ export default function ExportContainersTable({ weightUnit }: { weightUnit: Weig
                   <TableCell>{String(row.cliente ?? '—')}</TableCell>
                   <TableCell align="right">{formatValue(Number(row.masteres ?? 0))}</TableCell>
                   <TableCell align="right">{formatValue(Number(row.anillos ?? 0))}</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 800, color: 'primary.main' }}>{formatValue(convertPounds(Number(row.libras ?? 0), weightUnit), weightUnit === 'kg' ? 'decimal' : 'number')}</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 800, color: 'primary.main' }}>{formatValue(convertPounds(Number(row.libras ?? 0), weightUnit), 'number')}</TableCell>
                   <TableCell align="right">
                     <Button size="small" variant="outlined" startIcon={<VisibilityOutlinedIcon />} onClick={() => setSelected(row)} sx={{ whiteSpace: 'nowrap', fontWeight: 700 }}>
                       Ver detalle
@@ -140,7 +140,7 @@ export default function ExportContainersTable({ weightUnit }: { weightUnit: Weig
                 <TableCell colSpan={4} sx={TOTAL_SX}>{rows.length} contenedores</TableCell>
                 <TableCell align="right" sx={TOTAL_SX}>{formatValue(totalMasteres)}</TableCell>
                 <TableCell align="right" sx={TOTAL_SX}>{formatValue(totalAnillos)}</TableCell>
-                <TableCell align="right" sx={TOTAL_SX}>{formatValue(convertPounds(totalLibras, weightUnit), weightUnit === 'kg' ? 'decimal' : 'number')}</TableCell>
+                <TableCell align="right" sx={TOTAL_SX}>{formatValue(convertPounds(totalLibras, weightUnit), 'number')}</TableCell>
                 <TableCell sx={TOTAL_SX} />
               </TableRow>
             </TableFooter>
@@ -159,7 +159,7 @@ export default function ExportContainersTable({ weightUnit }: { weightUnit: Weig
           <Box>
             <Typography variant="subtitle1" fontWeight={800}>Detalle del contenedor {String(selected?.contenedor ?? '')}</Typography>
             <Typography variant="caption" color="text.secondary">
-              {selected ? `${formatPeriodo(String(selected.fecha))} · ${formatValue(convertPounds(Number(selected.libras ?? 0), weightUnit), weightUnit === 'kg' ? 'decimal' : 'number')} ${weightUnit} totales` : ''}
+              {selected ? `${formatPeriodo(String(selected.fecha))} · ${formatValue(convertPounds(Number(selected.libras ?? 0), weightUnit), 'number')} ${weightUnit} totales` : ''}
             </Typography>
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -234,7 +234,7 @@ export default function ExportContainersTable({ weightUnit }: { weightUnit: Weig
                       <TableCell>{String(row.item || '—')}</TableCell>
                       <TableCell align="right">{formatValue(Number(row.anillosPorMaster ?? 0))}</TableCell>
                       <TableCell align="right">{formatValue(Number(row.anillos ?? 0))}</TableCell>
-                      <TableCell align="right">{formatValue(convertPounds(Number(row.libras ?? 0), weightUnit), 'decimal')}</TableCell>
+                      <TableCell align="right">{formatValue(convertPounds(Number(row.libras ?? 0), weightUnit), weightUnit === 'kg' ? 'number' : 'decimal')}</TableCell>
                       <TableCell align="right">{formatValue(Number(row.cantidadSerial ?? 0))}</TableCell>
                     </TableRow>,
                     ...(endOfOrder && orderRows.length > 1 ? [
@@ -245,7 +245,7 @@ export default function ExportContainersTable({ weightUnit }: { weightUnit: Weig
                         <TableCell colSpan={2} sx={{ fontWeight: 700 }}>{String(row.ordenCompra || 'Sin orden')} Total</TableCell>
                         <TableCell />
                         <TableCell align="right" sx={{ fontWeight: 700 }}>{formatValue(orderRows.reduce((sum, item) => sum + Number(item.anillos ?? 0), 0))}</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 700 }}>{formatValue(convertPounds(orderRows.reduce((sum, item) => sum + Number(item.libras ?? 0), 0), weightUnit), 'decimal')}</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 700 }}>{formatValue(convertPounds(orderRows.reduce((sum, item) => sum + Number(item.libras ?? 0), 0), weightUnit), weightUnit === 'kg' ? 'number' : 'decimal')}</TableCell>
                         <TableCell align="right" sx={{ fontWeight: 700 }}>{formatValue(orderRows.reduce((sum, item) => sum + Number(item.cantidadSerial ?? 0), 0))}</TableCell>
                       </TableRow>,
                     ] : []),
@@ -254,7 +254,7 @@ export default function ExportContainersTable({ weightUnit }: { weightUnit: Weig
                 <TableRow>
                   <TableCell colSpan={7} sx={TOTAL_SX}>Total general</TableCell>
                   <TableCell align="right" sx={TOTAL_SX}>{formatValue(detailTotalAnillos)}</TableCell>
-                  <TableCell align="right" sx={TOTAL_SX}>{formatValue(convertPounds(detailTotalLibras, weightUnit), 'decimal')}</TableCell>
+                  <TableCell align="right" sx={TOTAL_SX}>{formatValue(convertPounds(detailTotalLibras, weightUnit), weightUnit === 'kg' ? 'number' : 'decimal')}</TableCell>
                   <TableCell align="right" sx={TOTAL_SX}>{formatValue(detailTotalSerial)}</TableCell>
                 </TableRow>
               </TableBody>

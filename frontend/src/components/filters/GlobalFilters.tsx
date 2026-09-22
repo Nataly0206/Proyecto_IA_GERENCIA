@@ -8,6 +8,7 @@ import {
   Typography,
 } from '@mui/material';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
+import dayjs from 'dayjs';
 import { useFilters } from '../../context/FiltersContext';
 import { TURNOS } from '../../types';
 import { getDateFilterError, isValidIsoDate } from '../../utils/dateFilters';
@@ -23,8 +24,22 @@ export default function GlobalFilters({ hideTurno = false }: { hideTurno?: boole
     showChartValues,
     setShowChartValues,
     updateFilter,
+    setFilters,
     resetFilters,
   } = useFilters();
+  const selectedMonth = filters.fechaInicial.slice(0, 7) === filters.fechaFinal.slice(0, 7)
+    ? filters.fechaInicial.slice(0, 7)
+    : '';
+  const selectMonth = (month: string) => {
+    if (!/^\d{4}-\d{2}$/.test(month)) return;
+    const start = dayjs(`${month}-01`);
+    const today = dayjs();
+    setFilters({
+      ...filters,
+      fechaInicial: start.format('YYYY-MM-DD'),
+      fechaFinal: (start.isSame(today, 'month') ? today : start.endOf('month')).format('YYYY-MM-DD'),
+    });
+  };
   const dateError = getDateFilterError(filters);
   const initialDateError =
     !isValidIsoDate(filters.fechaInicial) || filters.fechaInicial > filters.fechaFinal;
@@ -39,8 +54,8 @@ export default function GlobalFilters({ hideTurno = false }: { hideTurno?: boole
           xs: 'minmax(0, 1fr)',
           sm: 'repeat(2, minmax(0, 1fr))',
           md: hideTurno
-            ? 'minmax(150px, 1fr) minmax(150px, 1fr) auto'
-            : 'minmax(150px, 1fr) minmax(150px, 1fr) minmax(130px, .8fr) auto',
+            ? 'minmax(140px, 1fr) minmax(140px, 1fr) minmax(140px, .9fr) auto'
+            : 'minmax(140px, 1fr) minmax(140px, 1fr) minmax(140px, .9fr) minmax(120px, .8fr) auto',
         },
         gap: { xs: 1.25, md: 1 },
         alignItems: 'start',
@@ -70,6 +85,17 @@ export default function GlobalFilters({ hideTurno = false }: { hideTurno?: boole
         inputProps={{ min: filters.fechaInicial || undefined }}
         error={finalDateError}
         helperText={finalDateError && !initialDateError ? dateError : undefined}
+      />
+
+      <TextField
+        label="Mes"
+        type="month"
+        size="small"
+        fullWidth
+        value={selectedMonth}
+        onChange={(e) => selectMonth(e.target.value)}
+        InputLabelProps={{ shrink: true }}
+        inputProps={{ max: dayjs().format('YYYY-MM') }}
       />
 
       {!hideTurno && (

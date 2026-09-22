@@ -13,7 +13,7 @@ interface FiltersContextValue {
 }
 
 const buildDefaultFilters = (): DashboardFilters => ({
-  fechaInicial: dayjs().subtract(30, 'day').format('YYYY-MM-DD'),
+  fechaInicial: dayjs().startOf('month').format('YYYY-MM-DD'),
   fechaFinal: dayjs().format('YYYY-MM-DD'),
   turno: '',
 });

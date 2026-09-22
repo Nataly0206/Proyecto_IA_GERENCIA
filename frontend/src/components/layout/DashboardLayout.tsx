@@ -36,6 +36,8 @@ import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import DataObjectIcon from '@mui/icons-material/DataObject';
 import BarChartOutlinedIcon from '@mui/icons-material/BarChartOutlined';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
+import { Menu, MenuItem } from '@mui/material';
 import { AuthUser } from '../../types/auth';
 import AiAssistantPanel from '../ai/AiAssistantPanel';
 import { useRefreshDashboard } from '../../hooks/useDashboardData';
@@ -82,6 +84,7 @@ export default function DashboardLayout({
   const [refreshFailed, setRefreshFailed] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [devDetailsOpen, setDevDetailsOpen] = useState(false);
+  const [mobileActionsAnchor, setMobileActionsAnchor] = useState<HTMLElement | null>(null);
   const refreshDashboard = useRefreshDashboard();
 
   const handleRefresh = async () => {
@@ -282,7 +285,7 @@ export default function DashboardLayout({
   const desktopWidth = sidebarOpen ? SIDEBAR_OPEN : SIDEBAR_CLOSED;
 
   return (
-    <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column', bgcolor: 'background.default' }}>
+    <Box sx={{ height: '100dvh', display: 'flex', flexDirection: 'column', bgcolor: 'background.default', overflow: 'hidden' }}>
       <AppBar position="static" elevation={0}>
         <Toolbar variant="dense" sx={{ px: { xs: 1.25, md: 2 }, minHeight: 46, gap: 1 }}>
           <IconButton
@@ -295,7 +298,8 @@ export default function DashboardLayout({
           <Stack direction="row" alignItems="center" spacing={1} sx={{ flex: 1, minWidth: 0 }}>
             <Box sx={{ width: 6, height: 22, borderRadius: 1, bgcolor: 'primary.main' }} />
             <Typography variant="subtitle1" fontWeight={800} noWrap>
-              Dashboard Gerencial
+              <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Dashboard Gerencial</Box>
+              <Box component="span" sx={{ display: { xs: 'inline', sm: 'none' } }}>ESF</Box>
             </Typography>
             <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ display: { xs: 'none', sm: 'block' } }}>
               ESF Seafood
@@ -314,7 +318,7 @@ export default function DashboardLayout({
               {isRefreshing ? 'Actualizando…' : 'Actualizar'}
             </Button>
           )}
-          {currentView !== null && (
+          {currentView !== null && !isMobile && (
             <Tooltip title="¿Qué muestra esta página?">
               <IconButton
                 size="small"
@@ -326,7 +330,7 @@ export default function DashboardLayout({
               </IconButton>
             </Tooltip>
           )}
-          {currentView !== null && tienePermiso(user, 'detalles_desarrollador') && (
+          {currentView !== null && !isMobile && tienePermiso(user, 'detalles_desarrollador') && (
             <Tooltip title="Detalles de desarrollador (tablas, vistas, fórmulas)">
               <IconButton
                 size="small"
@@ -349,6 +353,16 @@ export default function DashboardLayout({
               <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Asistente IA</Box>
               <Box component="span" sx={{ display: { xs: 'inline', sm: 'none' } }}>IA</Box>
             </Button>
+          )}
+          {isMobile && currentView !== null && (
+            <IconButton
+              size="small"
+              onClick={(event) => setMobileActionsAnchor(event.currentTarget)}
+              aria-label="Más acciones"
+              aria-haspopup="menu"
+            >
+              <MoreVertIcon />
+            </IconButton>
           )}
         </Toolbar>
       </AppBar>
@@ -384,10 +398,33 @@ export default function DashboardLayout({
         anchor="left"
         open={isMobile && mobileMenuOpen}
         onClose={() => setMobileMenuOpen(false)}
-        PaperProps={{ sx: { width: 248 } }}
+        PaperProps={{ sx: { width: 'min(86vw, 320px)', pt: 'env(safe-area-inset-top)', pb: 'env(safe-area-inset-bottom)' } }}
       >
         {navContent(true)}
       </Drawer>
+
+      <Menu
+        anchorEl={mobileActionsAnchor}
+        open={Boolean(mobileActionsAnchor)}
+        onClose={() => setMobileActionsAnchor(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+      >
+        {currentView !== 'users' && currentView !== 'inventory' && currentView !== 'power-bi' && (
+          <MenuItem onClick={() => { setMobileActionsAnchor(null); void handleRefresh(); }} disabled={isRefreshing}>
+            <RefreshOutlinedIcon fontSize="small" sx={{ mr: 1.25 }} />
+            {isRefreshing ? 'Actualizando…' : 'Actualizar datos'}
+          </MenuItem>
+        )}
+        <MenuItem onClick={() => { setMobileActionsAnchor(null); setHelpOpen(true); }}>
+          <HelpOutlineIcon fontSize="small" sx={{ mr: 1.25 }} /> Ayuda de esta página
+        </MenuItem>
+        {tienePermiso(user, 'detalles_desarrollador') && (
+          <MenuItem onClick={() => { setMobileActionsAnchor(null); setDevDetailsOpen(true); }}>
+            <DataObjectIcon fontSize="small" sx={{ mr: 1.25 }} /> Detalles técnicos
+          </MenuItem>
+        )}
+      </Menu>
 
       <AiAssistantPanel open={aiPanelOpen} onClose={() => setAiPanelOpen(false)} />
       {currentView !== null && (

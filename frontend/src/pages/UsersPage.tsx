@@ -4,7 +4,7 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import {
   Alert, Box, Button, Checkbox, Chip, CircularProgress, Dialog, DialogActions, DialogContent,
   DialogTitle, FormControlLabel, FormGroup, IconButton, Paper, Stack, Switch, Table, TableBody,
-  TableCell, TableContainer, TableHead, TableRow, TextField, Tooltip, Typography,
+  TableCell, TableContainer, TableHead, TableRow, TextField, Tooltip, Typography, useMediaQuery, useTheme,
 } from '@mui/material';
 import axios from 'axios';
 import { apiClient } from '../api/client';
@@ -163,6 +163,8 @@ interface UsersPageProps {
 }
 
 export default function UsersPage({ currentUserId, onCurrentUserUpdated }: UsersPageProps) {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [users, setUsers] = useState<AuthUser[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [listError, setListError] = useState('');
@@ -203,11 +205,11 @@ export default function UsersPage({ currentUserId, onCurrentUserUpdated }: Users
   };
 
   return (
-    <Box sx={{ height: '100%', overflow: 'auto', py: 2 }}>
+    <Box sx={{ height: '100%', overflow: 'auto', py: { xs: 1, sm: 2 }, pb: { xs: 3, sm: 2 } }}>
       <Stack direction="row" alignItems="flex-start" justifyContent="space-between" mb={2.5} flexWrap="wrap" rowGap={1.5}>
         <Stack spacing={0.5}>
-          <Typography variant="h5" fontWeight={800}>Usuarios</Typography>
-          <Typography color="text.secondary">Crea accesos y consulta quién puede ingresar al dashboard.</Typography>
+          <Typography variant="h5" fontWeight={800} sx={{ fontSize: { xs: 22, sm: 24 } }}>Usuarios</Typography>
+          <Typography color="text.secondary" sx={{ fontSize: { xs: 14, sm: 16 } }}>Crea accesos y consulta quién puede ingresar al dashboard.</Typography>
         </Stack>
         <Button variant="contained" startIcon={<PersonAddOutlinedIcon />} onClick={() => setCreateOpen(true)}>
           Nuevo usuario
@@ -217,8 +219,47 @@ export default function UsersPage({ currentUserId, onCurrentUserUpdated }: Users
       {toggleError && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setToggleError('')}>{toggleError}</Alert>}
       {listError && <Alert severity="error" sx={{ mb: 2 }}>{listError}</Alert>}
 
-      <TableContainer component={Paper} elevation={0} sx={{ border: 1, borderColor: 'divider' }}>
-        {loadingUsers ? <Box sx={{ p: 5, textAlign: 'center' }}><CircularProgress /></Box> : (
+      {loadingUsers ? <Paper elevation={0} sx={{ p: 5, textAlign: 'center', border: 1, borderColor: 'divider' }}><CircularProgress /></Paper> : isMobile ? (
+        <Stack spacing={1.25}>
+          {users.map((user) => (
+            <Paper key={user.id} elevation={0} sx={{ p: 1.5, border: 1, borderColor: 'divider', opacity: user.activo ? 1 : 0.65 }}>
+              <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={1}>
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography fontWeight={800} noWrap>{user.nombre}</Typography>
+                  <Typography variant="body2" color="text.secondary" noWrap>@{user.usuario}</Typography>
+                </Box>
+                <Chip
+                  size="small"
+                  color={user.activo ? (user.debeCambiarPassword ? 'warning' : 'success') : 'default'}
+                  label={!user.activo ? 'Inactivo' : user.debeCambiarPassword ? 'Clave temporal' : 'Activo'}
+                  variant="outlined"
+                />
+              </Stack>
+              <Typography variant="body2" sx={{ mt: 1, overflowWrap: 'anywhere' }}>{user.correo}</Typography>
+              <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mt: 1.25 }}>
+                {user.esAdministrador ? (
+                  <Chip size="small" label="Administrador · acceso total" color="primary" variant="outlined" />
+                ) : user.permisos.length === 0 ? (
+                  <Chip size="small" label="Sin permisos" variant="outlined" />
+                ) : user.permisos.slice(0, 3).map((permiso) => (
+                  <Chip key={permiso} size="small" label={PERMISO_LABELS[permiso]} />
+                ))}
+                {!user.esAdministrador && user.permisos.length > 3 && <Chip size="small" label={`+${user.permisos.length - 3}`} variant="outlined" />}
+              </Stack>
+              {!user.esAdministrador && (
+                <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mt: 1.25, pt: 1, borderTop: 1, borderColor: 'divider' }}>
+                  <Button size="small" startIcon={<EditOutlinedIcon />} onClick={() => setEditingUser(user)}>Editar permisos</Button>
+                  <Stack direction="row" alignItems="center" spacing={0.5}>
+                    <Typography variant="caption" color="text.secondary">{user.activo ? 'Activo' : 'Inactivo'}</Typography>
+                    <Switch size="small" checked={user.activo} disabled={togglingId === user.id} onChange={() => toggleActivo(user)} />
+                  </Stack>
+                </Stack>
+              )}
+            </Paper>
+          ))}
+        </Stack>
+      ) : (
+        <TableContainer component={Paper} elevation={0} sx={{ border: 1, borderColor: 'divider', overflowX: 'auto' }}>
           <Table size="small">
             <TableHead><TableRow>
               <TableCell>Nombre</TableCell><TableCell>Usuario</TableCell>
@@ -272,8 +313,8 @@ export default function UsersPage({ currentUserId, onCurrentUserUpdated }: Users
               ))}
             </TableBody>
           </Table>
-        )}
-      </TableContainer>
+        </TableContainer>
+      )}
 
       <CreateUserDialog open={createOpen} onClose={() => setCreateOpen(false)} onCreated={upsertUser} />
       <EditPermisosDialog user={editingUser} onClose={() => setEditingUser(null)} onSaved={upsertUser} />

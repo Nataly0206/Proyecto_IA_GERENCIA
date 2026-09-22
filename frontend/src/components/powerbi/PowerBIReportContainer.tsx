@@ -56,7 +56,7 @@ export default function PowerBIReportContainer() {
   }
 
   return (
-    <Box sx={{ width: '100%', height: '100%', minHeight: 500, '& .powerbi-report-container, & iframe': { width: '100% !important', height: '100% !important', border: 0 } }}>
+    <Box sx={{ width: '100%', height: '100%', minHeight: { xs: 420, sm: 500 }, '& .powerbi-report-container, & iframe': { width: '100% !important', height: '100% !important', border: 0 } }}>
       <PowerBIEmbed
         embedConfig={{
           type: 'report',

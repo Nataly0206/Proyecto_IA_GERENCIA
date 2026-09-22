@@ -51,7 +51,7 @@ export default function ClasificadoPorMaquinaHoyCards() {
       </Stack>
 
       {isLoading && (
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1 }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(4, minmax(0, 1fr))' }, gap: 1 }}>
           {[1, 2, 3, 4].map((i) => (
             <Skeleton key={i} variant="rounded" height={64} />
           ))}

@@ -25,6 +25,20 @@ export const theme = createTheme({
   },
   shape: { borderRadius: 8 },
   components: {
+    MuiCssBaseline: {
+      styleOverrides: {
+        html: { height: '100%', WebkitTextSizeAdjust: '100%' },
+        body: {
+          height: '100%',
+          overscrollBehavior: 'none',
+          WebkitTapHighlightColor: 'transparent',
+        },
+        '#root': { height: '100%' },
+        '@media (max-width:600px)': {
+          'input, select, textarea': { fontSize: '16px !important' },
+        },
+      },
+    },
     MuiCard: {
       styleOverrides: {
         root: {
@@ -58,7 +72,63 @@ export const theme = createTheme({
           borderRadius: 8,
           textTransform: 'none',
           fontWeight: 700,
+          minHeight: 40,
         },
+      },
+    },
+    MuiIconButton: {
+      styleOverrides: {
+        root: {
+          '@media (pointer: coarse)': { minWidth: 44, minHeight: 44 },
+        },
+      },
+    },
+    MuiDialog: {
+      styleOverrides: {
+        paper: {
+          '@media (max-width:600px)': {
+            margin: 0,
+            width: '100%',
+            maxWidth: '100% !important',
+            height: '100dvh',
+            maxHeight: '100dvh',
+            borderRadius: 0,
+          },
+        },
+      },
+    },
+    MuiDialogTitle: {
+      styleOverrides: {
+        root: {
+          '@media (max-width:600px)': {
+            padding: '16px',
+            paddingTop: 'max(16px, env(safe-area-inset-top))',
+          },
+        },
+      },
+    },
+    MuiDialogContent: {
+      styleOverrides: {
+        root: { '@media (max-width:600px)': { padding: '16px' } },
+      },
+    },
+    MuiDialogActions: {
+      styleOverrides: {
+        root: {
+          '@media (max-width:600px)': {
+            position: 'sticky',
+            bottom: 0,
+            padding: '12px 16px max(12px, env(safe-area-inset-bottom))',
+            background: '#fff',
+            borderTop: '1px solid #dfe6ef',
+            '& > button': { flex: 1 },
+          },
+        },
+      },
+    },
+    MuiTableCell: {
+      styleOverrides: {
+        root: { whiteSpace: 'nowrap' },
       },
     },
     MuiTextField: {

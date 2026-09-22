@@ -110,7 +110,7 @@ export default function PeladoLibrasHoyCards() {
       </Stack>
 
       {isLoading && (
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1 }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(4, minmax(0, 1fr))' }, gap: 1 }}>
           {[1, 2, 3, 4].map((i) => (
             <Skeleton key={i} variant="rounded" height={68} />
           ))}
@@ -133,8 +133,13 @@ export default function PeladoLibrasHoyCards() {
         <Box
           sx={{
             display: 'grid',
-            gridTemplateColumns: `repeat(${estilosConLibras.length + 1}, minmax(0, 1fr))`,
-            gap: { xs: 0.35, sm: 1 },
+            gridTemplateColumns: {
+              xs: 'repeat(2, minmax(0, 1fr))',
+              sm: `repeat(${Math.min(estilosConLibras.length + 1, 4)}, minmax(0, 1fr))`,
+              lg: `repeat(${estilosConLibras.length + 1}, minmax(0, 1fr))`,
+            },
+            gap: 1,
+            '& > :last-child:nth-of-type(odd)': { gridColumn: { xs: '1 / -1', sm: 'auto' } },
           }}
         >
           {estilosConLibras.map((estilo) => (

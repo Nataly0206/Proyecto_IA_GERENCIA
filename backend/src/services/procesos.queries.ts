@@ -476,6 +476,7 @@ ORDER BY Cliente, CodigoEmbarque, OrdenCompra, Item
 export const EXPORTACIONES_TRAZABILIDAD_QUERY = `
 SELECT
   e.ReferenciaEnvio AS Shipment, e.NumeroContenedor AS Contenedor,
+  MAX(e.CodigoEmbarque) AS CodigoEmbarque,
   NULLIF(LTRIM(RTRIM(op.NoOrdenCompra)), '') AS PO,
   COALESCE(NULLIF(LTRIM(RTRIM(lr.NombreGrupo)), ''), NULLIF(LTRIM(RTRIM(lr.Empresa)), ''), '') AS Cliente,
   i.Item AS Item, i.CodigoItem AS CodigoItem, lr.Finca AS Finca, lr.laguna AS Laguna,

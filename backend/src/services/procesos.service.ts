@@ -520,7 +520,8 @@ export async function getExportacionesTrazabilidad(fecha: string, contenedor: st
     { name: 'Referencia', type: sql.NVarChar(200), value: referencia },
   ]);
   return rows.map((row) => ({
-    shipment: pickString(row, 'Shipment'), contenedor: pickString(row, 'Contenedor'),
+    shipment: pickString(row, 'Shipment'), codigoEmbarque: pickString(row, 'CodigoEmbarque'),
+    contenedor: pickString(row, 'Contenedor'),
     po: pickString(row, 'PO'), cliente: pickString(row, 'Cliente'),
     item: pickString(row, 'Item'), codigoItem: pickString(row, 'CodigoItem'),
     finca: pickString(row, 'Finca'), laguna: pickString(row, 'Laguna'),

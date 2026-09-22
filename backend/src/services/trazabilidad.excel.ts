@@ -15,14 +15,14 @@ export async function buildTrazabilidadExcel(rows: DataRow[], uk: boolean): Prom
   sheet.mergeCells('A1:J1');
   sheet.getCell('A1').value = 'TRACEABILITY REPORT';
   if (uk) {
-    sheet.getCell('A2').value = `Shipment: ${rows[0]?.shipment ?? ''}`;
+    sheet.getCell('A2').value = `Shipment: ${rows[0]?.codigoEmbarque ?? ''}`;
     sheet.mergeCells('B2:E2');
     sheet.getCell('B2').value = `PO: ${[...new Set(rows.map((r) => String(r.po ?? '')).filter(Boolean))].join(', ')}`;
     sheet.mergeCells('F2:J2');
     sheet.getCell('F2').value = `Container: ${rows[0]?.contenedor ?? ''}`;
   } else {
     sheet.mergeCells('A2:D2');
-    sheet.getCell('A2').value = `SHIPMENT: ${rows[0]?.shipment ?? ''}`;
+    sheet.getCell('A2').value = `SHIPMENT: ${rows[0]?.codigoEmbarque ?? ''}`;
     sheet.mergeCells('E2:J2');
     sheet.getCell('E2').value = `Container: ${rows[0]?.contenedor ?? ''}`;
   }
@@ -31,7 +31,7 @@ export async function buildTrazabilidadExcel(rows: DataRow[], uk: boolean): Prom
     const row = sheet.getRow(n);
     row.height = n === 1 ? 25 : 27;
     row.eachCell({ includeEmpty: true }, (cell) => {
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: PALE } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: n === 1 ? 'FFFFFFFF' : PALE } };
       cell.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FF111111' } };
       cell.alignment = { horizontal: 'center', vertical: 'middle' };
       cell.border = { top: BORDER, bottom: BORDER, left: BORDER, right: BORDER };

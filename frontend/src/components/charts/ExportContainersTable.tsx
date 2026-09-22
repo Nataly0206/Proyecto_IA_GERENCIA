@@ -48,7 +48,7 @@ export default function ExportContainersTable({ weightUnit }: { weightUnit: Weig
       const url = URL.createObjectURL(response.data);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `Trazabilidad_${String(selected.contenedor).replace(/[^a-zA-Z0-9_-]/g, '_')}_${selected.fecha}.xlsx`;
+      link.download = `Trazabilidad_${String(selected.codigoEmbarque ?? '').replace(/[^a-zA-Z0-9_-]/g, '_')}_${selected.fecha}.xlsx`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -107,7 +107,7 @@ export default function ExportContainersTable({ weightUnit }: { weightUnit: Weig
                 <TableCell sx={HEADER_SX}>Fecha</TableCell>
                 <TableCell sx={HEADER_SX}>Contenedor</TableCell>
                 <TableCell sx={HEADER_SX}>Ship</TableCell>
-                <TableCell sx={HEADER_SX}>Código embarque</TableCell>
+                <TableCell sx={HEADER_SX}>Ref embarque</TableCell>
                 <TableCell sx={HEADER_SX}>Cliente</TableCell>
                 <TableCell align="right" sx={HEADER_SX}>Másteres</TableCell>
                 <TableCell align="right" sx={HEADER_SX}>Total anillos</TableCell>
@@ -187,7 +187,7 @@ export default function ExportContainersTable({ weightUnit }: { weightUnit: Weig
                 <TableCell sx={HEADER_SX}>Fecha carga</TableCell>
                 <TableCell sx={HEADER_SX}>Cliente</TableCell>
                 <TableCell sx={HEADER_SX}>Ship</TableCell>
-                <TableCell sx={HEADER_SX}>Código embarque</TableCell>
+                <TableCell sx={HEADER_SX}>Ref embarque</TableCell>
                 <TableCell sx={HEADER_SX}>N.º orden compra</TableCell>
                 <TableCell sx={HEADER_SX}>Nombre ítem</TableCell>
                 <TableCell align="right" sx={HEADER_SX}>Anillos/máster</TableCell>

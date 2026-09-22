@@ -111,7 +111,8 @@ export const descargarExportacionesTrazabilidad = async (req: Request, res: Resp
   }
   const uk = rows.some((row) => /\bUK\b/i.test(String(row.cliente ?? '')));
   const buffer = await buildTrazabilidadExcel(rows, uk);
-  const filename = `Trazabilidad_${contenedor.replace(/[^a-zA-Z0-9_-]/g, '_')}_${fecha}.xlsx`;
+  const codigoEmbarque = String(rows[0].codigoEmbarque ?? '');
+  const filename = `Trazabilidad_${codigoEmbarque.replace(/[^a-zA-Z0-9_-]/g, '_')}_${fecha}.xlsx`;
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.send(buffer);

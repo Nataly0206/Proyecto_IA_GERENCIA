@@ -8,6 +8,7 @@ import { categoryColor } from '../../utils/categoryColors';
 interface KpiCardsProps {
   config: ChartConfig;
   data: DataRow[];
+  compact?: boolean;
 }
 
 function applySort(data: DataRow[], sort?: ChartConfig['sort']): DataRow[] {
@@ -16,7 +17,7 @@ function applySort(data: DataRow[], sort?: ChartConfig['sort']): DataRow[] {
   return [...data].sort((a, b) => (Number(a[sort.field] ?? 0) - Number(b[sort.field] ?? 0)) * dir);
 }
 
-export default function KpiCards({ config, data }: KpiCardsProps) {
+export default function KpiCards({ config, data, compact = false }: KpiCardsProps) {
   const yField = Array.isArray(config.yField) ? config.yField[0] : config.yField;
   const rateField = config.rateField;
   const rows = useMemo(() => {
@@ -64,8 +65,8 @@ export default function KpiCards({ config, data }: KpiCardsProps) {
           lg: `repeat(${cols}, minmax(0, 1fr))`,
         },
         gap: 1,
-        pt: 0.25,
-        pb: 0.25,
+        pt: compact ? 0 : 0.25,
+        pb: compact ? 0 : 0.25,
         overflow: 'visible',
       }}
     >
@@ -86,14 +87,14 @@ export default function KpiCards({ config, data }: KpiCardsProps) {
               justifyContent: 'center',
               minWidth: 0,
               px: { xs: 1.25, xl: 1.5 },
-              py: 1,
+              py: compact ? 0.75 : 1,
               borderRadius: 1.5,
               border: '1px solid',
               borderColor: isTotal ? 'primary.main' : 'divider',
               borderTop: `3px solid ${color}`,
               bgcolor: isTotal ? 'rgba(22, 74, 139, 0.06)' : 'background.paper',
               transition: 'box-shadow 0.15s ease',
-              minHeight: { xs: 118, sm: 104 },
+              minHeight: compact ? 64 : { xs: 118, sm: 104 },
               '&:hover': {
                 boxShadow: '0 6px 20px rgba(17,24,39,0.10)',
               },
@@ -108,7 +109,7 @@ export default function KpiCards({ config, data }: KpiCardsProps) {
                 letterSpacing: 0.35,
                 fontSize: 10.5,
                 lineHeight: 1.2,
-                mb: 0.65,
+                mb: compact ? 0.35 : 0.65,
                 display: 'block',
               }}
               noWrap

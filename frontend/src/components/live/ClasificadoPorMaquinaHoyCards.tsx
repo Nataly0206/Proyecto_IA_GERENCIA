@@ -53,7 +53,7 @@ export default function ClasificadoPorMaquinaHoyCards() {
       {isLoading && (
         <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1 }}>
           {[1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} variant="rounded" height={104} />
+            <Skeleton key={i} variant="rounded" height={64} />
           ))}
         </Box>
       )}
@@ -71,7 +71,7 @@ export default function ClasificadoPorMaquinaHoyCards() {
       )}
 
       {!isLoading && !isError && data && data.maquinas.length > 0 && (
-        <KpiCards config={config} data={data.maquinas} />
+        <KpiCards config={config} data={data.maquinas} compact />
       )}
     </Box>
   );

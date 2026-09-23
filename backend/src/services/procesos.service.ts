@@ -51,6 +51,21 @@ const round2 = (n: number): number => Number(n.toFixed(2));
 const formatDate = (d: Date): string =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
+/** Huso horario del negocio (mismo usado en `reportCacheTtl`). Los
+ *  resúmenes "Hoy" deben anclarse a este valor y no al reloj del proceso
+ *  de Node ni al del servidor de SQL Server, que pueden correr en UTC. */
+const BUSINESS_TIMEZONE = 'America/Tegucigalpa';
+
+/** Fecha de "hoy" en el huso horario del negocio, como `YYYY-MM-DD`. */
+function businessToday(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: BUSINESS_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
+
 function dateParams(fechaInicial: string, fechaFinal: string) {
   return [
     { name: 'Fecha_Inicial', type: sql.Date, value: fechaInicial },
@@ -112,13 +127,14 @@ function aggregateTotal(
 /* ================================================================== */
 
 export async function getRecepcionResumen(): Promise<RecepcionResumen> {
-  const rows = await runStbQuery(RECEPCION_RESUMEN_QUERY, []);
+  const dia = businessToday();
+  const rows = await runStbQuery(RECEPCION_RESUMEN_QUERY, [{ name: 'Dia', type: sql.Date, value: dia }]);
   const r = rows[0] ?? {};
   const librasColaHoy = round2(pickNumber(r, 'LibrasColaHoy'));
   const librasCabezaHoy = round2(pickNumber(r, 'LibrasCabezaHoy'));
   const totalCabezaColaHoy = round2(librasColaHoy + librasCabezaHoy);
   return {
-    dia: formatDate(new Date()),
+    dia,
     actualizado: new Date().toISOString(),
     librasRecibidasHoy: round2(pickNumber(r, 'LibrasRecibidasHoy')),
     librasRecibidasSemana: round2(pickNumber(r, 'LibrasRecibidasSemana')),

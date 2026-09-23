@@ -54,7 +54,6 @@ export default function RecepcionPage() {
         errorText={error instanceof Error ? error.message : undefined}
         updatedAt={dataUpdatedAt}
         liveBadge
-        maxColumns={4}
         emptyText="Todavía no hay libras de recepción registradas hoy."
         metrics={[
           { label: 'Libras remisión', value: data?.librasRemisionHoy ?? 0, unit: 'lbs', tone: 'good' },

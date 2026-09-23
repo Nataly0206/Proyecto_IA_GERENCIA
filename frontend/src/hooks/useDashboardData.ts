@@ -274,11 +274,17 @@ export function useProcesoResumen<T>(endpoint: ProcesoResumenEndpoint, extraPara
   const queryClient = useQueryClient();
   const endpointCacheVersion = endpoint === 'descabezado-resumen'
     ? `${endpoint}:cabezas-hora-v2`
+    : endpoint === 'recepcion-resumen'
+      ? `${endpoint}:balance-diario-v2`
     : endpoint;
   const hasExtraParams = Boolean(extraParams && Object.keys(extraParams).length > 0);
-  const queryKey = ['dashboard', endpointCacheVersion, extraParams ?? {}] as const;
+  const queryKey = ['dashboard', endpoint, extraParams ?? {}] as const;
   const cacheKey = browserCacheKey([endpointCacheVersion, hasExtraParams ? extraParams : 'current']);
   const cached = readBrowserCache<T>(cacheKey, LIVE_REFRESH_INTERVAL_MS);
+  const validCached = endpoint !== 'recepcion-resumen' || !cached
+    || typeof (cached.data as Record<string, unknown>).librasRemisionHoy === 'number'
+    ? cached
+    : undefined;
 
   const query = useQuery<T>({
     queryKey,
@@ -287,8 +293,8 @@ export function useProcesoResumen<T>(endpoint: ProcesoResumenEndpoint, extraPara
       writeBrowserCache(cacheKey, data);
       return data;
     },
-    initialData: cached?.data,
-    initialDataUpdatedAt: cached?.updatedAt,
+    initialData: validCached?.data,
+    initialDataUpdatedAt: validCached?.updatedAt,
     staleTime: LIVE_REFRESH_INTERVAL_MS,
     refetchInterval: LIVE_REFRESH_INTERVAL_MS,
     refetchIntervalInBackground: true,

@@ -36,10 +36,19 @@
 /* RECEPCIÓN (STB_data)                                                */
 /* ================================================================== */
 
-/** Libras recibidas hoy, en la semana y en el mes en curso, más el saldo
- * global pendiente de procesar. */
+/**
+ * Libras recibidas hoy, en la semana y en el mes en curso, más el saldo
+ * global pendiente de procesar.
+ *
+ * `@Dia` llega como parámetro calculado en el backend (huso horario del
+ * negocio) en lugar de `CAST(GETDATE() AS date)`: si el reloj u huso
+ * horario del servidor de SQL Server no coincide exactamente con la hora
+ * local del negocio (p.ej. corre en UTC dentro de un contenedor), "hoy"
+ * según SQL Server puede ser otro día que el que el resto del tablero
+ * (filtros con la fecha del navegador) considera hoy, y este resumen
+ * aparece vacío aunque sí haya remisiones del día.
+ */
 export const RECEPCION_RESUMEN_QUERY = `
-DECLARE @Dia date = CAST(GETDATE() AS date);
 DECLARE @Lunes date = DATEADD(DAY, -(DATEDIFF(DAY, 0, @Dia) % 7), @Dia);
 DECLARE @PrimerDiaMes date = DATEADD(DAY, 1 - DAY(@Dia), @Dia);
 

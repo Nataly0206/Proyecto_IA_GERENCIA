@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Alert, Box, Chip, Skeleton, Stack, Typography } from '@mui/material';
 import PrecisionManufacturingOutlinedIcon from '@mui/icons-material/PrecisionManufacturingOutlined';
 import { useClasificadoPorMaquinaHoy } from '../../hooks/useDashboardData';
@@ -12,12 +13,18 @@ const config: ChartConfig = {
   endpoint: 'clasificado-por-maquina',
   xField: 'maquina',
   yField: 'libras',
-  sort: { field: 'libras', direction: 'desc' },
   valueFormat: 'number',
   unitLabel: 'lbs',
   showTotalCard: true,
   rateField: 'librasPorHora',
   rateWeightField: 'horas',
+};
+
+const SIN_MAQUINA = 'Sin máquina asignada';
+const HIDDEN_LABELS = [SIN_MAQUINA];
+const machineNumber = (label: string) => {
+  const n = Number(label.match(/\d+/)?.[0]);
+  return Number.isFinite(n) ? n : Number.MAX_SAFE_INTEGER;
 };
 
 /**
@@ -28,6 +35,10 @@ const config: ChartConfig = {
  */
 export default function ClasificadoPorMaquinaHoyCards() {
   const { data, isLoading, isError, error, dataUpdatedAt } = useClasificadoPorMaquinaHoy();
+  const maquinas = useMemo(
+    () => [...(data?.maquinas ?? [])].sort((a, b) => machineNumber(String(a.maquina)) - machineNumber(String(b.maquina))),
+    [data],
+  );
 
   return (
     <Box>
@@ -71,7 +82,7 @@ export default function ClasificadoPorMaquinaHoyCards() {
       )}
 
       {!isLoading && !isError && data && data.maquinas.length > 0 && (
-        <KpiCards config={config} data={data.maquinas} compact />
+        <KpiCards config={config} data={maquinas} compact hiddenLabels={HIDDEN_LABELS} />
       )}
     </Box>
   );

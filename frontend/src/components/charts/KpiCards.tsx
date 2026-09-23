@@ -9,6 +9,8 @@ interface KpiCardsProps {
   config: ChartConfig;
   data: DataRow[];
   compact?: boolean;
+  /** Etiquetas cuya tarjeta no se dibuja, aunque sí cuentan en la tarjeta de total. */
+  hiddenLabels?: string[];
 }
 
 function applySort(data: DataRow[], sort?: ChartConfig['sort']): DataRow[] {
@@ -17,12 +19,14 @@ function applySort(data: DataRow[], sort?: ChartConfig['sort']): DataRow[] {
   return [...data].sort((a, b) => (Number(a[sort.field] ?? 0) - Number(b[sort.field] ?? 0)) * dir);
 }
 
-export default function KpiCards({ config, data, compact = false }: KpiCardsProps) {
+export default function KpiCards({ config, data, compact = false, hiddenLabels }: KpiCardsProps) {
   const yField = Array.isArray(config.yField) ? config.yField[0] : config.yField;
   const rateField = config.rateField;
   const rows = useMemo(() => {
     const sortedRows = applySort(data, config.sort);
-    if (!config.showTotalCard) return sortedRows;
+    const visible = (list: DataRow[]) =>
+      hiddenLabels?.length ? list.filter((row) => !hiddenLabels.includes(String(row[config.xField] ?? ''))) : list;
+    if (!config.showTotalCard) return visible(sortedRows);
 
     const total = sortedRows.reduce((sum, row) => {
       const value = Number(row[yField] ?? 0);
@@ -45,8 +49,8 @@ export default function KpiCards({ config, data, compact = false }: KpiCardsProp
       }
     }
 
-    return [...sortedRows, totalRow];
-  }, [data, config.sort, config.showTotalCard, config.xField, yField, rateField, config.rateWeightField]);
+    return [...visible(sortedRows), totalRow];
+  }, [data, hiddenLabels, config.sort, config.showTotalCard, config.xField, yField, rateField, config.rateWeightField]);
   const format = config.valueFormat ?? 'number';
   const colors = config.colors ?? CHART_COLORS;
 

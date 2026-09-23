@@ -1,4 +1,4 @@
-import { MouseEvent, ReactNode, useMemo, useState } from 'react';
+import { DragEvent, MouseEvent, ReactNode, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Autocomplete,
@@ -6,7 +6,9 @@ import {
   Button,
   Checkbox,
   Chip,
+  Collapse,
   IconButton,
+  Paper,
   Popover,
   Skeleton,
   Stack,
@@ -23,6 +25,9 @@ import {
   Typography,
 } from '@mui/material';
 import FilterListIcon from '@mui/icons-material/FilterList';
+import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { DashboardEndpoint, DataRow, ValueFormat } from '../../types';
 import { useWidgetData } from '../../hooks/useDashboardData';
 import { formatPeriodo, formatValue } from '../../utils/format';
@@ -42,7 +47,7 @@ export interface WidgetColumn {
   total?: 'sum' | { ratio: [string, string] };
   /** Muestra la media aritmética de la columna en la fila de promedios. */
   average?: boolean;
-  /** Columna oculta por defecto; aparece al activar "Ver detalle". */
+  /** Columna oculta por defecto; se agrega desde el panel "Filtros y columnas". */
   optional?: boolean;
 }
 
@@ -102,13 +107,48 @@ export default function WidgetDataTable({
   const [columnFilters, setColumnFilters] = useState<Record<string, string[]>>({});
   const [filterColumn, setFilterColumn] = useState<WidgetColumn | null>(null);
   const [filterAnchor, setFilterAnchor] = useState<HTMLElement | null>(null);
-  const [showOptional, setShowOptional] = useState(false);
+  const [columnsPanelOpen, setColumnsPanelOpen] = useState(false);
 
   const hasOptionalColumns = columns.some((c) => c.optional);
+  const storageKey = `widget-table-columns:${endpoint}`;
+  const [visibleOrder, setVisibleOrder] = useState<string[]>(() => {
+    const defaults = columns.filter((c) => !c.optional).map((c) => c.key);
+    if (!hasOptionalColumns) return defaults;
+    try {
+      const parsed: unknown = JSON.parse(localStorage.getItem(storageKey) ?? 'null');
+      if (!Array.isArray(parsed)) return defaults;
+      const known = new Set(columns.map((c) => c.key));
+      const saved = parsed.filter((k): k is string => typeof k === 'string' && known.has(k));
+      for (const key of defaults) if (!saved.includes(key)) saved.push(key);
+      return saved;
+    } catch {
+      return defaults;
+    }
+  });
+  useEffect(() => {
+    if (!hasOptionalColumns) return;
+    try { localStorage.setItem(storageKey, JSON.stringify(visibleOrder)); } catch { /* almacenamiento local no disponible */ }
+  }, [hasOptionalColumns, storageKey, visibleOrder]);
+
   const visibleColumns = useMemo(
-    () => columns.filter((c) => showOptional || !c.optional),
-    [columns, showOptional],
+    () => visibleOrder
+      .map((key) => columns.find((c) => c.key === key))
+      .filter((c): c is WidgetColumn => Boolean(c)),
+    [columns, visibleOrder],
   );
+  const availableColumns = columns.filter((c) => !visibleOrder.includes(c.key));
+
+  const startDrag = (event: DragEvent, key: string) => event.dataTransfer.setData('text/plain', key);
+  const dropColumn = (event: DragEvent, index?: number) => {
+    event.preventDefault();
+    const key = event.dataTransfer.getData('text/plain');
+    if (!columns.some((c) => c.key === key)) return;
+    setVisibleOrder((current) => {
+      const next = current.filter((k) => k !== key);
+      next.splice(index ?? next.length, 0, key);
+      return next;
+    });
+  };
 
   const activeFilterCount = Object.values(columnFilters).filter((values) => values.length > 0).length;
 
@@ -214,12 +254,74 @@ export default function WidgetDataTable({
             </Button>
           </>
         )}
-        {hasOptionalColumns && (
-          <Button size="small" onClick={() => setShowOptional((v) => !v)} sx={{ minHeight: 26, px: 1 }}>
-            {showOptional ? 'Ocultar detalle' : 'Ver detalle'}
-          </Button>
-        )}
       </Stack>
+
+      {hasOptionalColumns && (
+        <Paper elevation={0} sx={{ border: 1, borderColor: 'divider', p: 1, mb: 1 }}>
+          <Stack direction="row" alignItems="center" justifyContent="space-between">
+            <Typography variant="subtitle2" fontWeight={800} sx={{ fontSize: 12.5 }}>Filtros y columnas</Typography>
+            <Tooltip title={columnsPanelOpen ? 'Ocultar filtros' : 'Mostrar filtros'}>
+              <IconButton
+                size="small"
+                onClick={() => setColumnsPanelOpen((open) => !open)}
+                aria-label={columnsPanelOpen ? 'Ocultar filtros' : 'Mostrar filtros'}
+                aria-expanded={columnsPanelOpen}
+              >
+                {columnsPanelOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+              </IconButton>
+            </Tooltip>
+          </Stack>
+          <Collapse in={columnsPanelOpen}>
+            <Stack spacing={1} sx={{ pt: 1 }}>
+              <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap" useFlexGap>
+                <Typography variant="caption" fontWeight={800} color="text.secondary" sx={{ width: 110 }}>DETALLE</Typography>
+                {availableColumns.length === 0 && (
+                  <Typography variant="caption" color="text.secondary">Todas las columnas están visibles</Typography>
+                )}
+                {availableColumns.map((col) => (
+                  <Chip
+                    key={col.key}
+                    draggable
+                    onDragStart={(event) => startDrag(event, col.key)}
+                    icon={<DragIndicatorIcon />}
+                    label={col.label}
+                    size="small"
+                    variant="outlined"
+                  />
+                ))}
+              </Stack>
+              <Stack
+                direction="row"
+                alignItems="center"
+                spacing={1}
+                flexWrap="wrap"
+                useFlexGap
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={(event) => dropColumn(event)}
+                sx={{ minHeight: 38, p: 0.75, bgcolor: 'action.hover', border: '1px dashed', borderColor: 'divider', borderRadius: 1 }}
+              >
+                <Typography variant="caption" fontWeight={800} color="text.secondary" sx={{ width: 102 }}>COLUMNAS</Typography>
+                {visibleColumns.map((col, index) => (
+                  <Chip
+                    key={col.key}
+                    draggable
+                    onDragStart={(event) => startDrag(event, col.key)}
+                    onDragOver={(event) => event.preventDefault()}
+                    onDrop={(event) => { event.stopPropagation(); dropColumn(event, index); }}
+                    onDelete={col.optional ? () => setVisibleOrder((current) => current.filter((k) => k !== col.key)) : undefined}
+                    icon={<DragIndicatorIcon />}
+                    label={col.label}
+                    size="small"
+                    color="primary"
+                    variant="outlined"
+                  />
+                ))}
+                <Typography variant="caption" color="text.secondary">Arrastra columnas aquí para mostrarlas y reordenarlas</Typography>
+              </Stack>
+            </Stack>
+          </Collapse>
+        </Paper>
+      )}
 
       <Popover
         open={Boolean(filterAnchor && filterColumn)}
@@ -348,7 +450,7 @@ export default function WidgetDataTable({
                       key={col.key}
                       align={col.align ?? (col.format && col.format !== 'text' && col.format !== 'periodo' ? 'right' : 'left')}
                       sx={{
-                        ...(col.key === visibleColumns[0].key ? { fontWeight: 600 } : {}),
+                        ...(col.key === visibleColumns[0]?.key ? { fontWeight: 600 } : {}),
                         ...(isRecepcion && col.key === 'cliente' ? { fontWeight: 700, color: '#243b53' } : {}),
                       }}
                     >

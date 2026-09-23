@@ -47,11 +47,12 @@ export default function RecepcionPage() {
 
       <WidgetDataTable
         title="Remisiones Recibidas — Detalle"
-        subtitle="Una fila por remisión, finca y laguna · rango de fechas del filtro · fuente: RemisionesPlantaPBI"
+        subtitle="Agrupada por fecha (se puede desagrupar en Filtros y columnas) · rango de fechas del filtro · fuente: RemisionesPlantaPBI"
         icon={<ReceiptLongOutlinedIcon color="primary" sx={{ fontSize: 16 }} />}
         endpoint="recepcion-remisiones"
         variant="recepcion"
         filterable
+        groupByKey="fecha"
         defaultSortKey="fecha"
         maxHeight={520}
         emptyText="Sin remisiones recibidas en el rango seleccionado."

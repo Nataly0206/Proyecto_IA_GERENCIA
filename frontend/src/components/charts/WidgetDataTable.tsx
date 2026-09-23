@@ -7,11 +7,13 @@ import {
   Checkbox,
   Chip,
   Collapse,
+  FormControlLabel,
   IconButton,
   Paper,
   Popover,
   Skeleton,
   Stack,
+  Switch,
   Table,
   TableBody,
   TableCell,
@@ -70,6 +72,8 @@ interface WidgetDataTableProps {
   variant?: 'default' | 'recepcion';
   /** Permite seleccionar uno o varios valores desde el encabezado de cada columna. */
   filterable?: boolean;
+  /** Columna por la que se agrupan las filas (una fila por valor, con totales). Activable desde el panel. */
+  groupByKey?: string;
 }
 
 const HEADER_SX = { fontWeight: 800, bgcolor: '#f1f5f9', color: '#172033' } as const;
@@ -80,6 +84,38 @@ function renderCell(row: DataRow, col: WidgetColumn): string {
   if (col.format === 'periodo') return formatPeriodo(String(raw));
   if (col.format && col.format !== 'text') return formatValue(Number(raw), col.format);
   return String(raw);
+}
+
+/** Una fila por valor de `groupKey`: suma las columnas numéricas, recalcula
+ *  las razones ponderadas y resume las de texto (valor único o "Varios (N)"). */
+function groupRows(list: DataRow[], groupKey: string, columns: WidgetColumn[]): DataRow[] {
+  const groups = new Map<string, DataRow[]>();
+  for (const row of list) {
+    const key = String(row[groupKey] ?? '');
+    const bucket = groups.get(key);
+    if (bucket) bucket.push(row);
+    else groups.set(key, [row]);
+  }
+  return Array.from(groups.entries()).map(([groupValue, items]) => {
+    const sum = (key: string) => items.reduce((acc, r) => acc + (Number(r[key]) || 0), 0);
+    const out: DataRow = { [groupKey]: groupValue };
+    for (const col of columns) {
+      if (col.key === groupKey) continue;
+      if (col.total && typeof col.total === 'object') {
+        const den = sum(col.total.ratio[1]);
+        const ratio = den > 0 ? sum(col.total.ratio[0]) / den : 0;
+        out[col.key] = Math.round((col.format === 'percent' ? ratio * 100 : ratio) * 100) / 100;
+      } else if (col.format && col.format !== 'text' && col.format !== 'periodo') {
+        out[col.key] = Math.round(sum(col.key) * 100) / 100;
+      } else {
+        const distinct = Array.from(new Set(
+          items.map((r) => String(r[col.key] ?? '')).filter((v) => v && v !== '—'),
+        ));
+        out[col.key] = distinct.length <= 1 ? (distinct[0] ?? '') : `Varios (${distinct.length})`;
+      }
+    }
+    return out;
+  });
 }
 
 /**
@@ -100,6 +136,7 @@ export default function WidgetDataTable({
   stickySummary = false,
   variant = 'default',
   filterable = false,
+  groupByKey,
 }: WidgetDataTableProps) {
   const { data, isLoading, isError, error, dataUpdatedAt } = useWidgetData(endpoint);
   const [sortKey, setSortKey] = useState(defaultSortKey ?? columns[0]?.key);
@@ -108,6 +145,14 @@ export default function WidgetDataTable({
   const [filterColumn, setFilterColumn] = useState<WidgetColumn | null>(null);
   const [filterAnchor, setFilterAnchor] = useState<HTMLElement | null>(null);
   const [columnsPanelOpen, setColumnsPanelOpen] = useState(false);
+  const groupStorageKey = `widget-table-group:${endpoint}`;
+  const [groupEnabled, setGroupEnabled] = useState<boolean>(() => {
+    try { return localStorage.getItem(groupStorageKey) !== 'off'; } catch { return true; }
+  });
+  const toggleGroup = () => setGroupEnabled((enabled) => {
+    try { localStorage.setItem(groupStorageKey, enabled ? 'off' : 'on'); } catch { /* almacenamiento local no disponible */ }
+    return !enabled;
+  });
 
   const hasOptionalColumns = columns.some((c) => c.optional);
   const storageKey = `widget-table-columns:${endpoint}`;
@@ -163,9 +208,10 @@ export default function WidgetDataTable({
   }, [data, filterColumn]);
 
   const rows = useMemo(() => {
-    const list = (data ?? []).filter((row) => Object.entries(columnFilters).every(([key, values]) =>
+    const filtered = (data ?? []).filter((row) => Object.entries(columnFilters).every(([key, values]) =>
       values.length === 0 || values.includes(String(row[key] ?? '')),
     ));
+    const list = groupByKey && groupEnabled ? groupRows(filtered, groupByKey, columns) : filtered;
     if (!sortKey) return list;
     const numeric = list.every((r) => r[sortKey] === undefined || !Number.isNaN(Number(r[sortKey])));
     list.sort((a, b) => {
@@ -177,7 +223,7 @@ export default function WidgetDataTable({
       return sortDir === 'asc' ? cmp : -cmp;
     });
     return list;
-  }, [columnFilters, data, sortKey, sortDir]);
+  }, [columnFilters, columns, data, groupByKey, groupEnabled, sortKey, sortDir]);
 
   const openFilter = (event: MouseEvent<HTMLElement>, column: WidgetColumn) => {
     event.stopPropagation();
@@ -256,7 +302,7 @@ export default function WidgetDataTable({
         )}
       </Stack>
 
-      {hasOptionalColumns && (
+      {(hasOptionalColumns || groupByKey) && (
         <Paper elevation={0} sx={{ border: 1, borderColor: 'divider', p: 1, mb: 1 }}>
           <Stack direction="row" alignItems="center" justifyContent="space-between">
             <Typography variant="subtitle2" fontWeight={800} sx={{ fontSize: 12.5 }}>Filtros y columnas</Typography>
@@ -273,6 +319,16 @@ export default function WidgetDataTable({
           </Stack>
           <Collapse in={columnsPanelOpen}>
             <Stack spacing={1} sx={{ pt: 1 }}>
+              {groupByKey && (
+                <Stack direction="row" alignItems="center" spacing={1}>
+                  <Typography variant="caption" fontWeight={800} color="text.secondary" sx={{ width: 110 }}>AGRUPAR</Typography>
+                  <FormControlLabel
+                    control={<Switch size="small" checked={groupEnabled} onChange={toggleGroup} />}
+                    label={<Typography variant="caption">Una fila por fecha con sus totales</Typography>}
+                  />
+                </Stack>
+              )}
+              {hasOptionalColumns && (<>
               <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap" useFlexGap>
                 <Typography variant="caption" fontWeight={800} color="text.secondary" sx={{ width: 110 }}>DETALLE</Typography>
                 {availableColumns.length === 0 && (
@@ -318,6 +374,7 @@ export default function WidgetDataTable({
                 ))}
                 <Typography variant="caption" color="text.secondary">Arrastra columnas aquí para mostrarlas y reordenarlas</Typography>
               </Stack>
+              </>)}
             </Stack>
           </Collapse>
         </Paper>

@@ -10,6 +10,7 @@ import authRoutes from './routes/auth.routes';
 import usersRoutes from './routes/users.routes';
 import inventoryRoutes from './routes/inventory.routes';
 import powerbiRoutes from './routes/powerbi.routes';
+import rendimientosRoutes from './routes/rendimientos.routes';
 import { errorHandler, notFound } from './middleware/errorHandler';
 import { changedPasswordAuth, requirePermission, sessionAuth } from './middleware/sessionAuth';
 import { assertAuthDatabaseReady } from './services/auth.service';
@@ -78,6 +79,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/inventory', sessionAuth, changedPasswordAuth, requirePermission('inventario'), inventoryRoutes);
 app.use('/api/powerbi', sessionAuth, changedPasswordAuth, requirePermission('power_bi'), powerbiRoutes);
+app.use('/api/rendimientos', sessionAuth, changedPasswordAuth, requirePermission('rendimientos'), rendimientosRoutes);
 app.use('/api/dashboard', sessionAuth, changedPasswordAuth, dashboardRoutes);
 app.use('/api/ai', sessionAuth, changedPasswordAuth, requirePermission('asistente_ia'), aiLimiter, aiRoutes);
 

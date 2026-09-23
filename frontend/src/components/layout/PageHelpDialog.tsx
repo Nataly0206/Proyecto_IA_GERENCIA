@@ -107,6 +107,24 @@ const PAGE_HELP: Record<DashboardView, PageHelp> = {
       { title: 'Peso y cantidad serial', body: 'Peso kilos suma el peso disponible; cantidad serial cuenta las unidades o seriales asociados. Los nombres de clientes e items permiten identificar a qué producto corresponde el saldo.' },
     ],
   },
+  prestamos: {
+    title: 'Préstamos',
+    purpose: 'Módulo reservado para la gestión de préstamos.',
+    sections: [
+      { title: 'Estado del módulo', body: 'Esta sección está vacía por ahora y se completará en una siguiente etapa.' },
+    ],
+  },
+  rendimientos: {
+    title: 'Rendimientos',
+    purpose: 'Consulta el rendimiento diario de producción comparando las libras descongeladas con las libras producidas de programa y rechazo.',
+    sections: [
+      { title: 'Resumen de hoy', body: 'Las tarjetas siempre muestran el día actual y se actualizan automáticamente cada minuto. Son independientes del rango seleccionado para la tabla.' },
+      { title: 'Rango de fechas', body: 'Desde, Hasta y Mes consultan la fecha de salida o descongelado. El reporte se actualiza al cambiar el período.' },
+      { title: 'Columnas configurables', body: 'Abre la configuración para quitar, agregar o reordenar columnas. La selección se guarda para tu usuario.' },
+      { title: 'Filtros y ordenamiento', body: 'El icono de filtro de cada encabezado permite seleccionar valores o establecer rangos numéricos. También puedes ordenar cualquier columna y buscar en todos los datos.' },
+      { title: 'Promedios', body: 'Programa, rechazo y general se calculan dividiendo sus libras producidas entre las libras descongeladas. El Gran total recalcula esos porcentajes de forma ponderada.' },
+    ],
+  },
   'power-bi': {
     title: 'Power BI',
     purpose: 'Muestra el reporte corporativo de Power BI dentro del dashboard, sin solicitar un inicio de sesión adicional en Microsoft.',

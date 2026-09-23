@@ -14,6 +14,8 @@ import DescabezadoPage from './pages/DescabezadoPage';
 import ClasificadoPage from './pages/ClasificadoPage';
 import ExportacionesPage from './pages/ExportacionesPage';
 import PowerBIPage from './pages/PowerBIPage';
+import PrestamosPage from './pages/PrestamosPage';
+import RendimientosPage from './pages/RendimientosPage';
 import { FiltersProvider } from './context/FiltersContext';
 import { apiClient } from './api/client';
 import { AuthUser, normalizeAuthUser } from './types/auth';
@@ -29,6 +31,8 @@ const PERMISO_POR_VISTA: Record<DashboardView, Permiso> = {
   exportaciones: 'exportaciones',
   users: 'usuarios',
   inventory: 'inventario',
+  prestamos: 'prestamos',
+  rendimientos: 'rendimientos',
   'power-bi': 'power_bi',
 };
 
@@ -41,6 +45,8 @@ const VIEW_ORDER: DashboardView[] = [
   'dashboard',
   'exportaciones',
   'inventory',
+  'prestamos',
+  'rendimientos',
   'power-bi',
   'users',
 ];
@@ -155,6 +161,10 @@ export default function App() {
           <ExportacionesPage userId={user.id} />
         ) : view === 'inventory' ? (
           <InventoryPage userId={user.id} />
+        ) : view === 'prestamos' ? (
+          <PrestamosPage />
+        ) : view === 'rendimientos' ? (
+          <RendimientosPage userId={user.id} />
         ) : view === 'power-bi' ? (
           <PowerBIPage />
         ) : view === 'users' ? (

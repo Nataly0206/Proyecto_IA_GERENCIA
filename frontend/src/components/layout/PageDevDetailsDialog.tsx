@@ -427,6 +427,43 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
     ],
   },
 
+  prestamos: {
+    title: 'Préstamos',
+    summary: 'Módulo reservado, sin integraciones ni fuentes de datos por ahora.',
+    blocks: [ARQUITECTURA_COMUN],
+  },
+  rendimientos: {
+    title: 'Rendimientos',
+    summary: 'Rendimiento diario de producción descongelada y fresca. Fuente: PlantaEmpacadora.',
+    blocks: [
+      {
+        heading: 'Fuente y agrupación',
+        bullets: [
+          '`AV_Ship_TotalLibras` para descongelado y `AV_Ship_TotalLibras_fresco` para fresco.',
+          '`OPship` relaciona cada salida con sus órdenes; `AV_OrdenesProduccion_TotalLibras` aporta las libras y `AV_LotesRemision.ClienteTipoTexto` clasifica PROGRAMA / RECHAZO.',
+          'Agrupa por `FechaCarga`, `TipoDestinoTexto` y `TipoEstiloTexto` dentro del rango seleccionado.',
+        ],
+      },
+      {
+        heading: 'Cálculos',
+        bullets: [
+          'Libras descongeladas = participación proporcional de cada OP en las libras del SHIP.',
+          'Total producido = libras programa + libras rechazo.',
+          'Promedio programa / rechazo / general = libras respectivas ÷ total libras descongeladas.',
+          'El total general usa sumas filtradas y vuelve a calcular porcentajes ponderados; no promedia porcentajes de filas.',
+        ],
+      },
+      {
+        heading: 'API y archivos',
+        bullets: [
+          '`GET /api/rendimientos?fechaInicial=YYYY-MM-DD&fechaFinal=YYYY-MM-DD`.',
+          '`backend/src/services/rendimientos.service.ts` y `frontend/src/pages/RendimientosPage.tsx`.',
+          'Permiso backend: `requirePermission(\'rendimientos\')`.',
+        ],
+      },
+      ARQUITECTURA_COMUN,
+    ],
+  },
   'power-bi': {
     title: 'Power BI',
     summary: 'Reporte de Power BI Embedded mediante el esquema App Owns Data; las credenciales de Microsoft permanecen exclusivamente en el backend.',

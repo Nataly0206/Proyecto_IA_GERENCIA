@@ -1,24 +1,127 @@
+import { useState } from 'react';
 import {
   Box,
   Button,
   Checkbox,
   FormControlLabel,
+  IconButton,
+  InputAdornment,
   MenuItem,
+  Popover,
+  Stack,
   TextField,
   Typography,
 } from '@mui/material';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
+import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import dayjs from 'dayjs';
 import { useFilters } from '../../context/FiltersContext';
 import { TURNOS } from '../../types';
 import { getDateFilterError, isValidIsoDate } from '../../utils/dateFilters';
+
+const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sept', 'oct', 'nov', 'dic'];
+const MONTH_NAMES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
+function MonthPicker({ value, onChange }: { value: string; onChange: (month: string) => void }) {
+  const today = dayjs();
+  const selected = /^\d{4}-\d{2}$/.test(value) ? dayjs(`${value}-01`) : null;
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+  const [year, setYear] = useState(selected?.year() ?? today.year());
+  const openPicker = (element: HTMLElement) => {
+    setYear(selected?.year() ?? today.year());
+    setAnchor(element);
+  };
+  const chooseMonth = (monthIndex: number) => {
+    onChange(`${year}-${String(monthIndex + 1).padStart(2, '0')}`);
+    setAnchor(null);
+  };
+
+  return (
+    <>
+      <TextField
+        label="Mes"
+        size="small"
+        fullWidth
+        value={selected ? `${MONTH_NAMES[selected.month()]} de ${selected.year()}` : ''}
+        onClick={(event) => openPicker(event.currentTarget)}
+        inputProps={{ readOnly: true, 'aria-label': 'Seleccionar mes' }}
+        InputLabelProps={{ shrink: true }}
+        InputProps={{
+          readOnly: true,
+          endAdornment: (
+            <InputAdornment position="end">
+              <IconButton
+                size="small"
+                aria-label="Abrir selector de mes"
+                onClick={(event) => { event.stopPropagation(); openPicker(event.currentTarget); }}
+              >
+                <CalendarMonthOutlinedIcon fontSize="small" />
+              </IconButton>
+            </InputAdornment>
+          ),
+        }}
+        sx={{ cursor: 'pointer', '& input': { cursor: 'pointer' } }}
+      />
+      <Popover
+        open={Boolean(anchor)}
+        anchorEl={anchor}
+        onClose={() => setAnchor(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+      >
+        <Box sx={{ width: 320, maxWidth: 'calc(100vw - 32px)', p: 1.5 }}>
+          <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+            <IconButton size="small" onClick={() => setYear((current) => current - 1)} aria-label="Año anterior">
+              <ChevronLeftIcon />
+            </IconButton>
+            <Typography fontWeight={800}>{year}</Typography>
+            <IconButton size="small" onClick={() => setYear((current) => current + 1)} disabled={year >= today.year()} aria-label="Año siguiente">
+              <ChevronRightIcon />
+            </IconButton>
+          </Stack>
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: .75 }}>
+            {MONTHS.map((label, monthIndex) => {
+              const monthValue = `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
+              const disabled = dayjs(`${monthValue}-01`).isAfter(today, 'month');
+              return (
+                <Button
+                  key={label}
+                  size="small"
+                  variant={value === monthValue ? 'contained' : 'text'}
+                  disabled={disabled}
+                  onClick={() => chooseMonth(monthIndex)}
+                  sx={{ minWidth: 0, py: 1 }}
+                >
+                  {label}
+                </Button>
+              );
+            })}
+          </Box>
+          <Stack direction="row" justifyContent="flex-end" sx={{ mt: 1 }}>
+            <Button size="small" onClick={() => { onChange(today.format('YYYY-MM')); setAnchor(null); }}>
+              Este mes
+            </Button>
+          </Stack>
+        </Box>
+      </Popover>
+    </>
+  );
+}
 
 /**
  * Barra de filtros globales. Los reportes reaccionan a estos valores a
  * través del FiltersContext + React Query. Nota: el reporte mensual usa
  * una ventana fija de 12 meses (solo le afecta el filtro de turno).
  */
-export default function GlobalFilters({ hideTurno = false }: { hideTurno?: boolean }) {
+export default function GlobalFilters({
+  hideTurno = false,
+  hideChartValues = false,
+}: {
+  hideTurno?: boolean;
+  hideChartValues?: boolean;
+}) {
   const {
     filters,
     showChartValues,
@@ -87,16 +190,7 @@ export default function GlobalFilters({ hideTurno = false }: { hideTurno?: boole
         helperText={finalDateError && !initialDateError ? dateError : undefined}
       />
 
-      <TextField
-        label="Mes"
-        type="month"
-        size="small"
-        fullWidth
-        value={selectedMonth}
-        onChange={(e) => selectMonth(e.target.value)}
-        InputLabelProps={{ shrink: true }}
-        inputProps={{ max: dayjs().format('YYYY-MM') }}
-      />
+      <MonthPicker value={selectedMonth} onChange={selectMonth} />
 
       {!hideTurno && (
         <TextField
@@ -124,7 +218,7 @@ export default function GlobalFilters({ hideTurno = false }: { hideTurno?: boole
           gridColumn: { xs: '1', sm: '1 / -1', md: 'auto' },
         }}
       >
-        <FormControlLabel
+        {!hideChartValues && <FormControlLabel
           control={
             <Checkbox
               size="small"
@@ -151,7 +245,7 @@ export default function GlobalFilters({ hideTurno = false }: { hideTurno?: boole
             '& .MuiCheckbox-root': { color: 'primary.main' },
             '& .MuiFormControlLabel-label': { lineHeight: 1 },
           }}
-        />
+        />}
 
         <Button
           variant="outlined"

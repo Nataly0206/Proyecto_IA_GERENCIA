@@ -15,6 +15,7 @@ export default function ProcessFilters({
   subtitle,
   hint,
   hideTurno = false,
+  hideChartValues = false,
   extra,
 }: {
   title?: string;
@@ -23,6 +24,8 @@ export default function ProcessFilters({
   hint?: ReactNode;
   /** Oculta el selector de turno cuando ningún widget de la página lo usa. */
   hideTurno?: boolean;
+  /** Oculta la preferencia de valores en gráficas cuando la página no tiene gráficas. */
+  hideChartValues?: boolean;
   /** Controles adicionales específicos del módulo. */
   extra?: ReactNode;
 }) {
@@ -82,7 +85,7 @@ export default function ProcessFilters({
       </Box>
       <Collapse in={open}>
         <Box sx={{ pt: 1.25 }}>
-          <GlobalFilters hideTurno={hideTurno} />
+          <GlobalFilters hideTurno={hideTurno} hideChartValues={hideChartValues} />
           {extra && <Box sx={{ mt: 1.25 }}>{extra}</Box>}
           {hint && (
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>

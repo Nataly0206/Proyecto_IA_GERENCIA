@@ -36,6 +36,8 @@ import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import DataObjectIcon from '@mui/icons-material/DataObject';
 import BarChartOutlinedIcon from '@mui/icons-material/BarChartOutlined';
+import AccountBalanceOutlinedIcon from '@mui/icons-material/AccountBalanceOutlined';
+import TrendingUpOutlinedIcon from '@mui/icons-material/TrendingUpOutlined';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { Menu, MenuItem } from '@mui/material';
 import { AuthUser } from '../../types/auth';
@@ -54,6 +56,8 @@ export type DashboardView =
   | 'dashboard'
   | 'exportaciones'
   | 'inventory'
+  | 'prestamos'
+  | 'rendimientos'
   | 'power-bi'
   | 'users';
 
@@ -116,7 +120,7 @@ export default function DashboardLayout({
           Navegación
         </Typography>
       </Box>
-      <List sx={{ px: 1, pt: 0 }}>
+      <List sx={{ px: 1, pt: 0, flex: 1, minHeight: 0, overflowY: 'auto' }}>
         {tienePermiso(user, 'compra_materia_prima') && (
           <Tooltip title={expanded ? '' : 'Compra de materia Prima'} placement="right">
           <ListItemButton
@@ -229,6 +233,34 @@ export default function DashboardLayout({
             </ListItemButton>
           </Tooltip>
         )}
+        {tienePermiso(user, 'prestamos') && (
+          <Tooltip title={expanded ? '' : 'Préstamos'} placement="right">
+            <ListItemButton
+              selected={currentView === 'prestamos'}
+              onClick={() => navigate('prestamos')}
+              sx={{ minHeight: 42, px: 1.25, borderRadius: 1, mb: 0.5 }}
+            >
+              <ListItemIcon sx={{ minWidth: expanded ? 36 : 0, justifyContent: 'center' }}>
+                <AccountBalanceOutlinedIcon fontSize="small" />
+              </ListItemIcon>
+              {expanded && <ListItemText primary="Préstamos" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
+            </ListItemButton>
+          </Tooltip>
+        )}
+        {tienePermiso(user, 'rendimientos') && (
+          <Tooltip title={expanded ? '' : 'Rendimientos'} placement="right">
+            <ListItemButton
+              selected={currentView === 'rendimientos'}
+              onClick={() => navigate('rendimientos')}
+              sx={{ minHeight: 42, px: 1.25, borderRadius: 1, mb: 0.5 }}
+            >
+              <ListItemIcon sx={{ minWidth: expanded ? 36 : 0, justifyContent: 'center' }}>
+                <TrendingUpOutlinedIcon fontSize="small" />
+              </ListItemIcon>
+              {expanded && <ListItemText primary="Rendimientos" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
+            </ListItemButton>
+          </Tooltip>
+        )}
         {tienePermiso(user, 'power_bi') && (
           <Tooltip title={expanded ? '' : 'Power BI'} placement="right">
             <ListItemButton
@@ -258,7 +290,6 @@ export default function DashboardLayout({
           </Tooltip>
         )}
       </List>
-      <Box sx={{ flex: 1 }} />
       <Divider />
       <Stack spacing={0.25} sx={{ p: 1 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, px: 1.25, py: 1 }}>
@@ -305,7 +336,7 @@ export default function DashboardLayout({
               ESF Seafood
             </Typography>
           </Stack>
-          {currentView !== null && currentView !== 'users' && currentView !== 'inventory' && currentView !== 'power-bi' && (
+          {currentView !== null && currentView !== 'users' && currentView !== 'inventory' && currentView !== 'prestamos' && currentView !== 'rendimientos' && currentView !== 'power-bi' && (
             <Button
               size="small"
               variant="outlined"
@@ -410,7 +441,7 @@ export default function DashboardLayout({
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
       >
-        {currentView !== 'users' && currentView !== 'inventory' && currentView !== 'power-bi' && (
+        {currentView !== 'users' && currentView !== 'inventory' && currentView !== 'prestamos' && currentView !== 'rendimientos' && currentView !== 'power-bi' && (
           <MenuItem onClick={() => { setMobileActionsAnchor(null); void handleRefresh(); }} disabled={isRefreshing}>
             <RefreshOutlinedIcon fontSize="small" sx={{ mr: 1.25 }} />
             {isRefreshing ? 'Actualizando…' : 'Actualizar datos'}

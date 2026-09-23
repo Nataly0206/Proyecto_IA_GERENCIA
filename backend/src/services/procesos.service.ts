@@ -384,18 +384,27 @@ export async function getClasificadoPorTallaMes(f: DashboardFilters, meses: numb
 /* EXPORTACIONES                                                       */
 /* ================================================================== */
 
-export async function getExportacionesResumen(): Promise<ExportacionesResumen> {
+export async function getExportacionesResumen(excludedClients: string[] = []): Promise<ExportacionesResumen> {
   const rows = await runQuery(EXPORTACIONES_RESUMEN_QUERY, []);
+  const excluded = new Set(excludedClients);
+  const visible = rows.filter((row) => !excluded.has(pickString(row, 'Cliente')));
+  const pounds = (matcher: (group: string) => boolean) => round2(visible.reduce((sum, row) => {
+    const group = pickString(row, 'NombreGrupo').toUpperCase();
+    return sum + (matcher(group) ? pickNumber(row, 'Libras') : 0);
+  }, 0));
+  const isFrance = (group: string) => group.includes('FRANCIA');
+  const isUk = (group: string) => group.includes('LFF') || group.includes('UK');
+  const isAcHolding = (group: string) => group.includes('AC HOLDING');
   const r = rows[0] ?? {};
   return {
     semanaInicio: pickString(r, 'SemanaInicio'),
     semanaFin: pickString(r, 'SemanaFin'),
     actualizado: new Date().toISOString(),
-    librasFrancia: round2(pickNumber(r, 'LibrasFrancia')),
-    librasUK: round2(pickNumber(r, 'LibrasUK')),
-    librasACHolding: round2(pickNumber(r, 'LibrasACHolding')),
-    librasTerceros: round2(pickNumber(r, 'LibrasTerceros')),
-    librasTotal: round2(pickNumber(r, 'LibrasTotal')),
+    librasFrancia: pounds(isFrance),
+    librasUK: pounds(isUk),
+    librasACHolding: pounds(isAcHolding),
+    librasTerceros: pounds((group) => !isFrance(group) && !isUk(group) && !isAcHolding(group)),
+    librasTotal: round2(visible.reduce((sum, row) => sum + pickNumber(row, 'Libras'), 0)),
   };
 }
 
@@ -435,16 +444,18 @@ async function fetchExportGroups(fechaInicial: string, fechaFinal: string): Prom
   });
 }
 
-export async function getExportacionesPorEstilo(f: DashboardFilters): Promise<DataRow[]> {
-  const groups = await fetchExportGroups(f.fechaInicial, f.fechaFinal);
+export async function getExportacionesPorEstilo(f: DashboardFilters, excludedClients: string[] = []): Promise<DataRow[]> {
+  const excluded = new Set(excludedClients);
+  const groups = (await fetchExportGroups(f.fechaInicial, f.fechaFinal)).filter((group) => !excluded.has(group.cliente));
   return aggregateTotal(groups.map((g) => ({ valor: g.estilo, libras: g.libras })))
     .map(({ valor, libras, porcentaje }) => ({ estilo: valor, libras, porcentaje }));
 }
 
 /** Una fila resumen por contenedor. `detalle` conserva el desglose anterior
  *  por estilo y cliente para abrirlo bajo demanda en la interfaz. */
-export async function getExportacionesContenedores(f: DashboardFilters): Promise<DataRow[]> {
-  const groups = await fetchExportGroups(f.fechaInicial, f.fechaFinal);
+export async function getExportacionesContenedores(f: DashboardFilters, excludedClients: string[] = []): Promise<DataRow[]> {
+  const excluded = new Set(excludedClients);
+  const groups = (await fetchExportGroups(f.fechaInicial, f.fechaFinal)).filter((group) => !excluded.has(group.cliente));
   const map = new Map<string, {
     fecha: string; contenedor: string; referencia: string; codigosEmbarque: Set<string>; clientes: Set<string>;
     estilos: Set<string>; masteres: number; anillos: number; unidades: number; libras: number; detalle: DataRow[];
@@ -531,9 +542,13 @@ export async function getExportacionesTrazabilidad(fecha: string, contenedor: st
   }));
 }
 
-export async function getExportacionesPorClienteMes(_f: DashboardFilters, meses: number): Promise<DataRow[]> {
+export async function getExportacionesPorClienteMes(
+  _f: DashboardFilters,
+  meses: number,
+  excludedClients: string[] = [],
+): Promise<DataRow[]> {
   const [ini, fin] = monthWindow(meses);
-  return withTtlCache(`exportClientMonth:${ini}:${fin}`, EXPORT_GROUPS_CACHE_MS, async () => {
+  const rows = await withTtlCache(`exportClientMonth:${ini}:${fin}`, EXPORT_GROUPS_CACHE_MS, async () => {
     const rows = await runQuery(EXPORTACIONES_CLIENTE_MES_QUERY, dateParams(ini, fin));
     return rows.map((row) => ({
       periodo: pickString(row, 'Mes'),
@@ -541,6 +556,8 @@ export async function getExportacionesPorClienteMes(_f: DashboardFilters, meses:
       contenedores: pickNumber(row, 'Contenedores'),
     }));
   });
+  const excluded = new Set(excludedClients);
+  return rows.filter((row) => !excluded.has(String(row.cliente)));
 }
 
 /* ================================================================== */

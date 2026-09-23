@@ -18,10 +18,29 @@ const compraMp = requirePermission('compra_materia_prima');
 const EXPORT_CLIENTS_PREFERENCE = 'exportaciones.clientes-mensual.ocultos';
 const CLASSIFIED_MACHINES_PREFERENCE = 'clasificado.maquinas.ocultas';
 const PEELING_SALA_HOURS_PREFERENCE = 'pelado.salas.horas-minimas';
+const IQF_HIDDEN_PROCESSES_PREFERENCE = 'iqf.procesos.ocultos';
+const PURCHASE_HIDDEN_PROVIDERS_PREFERENCE = 'compra-mp.proveedores.ocultos';
+const EXPORT_WEIGHT_UNIT_PREFERENCE = 'exportaciones.unidad-peso';
+const CHART_VALUES_PREFERENCE = 'dashboard.mostrar-valores-graficas';
 
 router.get('/libras-netas-proceso', iqf, asyncHandler(controller.getLibrasNetasPorProceso));
 router.get('/libras-netas-proceso-dia', iqf, asyncHandler(controller.getLibrasNetasPorProcesoDia));
 router.get('/libras-netas-proceso-mes', iqf, asyncHandler(controller.getLibrasNetasPorProcesoMes));
+router.get('/iqf-preferencias-procesos', iqf, asyncHandler(async (_req, res) => {
+  const hiddenProcesses = await getUserPreference<string[]>(res.locals.authUser.id, IQF_HIDDEN_PROCESSES_PREFERENCE);
+  res.json({ hiddenProcesses });
+}));
+router.put('/iqf-preferencias-procesos', iqf, asyncHandler(async (req, res) => {
+  const hiddenProcesses: unknown = req.body?.hiddenProcesses;
+  if (!Array.isArray(hiddenProcesses) || hiddenProcesses.length > 200
+    || !hiddenProcesses.every((process) => typeof process === 'string' && process.length > 0 && process.length <= 200)) {
+    res.status(400).json({ error: 'La selección de procesos no es válida.' });
+    return;
+  }
+  const normalized = Array.from(new Set(hiddenProcesses)) as string[];
+  await saveUserPreference(res.locals.authUser.id, IQF_HIDDEN_PROCESSES_PREFERENCE, normalized);
+  res.json({ message: 'Preferencia de procesos guardada.', hiddenProcesses: normalized });
+}));
 router.get('/iqf-libras-hora-dia', iqf, asyncHandler(controller.getIqfLibrasHoraDia));
 router.get('/iqf-libras-hora-mes', iqf, asyncHandler(controller.getIqfLibrasHoraMes));
 router.get('/iqf-horas-trabajadas-mes', iqf, asyncHandler(controller.getIqfHorasTrabajadasMes));
@@ -132,8 +151,50 @@ router.put('/exportaciones-preferencias-clientes', exportaciones, asyncHandler(a
   await saveUserPreference(res.locals.authUser.id, EXPORT_CLIENTS_PREFERENCE, normalized);
   res.json({ message: 'Preferencia de clientes guardada.', hiddenClients: normalized });
 }));
+router.get('/exportaciones-preferencia-unidad', exportaciones, asyncHandler(async (_req, res) => {
+  const preference = await getUserPreference<{ weightUnit: 'lbs' | 'kg' }>(res.locals.authUser.id, EXPORT_WEIGHT_UNIT_PREFERENCE);
+  res.json({ weightUnit: preference?.weightUnit ?? null });
+}));
+router.put('/exportaciones-preferencia-unidad', exportaciones, asyncHandler(async (req, res) => {
+  const weightUnit: unknown = req.body?.weightUnit;
+  if (weightUnit !== 'lbs' && weightUnit !== 'kg') {
+    res.status(400).json({ error: 'La unidad de peso no es válida.' });
+    return;
+  }
+  await saveUserPreference(res.locals.authUser.id, EXPORT_WEIGHT_UNIT_PREFERENCE, { weightUnit });
+  res.json({ weightUnit });
+}));
+
+router.get('/preferencia-valores-graficas', asyncHandler(async (_req, res) => {
+  const preference = await getUserPreference<{ showChartValues: boolean }>(res.locals.authUser.id, CHART_VALUES_PREFERENCE);
+  res.json({ showChartValues: preference?.showChartValues ?? null });
+}));
+router.put('/preferencia-valores-graficas', asyncHandler(async (req, res) => {
+  const showChartValues: unknown = req.body?.showChartValues;
+  if (typeof showChartValues !== 'boolean') {
+    res.status(400).json({ error: 'La preferencia de valores no es válida.' });
+    return;
+  }
+  await saveUserPreference(res.locals.authUser.id, CHART_VALUES_PREFERENCE, { showChartValues });
+  res.json({ showChartValues });
+}));
 
 /* Compra de materia prima */
+router.get('/compra-mp-preferencias-proveedores', compraMp, asyncHandler(async (_req, res) => {
+  const hiddenProviders = await getUserPreference<string[]>(res.locals.authUser.id, PURCHASE_HIDDEN_PROVIDERS_PREFERENCE);
+  res.json({ hiddenProviders });
+}));
+router.put('/compra-mp-preferencias-proveedores', compraMp, asyncHandler(async (req, res) => {
+  const hiddenProviders: unknown = req.body?.hiddenProviders;
+  if (!Array.isArray(hiddenProviders) || hiddenProviders.length > 500
+    || !hiddenProviders.every((provider) => typeof provider === 'string' && provider.length > 0 && provider.length <= 500)) {
+    res.status(400).json({ error: 'La selección de proveedores no es válida.' });
+    return;
+  }
+  const normalized = Array.from(new Set(hiddenProviders)) as string[];
+  await saveUserPreference(res.locals.authUser.id, PURCHASE_HIDDEN_PROVIDERS_PREFERENCE, normalized);
+  res.json({ hiddenProviders: normalized });
+}));
 router.get('/compra-mp-resumen', compraMp, asyncHandler(procesos.getCompraMpResumen));
 router.get('/compra-mp-por-proveedor', compraMp, asyncHandler(procesos.getCompraMpPorProveedor));
 router.get('/compra-mp-por-item', compraMp, asyncHandler(procesos.getCompraMpPorItem));

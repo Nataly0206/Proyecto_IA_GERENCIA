@@ -72,7 +72,7 @@ function writeBrowserCache<T>(key: string, data: T): void {
   }
 }
 
-export function useWidgetData(endpoint: DashboardEndpoint) {
+export function useWidgetData(endpoint: DashboardEndpoint, extraParams?: Record<string, string>) {
   const { filters } = useFilters();
   const filtersAreValid = !getDateFilterError(filters);
   const endpointCacheVersion = endpoint === 'iqf-horas-trabajadas-mes'
@@ -88,13 +88,14 @@ export function useWidgetData(endpoint: DashboardEndpoint) {
     filters.fechaInicial,
     filters.fechaFinal,
     filters.turno,
+    extraParams ?? {},
   ]);
   const cached = readBrowserCache<DataRow[]>(cacheKey, REFRESH_INTERVAL_MS);
 
   return useQuery<DataRow[]>({
-    queryKey: ['dashboard', endpointCacheVersion, filters],
+    queryKey: ['dashboard', endpointCacheVersion, filters, extraParams ?? {}],
     queryFn: async () => {
-      const data = await fetchWidgetData(endpoint, filters);
+      const data = await fetchWidgetData(endpoint, filters, false, extraParams);
       writeBrowserCache(cacheKey, data);
       return data;
     },

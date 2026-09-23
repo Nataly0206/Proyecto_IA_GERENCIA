@@ -28,11 +28,15 @@ function readHiddenClients(userId: string): Set<string> {
 }
 
 export default function ExportacionesPage({ userId }: { userId: string }) {
-  const { data, isLoading, isError, error, dataUpdatedAt } =
-    useProcesoResumen<ExportacionesResumen>('exportaciones-resumen');
-  const { data: clientRows } = useWidgetData('exportaciones-por-cliente-mes');
   const [hiddenClients, setHiddenClients] = useState<Set<string>>(() => readHiddenClients(userId));
+  const clientQueryParams = useMemo(() => ({
+    excludedClients: JSON.stringify(Array.from(hiddenClients).sort()),
+  }), [hiddenClients]);
+  const { data, isLoading, isError, error, dataUpdatedAt } =
+    useProcesoResumen<ExportacionesResumen>('exportaciones-resumen', clientQueryParams);
+  const { data: clientRows } = useWidgetData('exportaciones-por-cliente-mes');
   const [weightUnit, setWeightUnit] = useState<WeightUnit>('lbs');
+  const [weightPreferenceReady, setWeightPreferenceReady] = useState(false);
   const [clientsAnchor, setClientsAnchor] = useState<HTMLElement | null>(null);
   const [preferencesUserId, setPreferencesUserId] = useState<string | null>(null);
   const clients = useMemo(() => Array.from(new Set(
@@ -75,6 +79,25 @@ export default function ExportacionesPage({ userId }: { userId: string }) {
     return () => window.clearTimeout(timeout);
   }, [hiddenClients, preferencesUserId, userId]);
 
+  useEffect(() => {
+    let active = true;
+    setWeightPreferenceReady(false);
+    apiClient.get<{ weightUnit: WeightUnit | null }>('/dashboard/exportaciones-preferencia-unidad')
+      .then(({ data }) => {
+        if (active && (data.weightUnit === 'lbs' || data.weightUnit === 'kg')) setWeightUnit(data.weightUnit);
+      })
+      .finally(() => { if (active) setWeightPreferenceReady(true); });
+    return () => { active = false; };
+  }, [userId]);
+
+  useEffect(() => {
+    if (!weightPreferenceReady) return;
+    const timeout = window.setTimeout(() => {
+      void apiClient.put('/dashboard/exportaciones-preferencia-unidad', { weightUnit }).catch(() => undefined);
+    }, 300);
+    return () => window.clearTimeout(timeout);
+  }, [weightPreferenceReady, weightUnit]);
+
   const toggleClient = (client: string) => {
     setHiddenClients((current) => {
       const next = new Set(current);
@@ -98,14 +121,40 @@ export default function ExportacionesPage({ userId }: { userId: string }) {
         title="Filtros de exportaciones"
         hint="Los contadores muestran la semana en curso (lunes a domingo); las tarjetas y tablas responden al rango de fechas."
         hideTurno
-        extra={<Stack direction="row" alignItems="center" spacing={1}>
-          <Typography variant="body2" fontWeight={700}>Unidad de peso</Typography>
-          <ToggleButtonGroup size="small" exclusive value={weightUnit}
-            onChange={(_event, next: WeightUnit | null) => { if (next) setWeightUnit(next); }}
-            aria-label="Unidad de peso de exportaciones">
-            <ToggleButton value="lbs">lbs</ToggleButton>
-            <ToggleButton value="kg">kg</ToggleButton>
-          </ToggleButtonGroup>
+        extra={<Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'stretch', sm: 'center' }} spacing={1.5}>
+          <Stack direction="row" alignItems="center" spacing={1}>
+            <Typography variant="body2" fontWeight={700}>Unidad de peso</Typography>
+            <ToggleButtonGroup size="small" exclusive value={weightUnit}
+              onChange={(_event, next: WeightUnit | null) => { if (next) setWeightUnit(next); }}
+              aria-label="Unidad de peso de exportaciones">
+              <ToggleButton value="lbs">lbs</ToggleButton>
+              <ToggleButton value="kg">kg</ToggleButton>
+            </ToggleButtonGroup>
+          </Stack>
+          <Button size="small" variant="outlined" startIcon={<PeopleAltOutlinedIcon sx={{ fontSize: 16 }} />}
+            onClick={(event) => setClientsAnchor(event.currentTarget)} sx={{ alignSelf: { xs: 'flex-start', sm: 'center' }, fontWeight: 700 }}>
+            Clientes ({visibleClients}/{clients.length})
+          </Button>
+          <Popover open={Boolean(clientsAnchor)} anchorEl={clientsAnchor} onClose={() => setClientsAnchor(null)}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}>
+            <Box sx={{ p: 1.5, minWidth: 250, maxHeight: 340, overflowY: 'auto' }}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center" mb={0.5}>
+                <Typography variant="caption" fontWeight={800} color="text.secondary">CLIENTES</Typography>
+                <Stack direction="row" spacing={1}>
+                  <Button size="small" sx={{ fontSize: 11, minWidth: 0, p: 0 }} onClick={() => setHiddenClients(new Set())}>Todos</Button>
+                  <Button size="small" sx={{ fontSize: 11, minWidth: 0, p: 0 }} onClick={() => setHiddenClients(new Set(clients))}>Ninguno</Button>
+                </Stack>
+              </Stack>
+              <Divider sx={{ mb: 0.5 }} />
+              <Stack spacing={0}>
+                {clients.map((client) => <FormControlLabel key={client}
+                  sx={{ '& .MuiFormControlLabel-label': { fontSize: 13 }, ml: 0 }}
+                  control={<Checkbox size="small" checked={!hiddenClients.has(client)} onChange={() => toggleClient(client)} />}
+                  label={client} />)}
+                {clients.length === 0 && <Typography variant="caption" color="text.secondary">Sin clientes disponibles.</Typography>}
+              </Stack>
+            </Box>
+          </Popover>
         </Stack>}
       />
 
@@ -128,42 +177,15 @@ export default function ExportacionesPage({ userId }: { userId: string }) {
       />
 
       <ChartWidget config={{ ...porEstilo, title: `${weightUnit === 'kg' ? 'Kg' : 'Libras'} Exportadas por Estilo`, unitLabel: `${weightUnit} exportadas`, valueFormat: 'number' }}
+        queryParams={clientQueryParams}
         transform={(rows) => rows.map((row) => ({ ...row, libras: convertPounds(Number(row.libras ?? 0), weightUnit) }))} />
 
-      <ExportContainersTable weightUnit={weightUnit} />
+      <ExportContainersTable weightUnit={weightUnit} queryParams={clientQueryParams} />
 
       <Box sx={{ height: TABLE_H, flexShrink: 0 }}>
         <ChartWidget
           config={porClienteMes}
-          transform={(rows) => rows.filter((row) => !hiddenClients.has(String(row.cliente ?? 'Sin cliente')))}
-          actions={
-            <>
-              <Button size="small" variant="outlined" startIcon={<PeopleAltOutlinedIcon sx={{ fontSize: 16 }} />}
-                onClick={(event) => setClientsAnchor(event.currentTarget)} sx={{ fontSize: 11, fontWeight: 700, py: 0.4 }}>
-                Clientes ({visibleClients}/{clients.length})
-              </Button>
-              <Popover open={Boolean(clientsAnchor)} anchorEl={clientsAnchor} onClose={() => setClientsAnchor(null)}
-                anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}>
-                <Box sx={{ p: 1.5, minWidth: 250, maxHeight: 340, overflowY: 'auto' }}>
-                  <Stack direction="row" justifyContent="space-between" alignItems="center" mb={0.5}>
-                    <Typography variant="caption" fontWeight={800} color="text.secondary">CLIENTES</Typography>
-                    <Stack direction="row" spacing={1}>
-                      <Button size="small" sx={{ fontSize: 11, minWidth: 0, p: 0 }} onClick={() => setHiddenClients(new Set())}>Todos</Button>
-                      <Button size="small" sx={{ fontSize: 11, minWidth: 0, p: 0 }} onClick={() => setHiddenClients(new Set(clients))}>Ninguno</Button>
-                    </Stack>
-                  </Stack>
-                  <Divider sx={{ mb: 0.5 }} />
-                  <Stack spacing={0}>
-                    {clients.map((client) => <FormControlLabel key={client}
-                      sx={{ '& .MuiFormControlLabel-label': { fontSize: 13 }, ml: 0 }}
-                      control={<Checkbox size="small" checked={!hiddenClients.has(client)} onChange={() => toggleClient(client)} />}
-                      label={client} />)}
-                    {clients.length === 0 && <Typography variant="caption" color="text.secondary">Sin clientes en el período.</Typography>}
-                  </Stack>
-                </Box>
-              </Popover>
-            </>
-          }
+          queryParams={clientQueryParams}
         />
       </Box>
     </Stack>

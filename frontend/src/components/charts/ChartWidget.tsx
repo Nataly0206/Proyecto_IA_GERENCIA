@@ -38,6 +38,7 @@ interface ChartWidgetProps {
    * de conversión) sin duplicar la consulta ni el fetch.
    */
   transform?: (data: DataRow[]) => DataRow[];
+  queryParams?: Record<string, string>;
 }
 
 type ViewMode = 'table' | 'chart' | 'trend';
@@ -48,8 +49,8 @@ type ViewMode = 'table' | 'chart' | 'trend';
  * DynamicChart. Si el config declara `altChartType`, muestra un selector
  * para alternar entre vista de tabla y gráfica comparativa.
  */
-export default function ChartWidget({ config, actions, columnOrder, onColumnReorder, emptyText = 'Sin datos para los filtros seleccionados.', transform, workedHours }: ChartWidgetProps) {
-  const { data, isLoading, isError, error } = useWidgetData(config.endpoint);
+export default function ChartWidget({ config, actions, columnOrder, onColumnReorder, emptyText = 'Sin datos para los filtros seleccionados.', transform, workedHours, queryParams }: ChartWidgetProps) {
+  const { data, isLoading, isError, error } = useWidgetData(config.endpoint, queryParams);
   const [view, setView] = useState<ViewMode>('chart');
   const [report, setReport] = useState<'rate' | 'hours'>('rate');
   const showHours = Boolean(workedHours) && report === 'hours';

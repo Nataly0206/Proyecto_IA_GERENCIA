@@ -12,7 +12,7 @@ export const dashboardWidgets: ChartConfig[] = [
     id: 'libras-netas-proceso',
     type: 'bar',
     title: 'Libras Congeladas Netas por Tipo de Proceso',
-    subtitle: 'Excluye FRESH TAIL (compra de materia prima) y reempaque',
+    subtitle: 'Incluye fresco y reempaque como tipos de proceso seleccionables',
     endpoint: 'libras-netas-proceso',
     xField: 'proceso',
     yField: 'libras',

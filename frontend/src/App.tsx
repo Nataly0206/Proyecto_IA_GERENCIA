@@ -139,7 +139,7 @@ export default function App() {
   const view = currentView && canAccessView(user, currentView) ? currentView : defaultView(user);
 
   return (
-    <FiltersProvider view={view}>
+    <FiltersProvider view={view} userId={user.id}>
       <DashboardLayout
         onLogout={logout}
         user={user}
@@ -178,7 +178,7 @@ export default function App() {
         ) : view === 'pelado' ? (
           <PeladoPage userId={user.id} />
         ) : view === 'dashboard' ? (
-          <DashboardPage />
+          <DashboardPage userId={user.id} />
         ) : (
           <SinAcceso />
         )}

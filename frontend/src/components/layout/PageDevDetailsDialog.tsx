@@ -251,8 +251,9 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
       {
         heading: 'Filtros y parámetros',
         bullets: [
-          'Netas: `CAST(DiaProduccion2024 AS DATE) BETWEEN @Fecha_Inicial AND @Fecha_Final AND VaEjecutivo = 1 AND ProcesadaPlanta = 1 AND fkTipo NOT IN (2, 4) AND NombreTipoProceso <> \'FRESH TAIL\'`.',
-          'Se excluye RE-EMPAQUE (`fkTipo = 2`) y FRESH TAIL / REGISTRO FRESCO (`fkTipo = 4`, que es compra de materia prima, no congelación neta nueva).',
+          'Base: `CAST(DiaProduccion2024 AS DATE) BETWEEN @Fecha_Inicial AND @Fecha_Final AND VaEjecutivo = 1 AND ProcesadaPlanta = 1`.',
+          'REEMPAQUE consolida todas las filas con `fkTipo = 2`; FRESCO consolida `fkTipo = 4` / FRESH TAIL. El resto conserva `NombreTipoProceso`.',
+          'El selector Procesos filtra las filas recibidas y se aplica por igual a Total, Día y Mensual.',
           '`fkTipo`: 0 = RECEPCIÓN (producción), 1 = REPROCESO, 2 = RE-EMPAQUE, 4 = REGISTRO FRESCO.',
           'Rendimiento: `fkTipo < 4`, líneas con `CategoriaLinea LIKE \'%IQF%\'` o `EquipoIQF > 0`; `HAVING DATEDIFF(MINUTE, MIN(FechaHoraTorre), MAX(FechaHoraTorre)) > 15` descarta grupos de ≤15 min.',
           "Horas: `DiaProduccion2024 BETWEEN @Fecha_Inicial AND @Fecha_Final`, `fkTipo < 4`, `CategoriaLinea LIKE '%IQF%'`; agrupar por equipo/día/turno y conservar grupos con más de 15 minutos. No usa el UNION ALL del reporte de rendimiento.",
@@ -379,7 +380,7 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
           '`/compra-mp-ordenes` (tabla "Órdenes Pendientes de Exportación") se eliminó por completo: vivió primero aquí, luego se movió a Exportaciones, y finalmente se quitó del dashboard.',
           'Permiso backend: `requirePermission(\'compra_materia_prima\')`.',
           'Archivos: `procesos.queries.ts` (`COMPRA_MP_RESUMEN_QUERY`, `COMPRA_MP_POR_PROVEEDOR_QUERY`, `COMPRA_MP_POR_ITEM_QUERY`), `procesos.service.ts` (`getCompraMpResumen`, `getCompraMpPorProveedor`, `getCompraMpMateriaPrima`, `getCompraMpPorItem`); front `frontend/src/pages/CompraMateriaPrimaPage.tsx`, `frontend/src/components/charts/MateriaPrimaProveedorCombinedCards.tsx`, `frontend/src/components/charts/MateriaPrimaProveedorWidget.tsx` (la tarjeta "Mensual": selector Proveedor/Talla, vistas Tabla/Gráfica, selector de proveedores), `frontend/src/components/charts/GroupedItemsTable.tsx` (tabla tipo/proveedor/item).',
-          'La selección de proveedores del checklist se guarda en `localStorage`, clave `compra-mp-proveedores-ocultos:v1:<userId>` (se guardan los proveedores OCULTOS, no los visibles, para que un proveedor nuevo aparezca visible por defecto).',
+          'La selección de proveedores se guarda por usuario en `dbo.dashboard_usuarios_preferencias` con la clave `compra-mp.proveedores.ocultos`; `localStorage` queda como respaldo. Se guardan los proveedores ocultos para que uno nuevo aparezca visible por defecto.',
         ],
       },
       ARQUITECTURA_COMUN,

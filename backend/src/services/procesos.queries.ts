@@ -539,15 +539,9 @@ DECLARE @Domingo date = DATEADD(DAY, 6, @Lunes);
 SELECT
   CONVERT(varchar(10), @Lunes, 23) AS SemanaInicio,
   CONVERT(varchar(10), @Domingo, 23) AS SemanaFin,
-  ISNULL(SUM(CASE WHEN v.NombreGrupo LIKE '%FRANCIA%' THEN i.PesoLibras ELSE 0 END), 0) AS LibrasFrancia,
-  ISNULL(SUM(CASE WHEN v.NombreGrupo LIKE '%LFF%' OR v.NombreGrupo LIKE '%UK%' THEN i.PesoLibras ELSE 0 END), 0) AS LibrasUK,
-  ISNULL(SUM(CASE WHEN v.NombreGrupo LIKE '%AC HOLDING%' THEN i.PesoLibras ELSE 0 END), 0) AS LibrasACHolding,
-  ISNULL(SUM(CASE
-    WHEN v.NombreGrupo NOT LIKE '%FRANCIA%'
-     AND v.NombreGrupo NOT LIKE '%LFF%' AND v.NombreGrupo NOT LIKE '%UK%'
-     AND v.NombreGrupo NOT LIKE '%AC HOLDING%'
-    THEN i.PesoLibras ELSE 0 END), 0) AS LibrasTerceros,
-  ISNULL(SUM(i.PesoLibras), 0) AS LibrasTotal
+  COALESCE(NULLIF(LTRIM(RTRIM(v.NombreGrupo)), ''), NULLIF(LTRIM(RTRIM(v.Empresa)), ''), 'Sin cliente') AS Cliente,
+  COALESCE(NULLIF(LTRIM(RTRIM(v.NombreGrupo)), ''), '') AS NombreGrupo,
+  ISNULL(SUM(i.PesoLibras), 0) AS Libras
 FROM dbo.Envios e
 JOIN dbo.Masteres m ON m.FkEnvio = e.IdEnvio
 JOIN dbo.Seriales s ON s.FkMaster = m.IdMaster
@@ -556,6 +550,9 @@ JOIN dbo.AV_Items i ON i.IdItem = op.FkItem
 JOIN dbo.AV_LotesRemision v ON v.IdLoteRemision = op.FkLoteRemision
 WHERE e.FechaCarga BETWEEN @Lunes AND @Domingo
   AND e.NumeroContenedor IS NOT NULL AND e.NumeroContenedor <> ''
+GROUP BY
+  COALESCE(NULLIF(LTRIM(RTRIM(v.NombreGrupo)), ''), NULLIF(LTRIM(RTRIM(v.Empresa)), ''), 'Sin cliente'),
+  COALESCE(NULLIF(LTRIM(RTRIM(v.NombreGrupo)), ''), '')
 `;
 
 /* ================================================================== */

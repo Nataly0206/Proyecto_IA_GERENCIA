@@ -56,7 +56,7 @@ const round2 = (n: number): number => Number(n.toFixed(2));
 
 /* ------------------------------------------------------------------ */
 /* Reporte 1: libras congeladas netas por tipo de proceso              */
-/* (sin FRESH TAIL ni reempaque — exclusión hecha en el SQL)           */
+/* (incluye FRESCO y REEMPAQUE como categorías seleccionables)          */
 /* ------------------------------------------------------------------ */
 
 export async function getLibrasNetasPorProceso(

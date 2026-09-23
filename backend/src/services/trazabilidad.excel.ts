@@ -40,11 +40,14 @@ export async function buildTrazabilidadExcel(rows: DataRow[], uk: boolean): Prom
       cell.border = { top: BORDER, bottom: BORDER, left: BORDER, right: BORDER };
     });
   });
+  const itemTotals: { master: number; pounds: number; kilograms: number }[] = [];
   const addTotal = (label: string, group: DataRow[]) => {
     const totalPounds = group.reduce((sum, item) => sum + Number(item.libras ?? 0), 0);
     const totalKilograms = totalPounds / POUNDS_PER_KILOGRAM;
+    const totalMaster = group.reduce((sum, item) => sum + Number(item.master ?? 0), 0);
+    itemTotals.push({ master: totalMaster, pounds: totalPounds, kilograms: totalKilograms });
     const row = sheet.addRow([label, null, null, null, null,
-      group.reduce((sum, item) => sum + Number(item.master ?? 0), 0),
+      totalMaster,
       totalPounds,
       totalKilograms,
     ]);
@@ -93,6 +96,23 @@ export async function buildTrazabilidadExcel(rows: DataRow[], uk: boolean): Prom
       addTotal(`${record.item} Total`, group);
     }
   });
+  const grandMaster = itemTotals.reduce((sum, total) => sum + total.master, 0);
+  const grandPounds = itemTotals.reduce((sum, total) => sum + total.pounds, 0);
+  const grandKilograms = itemTotals.reduce((sum, total) => sum + total.kilograms, 0);
+  const grandTotalRow = sheet.addRow([
+    'TOTAL GENERAL', null, null, null, null, grandMaster, grandPounds, grandKilograms,
+  ]);
+  sheet.mergeCells(`A${grandTotalRow.number}:E${grandTotalRow.number}`);
+  grandTotalRow.height = 24;
+  grandTotalRow.eachCell({ includeEmpty: true }, (cell, col) => {
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: PALE } };
+    cell.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FF111111' } };
+    cell.alignment = { vertical: 'middle', horizontal: col >= 6 && col <= 8 ? 'right' : 'left' };
+    cell.border = { top: BORDER, bottom: BORDER, left: BORDER, right: BORDER };
+  });
+  grandTotalRow.getCell(6).numFmt = '#,##0';
+  grandTotalRow.getCell(7).numFmt = uk ? '#,##0.0000' : '#,##0.00';
+  grandTotalRow.getCell(8).numFmt = kilogramsFormat(grandKilograms);
   for (let col = 1; col <= 4; col += 1) {
     for (let start = 0; start < detailRows.length;) {
       let end = start;

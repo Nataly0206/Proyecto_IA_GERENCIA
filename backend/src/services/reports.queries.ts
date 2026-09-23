@@ -14,22 +14,23 @@
  */
 
 /**
- * Libras congeladas netas por tipo de proceso:
- * excluye RE-EMPAQUE (fkTipo = 2) y la compra de materia prima
- * FRESH TAIL / REGISTRO FRESCO (fkTipo = 4).
+ * Libras procesadas por tipo. Reempaque y registro fresco se consolidan
+ * como categorías propias para que el usuario pueda incluirlas o excluirlas.
  */
 export const NET_FROZEN_BY_PROCESS_QUERY = `
 SELECT
-  a.NombreTipoProceso AS Proceso,
+  CASE WHEN a.fkTipo = 2 THEN 'REEMPAQUE'
+       WHEN a.fkTipo = 4 THEN 'FRESCO'
+       ELSE a.NombreTipoProceso END AS Proceso,
   a.Turno,
   SUM(a.PesoLibras) AS Libras
 FROM dbo.AV_Produccion_Diaria_Resumen a
 WHERE CAST(a.DiaProduccion2024 AS DATE) BETWEEN @Fecha_Inicial AND @Fecha_Final
   AND a.VaEjecutivo = 1
   AND a.ProcesadaPlanta = 1
-  AND a.fkTipo NOT IN (2, 4)
-  AND a.NombreTipoProceso <> 'FRESH TAIL'
-GROUP BY a.NombreTipoProceso, a.Turno
+GROUP BY CASE WHEN a.fkTipo = 2 THEN 'REEMPAQUE'
+              WHEN a.fkTipo = 4 THEN 'FRESCO'
+              ELSE a.NombreTipoProceso END, a.Turno
 `;
 
 /**
@@ -39,7 +40,9 @@ GROUP BY a.NombreTipoProceso, a.Turno
  */
 export const NET_FROZEN_BY_PROCESS_DAILY_QUERY = `
 SELECT
-  a.NombreTipoProceso AS Proceso,
+  CASE WHEN a.fkTipo = 2 THEN 'REEMPAQUE'
+       WHEN a.fkTipo = 4 THEN 'FRESCO'
+       ELSE a.NombreTipoProceso END AS Proceso,
   a.Turno,
   CAST(a.DiaProduccion2024 AS DATE) AS Dia,
   SUM(a.PesoLibras) AS Libras
@@ -47,9 +50,10 @@ FROM dbo.AV_Produccion_Diaria_Resumen a
 WHERE CAST(a.DiaProduccion2024 AS DATE) BETWEEN @Fecha_Inicial AND @Fecha_Final
   AND a.VaEjecutivo = 1
   AND a.ProcesadaPlanta = 1
-  AND a.fkTipo NOT IN (2, 4)
-  AND a.NombreTipoProceso <> 'FRESH TAIL'
-GROUP BY a.NombreTipoProceso, a.Turno, CAST(a.DiaProduccion2024 AS DATE)
+GROUP BY CASE WHEN a.fkTipo = 2 THEN 'REEMPAQUE'
+              WHEN a.fkTipo = 4 THEN 'FRESCO'
+              ELSE a.NombreTipoProceso END,
+  a.Turno, CAST(a.DiaProduccion2024 AS DATE)
 `;
 
 /**

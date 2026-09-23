@@ -16,7 +16,7 @@ export const TURNOS = ['A', 'B'] as const;
 
 export type DataRow = Record<string, unknown>;
 
-/** Libras congeladas netas (sin FRESH TAIL ni reempaque) por proceso */
+/** Libras procesadas, incluyendo FRESCO y REEMPAQUE, por proceso. */
 export interface NetProcessRow extends DataRow {
   proceso: string;
   libras: number;

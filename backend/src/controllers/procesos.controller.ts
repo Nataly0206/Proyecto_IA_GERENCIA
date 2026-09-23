@@ -58,6 +58,20 @@ function live(key: string, handler: () => Promise<unknown>, ttlMs = LIVE_CACHE_M
   };
 }
 
+function parseExcludedClients(req: Request): string[] {
+  const raw = req.query.excludedClients;
+  if (typeof raw !== 'string' || raw.length > 50_000) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.length > 500) return [];
+    return Array.from(new Set(parsed.filter(
+      (client): client is string => typeof client === 'string' && client.length > 0 && client.length <= 500,
+    )));
+  } catch {
+    return [];
+  }
+}
+
 /* Recepción */
 export const getRecepcionResumen = live('recepcion-resumen', procesos.getRecepcionResumen);
 export const getRecepcionRemisiones = report('recepcion-remisiones', procesos.getRecepcionRemisiones);
@@ -78,9 +92,35 @@ export const getClasificadoPorTallaDia = report('clasificado-por-talla-dia', pro
 export const getClasificadoPorTallaMes = monthlyReport('clasificado-por-talla-mes', procesos.getClasificadoPorTallaMes);
 
 /* Exportaciones */
-export const getExportacionesResumen = live('exportaciones-resumen', procesos.getExportacionesResumen, EXPORT_CACHE_MS);
-export const getExportacionesPorEstilo = report('exportaciones-por-estilo', procesos.getExportacionesPorEstilo);
-export const getExportacionesContenedores = report('exportaciones-contenedores', procesos.getExportacionesContenedores);
+export const getExportacionesResumen = async (req: Request, res: Response): Promise<void> => {
+  const excludedClients = parseExcludedClients(req);
+  res.json(await withTtlCache(
+    JSON.stringify(['exportaciones-resumen', excludedClients]),
+    EXPORT_CACHE_MS,
+    () => procesos.getExportacionesResumen(excludedClients),
+    req.query.refresh === 'true',
+  ));
+};
+export const getExportacionesPorEstilo = async (req: Request, res: Response): Promise<void> => {
+  const filters = parseFilters(req);
+  const excludedClients = parseExcludedClients(req);
+  res.json(await withTtlCache(
+    JSON.stringify(['exportaciones-por-estilo', filters, excludedClients]),
+    REPORT_CACHE_MS,
+    () => procesos.getExportacionesPorEstilo(filters, excludedClients),
+    req.query.refresh === 'true',
+  ));
+};
+export const getExportacionesContenedores = async (req: Request, res: Response): Promise<void> => {
+  const filters = parseFilters(req);
+  const excludedClients = parseExcludedClients(req);
+  res.json(await withTtlCache(
+    JSON.stringify(['exportaciones-contenedores', filters, excludedClients]),
+    REPORT_CACHE_MS,
+    () => procesos.getExportacionesContenedores(filters, excludedClients),
+    req.query.refresh === 'true',
+  ));
+};
 export const getExportacionesContenedorDetalle = async (req: Request, res: Response): Promise<void> => {
   const fecha = String(req.query.fecha ?? '');
   const contenedor = String(req.query.contenedor ?? '');
@@ -117,7 +157,17 @@ export const descargarExportacionesTrazabilidad = async (req: Request, res: Resp
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.send(buffer);
 };
-export const getExportacionesPorClienteMes = monthlyReport('exportaciones-por-cliente-mes', procesos.getExportacionesPorClienteMes, 6);
+export const getExportacionesPorClienteMes = async (req: Request, res: Response): Promise<void> => {
+  const filters = parseFilters(req);
+  const meses = Math.min(Math.max(Number(req.query.meses) || 6, 1), 36);
+  const excludedClients = parseExcludedClients(req);
+  res.json(await withTtlCache(
+    JSON.stringify(['exportaciones-por-cliente-mes', meses, excludedClients]),
+    REPORT_CACHE_MS,
+    () => procesos.getExportacionesPorClienteMes(filters, meses, excludedClients),
+    req.query.refresh === 'true',
+  ));
+};
 
 /* Compra de materia prima */
 export const getCompraMpResumen = async (req: Request, res: Response): Promise<void> => {

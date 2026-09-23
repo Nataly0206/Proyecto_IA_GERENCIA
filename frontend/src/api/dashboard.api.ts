@@ -83,10 +83,12 @@ export async function fetchWidgetData(
   endpoint: DashboardEndpoint,
   filters: DashboardFilters,
   refresh = false,
+  extraParams?: Record<string, string>,
 ): Promise<DataRow[]> {
   const { data } = await apiClient.get<DataRow[]>(`/dashboard/${endpoint}`, {
     params: {
       ...toParams(filters),
+      ...extraParams,
       ...(refresh ? { refresh: 'true' } : {}),
     },
   });

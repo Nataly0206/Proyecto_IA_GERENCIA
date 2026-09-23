@@ -17,7 +17,7 @@ const STACK_GAPS = 24;      // dos espacios de spacing={1.5}
 const GRID_ROW_GAP = 16;    // spacing={2}
 const CARD_CHROME = 96;     // cardcontent padding + title block + margin
 
-export default function DashboardPage() {
+export default function DashboardPage({ userId }: { userId: string }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const filtersRef = useRef<HTMLDivElement>(null);
@@ -140,7 +140,7 @@ export default function DashboardPage() {
           ref={netProcessRef}
           sx={{ gridColumn: '1 / -1', minWidth: 0 }}
         >
-          <NetProcessWidget height={heights.netas} />
+          <NetProcessWidget height={heights.netas} userId={userId} />
         </Box>
         <Box
           sx={{

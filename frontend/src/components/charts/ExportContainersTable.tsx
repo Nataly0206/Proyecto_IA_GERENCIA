@@ -31,8 +31,14 @@ import { convertPounds, WeightUnit } from '../../utils/weightUnits';
 const HEADER_SX = { fontWeight: 800, bgcolor: '#f1f5f9', color: '#172033', whiteSpace: 'nowrap' } as const;
 const TOTAL_SX = { fontWeight: 800, bgcolor: '#e8eef7', borderTop: '2px solid #b8c7d9' } as const;
 
-export default function ExportContainersTable({ weightUnit }: { weightUnit: WeightUnit }) {
-  const { data, isLoading, isError, error, dataUpdatedAt } = useWidgetData('exportaciones-contenedores');
+export default function ExportContainersTable({
+  weightUnit,
+  queryParams,
+}: {
+  weightUnit: WeightUnit;
+  queryParams?: Record<string, string>;
+}) {
+  const { data, isLoading, isError, error, dataUpdatedAt } = useWidgetData('exportaciones-contenedores', queryParams);
   const [selected, setSelected] = useState<DataRow | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState('');
@@ -74,7 +80,18 @@ export default function ExportContainersTable({ weightUnit }: { weightUnit: Weig
     enabled: Boolean(selected),
     staleTime: 15 * 60 * 1000,
   });
-  const detail = detailQuery.data ?? [];
+  const excludedClients = useMemo(() => {
+    try {
+      const parsed: unknown = JSON.parse(queryParams?.excludedClients ?? '[]');
+      return new Set(Array.isArray(parsed) ? parsed.filter((client): client is string => typeof client === 'string') : []);
+    } catch {
+      return new Set<string>();
+    }
+  }, [queryParams?.excludedClients]);
+  const detail = useMemo(
+    () => (detailQuery.data ?? []).filter((row) => !excludedClients.has(String(row.cliente ?? 'Sin cliente'))),
+    [detailQuery.data, excludedClients],
+  );
   const detailTotalLibras = detail.reduce((sum, row) => sum + Number(row.libras ?? 0), 0);
   const detailTotalAnillos = detail.reduce((sum, row) => sum + Number(row.anillos ?? 0), 0);
   const detailTotalSerial = detail.reduce((sum, row) => sum + Number(row.cantidadSerial ?? 0), 0);

@@ -122,7 +122,7 @@ const PAGE_HELP: Record<DashboardView, PageHelp> = {
       { title: 'Rango de fechas', body: 'Desde, Hasta y Mes consultan la fecha de salida o descongelado. El reporte se actualiza al cambiar el período.' },
       { title: 'Columnas configurables', body: 'Abre la configuración para quitar, agregar o reordenar columnas. La selección se guarda para tu usuario.' },
       { title: 'Filtros y ordenamiento', body: 'El icono de filtro de cada encabezado permite seleccionar valores o establecer rangos numéricos. También puedes ordenar cualquier columna y buscar en todos los datos.' },
-      { title: 'Promedios', body: 'Programa, rechazo y general se calculan dividiendo sus libras producidas entre las libras descongeladas. El Gran total recalcula esos porcentajes de forma ponderada.' },
+      { title: 'Promedios', body: 'En cada fila, programa, rechazo y general se calculan dividiendo sus libras producidas entre las libras descongeladas. En el Gran total y las tarjetas se muestra el promedio simple de los porcentajes de las filas, igual que en el reporte original.' },
     ],
   },
   'power-bi': {

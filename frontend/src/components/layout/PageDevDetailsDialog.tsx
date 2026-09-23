@@ -450,7 +450,7 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
           'Libras descongeladas = participación proporcional de cada OP en las libras del SHIP.',
           'Total producido = libras programa + libras rechazo.',
           'Promedio programa / rechazo / general = libras respectivas ÷ total libras descongeladas.',
-          'El total general usa sumas filtradas y vuelve a calcular porcentajes ponderados; no promedia porcentajes de filas.',
+          'Los porcentajes del total general son el promedio simple de los porcentajes de las filas visibles, reproduciendo el criterio del reporte original.',
         ],
       },
       {

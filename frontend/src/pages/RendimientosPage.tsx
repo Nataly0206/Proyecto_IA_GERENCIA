@@ -78,11 +78,15 @@ function summarizeRows(rows: Row[]): Row {
   const librasProgramaProducidas = rows.reduce((sum, row) => sum + row.librasProgramaProducidas, 0);
   const librasRechazoProducidas = rows.reduce((sum, row) => sum + row.librasRechazoProducidas, 0);
   const totalLibrasProducidas = librasProgramaProducidas + librasRechazoProducidas;
+  const rowCount = rows.length;
   return {
     fechaDescongelado: 'Gran total', tipoEstilo: '', salida: '', totalLibrasDescongeladas,
-    librasProgramaProducidas, promedioPrograma: totalLibrasDescongeladas ? librasProgramaProducidas / totalLibrasDescongeladas : 0,
-    librasRechazoProducidas, promedioRechazo: totalLibrasDescongeladas ? librasRechazoProducidas / totalLibrasDescongeladas : 0,
-    totalLibrasProducidas, promedioGeneral: totalLibrasDescongeladas ? totalLibrasProducidas / totalLibrasDescongeladas : 0,
+    librasProgramaProducidas,
+    promedioPrograma: rowCount ? rows.reduce((sum, row) => sum + row.promedioPrograma, 0) / rowCount : 0,
+    librasRechazoProducidas,
+    promedioRechazo: rowCount ? rows.reduce((sum, row) => sum + row.promedioRechazo, 0) / rowCount : 0,
+    totalLibrasProducidas,
+    promedioGeneral: rowCount ? rows.reduce((sum, row) => sum + row.promedioGeneral, 0) / rowCount : 0,
   };
 }
 

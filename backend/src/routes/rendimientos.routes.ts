@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { asyncHandler } from '../middleware/errorHandler';
 import { getRendimientosProduccion } from '../services/rendimientos.service';
 import { getUserPreference, saveUserPreference } from '../services/user-preferences.service';
+import { reportCacheTtl, withTtlCache } from '../utils/ttlCache';
 
 const router = Router();
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -14,7 +15,13 @@ router.get('/', asyncHandler(async (req, res) => {
     res.status(400).json({ error: 'El rango de fechas no es válido.' });
     return;
   }
-  res.json({ rows: await getRendimientosProduccion(fechaInicial, fechaFinal) });
+  const rows = await withTtlCache(
+    JSON.stringify(['rendimientos-produccion:v1', { fechaInicial, fechaFinal }]),
+    reportCacheTtl(fechaFinal, fechaInicial),
+    () => getRendimientosProduccion(fechaInicial, fechaFinal),
+    req.query.refresh === 'true',
+  );
+  res.json({ rows });
 }));
 
 router.get('/preferences', asyncHandler(async (_req, res) => {

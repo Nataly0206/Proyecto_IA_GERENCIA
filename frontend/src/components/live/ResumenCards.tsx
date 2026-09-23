@@ -36,6 +36,8 @@ interface ResumenCardsProps {
   updatedAt?: number;
   liveBadge?: boolean;
   emptyText?: string;
+  /** Máximo de tarjetas por fila en escritorio. */
+  maxColumns?: number;
 }
 
 /**
@@ -54,6 +56,7 @@ export default function ResumenCards({
   updatedAt,
   liveBadge = true,
   emptyText = 'Sin datos para hoy.',
+  maxColumns,
 }: ResumenCardsProps) {
   const allZero =
     metrics.length > 0 && metrics.every((m) => !m.value && !m.display);
@@ -113,7 +116,7 @@ export default function ResumenCards({
             gridTemplateColumns: {
               xs: 'repeat(2, minmax(0, 1fr))',
               sm: `repeat(${Math.min(metrics.length, 4)}, minmax(0, 1fr))`,
-              lg: `repeat(${metrics.length}, minmax(0, 1fr))`,
+              lg: `repeat(${Math.min(metrics.length, maxColumns ?? metrics.length)}, minmax(0, 1fr))`,
             },
             gap: 1,
           }}

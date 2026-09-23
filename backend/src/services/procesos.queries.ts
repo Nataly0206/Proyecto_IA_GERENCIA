@@ -43,6 +43,30 @@ DECLARE @Dia date = CAST(GETDATE() AS date);
 DECLARE @Lunes date = DATEADD(DAY, -(DATEDIFF(DAY, 0, @Dia) % 7), @Dia);
 DECLARE @PrimerDiaMes date = DATEADD(DAY, 1 - DAY(@Dia), @Dia);
 
+;WITH HoyRemisiones AS (
+  SELECT
+    v.IdRemisionPlanta,
+    COALESCE(NULLIF(LTRIM(RTRIM(v.CodigoFinca)), ''), '') AS CodigoFinca,
+    COALESCE(NULLIF(LTRIM(RTRIM(v.Finca)), ''), '') AS Finca,
+    COALESCE(NULLIF(LTRIM(RTRIM(v.Laguna)), ''), '') AS Laguna,
+    SUM(v.LibrasRemision) AS LibrasRemision,
+    MAX(ISNULL(v.LibrasBasura, 0)) AS LibrasBasura,
+    MAX(ISNULL(v.LibrasCola, 0)) AS LibrasCola,
+    MAX(ISNULL(v.LibrasCabeza, 0)) AS LibrasCabeza
+  FROM dbo.RemisionesPlantaPBI v
+  WHERE v.FechaRemision = @Dia
+  GROUP BY v.IdRemisionPlanta,
+    COALESCE(NULLIF(LTRIM(RTRIM(v.CodigoFinca)), ''), ''),
+    COALESCE(NULLIF(LTRIM(RTRIM(v.Finca)), ''), ''),
+    COALESCE(NULLIF(LTRIM(RTRIM(v.Laguna)), ''), '')
+), TotalesHoy AS (
+  SELECT
+    ISNULL(SUM(LibrasRemision), 0) AS LibrasRemisionHoy,
+    ISNULL(SUM(LibrasBasura), 0) AS LibrasBasuraHoy,
+    ISNULL(SUM(LibrasCola), 0) AS LibrasColaHoy,
+    ISNULL(SUM(LibrasCabeza), 0) AS LibrasCabezaHoy
+  FROM HoyRemisiones
+)
 SELECT
   (SELECT ISNULL(SUM(d.LIBRAS), 0)
      FROM dbo.R_REMISIONES_PLANTA rp
@@ -61,7 +85,12 @@ SELECT
   (SELECT ISNULL(SUM(d.LIBRAS), 0)
      FROM dbo.R_REMISIONES_PLANTA rp
      JOIN dbo.R_REMISIONES_PLANTA_DETALLE d ON d.ID_REMISION_PLANTA = rp.ID_REMISION_PLANTA
-    WHERE rp.ANULADA = 0 AND rp.RECHAZADA = 0 AND rp.CERRADA = 0 AND ISNULL(d.PROCESADO, 0) = 0) AS LibrasPendientesProcesar
+    WHERE rp.ANULADA = 0 AND rp.RECHAZADA = 0 AND rp.CERRADA = 0 AND ISNULL(d.PROCESADO, 0) = 0) AS LibrasPendientesProcesar,
+  t.LibrasRemisionHoy,
+  t.LibrasBasuraHoy,
+  t.LibrasColaHoy,
+  t.LibrasCabezaHoy
+FROM TotalesHoy t
 `;
 
 /**

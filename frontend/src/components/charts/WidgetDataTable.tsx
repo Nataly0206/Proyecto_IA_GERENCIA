@@ -1,7 +1,13 @@
-import { ReactNode, useMemo, useState } from 'react';
+import { MouseEvent, ReactNode, useMemo, useState } from 'react';
 import {
   Alert,
+  Autocomplete,
   Box,
+  Button,
+  Checkbox,
+  Chip,
+  IconButton,
+  Popover,
   Skeleton,
   Stack,
   Table,
@@ -12,8 +18,11 @@ import {
   TableHead,
   TableRow,
   TableSortLabel,
+  TextField,
+  Tooltip,
   Typography,
 } from '@mui/material';
+import FilterListIcon from '@mui/icons-material/FilterList';
 import { DashboardEndpoint, DataRow, ValueFormat } from '../../types';
 import { useWidgetData } from '../../hooks/useDashboardData';
 import { formatPeriodo, formatValue } from '../../utils/format';
@@ -52,6 +61,8 @@ interface WidgetDataTableProps {
   stickySummary?: boolean;
   /** Variante visual para tablas operativas con mayor densidad de datos. */
   variant?: 'default' | 'recepcion';
+  /** Permite seleccionar uno o varios valores desde el encabezado de cada columna. */
+  filterable?: boolean;
 }
 
 const HEADER_SX = { fontWeight: 800, bgcolor: '#f1f5f9', color: '#172033' } as const;
@@ -81,13 +92,31 @@ export default function WidgetDataTable({
   maxHeight = 420,
   stickySummary = false,
   variant = 'default',
+  filterable = false,
 }: WidgetDataTableProps) {
   const { data, isLoading, isError, error, dataUpdatedAt } = useWidgetData(endpoint);
   const [sortKey, setSortKey] = useState(defaultSortKey ?? columns[0]?.key);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [columnFilters, setColumnFilters] = useState<Record<string, string[]>>({});
+  const [filterColumn, setFilterColumn] = useState<WidgetColumn | null>(null);
+  const [filterAnchor, setFilterAnchor] = useState<HTMLElement | null>(null);
+
+  const activeFilterCount = Object.values(columnFilters).filter((values) => values.length > 0).length;
+
+  const filterOptions = useMemo(() => {
+    if (!filterColumn) return [];
+    return Array.from(new Set((data ?? []).map((row) => String(row[filterColumn.key] ?? ''))))
+      .sort((a, b) => {
+        const an = Number(a);
+        const bn = Number(b);
+        return Number.isFinite(an) && Number.isFinite(bn) ? an - bn : a.localeCompare(b);
+      });
+  }, [data, filterColumn]);
 
   const rows = useMemo(() => {
-    const list = [...(data ?? [])];
+    const list = (data ?? []).filter((row) => Object.entries(columnFilters).every(([key, values]) =>
+      values.length === 0 || values.includes(String(row[key] ?? '')),
+    ));
     if (!sortKey) return list;
     const numeric = list.every((r) => r[sortKey] === undefined || !Number.isNaN(Number(r[sortKey])));
     list.sort((a, b) => {
@@ -99,7 +128,13 @@ export default function WidgetDataTable({
       return sortDir === 'asc' ? cmp : -cmp;
     });
     return list;
-  }, [data, sortKey, sortDir]);
+  }, [columnFilters, data, sortKey, sortDir]);
+
+  const openFilter = (event: MouseEvent<HTMLElement>, column: WidgetColumn) => {
+    event.stopPropagation();
+    setFilterAnchor(event.currentTarget);
+    setFilterColumn(column);
+  };
 
   const toggleSort = (key: string) => {
     if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -162,7 +197,60 @@ export default function WidgetDataTable({
             {dataUpdatedAt ? ` · actualizado ${new Date(dataUpdatedAt).toLocaleTimeString()}` : ''}
           </Typography>
         )}
+        {filterable && activeFilterCount > 0 && (
+          <>
+            <Chip size="small" color="primary" variant="outlined" label={`${activeFilterCount} filtro${activeFilterCount === 1 ? '' : 's'}`} />
+            <Button size="small" onClick={() => setColumnFilters({})} sx={{ minHeight: 26, px: 1 }}>
+              Limpiar filtros
+            </Button>
+          </>
+        )}
       </Stack>
+
+      <Popover
+        open={Boolean(filterAnchor && filterColumn)}
+        anchorEl={filterAnchor}
+        onClose={() => { setFilterAnchor(null); setFilterColumn(null); }}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+      >
+        {filterColumn && (
+          <Stack spacing={1.25} sx={{ width: 380, maxWidth: 'calc(100vw - 32px)', p: 1.5 }}>
+            <Typography variant="subtitle2" fontWeight={800}>Filtrar: {filterColumn.label}</Typography>
+            <Autocomplete
+              multiple
+              disableCloseOnSelect
+              options={filterOptions}
+              value={columnFilters[filterColumn.key] ?? []}
+              onChange={(_event, values) => setColumnFilters((current) => ({
+                ...current,
+                [filterColumn.key]: values,
+              }))}
+              getOptionLabel={(option) => filterColumn.format === 'periodo'
+                ? formatPeriodo(option)
+                : filterColumn.format && filterColumn.format !== 'text'
+                  ? formatValue(Number(option), numericFormat(filterColumn.format))
+                  : option || 'Vacío'}
+              renderOption={(props, option, { selected }) => (
+                <li {...props}>
+                  <Checkbox size="small" checked={selected} sx={{ mr: 1, p: 0.25 }} />
+                  {filterColumn.format === 'periodo'
+                    ? formatPeriodo(option)
+                    : filterColumn.format && filterColumn.format !== 'text'
+                      ? formatValue(Number(option), numericFormat(filterColumn.format))
+                      : option || 'Vacío'}
+                </li>
+              )}
+              renderInput={(params) => <TextField {...params} size="small" placeholder="Buscar valores" autoFocus />}
+            />
+            <Button
+              size="small"
+              onClick={() => setColumnFilters((current) => ({ ...current, [filterColumn.key]: [] }))}
+            >
+              Limpiar esta columna
+            </Button>
+          </Stack>
+        )}
+      </Popover>
 
       {isLoading && <Skeleton variant="rounded" height={260} />}
 
@@ -174,7 +262,7 @@ export default function WidgetDataTable({
 
       {!isLoading && !isError && rows.length === 0 && (
         <Alert severity="info" sx={{ py: 0.5 }}>
-          {emptyText}
+          {activeFilterCount > 0 ? 'No hay remisiones que coincidan con los filtros seleccionados.' : emptyText}
         </Alert>
       )}
 
@@ -206,13 +294,26 @@ export default function WidgetDataTable({
                     } : HEADER_SX}
                     sortDirection={sortKey === col.key ? sortDir : false}
                   >
-                    <TableSortLabel
-                      active={sortKey === col.key}
-                      direction={sortKey === col.key ? sortDir : 'desc'}
-                      onClick={() => toggleSort(col.key)}
-                    >
-                      {col.label}
-                    </TableSortLabel>
+                    <Stack direction="row" alignItems="center" justifyContent={col.align === 'right' ? 'flex-end' : 'flex-start'} spacing={0.25}>
+                      <TableSortLabel
+                        active={sortKey === col.key}
+                        direction={sortKey === col.key ? sortDir : 'desc'}
+                        onClick={() => toggleSort(col.key)}
+                      >
+                        {col.label}
+                      </TableSortLabel>
+                      {filterable && (
+                        <Tooltip title={`Filtrar ${col.label}`}>
+                          <IconButton
+                            size="small"
+                            onClick={(event) => openFilter(event, col)}
+                            sx={{ p: 0.35, color: columnFilters[col.key]?.length ? '#ffe082' : 'rgba(255,255,255,.82)' }}
+                          >
+                            <FilterListIcon sx={{ fontSize: 16 }} />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </Stack>
                   </TableCell>
                 ))}
               </TableRow>

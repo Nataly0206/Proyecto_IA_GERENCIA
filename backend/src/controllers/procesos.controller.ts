@@ -66,14 +66,14 @@ function parseExcludedClients(req: Request): string[] {
     if (!Array.isArray(parsed) || parsed.length > 500) return [];
     return Array.from(new Set(parsed.filter(
       (client): client is string => typeof client === 'string' && client.length > 0 && client.length <= 500,
-    )));
+    ))).sort();
   } catch {
     return [];
   }
 }
 
 /* Recepción */
-export const getRecepcionResumen = live('recepcion-resumen', procesos.getRecepcionResumen);
+export const getRecepcionResumen = live('recepcion-resumen:balance-diario-v2', procesos.getRecepcionResumen);
 export const getRecepcionRemisiones = report('recepcion-remisiones', procesos.getRecepcionRemisiones);
 
 /* Descabezado */

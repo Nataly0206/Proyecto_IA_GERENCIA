@@ -221,6 +221,12 @@ export interface RecepcionResumen {
   librasRecibidasSemana: number;
   librasRecibidasMes: number;
   librasPendientesProcesar: number;
+  librasRemisionHoy: number;
+  librasBasuraHoy: number;
+  librasColaHoy: number;
+  librasCabezaHoy: number;
+  totalCabezaColaHoy: number;
+  rendimientoPlantaHoy: number;
 }
 
 export interface DescabezadoResumen {

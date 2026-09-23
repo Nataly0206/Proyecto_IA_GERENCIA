@@ -114,6 +114,9 @@ function aggregateTotal(
 export async function getRecepcionResumen(): Promise<RecepcionResumen> {
   const rows = await runStbQuery(RECEPCION_RESUMEN_QUERY, []);
   const r = rows[0] ?? {};
+  const librasColaHoy = round2(pickNumber(r, 'LibrasColaHoy'));
+  const librasCabezaHoy = round2(pickNumber(r, 'LibrasCabezaHoy'));
+  const totalCabezaColaHoy = round2(librasColaHoy + librasCabezaHoy);
   return {
     dia: formatDate(new Date()),
     actualizado: new Date().toISOString(),
@@ -121,6 +124,14 @@ export async function getRecepcionResumen(): Promise<RecepcionResumen> {
     librasRecibidasSemana: round2(pickNumber(r, 'LibrasRecibidasSemana')),
     librasRecibidasMes: round2(pickNumber(r, 'LibrasRecibidasMes')),
     librasPendientesProcesar: round2(pickNumber(r, 'LibrasPendientesProcesar')),
+    librasRemisionHoy: round2(pickNumber(r, 'LibrasRemisionHoy')),
+    librasBasuraHoy: round2(pickNumber(r, 'LibrasBasuraHoy')),
+    librasColaHoy,
+    librasCabezaHoy,
+    totalCabezaColaHoy,
+    rendimientoPlantaHoy: totalCabezaColaHoy > 0
+      ? round2((librasColaHoy / totalCabezaColaHoy) * 100)
+      : 0,
   };
 }
 

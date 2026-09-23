@@ -11,6 +11,14 @@ function numberFromEnv(name: string, fallback: number, min: number, max: number)
   return value;
 }
 
+function booleanFromEnv(name: string, fallback: boolean): boolean {
+  const raw = process.env[name];
+  if (raw === undefined || raw === '') return fallback;
+  if (raw === 'true') return true;
+  if (raw === 'false') return false;
+  throw new Error(`${name} debe ser true o false.`);
+}
+
 export const env = {
   NODE_ENV: process.env.NODE_ENV ?? 'development',
   PORT: numberFromEnv('PORT', 3002, 1, 65535),
@@ -80,4 +88,13 @@ export const env = {
   POWERBI_CLIENT_SECRET: process.env.POWERBI_CLIENT_SECRET ?? '',
   POWERBI_WORKSPACE_ID: process.env.POWERBI_WORKSPACE_ID ?? '',
   POWERBI_REPORT_ID: process.env.POWERBI_REPORT_ID ?? '',
+  CACHE_ENABLED: booleanFromEnv('CACHE_ENABLED', true),
+  REDIS_URL: process.env.REDIS_URL ?? '',
+  REDIS_PREFIX: process.env.REDIS_PREFIX ?? 'dashboard-gerencial:v1',
+  CACHE_HISTORICAL_TTL_SECONDS: numberFromEnv(
+    'CACHE_HISTORICAL_TTL_SECONDS', 12 * 60 * 60, 60, 7 * 24 * 60 * 60,
+  ),
+  CACHE_CURRENT_TTL_SECONDS: numberFromEnv('CACHE_CURRENT_TTL_SECONDS', 10 * 60, 30, 24 * 60 * 60),
+  CACHE_LIVE_TTL_SECONDS: numberFromEnv('CACHE_LIVE_TTL_SECONDS', 60, 15, 60 * 60),
+  CACHE_LOCAL_TTL_SECONDS: numberFromEnv('CACHE_LOCAL_TTL_SECONDS', 30, 1, 300),
 };

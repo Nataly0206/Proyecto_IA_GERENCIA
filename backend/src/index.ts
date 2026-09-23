@@ -16,6 +16,8 @@ import { changedPasswordAuth, requirePermission, sessionAuth } from './middlewar
 import { assertAuthDatabaseReady } from './services/auth.service';
 import { closeAuthPool } from './config/authDb';
 import { closeStbPool } from './config/stbDb';
+import { closeRedis, getRedisClient, redisStatus } from './config/redis';
+import { cacheMetrics } from './utils/ttlCache';
 
 // Fail-closed: en producción no se arranca sin API_KEY, para no exponer
 // la API (y por tanto la BD real vía el asistente IA) sin autenticación.
@@ -71,7 +73,11 @@ const aiLimiter = rateLimit({
 });
 
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    cache: { redis: redisStatus(), metrics: cacheMetrics },
+  });
 });
 
 app.use('/api', generalLimiter);
@@ -90,6 +96,9 @@ let server: ReturnType<typeof app.listen>;
 
 async function start(): Promise<void> {
   await assertAuthDatabaseReady();
+  // Redis acelera el sistema, pero no es requisito para atender solicitudes:
+  // si no conecta, cada reporte continúa consultando SQL con normalidad.
+  await getRedisClient();
   server = app.listen(env.PORT, () => {
     console.log(`[api] Dashboard API escuchando en http://localhost:${env.PORT}`);
   });
@@ -111,6 +120,7 @@ const shutdown = async (): Promise<void> => {
   await closePool();
   await closeAuthPool();
   await closeStbPool();
+  await closeRedis();
   process.exit(0);
 };
 

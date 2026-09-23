@@ -42,6 +42,8 @@ export interface WidgetColumn {
   total?: 'sum' | { ratio: [string, string] };
   /** Muestra la media aritmética de la columna en la fila de promedios. */
   average?: boolean;
+  /** Columna oculta por defecto; aparece al activar "Ver detalle". */
+  optional?: boolean;
 }
 
 const numericFormat = (f: WidgetColumn['format']): ValueFormat =>
@@ -100,6 +102,13 @@ export default function WidgetDataTable({
   const [columnFilters, setColumnFilters] = useState<Record<string, string[]>>({});
   const [filterColumn, setFilterColumn] = useState<WidgetColumn | null>(null);
   const [filterAnchor, setFilterAnchor] = useState<HTMLElement | null>(null);
+  const [showOptional, setShowOptional] = useState(false);
+
+  const hasOptionalColumns = columns.some((c) => c.optional);
+  const visibleColumns = useMemo(
+    () => columns.filter((c) => showOptional || !c.optional),
+    [columns, showOptional],
+  );
 
   const activeFilterCount = Object.values(columnFilters).filter((values) => values.length > 0).length;
 
@@ -205,6 +214,11 @@ export default function WidgetDataTable({
             </Button>
           </>
         )}
+        {hasOptionalColumns && (
+          <Button size="small" onClick={() => setShowOptional((v) => !v)} sx={{ minHeight: 26, px: 1 }}>
+            {showOptional ? 'Ocultar detalle' : 'Ver detalle'}
+          </Button>
+        )}
       </Stack>
 
       <Popover
@@ -278,7 +292,7 @@ export default function WidgetDataTable({
           <Table size="small" stickyHeader sx={isRecepcion ? { minWidth: 1180 } : undefined}>
             <TableHead>
               <TableRow>
-                {columns.map((col) => (
+                {visibleColumns.map((col) => (
                   <TableCell
                     key={col.key}
                     align={col.align ?? (col.format && col.format !== 'text' && col.format !== 'periodo' ? 'right' : 'left')}
@@ -329,12 +343,12 @@ export default function WidgetDataTable({
                     '& td': { borderColor: '#e7edf5', py: 0.9, whiteSpace: 'nowrap' },
                   } : undefined}
                 >
-                  {columns.map((col) => (
+                  {visibleColumns.map((col) => (
                     <TableCell
                       key={col.key}
                       align={col.align ?? (col.format && col.format !== 'text' && col.format !== 'periodo' ? 'right' : 'left')}
                       sx={{
-                        ...(col.key === columns[0].key ? { fontWeight: 600 } : {}),
+                        ...(col.key === visibleColumns[0].key ? { fontWeight: 600 } : {}),
                         ...(isRecepcion && col.key === 'cliente' ? { fontWeight: 700, color: '#243b53' } : {}),
                       }}
                     >
@@ -391,7 +405,7 @@ export default function WidgetDataTable({
                     },
                   }}
                 >
-                  {columns.map((col, idx) => (
+                  {visibleColumns.map((col, idx) => (
                     <TableCell
                       key={col.key}
                       align={col.align ?? (col.format && col.format !== 'text' && col.format !== 'periodo' ? 'right' : 'left')}
@@ -417,7 +431,7 @@ export default function WidgetDataTable({
                     },
                   }}
                 >
-                  {columns.map((col, idx) => (
+                  {visibleColumns.map((col, idx) => (
                     <TableCell
                       key={col.key}
                       align={col.align ?? (col.format && col.format !== 'text' && col.format !== 'periodo' ? 'right' : 'left')}

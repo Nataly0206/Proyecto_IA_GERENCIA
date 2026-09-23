@@ -1,7 +1,6 @@
 import { Stack } from '@mui/material';
 import MoveToInboxOutlinedIcon from '@mui/icons-material/MoveToInboxOutlined';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
-import TodayOutlinedIcon from '@mui/icons-material/TodayOutlined';
 import ProcessFilters from '../components/filters/ProcessFilters';
 import ResumenCards from '../components/live/ResumenCards';
 import WidgetDataTable from '../components/charts/WidgetDataTable';
@@ -46,30 +45,6 @@ export default function RecepcionPage() {
         ]}
       />
 
-      <ResumenCards
-        title={`Balance de recepción — Hoy${data ? ` · ${formatPeriodo(data.dia)}` : ''}`}
-        icon={<TodayOutlinedIcon color="primary" sx={{ fontSize: 16 }} />}
-        isLoading={isLoading}
-        isError={isError}
-        errorText={error instanceof Error ? error.message : undefined}
-        updatedAt={dataUpdatedAt}
-        liveBadge
-        emptyText="Todavía no hay libras de recepción registradas hoy."
-        metrics={[
-          { label: 'Libras remisión', value: data?.librasRemisionHoy ?? 0, unit: 'lbs', tone: 'good' },
-          { label: 'Libras basura', value: data?.librasBasuraHoy ?? 0, unit: 'lbs', tone: 'warn' },
-          { label: 'Libras cola', value: data?.librasColaHoy ?? 0, unit: 'lbs' },
-          { label: 'Libras cabeza', value: data?.librasCabezaHoy ?? 0, unit: 'lbs' },
-          { label: 'Total cabeza + cola', value: data?.totalCabezaColaHoy ?? 0, unit: 'lbs', tone: 'good' },
-          {
-            label: 'Rendimiento planta',
-            value: data?.rendimientoPlantaHoy ?? 0,
-            format: 'percent',
-            tone: 'good',
-          },
-        ]}
-      />
-
       <WidgetDataTable
         title="Remisiones Recibidas — Detalle"
         subtitle="Una fila por remisión, finca y laguna · rango de fechas del filtro · fuente: RemisionesPlantaPBI"
@@ -82,10 +57,10 @@ export default function RecepcionPage() {
         emptyText="Sin remisiones recibidas en el rango seleccionado."
         columns={[
           { key: 'fecha', label: 'Fecha remisión', format: 'periodo' },
-          { key: 'cliente', label: 'Cliente' },
-          { key: 'codigoFinca', label: 'Finca' },
-          { key: 'laguna', label: 'Laguna' },
-          { key: 'remision', label: 'Remisión planta' },
+          { key: 'cliente', label: 'Cliente', optional: true },
+          { key: 'codigoFinca', label: 'Finca', optional: true },
+          { key: 'laguna', label: 'Laguna', optional: true },
+          { key: 'remision', label: 'Remisión planta', optional: true },
           { key: 'librasRemision', label: 'Libras remisión', format: 'number', total: 'sum' },
           { key: 'librasBasura', label: 'L. basura', format: 'number' },
           { key: 'librasCola', label: 'Libras cola', format: 'number', total: 'sum' },
@@ -96,6 +71,7 @@ export default function RecepcionPage() {
             label: 'Rend. finca',
             format: 'percent',
             total: { ratio: ['librasCola', 'librasRemision'] },
+            optional: true,
           },
           {
             key: 'rendimientoPlanta',

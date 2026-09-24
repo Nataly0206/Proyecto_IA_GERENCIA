@@ -193,9 +193,9 @@ export async function getDescabezadoResumen(): Promise<DescabezadoResumen> {
   return {
     dia: formatDate(new Date()),
     actualizado: new Date().toISOString(),
-    librasDescabezadasDia: round2(pickNumber(r, 'LibrasDescabezadasDia')),
-    librasDescabezadasSemana: round2(pickNumber(r, 'LibrasDescabezadasSemana')),
-    librasDescabezadasMes: round2(pickNumber(r, 'LibrasDescabezadasMes')),
+    librasColaDia: round2(pickNumber(r, 'LibrasColaDia')),
+    librasEnterasSemana: round2(pickNumber(r, 'LibrasEnterasSemana')),
+    librasEnterasMes: round2(pickNumber(r, 'LibrasEnterasMes')),
     personasDia: pickNumber(r, 'PersonasDia'),
     librasPromedioPorHora: round2(pickNumber(r, 'LibrasPromedioPorHora')),
   };
@@ -677,6 +677,22 @@ async function fetchCompraProveedor(fechaInicial: string, fechaFinal: string): P
 export async function getCompraMpPorProveedor(f: DashboardFilters): Promise<DataRow[]> {
   const groups = await fetchCompraProveedor(f.fechaInicial, f.fechaFinal);
   return aggregateTotal(groups).map(({ valor, libras, porcentaje }) => ({ proveedor: valor, libras, porcentaje }));
+}
+
+/** Matriz diaria de materia prima por proveedor. La fuente almacena WSO;
+ *  el reporte diario entrega su equivalente HOSO (WSO / 0.65). */
+export async function getCompraMpPorProveedorDia(f: DashboardFilters): Promise<DataRow[]> {
+  const groups = await fetchCompraProveedor(f.fechaInicial, f.fechaFinal);
+  const totals = new Map<string, { fecha: string; proveedor: string; librasHoso: number }>();
+  for (const group of groups) {
+    const key = `${group.dia}|${group.valor}`;
+    const current = totals.get(key) ?? { fecha: group.dia, proveedor: group.valor, librasHoso: 0 };
+    current.librasHoso += group.libras / 0.65;
+    totals.set(key, current);
+  }
+  return Array.from(totals.values())
+    .map((row) => ({ ...row, librasHoso: round2(row.librasHoso) }))
+    .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.proveedor.localeCompare(b.proveedor));
 }
 
 /** Materia prima por tipo, proveedor e item (rango de fechas del filtro):

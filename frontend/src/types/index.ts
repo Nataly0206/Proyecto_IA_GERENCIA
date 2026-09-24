@@ -75,6 +75,7 @@ export type DashboardEndpoint =
   | 'exportaciones-contenedores'
   | 'exportaciones-por-cliente-mes'
   | 'compra-mp-por-proveedor'
+  | 'compra-mp-por-proveedor-dia'
   | 'compra-mp-por-item'
   | 'compra-mp-por-talla'
   | 'compra-mp-materia-prima';
@@ -232,9 +233,9 @@ export interface RecepcionResumen {
 export interface DescabezadoResumen {
   dia: string;
   actualizado: string;
-  librasDescabezadasDia: number;
-  librasDescabezadasSemana: number;
-  librasDescabezadasMes: number;
+  librasColaDia: number;
+  librasEnterasSemana: number;
+  librasEnterasMes: number;
   personasDia: number;
   librasPromedioPorHora: number;
 }

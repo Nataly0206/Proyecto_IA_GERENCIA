@@ -140,7 +140,7 @@ GROUP BY v.FechaRemision, v.IdRemisionPlanta,
 /* DESCABEZADO (STB_data)                                              */
 /* ================================================================== */
 
-/** Libras descabezadas hoy, semana y mes, empleados distintos y rendimiento de hoy. */
+/** Cola WSO de hoy, entero HOSO de semana/mes, empleados y rendimiento de hoy. */
 export const DESCABEZADO_RESUMEN_QUERY = `
 DECLARE @Dia date = CAST(GETDATE() AS date);
 DECLARE @Lunes date = DATEADD(DAY, -(DATEDIFF(DAY, 0, @Dia) % 7), @Dia);
@@ -164,11 +164,19 @@ DECLARE @CabezasHoy float = (
     JOIN dbo.DES_ASIG_LBRS_EMPLEADOS_DET d ON d.ID_ASIG_LBRS_EMPLEADO = h.ID_ASIG_LBRS_EMPLEADO
     LEFT JOIN dbo.DES_EMPLEADOS_LINEAS el ON el.ID_EMPLEADO_LINEA = d.ID_EMPLEADO_LINEA
    WHERE h.FECHA BETWEEN @PrimerDiaMes AND @Dia AND ISNULL(d.ANULADO, 0) = 0
+), produccion AS (
+  SELECT h.Fecha, SUM(c.LibrasNetas) AS Cola
+    FROM dbo.Des_PesadoColaHeader h
+    JOIN dbo.Des_PesadoCola c ON c.IdPesadoColaHeader = h.IdPesadoColaHeader
+   WHERE h.Fecha BETWEEN @PrimerDiaMes AND @Dia
+   GROUP BY h.Fecha
 )
 SELECT
-  (SELECT ISNULL(SUM(LIBRAS), 0) FROM det WHERE FECHA = @Dia) AS LibrasDescabezadasDia,
-  (SELECT ISNULL(SUM(LIBRAS), 0) FROM det WHERE FECHA BETWEEN @Lunes AND @Dia) AS LibrasDescabezadasSemana,
-  (SELECT ISNULL(SUM(LIBRAS), 0) FROM det) AS LibrasDescabezadasMes,
+  (SELECT ISNULL(SUM(Cola), 0) FROM produccion WHERE Fecha = @Dia) AS LibrasColaDia,
+  (SELECT ISNULL(SUM(Cola), 0) FROM produccion WHERE Fecha BETWEEN @Lunes AND @Dia)
+    + (SELECT ISNULL(SUM(LIBRAS), 0) FROM det WHERE FECHA BETWEEN @Lunes AND @Dia) AS LibrasEnterasSemana,
+  (SELECT ISNULL(SUM(Cola), 0) FROM produccion)
+    + (SELECT ISNULL(SUM(LIBRAS), 0) FROM det) AS LibrasEnterasMes,
   (SELECT COUNT(DISTINCT ID_EMPLEADO) FROM det WHERE FECHA = @Dia) AS PersonasDia,
   CASE WHEN ISNULL(@HorasHoy, 0) > 0 THEN @CabezasHoy / @HorasHoy ELSE 0 END AS LibrasPromedioPorHora
 `;

@@ -197,6 +197,7 @@ router.put('/compra-mp-preferencias-proveedores', compraMp, asyncHandler(async (
 }));
 router.get('/compra-mp-resumen', compraMp, asyncHandler(procesos.getCompraMpResumen));
 router.get('/compra-mp-por-proveedor', compraMp, asyncHandler(procesos.getCompraMpPorProveedor));
+router.get('/compra-mp-por-proveedor-dia', compraMp, asyncHandler(procesos.getCompraMpPorProveedorDia));
 router.get('/compra-mp-por-item', compraMp, asyncHandler(procesos.getCompraMpPorItem));
 router.get('/compra-mp-por-talla', compraMp, asyncHandler(procesos.getCompraMpPorTalla));
 router.get('/compra-mp-materia-prima', compraMp, asyncHandler(procesos.getCompraMpMateriaPrima));

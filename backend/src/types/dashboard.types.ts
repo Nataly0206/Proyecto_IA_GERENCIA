@@ -226,9 +226,9 @@ export interface RecepcionResumen {
 export interface DescabezadoResumen {
   dia: string;
   actualizado: string;
-  librasDescabezadasDia: number;
-  librasDescabezadasSemana: number;
-  librasDescabezadasMes: number;
+  librasColaDia: number;
+  librasEnterasSemana: number;
+  librasEnterasMes: number;
   personasDia: number;
   librasPromedioPorHora: number;
 }

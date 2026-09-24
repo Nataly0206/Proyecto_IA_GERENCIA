@@ -40,19 +40,19 @@ export default function DescabezadoPage() {
           },
           {
             label: 'Libras descabezadas hoy',
-            value: data?.librasDescabezadasDia ?? 0,
-            unit: 'lbs',
+            value: data?.librasColaDia ?? 0,
+            unit: 'lbs WSO',
             tone: 'good',
           },
           {
             label: 'Libras descabezadas semana',
-            value: data?.librasDescabezadasSemana ?? 0,
-            unit: 'lbs',
+            value: data?.librasEnterasSemana ?? 0,
+            unit: 'lbs HOSO',
           },
           {
             label: 'Libras descabezadas mes',
-            value: data?.librasDescabezadasMes ?? 0,
-            unit: 'lbs',
+            value: data?.librasEnterasMes ?? 0,
+            unit: 'lbs HOSO',
           },
           {
             label: 'Libras promedio por hora',

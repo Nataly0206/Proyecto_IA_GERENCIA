@@ -81,6 +81,8 @@ export function useWidgetData(endpoint: DashboardEndpoint, extraParams?: Record<
       ? `${endpoint}:anillos-v2`
       : endpoint === 'descabezado-por-dia' || endpoint === 'descabezado-por-dia-mes'
         ? `${endpoint}:pesos-v3`
+      : endpoint === 'compra-mp-por-proveedor-dia'
+        ? `${endpoint}:hoso-v1`
       : endpoint;
   const cacheKey = browserCacheKey([
     'widget',
@@ -273,7 +275,7 @@ export function useClasificadoPorMaquinaHoy() {
 export function useProcesoResumen<T>(endpoint: ProcesoResumenEndpoint, extraParams?: Record<string, string>) {
   const queryClient = useQueryClient();
   const endpointCacheVersion = endpoint === 'descabezado-resumen'
-    ? `${endpoint}:cabezas-hora-v2`
+    ? `${endpoint}:cola-entero-v3`
     : endpoint === 'recepcion-resumen'
       ? `${endpoint}:balance-diario-v2`
     : endpoint;

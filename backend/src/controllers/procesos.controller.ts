@@ -77,7 +77,7 @@ export const getRecepcionResumen = live('recepcion-resumen:balance-diario-v2', p
 export const getRecepcionRemisiones = report('recepcion-remisiones', procesos.getRecepcionRemisiones);
 
 /* Descabezado */
-export const getDescabezadoResumen = live('descabezado-resumen:cabezas-hora-v2', procesos.getDescabezadoResumen);
+export const getDescabezadoResumen = live('descabezado-resumen:cola-entero-v3', procesos.getDescabezadoResumen);
 export const getDescabezadoPorDia = report('descabezado-por-dia:pesos-v3', procesos.getDescabezadoPorDia);
 export const getDescabezadoPorDiaMes = monthlyReport('descabezado-por-dia-mes:pesos-v3', procesos.getDescabezadoPorDiaMes);
 
@@ -186,6 +186,7 @@ export const getCompraMpResumen = async (req: Request, res: Response): Promise<v
   ));
 };
 export const getCompraMpPorProveedor = report('compra-mp-por-proveedor', procesos.getCompraMpPorProveedor);
+export const getCompraMpPorProveedorDia = report('compra-mp-por-proveedor-dia', procesos.getCompraMpPorProveedorDia);
 export const getCompraMpPorItem = report('compra-mp-por-item', procesos.getCompraMpPorItem);
 export const getCompraMpPorTalla = report('compra-mp-por-talla', procesos.getCompraMpPorTalla);
 export const getCompraMpMateriaPrima = monthlyReport('compra-mp-materia-prima', procesos.getCompraMpMateriaPrima);

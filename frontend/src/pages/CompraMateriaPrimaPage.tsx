@@ -4,11 +4,13 @@ import ShoppingCartOutlinedIcon from '@mui/icons-material/ShoppingCartOutlined';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
+import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
 import ProcessFilters from '../components/filters/ProcessFilters';
 import ResumenCards from '../components/live/ResumenCards';
 import MateriaPrimaProveedorCombinedCards from '../components/charts/MateriaPrimaProveedorCombinedCards';
 import MateriaPrimaProveedorWidget from '../components/charts/MateriaPrimaProveedorWidget';
 import MateriaPrimaTallaTable from '../components/charts/MateriaPrimaTallaTable';
+import MateriaPrimaProveedorDiarioTable from '../components/charts/MateriaPrimaProveedorDiarioTable';
 import { useProcesoResumen } from '../hooks/useDashboardData';
 import { CompraMpResumen } from '../types';
 import { formatPeriodo } from '../utils/format';
@@ -20,6 +22,7 @@ const toHoso = (value: number | undefined): number => (value ?? 0) / WSO_A_HOSO_
 
 export default function CompraMateriaPrimaPage({ userId }: { userId: string }) {
   const [showDetalle, setShowDetalle] = useState(false);
+  const [showDiario, setShowDiario] = useState(false);
   const [hiddenProveedores, setHiddenProveedores] = useHiddenProveedores(userId);
   const excludedProveedores = useMemo(
     () => Array.from(hiddenProveedores).sort().join(','),
@@ -63,10 +66,17 @@ export default function CompraMateriaPrimaPage({ userId }: { userId: string }) {
       />
 
       <MateriaPrimaProveedorCombinedCards hidden={hiddenProveedores} setHidden={setHiddenProveedores} actions={
-        <Button size="small" variant="outlined" startIcon={showDetalle ? <VisibilityOffOutlinedIcon sx={{ fontSize: 16 }} /> : <VisibilityOutlinedIcon sx={{ fontSize: 16 }} />} onClick={() => setShowDetalle((v) => !v)} sx={{ fontSize: 11, fontWeight: 700, py: 0.4 }}>
-          {showDetalle ? 'Ocultar Detalle' : 'Ver Detalle'}
-        </Button>
+        <>
+          <Button size="small" variant="outlined" startIcon={<CalendarMonthOutlinedIcon sx={{ fontSize: 16 }} />} onClick={() => setShowDiario((v) => !v)} sx={{ fontSize: 11, fontWeight: 700, py: 0.4 }}>
+            {showDiario ? 'Ocultar Diario' : 'Ver Diario'}
+          </Button>
+          <Button size="small" variant="outlined" startIcon={showDetalle ? <VisibilityOffOutlinedIcon sx={{ fontSize: 16 }} /> : <VisibilityOutlinedIcon sx={{ fontSize: 16 }} />} onClick={() => setShowDetalle((v) => !v)} sx={{ fontSize: 11, fontWeight: 700, py: 0.4 }}>
+            {showDetalle ? 'Ocultar Detalle' : 'Ver Detalle'}
+          </Button>
+        </>
       } />
+
+      {showDiario && <MateriaPrimaProveedorDiarioTable hiddenProviders={hiddenProveedores} />}
 
       {showDetalle && (
         <MateriaPrimaTallaTable

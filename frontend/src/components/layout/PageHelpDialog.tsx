@@ -109,9 +109,12 @@ const PAGE_HELP: Record<DashboardView, PageHelp> = {
   },
   prestamos: {
     title: 'Préstamos',
-    purpose: 'Módulo reservado para la gestión de préstamos.',
+    purpose: 'Administra clientes, préstamos, cuotas y cobros desde un flujo simplificado para un solo operador.',
     sections: [
-      { title: 'Estado del módulo', body: 'Esta sección está vacía por ahora y se completará en una siguiente etapa.' },
+      { title: 'Resumen', body: 'Muestra capital prestado, dinero recuperado, intereses cobrados, cobros programados para hoy y cartera vencida. La agenda permite registrar un pago o abrir WhatsApp directamente.' },
+      { title: 'Clientes y préstamos', body: 'Registra prestatarios y crea préstamos que se activan inmediatamente. La tasa se aplica por cada período seleccionado y el sistema genera automáticamente el calendario de cuotas.' },
+      { title: 'Cobros y mora', body: 'Cobro express aplica el dinero desde la cuota pendiente más antigua. Mora ordena los atrasos por días y ofrece acciones rápidas de cobro y recordatorio.' },
+      { title: 'Reportes', body: 'Consulta el efectivo cobrado por rango de fechas y exporta el resultado en un archivo compatible con Excel.' },
     ],
   },
   rendimientos: {

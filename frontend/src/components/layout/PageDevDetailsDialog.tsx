@@ -430,8 +430,25 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
 
   prestamos: {
     title: 'Préstamos',
-    summary: 'Módulo reservado, sin integraciones ni fuentes de datos por ahora.',
-    blocks: [ARQUITECTURA_COMUN],
+    summary: 'Gestión transaccional simplificada de clientes, préstamos, cuotas y pagos. Fuente: base propia del dashboard.',
+    blocks: [
+      {
+        heading: 'Datos y cálculo',
+        bullets: [
+          'Tablas `prestamos_clientes`, `prestamos`, `prestamos_cuotas`, `prestamos_pagos` y `prestamos_pago_aplicaciones` en la base de autenticación del dashboard.',
+          'Al crear un préstamo se genera inmediatamente su calendario para frecuencia diaria, semanal, quincenal o mensual.',
+          'Los pagos se aplican en transacción SQL desde la cuota pendiente más antigua y liquidan automáticamente el préstamo al completar el saldo.',
+        ],
+      },
+      {
+        heading: 'API y seguridad',
+        bullets: [
+          '`/api/prestamos` concentra resumen, clientes, préstamos, detalle, pagos y reporte de cobros.',
+          'Toda la ruta exige sesión activa y el permiso general `prestamos`; no existen aprobaciones ni roles internos adicionales.',
+        ],
+      },
+      ARQUITECTURA_COMUN,
+    ],
   },
   rendimientos: {
     title: 'Rendimientos',

@@ -210,6 +210,105 @@ async function migrate(): Promise<void> {
       END;
     `);
 
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT 1 FROM dbo.dashboard_migraciones WHERE version = 8)
+      BEGIN
+        CREATE TABLE dbo.prestamos_clientes (
+          id BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+          nombre NVARCHAR(180) NOT NULL,
+          identidad NVARCHAR(30) NULL,
+          telefono NVARCHAR(30) NOT NULL,
+          telefono_alterno NVARCHAR(30) NULL,
+          direccion NVARCHAR(500) NULL,
+          correo NVARCHAR(254) NULL,
+          referencia_nombre NVARCHAR(180) NULL,
+          referencia_telefono NVARCHAR(30) NULL,
+          notas NVARCHAR(1000) NULL,
+          activo BIT NOT NULL DEFAULT 1,
+          creado_en DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+          actualizado_en DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+        );
+        CREATE UNIQUE INDEX UX_prestamos_clientes_identidad
+          ON dbo.prestamos_clientes(identidad) WHERE identidad IS NOT NULL;
+        CREATE INDEX IX_prestamos_clientes_nombre ON dbo.prestamos_clientes(nombre);
+
+        CREATE TABLE dbo.prestamos (
+          id BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+          numero NVARCHAR(30) NULL,
+          cliente_id BIGINT NOT NULL,
+          monto DECIMAL(18,2) NOT NULL,
+          tasa_periodo DECIMAL(9,4) NOT NULL,
+          cantidad_cuotas INT NOT NULL,
+          frecuencia NVARCHAR(20) NOT NULL,
+          tipo_amortizacion NVARCHAR(30) NOT NULL,
+          fecha_desembolso DATE NOT NULL,
+          fecha_primera_cuota DATE NOT NULL,
+          total_interes DECIMAL(18,2) NOT NULL,
+          total_pagar DECIMAL(18,2) NOT NULL,
+          cuota_estimada DECIMAL(18,2) NOT NULL,
+          recargo_diario DECIMAL(18,2) NOT NULL DEFAULT 0,
+          notas NVARCHAR(1000) NULL,
+          estado NVARCHAR(20) NOT NULL DEFAULT N'activo',
+          creado_en DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+          actualizado_en DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+          CONSTRAINT FK_prestamos_cliente FOREIGN KEY (cliente_id) REFERENCES dbo.prestamos_clientes(id),
+          CONSTRAINT CK_prestamos_monto CHECK (monto > 0),
+          CONSTRAINT CK_prestamos_cuotas CHECK (cantidad_cuotas BETWEEN 1 AND 1000),
+          CONSTRAINT CK_prestamos_frecuencia CHECK (frecuencia IN (N'diario',N'semanal',N'quincenal',N'mensual')),
+          CONSTRAINT CK_prestamos_tipo CHECK (tipo_amortizacion IN (N'cuota_fija',N'interes_fijo',N'solo_interes')),
+          CONSTRAINT CK_prestamos_estado CHECK (estado IN (N'activo',N'pagado',N'cancelado'))
+        );
+        CREATE UNIQUE INDEX UX_prestamos_numero ON dbo.prestamos(numero) WHERE numero IS NOT NULL;
+        CREATE INDEX IX_prestamos_cliente_estado ON dbo.prestamos(cliente_id, estado);
+
+        CREATE TABLE dbo.prestamos_cuotas (
+          id BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+          prestamo_id BIGINT NOT NULL,
+          numero INT NOT NULL,
+          fecha_vencimiento DATE NOT NULL,
+          capital DECIMAL(18,2) NOT NULL,
+          interes DECIMAL(18,2) NOT NULL,
+          recargo DECIMAL(18,2) NOT NULL DEFAULT 0,
+          monto DECIMAL(18,2) NOT NULL,
+          pagado DECIMAL(18,2) NOT NULL DEFAULT 0,
+          estado NVARCHAR(20) NOT NULL DEFAULT N'pendiente',
+          CONSTRAINT FK_prestamos_cuotas_prestamo FOREIGN KEY (prestamo_id) REFERENCES dbo.prestamos(id),
+          CONSTRAINT UQ_prestamos_cuota UNIQUE (prestamo_id, numero),
+          CONSTRAINT CK_prestamos_cuota_estado CHECK (estado IN (N'pendiente',N'parcial',N'pagada'))
+        );
+        CREATE INDEX IX_prestamos_cuotas_fecha ON dbo.prestamos_cuotas(fecha_vencimiento, estado);
+
+        CREATE TABLE dbo.prestamos_pagos (
+          id BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+          numero NVARCHAR(30) NULL,
+          prestamo_id BIGINT NOT NULL,
+          cliente_id BIGINT NOT NULL,
+          monto DECIMAL(18,2) NOT NULL,
+          metodo NVARCHAR(30) NOT NULL,
+          referencia NVARCHAR(100) NULL,
+          notas NVARCHAR(500) NULL,
+          creado_en DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+          CONSTRAINT FK_prestamos_pagos_prestamo FOREIGN KEY (prestamo_id) REFERENCES dbo.prestamos(id),
+          CONSTRAINT FK_prestamos_pagos_cliente FOREIGN KEY (cliente_id) REFERENCES dbo.prestamos_clientes(id),
+          CONSTRAINT CK_prestamos_pago_monto CHECK (monto > 0)
+        );
+        CREATE UNIQUE INDEX UX_prestamos_pagos_numero ON dbo.prestamos_pagos(numero) WHERE numero IS NOT NULL;
+        CREATE INDEX IX_prestamos_pagos_fecha ON dbo.prestamos_pagos(creado_en);
+
+        CREATE TABLE dbo.prestamos_pago_aplicaciones (
+          pago_id BIGINT NOT NULL,
+          cuota_id BIGINT NOT NULL,
+          monto DECIMAL(18,2) NOT NULL,
+          CONSTRAINT PK_prestamos_pago_aplicaciones PRIMARY KEY (pago_id, cuota_id),
+          CONSTRAINT FK_prestamos_aplicacion_pago FOREIGN KEY (pago_id) REFERENCES dbo.prestamos_pagos(id),
+          CONSTRAINT FK_prestamos_aplicacion_cuota FOREIGN KEY (cuota_id) REFERENCES dbo.prestamos_cuotas(id)
+        );
+
+        INSERT INTO dbo.dashboard_migraciones (version, nombre)
+        VALUES (8, N'crear modulo simplificado de prestamos');
+      END;
+    `);
+
     console.log(`[migrate] Base [${databaseName}] lista y actualizada.`);
   } finally {
     await pool.close();

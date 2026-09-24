@@ -37,7 +37,7 @@ import { formatPeriodo, formatValue } from '../../utils/format';
 export interface WidgetColumn {
   key: string;
   label: string;
-  align?: 'left' | 'right';
+  align?: 'left' | 'center' | 'right';
   /** 'periodo' formatea fechas ISO; los ValueFormat formatean números. */
   format?: ValueFormat | 'periodo' | 'text';
   /**
@@ -467,7 +467,12 @@ export default function WidgetDataTable({
                     } : HEADER_SX}
                     sortDirection={sortKey === col.key ? sortDir : false}
                   >
-                    <Stack direction="row" alignItems="center" justifyContent={col.align === 'right' ? 'flex-end' : 'flex-start'} spacing={0.25}>
+                    <Stack
+                      direction="row"
+                      alignItems="center"
+                      justifyContent={col.align === 'right' ? 'flex-end' : col.align === 'center' ? 'center' : 'flex-start'}
+                      spacing={0.25}
+                    >
                       <TableSortLabel
                         active={sortKey === col.key}
                         direction={sortKey === col.key ? sortDir : 'desc'}

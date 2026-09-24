@@ -74,11 +74,11 @@ export default function DescabezadoPage() {
           stickySummary
           columns={[
             { key: 'fecha', label: 'Fecha', format: 'periodo' },
-            { key: 'personas', label: 'Personas', format: 'number', total: 'sum', average: true },
-            { key: 'cola', label: 'Cola', format: 'number', total: 'sum', average: true },
-            { key: 'cabezas', label: 'Cabezas', format: 'number', total: 'sum', average: true },
-            { key: 'librasPorHora', label: 'Libras por hora', format: 'decimal', total: 'sum', average: true },
-            { key: 'total', label: 'Total', format: 'number', total: 'sum', average: true },
+            { key: 'personas', label: 'Personas', align: 'center', format: 'number', total: 'sum', average: true },
+            { key: 'cola', label: 'Cola', align: 'center', format: 'number', total: 'sum', average: true },
+            { key: 'cabezas', label: 'Cabezas', align: 'center', format: 'number', total: 'sum', average: true },
+            { key: 'librasPorHora', label: 'Libras por hora', align: 'center', format: 'decimal', total: 'sum', average: true },
+            { key: 'total', label: 'Total', align: 'center', format: 'number', total: 'sum', average: true },
           ]}
         />
       </Box>
@@ -93,11 +93,11 @@ export default function DescabezadoPage() {
           stickySummary
           columns={[
             { key: 'fecha', label: 'Fecha' },
-            { key: 'personas', label: 'Personas', format: 'number', total: 'sum', average: true },
-            { key: 'cola', label: 'Cola', format: 'number', total: 'sum', average: true },
-            { key: 'cabezas', label: 'Cabezas', format: 'number', total: 'sum', average: true },
-            { key: 'librasPorHora', label: 'Libras por hora', format: 'decimal', total: 'sum', average: true },
-            { key: 'total', label: 'Total', format: 'number', total: 'sum', average: true },
+            { key: 'personas', label: 'Personas', align: 'center', format: 'number', total: 'sum', average: true },
+            { key: 'cola', label: 'Cola', align: 'center', format: 'number', total: 'sum', average: true },
+            { key: 'cabezas', label: 'Cabezas', align: 'center', format: 'number', total: 'sum', average: true },
+            { key: 'librasPorHora', label: 'Libras por hora', align: 'center', format: 'decimal', total: 'sum', average: true },
+            { key: 'total', label: 'Total', align: 'center', format: 'number', total: 'sum', average: true },
           ]}
         />
       </Box>

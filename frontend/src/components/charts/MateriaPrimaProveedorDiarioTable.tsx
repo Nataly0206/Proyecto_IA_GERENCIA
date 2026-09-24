@@ -21,7 +21,16 @@ interface SourceRow {
 }
 
 const HEADER_SX = { fontWeight: 800, bgcolor: '#f1f5f9', color: '#172033', whiteSpace: 'nowrap' } as const;
-const TOTAL_SX = { fontWeight: 800, bgcolor: '#f8fafc', whiteSpace: 'nowrap' } as const;
+const TOTAL_SX = {
+  position: 'sticky',
+  bottom: 0,
+  zIndex: 2,
+  fontWeight: 800,
+  bgcolor: '#f8fafc',
+  whiteSpace: 'nowrap',
+  borderTop: '2px solid',
+  borderTopColor: 'divider',
+} as const;
 
 export default function MateriaPrimaProveedorDiarioTable({ hiddenProviders }: { hiddenProviders: Set<string> }) {
   const { data, isLoading, isError, error } = useWidgetData('compra-mp-por-proveedor-dia');
@@ -41,7 +50,7 @@ export default function MateriaPrimaProveedorDiarioTable({ hiddenProviders }: { 
     }
     return {
       proveedores,
-      dias: Array.from(dias.entries()).sort(([a], [b]) => a.localeCompare(b)),
+      dias: Array.from(dias.entries()).sort(([a], [b]) => b.localeCompare(a)),
       totalesProveedor,
       totalGeneral: rows.reduce((sum, row) => sum + Number(row.librasHoso), 0),
     };
@@ -69,7 +78,7 @@ export default function MateriaPrimaProveedorDiarioTable({ hiddenProviders }: { 
             <TableCell align="right" sx={{ fontWeight: 800 }}>{formatValue(Array.from(valores.values()).reduce((sum, value) => sum + value, 0), 'number')}</TableCell>
           </TableRow>)}
           <TableRow>
-            <TableCell sx={{ ...TOTAL_SX, position: 'sticky', left: 0, zIndex: 1 }}>Total proveedor</TableCell>
+            <TableCell sx={{ ...TOTAL_SX, left: 0, zIndex: 3 }}>Total proveedor</TableCell>
             {report.proveedores.map((proveedor) => <TableCell key={proveedor} align="right" sx={TOTAL_SX}>{formatValue(report.totalesProveedor.get(proveedor) ?? 0, 'number')}</TableCell>)}
             <TableCell align="right" sx={TOTAL_SX}>{formatValue(report.totalGeneral, 'number')}</TableCell>
           </TableRow>

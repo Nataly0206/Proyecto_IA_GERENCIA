@@ -25,7 +25,7 @@ type ViewMode = 'chart' | 'table';
 /**
  * Tarjeta única de "Materia Prima por Proveedor/Talla — Mensual": libras
  * recibidas por año/mes/talla/proveedor, con la selección de proveedores
- * compartida con las tarjetas WSO y Entero. Ventana fija de 3 meses (endpoint
+ * compartida con las tarjetas WSO y Entero. Año calendario enero-diciembre (endpoint
  * `compra-mp-materia-prima`, independiente del filtro de fechas). Antes
  * había dos tarjetas separadas (una fija por proveedor + esta); se
  * fusionaron en una sola porque, con el toggle en "Proveedor", mostraban
@@ -48,13 +48,23 @@ export default function MateriaPrimaProveedorWidget({ hidden, height }: { hidden
    *  por (mes, serie) para que PivotTable / DynamicChart puedan pivotear. */
   const chartRows: DataRow[] = useMemo(() => {
     const map = new Map<string, { periodo: string; serie: string; libras: number }>();
+    const year = new Date().getFullYear();
+    const yearPrefix = `${year}-`;
     for (const r of rows) {
-      if (hidden.has(r.proveedor)) continue;
+      if (hidden.has(r.proveedor) || !r.mes.startsWith(yearPrefix)) continue;
       const serie = dimension === 'proveedor' ? r.proveedor : r.gramaje;
       const key = `${r.mes}|${serie}`;
       const acc = map.get(key) ?? { periodo: r.mes, serie, libras: 0 };
       acc.libras += r.libras;
       map.set(key, acc);
+    }
+    const series = Array.from(new Set(Array.from(map.values()).map((row) => row.serie)));
+    for (let month = 1; month <= 12; month += 1) {
+      const periodo = `${year}-${String(month).padStart(2, '0')}`;
+      for (const serie of series) {
+        const key = `${periodo}|${serie}`;
+        if (!map.has(key)) map.set(key, { periodo, serie, libras: 0 });
+      }
     }
     return Array.from(map.values()).map((c) => ({ ...c, libras: Number(c.libras.toFixed(2)) }));
   }, [rows, hidden, dimension]);
@@ -64,7 +74,7 @@ export default function MateriaPrimaProveedorWidget({ hidden, height }: { hidden
     id: 'compra-mp-materia-prima',
     type: view === 'table' ? 'table' : 'column',
     title: `Materia Prima por ${dimensionLabel} — Mensual`,
-    subtitle: `Últimos 3 meses con datos · libras WSO por mes y ${dimensionLabel.toLowerCase()} · fuente: AV_MateriaPrima`,
+    subtitle: `Enero a diciembre ${new Date().getFullYear()} · libras WSO por mes y ${dimensionLabel.toLowerCase()} · fuente: AV_MateriaPrima`,
     endpoint: 'compra-mp-materia-prima',
     xField: 'periodo',
     xLabel: 'Mes',
@@ -135,7 +145,7 @@ export default function MateriaPrimaProveedorWidget({ hidden, height }: { hidden
         {!isLoading && !isError && chartRows.length === 0 && (
           <Alert severity="info" sx={{ mt: 2 }}>
             {rows.length === 0
-              ? 'Sin datos de materia prima en los últimos 3 meses.'
+              ? `Sin datos de materia prima en ${new Date().getFullYear()}.`
               : 'Ningún proveedor seleccionado — marca al menos uno en “Proveedores” en WSO y Entero.'}
           </Alert>
         )}

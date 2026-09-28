@@ -613,20 +613,11 @@ GROUP BY
  * semanas del mes en curso).
  */
 /**
- * IMPORTANTE: "hoy" se ancla al día más reciente con filas en
- * `AV_MateriaPrima`, no al reloj del servidor. La recepción de materia
- * prima se registra con varios días de rezago (se observó hasta 5 días);
- * si se usara `GETDATE()` directo, "semana actual" y "mes actual" casi
- * siempre caerían en un período todavía sin filas y el resumen mostraría
- * "sin datos" aunque sí hay recepción reciente (mismo problema que se
- * corrigió en `getCompraMpMateriaPrima` para la ventana de 3 meses).
- * Se devuelve `HoyEfectivo` para que el servicio calcule el promedio por
- * semana sobre el mes correcto (ver `getCompraMpResumen`).
+ * `@FechaHoy` llega desde el servicio con la fecha actual de Honduras. Si
+ * todavía no hay recepción registrada hoy, las sumas devuelven cero.
  */
 export const COMPRA_MP_RESUMEN_QUERY = `
-DECLARE @HoyReal date = CAST(GETDATE() AS date);
-DECLARE @UltimaFechaMP date = (SELECT MAX(CAST(DiaProduccion2024 AS date)) FROM dbo.AV_MateriaPrima);
-DECLARE @Hoy date = IIF(@UltimaFechaMP IS NULL OR @UltimaFechaMP > @HoyReal, @HoyReal, @UltimaFechaMP);
+DECLARE @Hoy date = @FechaHoy;
 DECLARE @Lunes date = DATEADD(DAY, -(DATEDIFF(DAY, 0, @Hoy) % 7), @Hoy);
 DECLARE @Domingo date = DATEADD(DAY, 6, @Lunes);
 DECLARE @PrimerDiaMes date = DATEADD(DAY, 1 - DAY(@Hoy), @Hoy);
@@ -648,7 +639,7 @@ SELECT
  * `AV_MateriaPrima`, filtrada por `DiaProduccion2024`). Devuelve libras y
  * valor de compra por día, año, mes, gramaje (columna `Talla` de la vista:
  * "51/60", "41/50", …) y proveedor. El servicio re-agrega estos grupos por
- * proveedor (tarjetas del rango), por mes (tabla mensual, últimos 3 meses)
+ * proveedor (tarjetas del rango) o por mes (enero-diciembre del año actual)
  * o por año/mes/gramaje/proveedor (widget con selector de proveedores).
  */
 export const COMPRA_MP_POR_PROVEEDOR_QUERY = `

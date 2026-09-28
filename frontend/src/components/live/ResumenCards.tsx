@@ -38,6 +38,8 @@ interface ResumenCardsProps {
   emptyText?: string;
   /** Máximo de tarjetas por fila en escritorio. */
   maxColumns?: number;
+  /** Mantiene visibles las tarjetas aunque todos los valores sean cero. */
+  showWhenAllZero?: boolean;
 }
 
 /**
@@ -57,6 +59,7 @@ export default function ResumenCards({
   liveBadge = true,
   emptyText = 'Sin datos para hoy.',
   maxColumns,
+  showWhenAllZero = false,
 }: ResumenCardsProps) {
   const allZero =
     metrics.length > 0 && metrics.every((m) => !m.value && !m.display);
@@ -103,13 +106,13 @@ export default function ResumenCards({
         </Alert>
       )}
 
-      {!isLoading && !isError && allZero && (
+      {!isLoading && !isError && allZero && !showWhenAllZero && (
         <Alert severity="info" sx={{ py: 0.5 }}>
           {emptyText}
         </Alert>
       )}
 
-      {!isLoading && !isError && !allZero && (
+      {!isLoading && !isError && (!allZero || showWhenAllZero) && (
         <Box
           sx={{
             display: 'grid',

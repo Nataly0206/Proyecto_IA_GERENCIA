@@ -4,8 +4,7 @@ type DataRow = Record<string, unknown>;
 const PALE = 'FFE0E0E0';
 const BORDER = { style: 'thin' as const, color: { argb: 'FF222222' } };
 const POUNDS_PER_KILOGRAM = 2.2046;
-const kilogramsFormat = (value: number) =>
-  Math.abs(value - Math.round(value)) < 1e-9 ? '#,##0' : '#,##0.##########';
+const NET_WEIGHT_FORMAT = '#,##0.00';
 
 export async function buildTrazabilidadExcel(rows: DataRow[], uk: boolean): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
@@ -60,8 +59,8 @@ export async function buildTrazabilidadExcel(rows: DataRow[], uk: boolean): Prom
       cell.border = { top: BORDER, bottom: BORDER, left: BORDER, right: BORDER };
     });
     row.getCell(6).numFmt = '#,##0';
-    row.getCell(7).numFmt = uk ? '#,##0.0000' : '#,##0.00';
-    row.getCell(8).numFmt = kilogramsFormat(totalKilograms);
+    row.getCell(7).numFmt = NET_WEIGHT_FORMAT;
+    row.getCell(8).numFmt = NET_WEIGHT_FORMAT;
   };
   const detailRows: { number: number; values: string[] }[] = [];
   rows.forEach((record, index) => {
@@ -83,8 +82,8 @@ export async function buildTrazabilidadExcel(rows: DataRow[], uk: boolean): Prom
     });
     row.getCell(4).numFmt = 'dd-mmm-yyyy';
     row.getCell(6).numFmt = '#,##0';
-    row.getCell(7).numFmt = uk ? '#,##0.0000' : '#,##0.00';
-    row.getCell(8).numFmt = kilogramsFormat(kilograms);
+    row.getCell(7).numFmt = NET_WEIGHT_FORMAT;
+    row.getCell(8).numFmt = NET_WEIGHT_FORMAT;
     detailRows.push({
       number: row.number,
       values: [record.item, record.finca, record.laguna, record.fechaProduccion]
@@ -111,8 +110,8 @@ export async function buildTrazabilidadExcel(rows: DataRow[], uk: boolean): Prom
     cell.border = { top: BORDER, bottom: BORDER, left: BORDER, right: BORDER };
   });
   grandTotalRow.getCell(6).numFmt = '#,##0';
-  grandTotalRow.getCell(7).numFmt = uk ? '#,##0.0000' : '#,##0.00';
-  grandTotalRow.getCell(8).numFmt = kilogramsFormat(grandKilograms);
+  grandTotalRow.getCell(7).numFmt = NET_WEIGHT_FORMAT;
+  grandTotalRow.getCell(8).numFmt = NET_WEIGHT_FORMAT;
   for (let col = 1; col <= 4; col += 1) {
     for (let start = 0; start < detailRows.length;) {
       let end = start;

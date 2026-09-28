@@ -347,18 +347,18 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
         heading: 'Tablas y vistas de origen',
         bullets: [
           'Única fuente: vista `dbo.AV_MateriaPrima` (`DiaProduccion2024`, `NombrePropietario`, `NombreGrupo`, `Talla` — gramaje del camarón, ej. "51/60" —, `Item` — código de producto, ej. "STB COLA FRESCO51/60" —, `TipoMateria` — "FRESCO" casi siempre, a veces "SALMUERA" —, `PesoLibras`, `CantidadSerial`, `SubTotal`). En los últimos meses casi toda la vista es `fkTipo = 4` / `NombreTipoProceso = \'FRESH TAIL\'` (registro fresco de materia prima).',
-          'La API `/compra-mp-resumen` devuelve sumas base de `dbo.AV_MateriaPrima.PesoLibras`. Los cuatro contadores visibles son HOSO: el frontend aplica `valor / 0.65` a Hoy, Semana, Mes y Promedio semanal mediante `toHoso`. La fecha efectiva sigue siendo la última fecha registrada, limitada a hoy.',
+          'La API `/compra-mp-resumen` devuelve sumas base de `dbo.AV_MateriaPrima.PesoLibras`. Los cuatro contadores visibles son HOSO: el frontend aplica `valor / 0.65`. Se anclan a la fecha real de hoy en Honduras y permanecen visibles con 0 cuando no hay filas.',
           'Nota: NO se usa la tabla `dbo.MateriaPrima` (esa tabla es de otro dominio — liquidación de exportación WSO/embarque — y no tiene el gramaje de recepción; se verificó por inspección directa de columnas).',
         ],
       },
       {
         heading: 'Filtros y parámetros',
         bullets: [
-          'Contadores superiores: `@Lunes`/`@Domingo` = semana que contiene `@Hoy`, `@PrimerDiaMes` = 1º del mes de `@Hoy` — pero `@Hoy` NO es `GETDATE()` directo, es `MAX(DiaProduccion2024)` de `AV_MateriaPrima` (con tope en la fecha real del servidor). La recepción se registra con varios días de rezago (se observó hasta 5); anclar al reloj hacía que "semana actual" y "mes actual" casi siempre cayeran en un período aún sin filas y el resumen mostrara "sin datos" pese a haber recepción reciente. `HoyEfectivo` viaja en la respuesta SQL para que el servicio calcule `librasPromedioSemana` sobre el mes correcto. Ninguno de los 4 contadores responde al filtro de fechas del dashboard.',
+          'Contadores superiores: `@Hoy` recibe la fecha actual de Honduras; `@Lunes`/`@Domingo` delimitan su semana y `@PrimerDiaMes` su mes. Las sumas SQL usan `ISNULL(..., 0)`, por lo que un día sin recepción devuelve cero. Ninguno responde al filtro general de fechas.',
           '`LibrasRecibidasHoy = SUM(PesoLibras)` donde `DiaProduccion2024 BETWEEN @Hoy AND @Hoy`; `@Hoy` es la última fecha disponible, limitada a no superar la fecha real.',
           '`LibrasRecibidasSemana` / `LibrasRecibidasMes` = `SUM(PesoLibras)` de `AV_MateriaPrima` con `DiaProduccion2024` en la semana / en `[@PrimerDiaMes, @Hoy]` respectivamente.',
           'Materia prima por proveedor (tarjetas, rango del filtro): `CAST(DiaProduccion2024 AS date) BETWEEN @Fecha_Inicial AND @Fecha_Final`; proveedor = `COALESCE(NULLIF(NombrePropietario, \'\'), NULLIF(NombreGrupo, \'\'), \'Sin proveedor\')`.',
-          'Tarjeta "Materia Prima por Proveedor/Talla — Mensual": muestra los 3 meses **con datos** más recientes, no 3 meses calendario a secas — se pide un mes extra (`COMPRA_MP_MESES + 1`) y se recorta a los 3 con filas reales, por el mismo motivo de rezago que el punto anterior (antes había una tabla de 12 meses separada; se fusionó con el widget de talla/selector porque, en modo "Proveedor", mostraban exactamente los mismos datos — ver `getCompraMpPorProveedorMes` eliminado). El filtro de proveedores (checklist) se aplica en el navegador sobre las filas ya traídas, antes de re-agregar por mes+serie.',
+          'Tarjeta "Materia Prima por Proveedor/Talla — Mensual": consulta del 1 de enero al 31 de diciembre del año actual. La interfaz completa los meses sin filas con cero. El filtro de proveedores se aplica antes de re-agregar por mes+serie.',
           'Tabla "Detalle de Materia Prima por Talla" (rango del filtro): pivota `NombrePropietario`/`NombreGrupo` por `Talla`, suma `PesoLibras` e incluye totales por proveedor, por talla y general.',
         ],
       },
@@ -375,7 +375,7 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
       {
         heading: 'Endpoints y archivos',
         bullets: [
-          '`/compra-mp-resumen` (libras recibidas hoy, semana/mes y promedio semanal) · `/compra-mp-por-proveedor` (tarjetas, rango) · `/compra-mp-materia-prima` (mes/talla/proveedor, 3 meses con datos — alimenta la tarjeta "Mensual" fusionada) · `/compra-mp-por-talla` (matriz proveedor/talla, rango del filtro).',
+          '`/compra-mp-resumen` (hoy real, semana/mes y promedio semanal) · `/compra-mp-por-proveedor` (tarjetas, rango) · `/compra-mp-materia-prima` (enero-diciembre del año actual por talla/proveedor) · `/compra-mp-por-talla` (matriz proveedor/talla, rango del filtro).',
           '`/compra-mp-por-proveedor-mes` se eliminó (junto con `getCompraMpPorProveedorMes` en el servicio, su controller y su ruta): quedó redundante frente a `/compra-mp-materia-prima` en modo "Proveedor".',
           '`/compra-mp-ordenes` (tabla "Órdenes Pendientes de Exportación") se eliminó por completo: vivió primero aquí, luego se movió a Exportaciones, y finalmente se quitó del dashboard.',
           'Permiso backend: `requirePermission(\'compra_materia_prima\')`.',

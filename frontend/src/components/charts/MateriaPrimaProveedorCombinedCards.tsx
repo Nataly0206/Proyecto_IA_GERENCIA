@@ -1,5 +1,5 @@
 import { Dispatch, ReactNode, SetStateAction, useMemo, useState } from 'react';
-import { Alert, Box, Button, Card, CardContent, Checkbox, Divider, FormControlLabel, LinearProgress, Popover, Skeleton, Stack, Typography } from '@mui/material';
+import { Alert, Box, Button, Card, CardContent, Checkbox, Divider, FormControlLabel, LinearProgress, Popover, Skeleton, Stack, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import PeopleAltOutlinedIcon from '@mui/icons-material/PeopleAltOutlined';
 import { useWidgetData } from '../../hooks/useDashboardData';
 import type { CompraMpMateriaPrimaRow } from '../../types';
@@ -44,11 +44,13 @@ export default function MateriaPrimaProveedorCombinedCards({ hidden, setHidden, 
     <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} spacing={1} mb={1}>
       <Box><Typography variant="subtitle2" fontWeight={800}>Materia Prima por Proveedor — WSO y Entero</Typography><Typography variant="caption" color="text.secondary">Rango de fechas seleccionado · Entero equivalente = WSO ÷ 0.65 · fuente: AV_MateriaPrima</Typography></Box>
       <Stack direction="row" spacing={1} alignItems="center" justifyContent={{ xs: 'flex-end', sm: 'initial' }} flexWrap="wrap" useFlexGap>
-        <Button size="small" variant="outlined" startIcon={<PeopleAltOutlinedIcon sx={{ fontSize: 16 }} />}
-          onClick={(event) => setAnchorEl(event.currentTarget)} sx={{ fontSize: 11, fontWeight: 700, py: 0.4 }}>
-          Proveedores ({visibleCount}/{providerNames.length})
-        </Button>
-        {actions}
+        <ToggleButtonGroup size="small"
+          sx={{ '& .MuiToggleButton-root': { px: 1.25, py: 0.5, fontSize: 11, fontWeight: 700, lineHeight: 1 } }}>
+          <ToggleButton value="proveedores" selected={Boolean(anchorEl)} aria-label="Seleccionar proveedores" onClick={(event) => setAnchorEl(event.currentTarget)}>
+            <PeopleAltOutlinedIcon sx={{ fontSize: 14, mr: 0.5 }} />Proveedores ({visibleCount}/{providerNames.length})
+          </ToggleButton>
+          {actions}
+        </ToggleButtonGroup>
       </Stack>
     </Stack>
     <Popover open={Boolean(anchorEl)} anchorEl={anchorEl} onClose={() => setAnchorEl(null)}

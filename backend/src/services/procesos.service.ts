@@ -609,7 +609,10 @@ function semanasDelMesActual(hoy = new Date()): number {
  * amplia que cubre semana y mes en curso, agregado por (día, proveedor).
  */
 export async function getCompraMpResumen(excludedProveedores: string[] = []): Promise<CompraMpResumen> {
-  const rows = await runQuery(COMPRA_MP_RESUMEN_QUERY, []);
+  const hoy = businessToday();
+  const rows = await runQuery(COMPRA_MP_RESUMEN_QUERY, [
+    { name: 'FechaHoy', type: sql.Date, value: hoy },
+  ]);
   const r = rows[0] ?? {};
   const semanaInicio = pickString(r, 'SemanaInicio');
   const semanaFin = pickString(r, 'SemanaFin');
@@ -646,12 +649,6 @@ export async function getCompraMpResumen(excludedProveedores: string[] = []): Pr
   };
 }
 
-
-/** Cantidad de meses con datos que debe mostrar el reporte de materia prima
- *  por proveedor (antes eran 12). Ver `getCompraMpMateriaPrima`: no es una
- *  ventana calendario estricta, se ajusta para siempre mostrar 3 meses con
- *  filas reales. */
-const COMPRA_MP_MESES = 3;
 
 interface CompraProveedorGroup {
   dia: string;
@@ -727,18 +724,13 @@ export async function getCompraMpPorTalla(f: DashboardFilters): Promise<DataRow[
     .sort((a, b) => a.proveedor.localeCompare(b.proveedor) || a.talla.localeCompare(b.talla));
 }
 
-/** Libras de materia prima recibidas por año, mes, gramaje (talla) y
- *  proveedor, en una ventana de los últimos 3 meses **con datos** (no 3
- *  meses calendario a secas). Alimenta el widget con selector de
- *  proveedores; el filtrado por proveedor visible se hace en el front.
- *
- * IMPORTANTE: se pide un mes calendario extra (`COMPRA_MP_MESES + 1`) y
- * luego se recorta a los 3 meses más recientes que realmente tienen filas.
- * Si se pidiera la ventana calendario exacta (hoy − 3 meses → hoy), el mes
- * en curso aparece vacío los primeros días (la recepción se registra con
- * un par de días de rezago) y el widget mostraba solo 2 meses en vez de 3. */
+/** Libras de materia prima del año calendario actual, de enero a diciembre,
+ * agrupadas por mes, talla y proveedor. Los meses sin filas se completan
+ * con cero en la interfaz. */
 export async function getCompraMpMateriaPrima(): Promise<DataRow[]> {
-  const [ini, fin] = monthWindow(COMPRA_MP_MESES + 1);
+  const anio = Number(businessToday().slice(0, 4));
+  const ini = `${anio}-01-01`;
+  const fin = `${anio}-12-31`;
   const groups = await fetchCompraProveedor(ini, fin);
   const map = new Map<string, { anio: number; mes: string; gramaje: string; proveedor: string; libras: number }>();
   for (const g of groups) {
@@ -748,12 +740,7 @@ export async function getCompraMpMateriaPrima(): Promise<DataRow[]> {
     acc.libras += g.libras;
     map.set(key, acc);
   }
-  const mesesConDatos = Array.from(new Set(Array.from(map.values()).map((c) => c.mes)))
-    .sort()
-    .slice(-COMPRA_MP_MESES);
-  const mesesVisibles = new Set(mesesConDatos);
   return Array.from(map.values())
-    .filter((c) => mesesVisibles.has(c.mes))
     .map((c) => ({ ...c, libras: round2(c.libras) }))
     .sort(
       (a, b) =>

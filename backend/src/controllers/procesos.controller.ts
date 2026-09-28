@@ -179,7 +179,7 @@ export const getCompraMpResumen = async (req: Request, res: Response): Promise<v
       : [];
   const forceRefresh = req.query.refresh === 'true';
   res.json(await withTtlCache(
-    JSON.stringify(['compra-mp-resumen', [...excluded].sort()]),
+    JSON.stringify(['compra-mp-resumen:hoy-real-v2', [...excluded].sort()]),
     LIVE_CACHE_MS,
     () => procesos.getCompraMpResumen(excluded),
     forceRefresh,
@@ -189,4 +189,4 @@ export const getCompraMpPorProveedor = report('compra-mp-por-proveedor', proceso
 export const getCompraMpPorProveedorDia = report('compra-mp-por-proveedor-dia', procesos.getCompraMpPorProveedorDia);
 export const getCompraMpPorItem = report('compra-mp-por-item', procesos.getCompraMpPorItem);
 export const getCompraMpPorTalla = report('compra-mp-por-talla', procesos.getCompraMpPorTalla);
-export const getCompraMpMateriaPrima = monthlyReport('compra-mp-materia-prima', procesos.getCompraMpMateriaPrima);
+export const getCompraMpMateriaPrima = monthlyReport('compra-mp-materia-prima:anio-calendario-v2', procesos.getCompraMpMateriaPrima);

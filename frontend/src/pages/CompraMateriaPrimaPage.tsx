@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Box, Button, Stack } from '@mui/material';
+import { Box, Stack, ToggleButton } from '@mui/material';
 import ShoppingCartOutlinedIcon from '@mui/icons-material/ShoppingCartOutlined';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
@@ -22,7 +22,7 @@ const toHoso = (value: number | undefined): number => (value ?? 0) / WSO_A_HOSO_
 
 export default function CompraMateriaPrimaPage({ userId }: { userId: string }) {
   const [showDetalle, setShowDetalle] = useState(false);
-  const [showDiario, setShowDiario] = useState(false);
+  const [periodReport, setPeriodReport] = useState<'dia' | 'semana' | null>(null);
   const [hiddenProveedores, setHiddenProveedores] = useHiddenProveedores(userId);
   const excludedProveedores = useMemo(
     () => Array.from(hiddenProveedores).sort().join(','),
@@ -57,6 +57,7 @@ export default function CompraMateriaPrimaPage({ userId }: { userId: string }) {
         updatedAt={dataUpdatedAt}
         periodoLabel={semana}
         emptyText="Sin materia prima registrada."
+        showWhenAllZero
         metrics={[
           { label: 'Libras — hoy', value: toHoso(data?.librasRecibidasHoy), unit: 'lbs' },
           { label: 'Libras — semana', value: toHoso(data?.librasRecibidasSemana), unit: 'lbs' },
@@ -65,18 +66,22 @@ export default function CompraMateriaPrimaPage({ userId }: { userId: string }) {
         ]}
       />
 
-      <MateriaPrimaProveedorCombinedCards hidden={hiddenProveedores} setHidden={setHiddenProveedores} actions={
-        <>
-          <Button size="small" variant="outlined" startIcon={<CalendarMonthOutlinedIcon sx={{ fontSize: 16 }} />} onClick={() => setShowDiario((v) => !v)} sx={{ fontSize: 11, fontWeight: 700, py: 0.4 }}>
-            {showDiario ? 'Ocultar Diario' : 'Ver Diario'}
-          </Button>
-          <Button size="small" variant="outlined" startIcon={showDetalle ? <VisibilityOffOutlinedIcon sx={{ fontSize: 16 }} /> : <VisibilityOutlinedIcon sx={{ fontSize: 16 }} />} onClick={() => setShowDetalle((v) => !v)} sx={{ fontSize: 11, fontWeight: 700, py: 0.4 }}>
-            {showDetalle ? 'Ocultar Detalle' : 'Ver Detalle'}
-          </Button>
-        </>
-      } />
+      <MateriaPrimaProveedorCombinedCards hidden={hiddenProveedores} setHidden={setHiddenProveedores} actions={[
+          <ToggleButton key="dia" value="dia" selected={periodReport === 'dia'} aria-label="Ver reporte diario"
+            onClick={() => setPeriodReport((value) => value === 'dia' ? null : 'dia')}>
+            <CalendarMonthOutlinedIcon sx={{ fontSize: 14, mr: 0.5 }} />Diario
+          </ToggleButton>
+          ,<ToggleButton key="semana" value="semana" selected={periodReport === 'semana'} aria-label="Ver reporte semanal"
+            onClick={() => setPeriodReport((value) => value === 'semana' ? null : 'semana')}>
+            <CalendarMonthOutlinedIcon sx={{ fontSize: 14, mr: 0.5 }} />Semanal
+          </ToggleButton>
+          ,<ToggleButton key="detalle" value="detalle" selected={showDetalle} aria-label="Ver detalle por talla" onClick={() => setShowDetalle((value) => !value)}>
+            {showDetalle ? <VisibilityOffOutlinedIcon sx={{ fontSize: 14, mr: 0.5 }} /> : <VisibilityOutlinedIcon sx={{ fontSize: 14, mr: 0.5 }} />}
+            Detalle
+          </ToggleButton>
+      ]} />
 
-      {showDiario && <MateriaPrimaProveedorDiarioTable hiddenProviders={hiddenProveedores} />}
+      {periodReport && <MateriaPrimaProveedorDiarioTable hiddenProviders={hiddenProveedores} period={periodReport} />}
 
       {showDetalle && (
         <MateriaPrimaTallaTable

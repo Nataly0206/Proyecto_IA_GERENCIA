@@ -83,6 +83,8 @@ export function useWidgetData(endpoint: DashboardEndpoint, extraParams?: Record<
         ? `${endpoint}:pesos-v3`
       : endpoint === 'compra-mp-por-proveedor-dia'
         ? `${endpoint}:hoso-v1`
+      : endpoint === 'compra-mp-materia-prima'
+        ? `${endpoint}:anio-calendario-v2`
       : endpoint;
   const cacheKey = browserCacheKey([
     'widget',
@@ -278,9 +280,11 @@ export function useProcesoResumen<T>(endpoint: ProcesoResumenEndpoint, extraPara
     ? `${endpoint}:cola-entero-v3`
     : endpoint === 'recepcion-resumen'
       ? `${endpoint}:balance-diario-v2`
+    : endpoint === 'compra-mp-resumen'
+      ? `${endpoint}:hoy-real-v2`
     : endpoint;
   const hasExtraParams = Boolean(extraParams && Object.keys(extraParams).length > 0);
-  const queryKey = ['dashboard', endpoint, extraParams ?? {}] as const;
+  const queryKey = ['dashboard', endpointCacheVersion, extraParams ?? {}] as const;
   const cacheKey = browserCacheKey([endpointCacheVersion, hasExtraParams ? extraParams : 'current']);
   const cached = readBrowserCache<T>(cacheKey, LIVE_REFRESH_INTERVAL_MS);
   const validCached = endpoint !== 'recepcion-resumen' || !cached

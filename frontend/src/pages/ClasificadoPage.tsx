@@ -16,7 +16,7 @@ import ClasificadoPorMaquinaHoyCards from '../components/live/ClasificadoPorMaqu
 import ChartWidget from '../components/charts/ChartWidget';
 import ClasificadoTallaWidget from '../components/charts/ClasificadoTallaWidget';
 import InventarioTallaTable from '../components/charts/InventarioTallaTable';
-import { useProcesoResumen, useWidgetData } from '../hooks/useDashboardData';
+import { REFRESH_INTERVAL_MS, useProcesoResumen, useWidgetData } from '../hooks/useDashboardData';
 import { ClasificadoResumen } from '../types';
 import { formatPeriodo } from '../utils/format';
 import { clasificadoWidgets } from '../config/dashboardConfig';
@@ -52,7 +52,7 @@ export default function ClasificadoPage({ user }: { user: AuthUser }) {
   const { data: sizeOrder, isError: sizeOrderError } = useQuery<SizeOrderResponse>({
     queryKey: SIZE_ORDER_QUERY_KEY,
     queryFn: async () => (await apiClient.get<SizeOrderResponse>('/dashboard/clasificado-orden-tallas')).data,
-    refetchInterval: 30_000,
+    refetchInterval: REFRESH_INTERVAL_MS,
   });
   const orderedSizes = useMemo(() => {
     const sizes = new Set(sizeOrder?.sizes ?? []);

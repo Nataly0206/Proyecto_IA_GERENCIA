@@ -15,6 +15,7 @@ import dayjs from 'dayjs';
 import { apiClient } from '../api/client';
 import ProcessFilters from '../components/filters/ProcessFilters';
 import { useFilters } from '../context/FiltersContext';
+import { REFRESH_INTERVAL_MS } from '../hooks/useDashboardData';
 import { getDateFilterError } from '../utils/dateFilters';
 
 const COLUMNS = {
@@ -139,7 +140,7 @@ export default function RendimientosPage({ userId }: { userId: string }) {
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
     void loadToday();
-    const interval = window.setInterval(() => { void loadToday(); }, 60_000);
+    const interval = window.setInterval(() => { void loadToday(); }, REFRESH_INTERVAL_MS);
     return () => window.clearInterval(interval);
   }, [loadToday]);
   useEffect(() => {

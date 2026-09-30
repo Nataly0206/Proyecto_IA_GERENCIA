@@ -24,14 +24,18 @@ import {
   TableSortLabel,
   TextField,
   Tooltip,
+  ToggleButton,
+  ToggleButtonGroup,
   Typography,
 } from '@mui/material';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import dayjs from 'dayjs';
 import { DashboardEndpoint, DataRow, ValueFormat } from '../../types';
 import { useWidgetData } from '../../hooks/useDashboardData';
+import { useFilters } from '../../context/FiltersContext';
 import { formatPeriodo, formatValue } from '../../utils/format';
 
 export interface WidgetColumn {
@@ -74,6 +78,8 @@ interface WidgetDataTableProps {
   filterable?: boolean;
   /** Columna por la que se agrupan las filas (una fila por valor, con totales). Activable desde el panel. */
   groupByKey?: string;
+  /** Permite consolidar las filas por día, semana o mes usando `groupByKey`. */
+  periodGrouping?: boolean;
 }
 
 const HEADER_SX = { fontWeight: 800, bgcolor: '#f1f5f9', color: '#172033' } as const;
@@ -99,6 +105,8 @@ function groupRows(list: DataRow[], groupKey: string, columns: WidgetColumn[]): 
   return Array.from(groups.entries()).map(([groupValue, items]) => {
     const sum = (key: string) => items.reduce((acc, r) => acc + (Number(r[key]) || 0), 0);
     const out: DataRow = { [groupKey]: groupValue };
+    if (items[0]?.__periodSort) out.__periodSort = items[0].__periodSort;
+    if (items[0]?.__weekNumber) out.__weekNumber = items[0].__weekNumber;
     for (const col of columns) {
       if (col.key === groupKey) continue;
       if (col.total && typeof col.total === 'object') {
@@ -116,6 +124,14 @@ function groupRows(list: DataRow[], groupKey: string, columns: WidgetColumn[]): 
     }
     return out;
   });
+}
+
+function isoWeekNumber(value: dayjs.Dayjs): number {
+  const date = new Date(Date.UTC(value.year(), value.month(), value.date()));
+  const day = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  return Math.ceil((((date.getTime() - yearStart.getTime()) / 86_400_000) + 1) / 7);
 }
 
 /**
@@ -137,8 +153,15 @@ export default function WidgetDataTable({
   variant = 'default',
   filterable = false,
   groupByKey,
+  periodGrouping = false,
 }: WidgetDataTableProps) {
-  const { data, isLoading, isError, error, dataUpdatedAt } = useWidgetData(endpoint);
+  const { filters } = useFilters();
+  const [groupPeriod, setGroupPeriod] = useState<'dia' | 'semana' | 'mes'>('dia');
+  const reportYear = filters.fechaFinal.slice(0, 4);
+  const queryDateOverride = periodGrouping && groupPeriod === 'mes'
+    ? { fechaInicial: `${reportYear}-01-01`, fechaFinal: `${reportYear}-12-31` }
+    : undefined;
+  const { data, isLoading, isError, error, dataUpdatedAt } = useWidgetData(endpoint, queryDateOverride);
   const [sortKey, setSortKey] = useState(defaultSortKey ?? columns[0]?.key);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [columnFilters, setColumnFilters] = useState<Record<string, string[]>>({});
@@ -181,6 +204,14 @@ export default function WidgetDataTable({
       .filter((c): c is WidgetColumn => Boolean(c)),
     [columns, visibleOrder],
   );
+  const displayColumns = useMemo(() => {
+    if (!periodGrouping || groupPeriod !== 'semana' || !groupByKey) return visibleColumns;
+    const weekColumn: WidgetColumn = { key: '__weekNumber', label: '# Semana', format: 'number', align: 'center' };
+    const groupIndex = visibleColumns.findIndex((column) => column.key === groupByKey);
+    const next = [...visibleColumns];
+    next.splice(groupIndex >= 0 ? groupIndex + 1 : 0, 0, weekColumn);
+    return next;
+  }, [groupByKey, groupPeriod, periodGrouping, visibleColumns]);
   const availableColumns = columns.filter((c) => !visibleOrder.includes(c.key));
 
   const startDrag = (event: DragEvent, key: string) => event.dataTransfer.setData('text/plain', key);
@@ -197,6 +228,16 @@ export default function WidgetDataTable({
 
   const activeFilterCount = Object.values(columnFilters).filter((values) => values.length > 0).length;
 
+  const changeGroupPeriod = (_event: MouseEvent<HTMLElement>, period: 'dia' | 'semana' | 'mes' | null) => {
+    if (!period) return;
+    setGroupPeriod(period);
+    setGroupEnabled(true);
+    if (groupByKey) {
+      setSortKey(groupByKey);
+      setSortDir('asc');
+    }
+  };
+
   const filterOptions = useMemo(() => {
     if (!filterColumn) return [];
     return Array.from(new Set((data ?? []).map((row) => String(row[filterColumn.key] ?? ''))))
@@ -211,19 +252,48 @@ export default function WidgetDataTable({
     const filtered = (data ?? []).filter((row) => Object.entries(columnFilters).every(([key, values]) =>
       values.length === 0 || values.includes(String(row[key] ?? '')),
     ));
-    const list = groupByKey && groupEnabled ? groupRows(filtered, groupByKey, columns) : filtered;
+    let periodRows = periodGrouping && groupByKey && groupPeriod !== 'dia'
+      ? filtered.map((row) => {
+        const date = dayjs(String(row[groupByKey] ?? ''));
+        if (!date.isValid()) return row;
+        const periodStart = groupPeriod === 'mes'
+          ? date.startOf('month')
+          : date.subtract((date.day() + 6) % 7, 'day');
+        const periodLabel = groupPeriod === 'mes'
+          ? periodStart.format('YYYY-MM')
+          : `${formatPeriodo(periodStart.format('YYYY-MM-DD'))} a ${formatPeriodo(periodStart.add(6, 'day').format('YYYY-MM-DD'))}`;
+        return {
+          ...row,
+          [groupByKey]: periodLabel,
+          __periodSort: periodStart.format('YYYY-MM-DD'),
+          ...(groupPeriod === 'semana' ? { __weekNumber: isoWeekNumber(periodStart) } : {}),
+        };
+      })
+      : filtered;
+    if (periodGrouping && groupByKey && groupPeriod === 'mes') {
+      const populatedMonths = new Set(periodRows.map((row) => String(row.__periodSort ?? '')));
+      const emptyMonths = Array.from({ length: 12 }, (_, index) => {
+        const month = `${reportYear}-${String(index + 1).padStart(2, '0')}`;
+        return { [groupByKey]: month, __periodSort: `${month}-01` } as DataRow;
+      }).filter((row) => !populatedMonths.has(String(row.__periodSort)));
+      periodRows = [...periodRows, ...emptyMonths];
+    }
+    const list = groupByKey && groupEnabled ? groupRows(periodRows, groupByKey, columns) : periodRows;
     if (!sortKey) return list;
+    const sortValue = (row: DataRow) => sortKey === groupByKey && groupPeriod !== 'dia'
+      ? row.__periodSort ?? row[sortKey]
+      : row[sortKey];
     const numeric = list.every((r) => r[sortKey] === undefined || !Number.isNaN(Number(r[sortKey])));
     list.sort((a, b) => {
-      const av = a[sortKey];
-      const bv = b[sortKey];
+      const av = sortValue(a);
+      const bv = sortValue(b);
       const cmp = numeric
         ? Number(av ?? 0) - Number(bv ?? 0)
         : String(av ?? '').localeCompare(String(bv ?? ''));
       return sortDir === 'asc' ? cmp : -cmp;
     });
     return list;
-  }, [columnFilters, columns, data, groupByKey, groupEnabled, sortKey, sortDir]);
+  }, [columnFilters, columns, data, groupByKey, groupEnabled, groupPeriod, periodGrouping, reportYear, sortKey, sortDir]);
 
   const openFilter = (event: MouseEvent<HTMLElement>, column: WidgetColumn) => {
     event.stopPropagation();
@@ -300,6 +370,30 @@ export default function WidgetDataTable({
             </Button>
           </>
         )}
+        {periodGrouping && groupByKey && (
+          <ToggleButtonGroup
+            size="small"
+            exclusive
+            value={groupPeriod}
+            onChange={changeGroupPeriod}
+            aria-label="Agrupar remisiones por período"
+            sx={{
+              ml: { sm: 'auto' },
+              '& .MuiToggleButton-root': {
+                px: 1.25,
+                py: 0.35,
+                fontSize: 11.5,
+                fontWeight: 700,
+                lineHeight: 1.2,
+                textTransform: 'none',
+              },
+            }}
+          >
+            <ToggleButton value="dia" aria-label="Ver por día">Día</ToggleButton>
+            <ToggleButton value="semana" aria-label="Ver por semana">Semana</ToggleButton>
+            <ToggleButton value="mes" aria-label="Ver por mes">Mes</ToggleButton>
+          </ToggleButtonGroup>
+        )}
       </Stack>
 
       {(hasOptionalColumns || groupByKey) && (
@@ -324,7 +418,7 @@ export default function WidgetDataTable({
                   <Typography variant="caption" fontWeight={800} color="text.secondary" sx={{ width: 110 }}>AGRUPAR</Typography>
                   <FormControlLabel
                     control={<Switch size="small" checked={groupEnabled} onChange={toggleGroup} />}
-                    label={<Typography variant="caption">Una fila por fecha con sus totales</Typography>}
+                    label={<Typography variant="caption">Una fila por {periodGrouping ? (groupPeriod === 'dia' ? 'día' : groupPeriod) : 'fecha'} con sus totales</Typography>}
                   />
                 </Stack>
               )}
@@ -451,7 +545,7 @@ export default function WidgetDataTable({
           <Table size="small" stickyHeader sx={isRecepcion ? { minWidth: 1180 } : undefined}>
             <TableHead>
               <TableRow>
-                {visibleColumns.map((col) => (
+                {displayColumns.map((col) => (
                   <TableCell
                     key={col.key}
                     align={col.align ?? (col.format && col.format !== 'text' && col.format !== 'periodo' ? 'right' : 'left')}
@@ -480,7 +574,7 @@ export default function WidgetDataTable({
                       >
                         {col.label}
                       </TableSortLabel>
-                      {filterable && (
+                      {filterable && !col.key.startsWith('__') && (
                         <Tooltip title={`Filtrar ${col.label}`}>
                           <IconButton
                             size="small"
@@ -507,12 +601,12 @@ export default function WidgetDataTable({
                     '& td': { borderColor: '#e7edf5', py: 0.9, whiteSpace: 'nowrap' },
                   } : undefined}
                 >
-                  {visibleColumns.map((col) => (
+                  {displayColumns.map((col) => (
                     <TableCell
                       key={col.key}
                       align={col.align ?? (col.format && col.format !== 'text' && col.format !== 'periodo' ? 'right' : 'left')}
                       sx={{
-                        ...(col.key === visibleColumns[0]?.key ? { fontWeight: 600 } : {}),
+                        ...(col.key === displayColumns[0]?.key ? { fontWeight: 600 } : {}),
                         ...(isRecepcion && col.key === 'cliente' ? { fontWeight: 700, color: '#243b53' } : {}),
                       }}
                     >
@@ -569,7 +663,7 @@ export default function WidgetDataTable({
                     },
                   }}
                 >
-                  {visibleColumns.map((col, idx) => (
+                  {displayColumns.map((col, idx) => (
                     <TableCell
                       key={col.key}
                       align={col.align ?? (col.format && col.format !== 'text' && col.format !== 'periodo' ? 'right' : 'left')}
@@ -595,7 +689,7 @@ export default function WidgetDataTable({
                     },
                   }}
                 >
-                  {visibleColumns.map((col, idx) => (
+                  {displayColumns.map((col, idx) => (
                     <TableCell
                       key={col.key}
                       align={col.align ?? (col.format && col.format !== 'text' && col.format !== 'periodo' ? 'right' : 'left')}

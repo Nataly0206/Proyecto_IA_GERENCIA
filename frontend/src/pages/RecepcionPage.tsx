@@ -52,33 +52,36 @@ export default function RecepcionPage() {
         endpoint="recepcion-remisiones"
         variant="recepcion"
         filterable
+        periodGrouping
         groupByKey="fecha"
         defaultSortKey="fecha"
         maxHeight={520}
         emptyText="Sin remisiones recibidas en el rango seleccionado."
         columns={[
-          { key: 'fecha', label: 'Fecha remisión', format: 'periodo' },
-          { key: 'cliente', label: 'Cliente', optional: true },
-          { key: 'codigoFinca', label: 'Finca', optional: true },
-          { key: 'laguna', label: 'Laguna', optional: true },
-          { key: 'remision', label: 'Remisión planta', optional: true },
-          { key: 'librasRemision', label: 'Libras remisión', format: 'number', total: 'sum' },
-          { key: 'librasBasura', label: 'L. basura', format: 'number' },
-          { key: 'librasCola', label: 'Libras cola', format: 'number', total: 'sum' },
-          { key: 'librasCabeza', label: 'Libras cabeza', format: 'number', total: 'sum' },
-          { key: 'totalColaCabeza', label: 'Total cola + cabeza', format: 'number', total: 'sum' },
+          { key: 'fecha', label: 'Fecha remisión', format: 'periodo', align: 'center' },
+          { key: 'cliente', label: 'Cliente', optional: true, align: 'center' },
+          { key: 'codigoFinca', label: 'Finca', optional: true, align: 'center' },
+          { key: 'laguna', label: 'Laguna', optional: true, align: 'center' },
+          { key: 'remision', label: 'Remisión planta', optional: true, align: 'center' },
+          { key: 'librasRemision', label: 'Libras remisión', format: 'number', total: 'sum', align: 'center' },
+          { key: 'librasBasura', label: 'L. basura', format: 'number', align: 'center' },
+          { key: 'librasCola', label: 'Libras cola', format: 'number', total: 'sum', align: 'center' },
+          { key: 'librasCabeza', label: 'Libras cabeza', format: 'number', total: 'sum', align: 'center' },
+          { key: 'totalColaCabeza', label: 'Total cola + cabeza', format: 'number', total: 'sum', align: 'center' },
           {
             key: 'rendimientoFinca',
             label: 'Rend. finca',
             format: 'percent',
             total: { ratio: ['librasCola', 'librasRemision'] },
             optional: true,
+            align: 'center',
           },
           {
             key: 'rendimientoPlanta',
             label: 'Rend. planta',
             format: 'percent',
             total: { ratio: ['librasCola', 'totalColaCabeza'] },
+            align: 'center',
           },
         ]}
       />

@@ -411,6 +411,8 @@ export interface ChartConfig {
   }[];
   /** Agrega una fila "Promedio" (media simple por columna) bajo el Grand Total de una tabla pivote, ambas fijas al fondo. */
   showAverageRow?: boolean;
+  /** Agrega una fila con la participación porcentual de cada serie sobre el total general. */
+  showShareRow?: boolean;
   /**
    * Vista alternativa de gráfica para widgets type "table": habilita el
    * selector Tabla/Gráfica y define el tipo de gráfica comparativa.

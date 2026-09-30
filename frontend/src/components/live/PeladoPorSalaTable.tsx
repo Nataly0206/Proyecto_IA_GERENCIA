@@ -20,6 +20,7 @@ import {
   TableFooter,
   TableHead,
   TableRow,
+  TableSortLabel,
   TextField,
   ToggleButton,
   ToggleButtonGroup,
@@ -82,7 +83,14 @@ function HeadCell({ label, unit, align = 'right' }: { label: string; unit?: stri
 
 const salaNum = (nombre: string) => Number(nombre.replace(/\D/g, '')) || 0;
 const HOURS_STORAGE_KEY = 'pelado-salas-horas-minimas:v1';
+const TALLAS_GRANDES = new Set(['16/20', '21/25', '26/30', '31/35', '36/40', '41/50']);
 type SalaDailyRow = { fecha: string; personas: number; libras: number; librasPorHoraPromedio: number; horasTrabajadas: number };
+
+function clasificarTalla(talla: string): 'grande' | 'pequeno' | 'sinClasificar' {
+  const normalizada = talla.toUpperCase().replace(/\s/g, '').replace(/-/g, '/');
+  if (!normalizada || normalizada.includes('SINTALLA')) return 'sinClasificar';
+  return TALLAS_GRANDES.has(normalizada) ? 'grande' : 'pequeno';
+}
 
 function readStoredHours(userId: string): string {
   try {
@@ -484,7 +492,86 @@ export default function PeladoPorSalaTable({ userId }: { userId: string }) {
 
 function PeladoTallaHoyDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { data, isLoading, isError, error, dataUpdatedAt } = usePeladoLibrasHoyTalla(open);
-  const tallas = data?.tallas ?? [];
+  const [sortBy, setSortBy] = useState<'talla' | 'libras' | 'porcentaje'>('talla');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const total = data?.total ?? 0;
+  const tallas = (data?.tallas ?? [])
+    .map((talla) => ({
+      ...talla,
+      porcentaje: total > 0 ? (talla.libras / total) * 100 : 0,
+    }))
+    .sort((a, b) => {
+      const comparison = sortBy === 'talla'
+        ? a.talla.localeCompare(b.talla, 'es', { numeric: true, sensitivity: 'base' })
+        : a[sortBy] - b[sortBy];
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+  const grupos = (data?.tallas ?? []).reduce(
+    (acumulado, talla) => {
+      acumulado[clasificarTalla(talla.talla)] += talla.libras;
+      return acumulado;
+    },
+    { grande: 0, pequeno: 0, sinClasificar: 0 },
+  );
+  const porcentajesGrupo = { grande: 0, pequeno: 0, sinClasificar: 0 };
+  if (total > 0) {
+    const participaciones = (Object.keys(grupos) as Array<keyof typeof grupos>).map((grupo) => {
+      const exacto = (grupos[grupo] / total) * 10_000;
+      const puntos = Math.floor(exacto);
+      return { grupo, puntos, residuo: exacto - puntos };
+    });
+    const puntosFaltantes = Math.max(0, 10_000 - participaciones.reduce((suma, item) => suma + item.puntos, 0));
+    const porResiduo = [...participaciones].sort((a, b) => b.residuo - a.residuo);
+    for (let indice = 0; indice < puntosFaltantes; indice += 1) {
+      porResiduo[indice % porResiduo.length].puntos += 1;
+    }
+    for (const item of participaciones) porcentajesGrupo[item.grupo] = item.puntos / 100;
+  }
+  const groupCellSx = {
+    fontWeight: 800,
+    fontSize: 12,
+    color: '#17362c',
+    bgcolor: '#eef7f3',
+    borderTop: '1px solid #cfe3d9',
+    ...NUM_SX,
+  } as const;
+
+  const changeSort = (column: 'talla' | 'libras' | 'porcentaje') => {
+    if (sortBy === column) {
+      setSortDirection((current) => current === 'asc' ? 'desc' : 'asc');
+      return;
+    }
+    setSortBy(column);
+    setSortDirection(column === 'talla' ? 'asc' : 'desc');
+  };
+
+  const sortableHead = (
+    label: string,
+    column: 'talla' | 'libras' | 'porcentaje',
+    align: 'left' | 'right',
+    unit?: string,
+  ) => (
+    <TableCell align={align} sortDirection={sortBy === column ? sortDirection : false} sx={HEAD_CELL_SX}>
+      <TableSortLabel
+        active={sortBy === column}
+        direction={sortBy === column ? sortDirection : 'asc'}
+        onClick={() => changeSort(column)}
+        sx={{
+          color: 'inherit !important',
+          '& .MuiTableSortLabel-icon': { fontSize: 15 },
+        }}
+      >
+        <Box sx={{ textAlign: align }}>
+          <Box>{label}</Box>
+          {unit && (
+            <Box sx={{ fontSize: 9, fontWeight: 600, letterSpacing: 0, color: '#94a3b8', textTransform: 'none' }}>
+              {unit}
+            </Box>
+          )}
+        </Box>
+      </TableSortLabel>
+    </TableCell>
+  );
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
@@ -525,8 +612,9 @@ function PeladoTallaHoyDialog({ open, onClose }: { open: boolean; onClose: () =>
             <Table size="small" stickyHeader>
               <TableHead>
                 <TableRow>
-                  <HeadCell label="Talla" align="left" />
-                  <HeadCell label="Libras hoy" unit="lbs · acumulado" />
+                  {sortableHead('Talla / gramaje', 'talla', 'left')}
+                  {sortableHead('Libras hoy', 'libras', 'right', 'lbs · acumulado')}
+                  {sortableHead('Porcentaje', 'porcentaje', 'right', '% del total')}
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -538,15 +626,44 @@ function PeladoTallaHoyDialog({ open, onClose }: { open: boolean; onClose: () =>
                     <TableCell align="right" sx={BODY_NUM_SX}>
                       {formatValue(t.libras)}
                     </TableCell>
+                    <TableCell align="right" sx={{ ...BODY_NUM_SX, fontWeight: 700, color: 'primary.main' }}>
+                      {formatValue(t.porcentaje, 'percent')}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
               <TableFooter>
                 <TableRow>
+                  <TableCell sx={groupCellSx}>Grande · 16/20 a 41/50</TableCell>
+                  <TableCell align="right" sx={groupCellSx}>{formatValue(grupos.grande)}</TableCell>
+                  <TableCell align="right" sx={{ ...groupCellSx, color: 'primary.main' }}>
+                    {formatValue(porcentajesGrupo.grande, 'percent')}
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell sx={groupCellSx}>Pequeño · otras tallas</TableCell>
+                  <TableCell align="right" sx={groupCellSx}>{formatValue(grupos.pequeno)}</TableCell>
+                  <TableCell align="right" sx={{ ...groupCellSx, color: 'primary.main' }}>
+                    {formatValue(porcentajesGrupo.pequeno, 'percent')}
+                  </TableCell>
+                </TableRow>
+                {grupos.sinClasificar > 0 && (
+                  <TableRow>
+                    <TableCell sx={groupCellSx}>Sin clasificar</TableCell>
+                    <TableCell align="right" sx={groupCellSx}>{formatValue(grupos.sinClasificar)}</TableCell>
+                    <TableCell align="right" sx={{ ...groupCellSx, color: 'primary.main' }}>
+                      {formatValue(porcentajesGrupo.sinClasificar, 'percent')}
+                    </TableCell>
+                  </TableRow>
+                )}
+                <TableRow>
                   <TableCell sx={{ ...FOOT_CELL_SX, fontSize: 11, letterSpacing: 0.4, textTransform: 'uppercase', color: '#64748b' }}>
                     Total
                   </TableCell>
-                  <TableCell align="right" sx={FOOT_CELL_SX}>{formatValue(data?.total ?? 0)}</TableCell>
+                  <TableCell align="right" sx={FOOT_CELL_SX}>{formatValue(total)}</TableCell>
+                  <TableCell align="right" sx={{ ...FOOT_CELL_SX, color: 'primary.main' }}>
+                    {formatValue(total > 0 ? 100 : 0, 'percent')}
+                  </TableCell>
                 </TableRow>
               </TableFooter>
             </Table>

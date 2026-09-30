@@ -38,6 +38,12 @@ const AVERAGE_SX = {
   color: '#172033',
   borderTop: '1px solid #dbe3ee',
 } as const;
+const SHARE_SX = {
+  fontWeight: 800,
+  bgcolor: '#eef7f3',
+  color: '#176247',
+  borderTop: '1px solid #cfe3d9',
+} as const;
 
 /**
  * Tabla pivote estilo "RENDIMIENTOS IQF X HORA": filas = xField,
@@ -145,6 +151,22 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder 
     columnas.flatMap((col) => cells.get(`${periodo}|${col}`) ?? []);
   const colCells = (col: string): Cell[] =>
     periodos.flatMap((periodo) => cells.get(`${periodo}|${col}`) ?? []);
+  const grandTotal = aggregate(periodos.flatMap((periodo) => rowCells(periodo)));
+  const shareByColumn = new Map<string, number>();
+  if (config.showShareRow && grandTotal && grandTotal > 0 && columnas.length > 0) {
+    const shares = columnas.map((col) => {
+      const columnTotal = aggregate(colCells(col)) ?? 0;
+      const exactBasisPoints = (columnTotal / grandTotal) * 10_000;
+      const basisPoints = Math.floor(exactBasisPoints);
+      return { col, basisPoints, remainder: exactBasisPoints - basisPoints };
+    });
+    const missingBasisPoints = Math.max(0, 10_000 - shares.reduce((sum, share) => sum + share.basisPoints, 0));
+    const byLargestRemainder = [...shares].sort((a, b) => b.remainder - a.remainder);
+    for (let index = 0; index < missingBasisPoints; index += 1) {
+      byLargestRemainder[index % byLargestRemainder.length].basisPoints += 1;
+    }
+    for (const share of shares) shareByColumn.set(share.col, share.basisPoints / 100);
+  }
 
   const renderValue = (value: number | null | undefined, format?: ValueFormat) =>
     value === null || value === undefined ? '—' : formatValue(value, format ?? config.valueFormat ?? 'decimal');
@@ -231,11 +253,25 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder 
               </TableCell>
             ))}
             <TableCell align="right" sx={TOTAL_SX}>
-              {renderValue(
-                aggregate(periodos.flatMap((periodo) => rowCells(periodo))),
-              )}
+              {renderValue(grandTotal)}
             </TableCell>
           </TableRow>
+          {config.showShareRow && (
+            <TableRow>
+              <TableCell sx={SHARE_SX}>% del total</TableCell>
+              {extraColumns.map((extraCol) => (
+                <TableCell key={extraCol.field} align="right" sx={SHARE_SX}>—</TableCell>
+              ))}
+              {columnas.map((col) => (
+                <TableCell key={col} align="right" sx={SHARE_SX}>
+                  {formatValue(shareByColumn.get(col) ?? 0, 'percent')}
+                </TableCell>
+              ))}
+              <TableCell align="right" sx={SHARE_SX}>
+                {formatValue(grandTotal && grandTotal > 0 ? 100 : 0, 'percent')}
+              </TableCell>
+            </TableRow>
+          )}
           {config.showAverageRow && (
             <TableRow>
               <TableCell sx={AVERAGE_SX}>Promedio</TableCell>

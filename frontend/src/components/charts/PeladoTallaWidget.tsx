@@ -13,7 +13,10 @@ import {
   Typography,
 } from '@mui/material';
 import { useWidgetData } from '../../hooks/useDashboardData';
+import { apiClient } from '../../api/client';
 import { formatValue } from '../../utils/format';
+
+type SizeOrderResponse = { order: string[]; sizes: string[] };
 
 /**
  * Tabla de libras peladas por talla totalizadas sobre el rango y turno
@@ -21,7 +24,29 @@ import { formatValue } from '../../utils/format';
  */
 export default function PeladoTallaWidget() {
   const { data, isLoading, isError, error } = useWidgetData('pelado-por-talla');
-  const rows = [...(data ?? [])].sort((a, b) => Number(b.libras ?? 0) - Number(a.libras ?? 0));
+  const { data: sizeOrder } = useQuery<SizeOrderResponse>({
+    queryKey: ['clasificado', 'orden-tallas'],
+    queryFn: async () => (await apiClient.get<SizeOrderResponse>('/dashboard/pelado-orden-tallas')).data,
+    staleTime: 5 * 60 * 1000,
+  });
+  const orderedSizes = useMemo(() => {
+    const sizes = new Set(sizeOrder?.sizes ?? []);
+    return [
+      ...(sizeOrder?.order ?? []).filter((size) => sizes.delete(size)),
+      ...Array.from(sizes).sort((a, b) => a.localeCompare(b, 'es', { numeric: true, sensitivity: 'base' })),
+    ];
+  }, [sizeOrder]);
+  const rows = useMemo(() => {
+    const positions = new Map(orderedSizes.map((size, index) => [size, index]));
+    return [...(data ?? [])].sort((a, b) => {
+      const aSize = String(a.talla ?? 'Sin talla');
+      const bSize = String(b.talla ?? 'Sin talla');
+      const aPosition = positions.get(aSize) ?? Number.MAX_SAFE_INTEGER;
+      const bPosition = positions.get(bSize) ?? Number.MAX_SAFE_INTEGER;
+      return aPosition - bPosition
+        || aSize.localeCompare(bSize, 'es', { numeric: true, sensitivity: 'base' });
+    });
+  }, [data, orderedSizes]);
   const total = rows.reduce((sum, row) => sum + Number(row.libras ?? 0), 0);
 
   if (isLoading) {
@@ -75,3 +100,5 @@ export default function PeladoTallaWidget() {
     </Box>
   );
 }
+import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';

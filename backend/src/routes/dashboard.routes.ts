@@ -52,6 +52,10 @@ router.get('/pelado-por-estilo-mes', pelado, asyncHandler(controller.getPeladoPo
 router.get('/pelado-por-talla', pelado, asyncHandler(controller.getPeladoPorTalla));
 router.get('/pelado-por-talla-dia', pelado, asyncHandler(controller.getPeladoPorTallaDia));
 router.get('/pelado-por-talla-mes', pelado, asyncHandler(controller.getPeladoPorTallaMes));
+router.get('/pelado-orden-tallas', pelado, asyncHandler(async (_req, res) => {
+  const [order, sizes] = await Promise.all([getClassifiedSizeOrder(), getClassifiedSizes()]);
+  res.json({ order, sizes });
+}));
 router.get('/pelado-tiempo-real', pelado, asyncHandler(controller.getPeladoTiempoReal));
 router.get('/pelado-libras-hoy', pelado, asyncHandler(controller.getPeladoLibrasHoy));
 router.get('/pelado-libras-hoy-talla', pelado, asyncHandler(controller.getPeladoLibrasHoyTalla));

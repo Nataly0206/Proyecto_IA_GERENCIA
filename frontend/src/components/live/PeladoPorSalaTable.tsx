@@ -643,14 +643,14 @@ function PeladoTallaHoyDialog({ open, onClose }: { open: boolean; onClose: () =>
                   </TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableCell sx={groupCellSx}>Grande · 16/20 a 41/50</TableCell>
+                  <TableCell sx={groupCellSx}>Grande</TableCell>
                   <TableCell align="right" sx={groupCellSx}>{formatValue(grupos.grande)}</TableCell>
                   <TableCell align="right" sx={{ ...groupCellSx, color: 'primary.main' }}>
                     {formatValue(porcentajesGrupo.grande, 'percent')}
                   </TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableCell sx={groupCellSx}>Pequeño · otras tallas</TableCell>
+                  <TableCell sx={groupCellSx}>Pequeño</TableCell>
                   <TableCell align="right" sx={groupCellSx}>{formatValue(grupos.pequeno)}</TableCell>
                   <TableCell align="right" sx={{ ...groupCellSx, color: 'primary.main' }}>
                     {formatValue(porcentajesGrupo.pequeno, 'percent')}

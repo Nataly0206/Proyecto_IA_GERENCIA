@@ -81,7 +81,7 @@ export default function MateriaPrimaProveedorWidget({ hidden, height }: { hidden
     yField: 'libras',
     seriesField: 'serie',
     totalAggregation: 'sum',
-    showShareRow: dimension === 'proveedor',
+    showShareRow: true,
     valueFormat: 'number',
     unitLabel: 'lbs WSO',
     // La tarjeta también contiene título y controles: reservarles espacio

@@ -634,6 +634,15 @@ function PeladoTallaHoyDialog({ open, onClose }: { open: boolean; onClose: () =>
               </TableBody>
               <TableFooter>
                 <TableRow>
+                  <TableCell sx={{ ...FOOT_CELL_SX, fontSize: 11, letterSpacing: 0.4, textTransform: 'uppercase', color: '#64748b' }}>
+                    Total
+                  </TableCell>
+                  <TableCell align="right" sx={FOOT_CELL_SX}>{formatValue(total)}</TableCell>
+                  <TableCell align="right" sx={{ ...FOOT_CELL_SX, color: 'primary.main' }}>
+                    {formatValue(total > 0 ? 100 : 0, 'percent')}
+                  </TableCell>
+                </TableRow>
+                <TableRow>
                   <TableCell sx={groupCellSx}>Grande · 16/20 a 41/50</TableCell>
                   <TableCell align="right" sx={groupCellSx}>{formatValue(grupos.grande)}</TableCell>
                   <TableCell align="right" sx={{ ...groupCellSx, color: 'primary.main' }}>
@@ -656,15 +665,6 @@ function PeladoTallaHoyDialog({ open, onClose }: { open: boolean; onClose: () =>
                     </TableCell>
                   </TableRow>
                 )}
-                <TableRow>
-                  <TableCell sx={{ ...FOOT_CELL_SX, fontSize: 11, letterSpacing: 0.4, textTransform: 'uppercase', color: '#64748b' }}>
-                    Total
-                  </TableCell>
-                  <TableCell align="right" sx={FOOT_CELL_SX}>{formatValue(total)}</TableCell>
-                  <TableCell align="right" sx={{ ...FOOT_CELL_SX, color: 'primary.main' }}>
-                    {formatValue(total > 0 ? 100 : 0, 'percent')}
-                  </TableCell>
-                </TableRow>
               </TableFooter>
             </Table>
           </TableContainer>

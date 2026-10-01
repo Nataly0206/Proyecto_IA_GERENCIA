@@ -112,7 +112,7 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
         heading: 'Filtros y parámetros',
         bullets: [
           'Resumen: libras de hoy, lunes a hoy y primer día del mes a hoy; solo detalle no anulado. La tarjeta de libras promedio por hora usa exclusivamente el día actual.',
-          'Por día: rango de fechas del filtro. Mensual: últimos 12 meses.',
+          'Tabla unificada: día y semana usan el rango del filtro; mes usa el año calendario de la fecha final.',
           'Descabezado ya no filtra por turno.',
         ],
       },
@@ -123,7 +123,7 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
           'Personas descabezando por día = `COUNT(DISTINCT el.ID_EMPLEADO)` del día; no se suma entre filas.',
           'Cola + cabezas = total entero procesado. Libras por hora = libras de cabezas ÷ horas efectivas entre el primer y último registro diario.',
           'En `descabezado-resumen`, `librasPromedioPorHora` aplica esa misma fórmula a hoy: `cabezas asignadas ÷ horas efectivas`; devuelve 0 cuando no existe una jornada válida.',
-          'Personas = `COUNT(DISTINCT ID_EMPLEADO)`; en mensual cada empleado se cuenta una sola vez por mes.',
+          'La tabla agrupa los identificadores únicos de empleados por día, semana o mes; el rendimiento agrupado divide cabezas entre la suma de horas diarias.',
         ],
       },
       {

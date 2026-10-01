@@ -78,8 +78,8 @@ export const getRecepcionRemisiones = report('recepcion-remisiones', procesos.ge
 
 /* Descabezado */
 export const getDescabezadoResumen = live('descabezado-resumen:cola-entero-v3', procesos.getDescabezadoResumen);
-export const getDescabezadoPorDia = report('descabezado-por-dia:pesos-v3', procesos.getDescabezadoPorDia);
-export const getDescabezadoPorDiaMes = monthlyReport('descabezado-por-dia-mes:pesos-v3', procesos.getDescabezadoPorDiaMes);
+export const getDescabezadoPorDia = report('descabezado-por-dia:pesos-v4', procesos.getDescabezadoPorDia);
+export const getDescabezadoPorDiaMes = monthlyReport('descabezado-por-dia-mes:pesos-v4', procesos.getDescabezadoPorDiaMes);
 
 /* Clasificado */
 export const getClasificadoResumen = live('clasificado-resumen', procesos.getClasificadoResumen);

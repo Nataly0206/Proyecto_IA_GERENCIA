@@ -15,7 +15,7 @@ export interface NetProcessRow {
 
 /** Celda del reporte de libras netas por proceso, agrupada por período (día o mes). */
 export interface NetProcessPeriodRow {
-  /** "YYYY-MM-DD" para diario, "YYYY-MM" para mensual */
+  /** "YYYY-MM-DD" para diario, "YYYY-Www" para semanal, "YYYY-MM" para mensual */
   periodo: string;
   proceso: string;
   libras: number;
@@ -67,15 +67,15 @@ export interface PeladoStyleRow {
   porcentaje: number;
 }
 
-/** Celda del reporte de libras peladas por estilo, agrupada por período (día o mes). */
+/** Celda del reporte de libras peladas por estilo, agrupada por día, semana o mes. */
 export interface PeladoStylePeriodRow {
-  /** "YYYY-MM-DD" para diario, "YYYY-MM" para mensual */
+  /** "YYYY-MM-DD" para diario, "YYYY-Www" para semanal, "YYYY-MM" para mensual */
   periodo: string;
   estilo: string;
   libras: number;
-  /** Horas trabajadas en planta ese período (solo vista diaria; igual para todas las filas del mismo período). */
+  /** Horas trabajadas en planta ese período (igual para todas las filas del mismo período). */
   horasTrabajadas?: number;
-  /** Personas (headcount real) que trabajaron ese período (solo vista diaria; igual para todas las filas del mismo período). */
+  /** Personas (headcount real) que trabajaron ese período (igual para todas las filas del mismo período). */
   personas?: number;
 }
 

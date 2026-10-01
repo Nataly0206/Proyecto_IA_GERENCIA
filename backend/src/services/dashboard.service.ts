@@ -1,3 +1,4 @@
+import { ReportPeriod, reportPeriodOf } from '../utils/reportPeriod';
 import sql from 'mssql';
 import { runQuery } from './sql.service';
 import { runStbQuery } from './stb.service';
@@ -128,10 +129,10 @@ function aggregateNetProcessByPeriod(
 
 /** Libras netas por proceso, por día, dentro del rango de fechas filtrado. */
 export async function getLibrasNetasPorProcesoDia(
-  filters: DashboardFilters,
+  filters: DashboardFilters, period: ReportPeriod = 'dia',
 ): Promise<NetProcessPeriodRow[]> {
   const groups = await fetchNetProcessGroups(filters.fechaInicial, filters.fechaFinal, filters.turno);
-  return aggregateNetProcessByPeriod(groups, (dia) => dia);
+  return aggregateNetProcessByPeriod(groups, (dia) => reportPeriodOf(dia, period));
 }
 
 /**
@@ -433,24 +434,28 @@ function aggregateDimensionByPeriod(
 
 /** Libras peladas por estilo, por día, dentro del rango de fechas filtrado. */
 export async function getPeladoPorEstiloDia(
-  filters: DashboardFilters,
+  filters: DashboardFilters, period: ReportPeriod = 'dia',
 ): Promise<PeladoStylePeriodRow[]> {
   const [groups, horasPorDia, personalGroups] = await Promise.all([
     fetchPeladoDimensionDailyGroups(filters.fechaInicial, filters.fechaFinal),
     getPeladoHorasTrabajadasPorDia(filters),
     fetchPeladoPersonalGroups(filters.fechaInicial, filters.fechaFinal),
   ]);
-  const personasPorDia = new Map(
-    aggregatePeladoPersonalByPeriod(personalGroups, filters.turno, (dia) => dia)
+  const periodOf = (dia: string) => reportPeriodOf(dia, period);
+  const personas = new Map(
+    aggregatePeladoPersonalByPeriod(personalGroups, filters.turno, periodOf)
       .map((p) => [p.periodo, p.empleados]),
   );
-  return aggregateDimensionByPeriod(groups, filters.turno, 'estilo', (dia) => dia)
+  const horas = new Map<string, number>();
+  for (const [dia, hours] of horasPorDia) {
+    const key = periodOf(dia);
+    horas.set(key, (horas.get(key) ?? 0) + hours);
+  }
+  return aggregateDimensionByPeriod(groups, filters.turno, 'estilo', periodOf)
     .map(({ periodo, valor, libras }) => ({
-      periodo,
-      estilo: valor,
-      libras,
-      horasTrabajadas: horasPorDia.get(periodo) ?? 0,
-      personas: personasPorDia.get(periodo) ?? 0,
+      periodo, estilo: valor, libras,
+      horasTrabajadas: round2(horas.get(periodo) ?? 0),
+      personas: personas.get(periodo) ?? 0,
     }));
 }
 
@@ -668,16 +673,17 @@ export async function getPeladoPorSala(): Promise<PeladoPorSalaResponse> {
 }
 
 export async function getPeladoPorSalaDiario(
-  filters: DashboardFilters, minHours: number | null,
+  filters: DashboardFilters, minHours: number | null, period: ReportPeriod = 'dia',
 ): Promise<{ fecha: string; personas: number; libras: number; librasPorHoraPromedio: number; horasTrabajadas: number }[]> {
   const turno = filters.turno ? `TURNO ${filters.turno.toUpperCase().replace('TURNO ', '')}` : null;
   const rows = await runStbQuery(PELADO_POR_SALA_DIARIO_QUERY, [
     ...dateParams(filters.fechaInicial, filters.fechaFinal),
     { name: 'Turno', type: sql.VarChar(20), value: turno },
     { name: 'MinHours', type: sql.Decimal(5, 2), value: minHours },
+    { name: 'Periodo', type: sql.VarChar(10), value: period },
   ]);
   return rows.map((row) => ({
-    fecha: pickString(row, 'Dia').slice(0, 10),
+    fecha: reportPeriodOf(pickString(row, 'Dia').slice(0, 10), period),
     personas: pickNumber(row, 'Personas'),
     libras: round2(pickNumber(row, 'Libras')),
     librasPorHoraPromedio: round2(pickNumber(row, 'LibrasPorHoraPromedio')),

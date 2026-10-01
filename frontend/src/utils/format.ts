@@ -39,6 +39,8 @@ const MESES_CORTOS = [
 
 /** "2026-06-01" → "01-jun-2026"; "2026-06" → "jun-2026" */
 export function formatPeriodo(periodo: string): string {
+  const week = /^(\d{4})-W(\d{2})$/.exec(periodo);
+  if (week) return `${week[1]} · Semana ${week[2]}`;
   const [anio, mes, dia] = periodo.split('-');
   const nombreMes = MESES_CORTOS[Number(mes) - 1];
   if (!nombreMes) return periodo;

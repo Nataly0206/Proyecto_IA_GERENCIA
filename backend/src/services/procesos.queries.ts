@@ -212,7 +212,13 @@ SELECT p.Dia, p.Personas, ISNULL(r.Cola, 0) AS Cola,
   ISNULL(r.Cola, 0) + ISNULL(p.Cabezas, 0) AS Total,
   CASE WHEN p.Horas > 0
     THEN ISNULL(p.Cabezas, 0) / p.Horas ELSE 0 END AS LibrasPorHora,
-  p.Horas
+  p.Horas,
+  STUFF((SELECT DISTINCT ',' + CAST(el.ID_EMPLEADO AS varchar(20))
+    FROM dbo.DES_ASIG_LBRS_EMPLEADOS h
+    JOIN dbo.DES_ASIG_LBRS_EMPLEADOS_DET d ON d.ID_ASIG_LBRS_EMPLEADO = h.ID_ASIG_LBRS_EMPLEADO
+    JOIN dbo.DES_EMPLEADOS_LINEAS el ON el.ID_EMPLEADO_LINEA = d.ID_EMPLEADO_LINEA
+    WHERE h.FECHA = p.Dia AND ISNULL(d.ANULADO, 0) = 0
+    FOR XML PATH(''), TYPE).value('.', 'varchar(max)'), 1, 1, '') AS PersonaIds
 FROM personal p
 LEFT JOIN produccion r ON r.Dia = p.Dia
 `;

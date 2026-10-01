@@ -53,6 +53,8 @@ export interface WidgetColumn {
   total?: 'sum' | { ratio: [string, string] };
   /** Muestra la media aritmética de la columna en la fila de promedios. */
   average?: boolean;
+  /** Campo con identificadores separados por comas para contar valores únicos por grupo. */
+  distinctByKey?: string;
   /** Columna oculta por defecto; se agrega desde el panel "Filtros y columnas". */
   optional?: boolean;
 }
@@ -105,11 +107,20 @@ function groupRows(list: DataRow[], groupKey: string, columns: WidgetColumn[]): 
   return Array.from(groups.entries()).map(([groupValue, items]) => {
     const sum = (key: string) => items.reduce((acc, r) => acc + (Number(r[key]) || 0), 0);
     const out: DataRow = { [groupKey]: groupValue };
+    for (const col of columns) {
+      if (col.total && typeof col.total === 'object') {
+        for (const key of col.total.ratio) out[key] = sum(key);
+      }
+    }
     if (items[0]?.__periodSort) out.__periodSort = items[0].__periodSort;
     if (items[0]?.__weekNumber) out.__weekNumber = items[0].__weekNumber;
     for (const col of columns) {
       if (col.key === groupKey) continue;
-      if (col.total && typeof col.total === 'object') {
+      if (col.distinctByKey) {
+        const ids = new Set(items.flatMap((row) => String(row[col.distinctByKey!] ?? '').split(',').filter(Boolean)));
+        out[col.key] = ids.size;
+        out[col.distinctByKey] = Array.from(ids).join(',');
+      } else if (col.total && typeof col.total === 'object') {
         const den = sum(col.total.ratio[1]);
         const ratio = den > 0 ? sum(col.total.ratio[0]) / den : 0;
         out[col.key] = Math.round((col.format === 'percent' ? ratio * 100 : ratio) * 100) / 100;

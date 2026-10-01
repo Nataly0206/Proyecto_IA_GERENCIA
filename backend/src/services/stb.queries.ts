@@ -212,7 +212,7 @@ WHERE h.FECHA BETWEEN @Fecha_Inicial AND @Fecha_Final
 GROUP BY h.FECHA
 `;
 
-/** Actividad histórica diaria; el umbral se aplica por sala y fecha. */
+/** Actividad histórica por día, semana o mes; el umbral se aplica por sala y fecha. */
 export const PELADO_POR_SALA_DIARIO_QUERY = `
 WITH Registros AS (
   SELECT h.FECHA AS Dia,
@@ -239,14 +239,20 @@ WITH Registros AS (
 ), SalasIncluidas AS (
   SELECT Dia, Sala, Libras, Horas FROM SalaDia
   WHERE @MinHours IS NULL OR Horas > @MinHours
+), Periodos AS (
+  SELECT s.*,
+    CASE WHEN @Periodo = 'mes' THEN DATEADD(MONTH, DATEDIFF(MONTH, 0, Dia), 0)
+      WHEN @Periodo = 'semana' THEN DATEADD(DAY, -(DATEDIFF(DAY, '19000101', Dia) % 7), CAST(Dia AS datetime))
+      ELSE CAST(Dia AS datetime) END AS Periodo
+  FROM SalasIncluidas s
 ), Totales AS (
-  SELECT Dia, SUM(Libras) AS Libras
-  FROM SalasIncluidas GROUP BY Dia
+  SELECT Periodo AS Dia, SUM(Libras) AS Libras
+  FROM Periodos GROUP BY Periodo
 ), Personas AS (
-  SELECT r.Dia, COUNT(DISTINCT r.IdEmpleado) AS Personas
+  SELECT s.Periodo AS Dia, COUNT(DISTINCT r.IdEmpleado) AS Personas
   FROM Registros r
-  JOIN SalasIncluidas s ON s.Dia = r.Dia AND s.Sala = r.Sala
-  GROUP BY r.Dia
+  JOIN Periodos s ON s.Dia = r.Dia AND s.Sala = r.Sala
+  GROUP BY s.Periodo
 ), PlantaDia AS (
   -- Ventana real del día (primer a último registro entre las salas
   -- incluidas), NO la suma de la ventana de cada sala — un día tiene
@@ -258,13 +264,18 @@ WITH Registros AS (
   FROM Registros r
   JOIN SalasIncluidas s ON s.Dia = r.Dia AND s.Sala = r.Sala
   GROUP BY r.Dia
+), PlantaPeriodo AS (
+  SELECT p.Periodo AS Dia, SUM(pd.Horas) AS Horas
+  FROM PlantaDia pd
+  JOIN (SELECT DISTINCT Dia, Periodo FROM Periodos) p ON p.Dia = pd.Dia
+  GROUP BY p.Periodo
 )
 SELECT t.Dia, ISNULL(p.Personas, 0) AS Personas, t.Libras,
   ISNULL(pd.Horas, 0) AS Horas,
   CASE WHEN ISNULL(pd.Horas, 0) > 0 THEN t.Libras / pd.Horas ELSE 0 END AS LibrasPorHoraPromedio
 FROM Totales t
 LEFT JOIN Personas p ON p.Dia = t.Dia
-LEFT JOIN PlantaDia pd ON pd.Dia = t.Dia
+LEFT JOIN PlantaPeriodo pd ON pd.Dia = t.Dia
 ORDER BY t.Dia
 `;
 

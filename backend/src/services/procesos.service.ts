@@ -206,6 +206,7 @@ async function fetchDescabezadoDia(fechaInicial: string, fechaFinal: string) {
   return rows.map((row) => ({
     fecha: pickString(row, 'Dia').slice(0, 10),
     personas: pickNumber(row, 'Personas'),
+    personaIds: pickString(row, 'PersonaIds'),
     cola: round2(pickNumber(row, 'Cola')),
     cabezas: round2(pickNumber(row, 'Cabezas')),
     librasPorHora: round2(pickNumber(row, 'LibrasPorHora')),

@@ -9,21 +9,23 @@ import {
   Stack,
   ToggleButton,
   ToggleButtonGroup,
-  Tooltip,
 } from '@mui/material';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import CloseOutlinedIcon from '@mui/icons-material/CloseOutlined';
-import { ChartConfig } from '../../types';
+import { ChartConfig, DataRow } from '../../types';
 import ChartWidget from './ChartWidget';
 import PeladoTallaWidget from './PeladoTallaWidget';
 import { peladoWidgets } from '../../config/dashboardConfig';
+import { useFilters } from '../../context/FiltersContext';
 
 const TABLE_H = 440;
 const BASE_TITLE = 'Libras Peladas por Estilo';
-const BASE_SUBTITLE = 'Rango de fechas y turno del filtro — fuente: STB_data';
+const BASE_SUBTITLE = 'Día y semana: rango seleccionado · mes: año seleccionado · turno del filtro';
 
 const dailyTableConfig: ChartConfig = {
   ...peladoWidgets[0],
+  title: BASE_TITLE,
+  subtitle: BASE_SUBTITLE,
   altChartType: undefined,
   trendChartType: undefined,
   showAverageRow: true,
@@ -37,27 +39,13 @@ const dailyTableConfig: ChartConfig = {
     {
       field: 'personas',
       label: 'Personas',
-      unit: 'pelando ese día',
+      unit: 'únicas por período',
       format: 'number',
     },
   ],
 };
 
-type Vista = 'total' | 'diario';
-
-const totalConfig: ChartConfig = {
-  id: 'pelado-por-estilo',
-  type: 'cards',
-  title: BASE_TITLE,
-  subtitle: BASE_SUBTITLE,
-  endpoint: 'pelado-por-estilo',
-  xField: 'estilo',
-  yField: 'libras',
-  sort: { field: 'libras', direction: 'desc' },
-  valueFormat: 'number',
-  unitLabel: 'lbs peladas',
-  showTotalCard: true,
-};
+type Vista = 'dia' | 'semana' | 'mes';
 
 /**
  * Libras peladas por estilo totalizadas sobre el rango de fechas y turno
@@ -66,13 +54,31 @@ const totalConfig: ChartConfig = {
  */
 export default function PeladoEstiloWidget() {
   const [tallaOpen, setTallaOpen] = useState(false);
-  const [vista, setVista] = useState<Vista>('total');
+  const [vista, setVista] = useState<Vista>('dia');
+  const { filters } = useFilters();
+  const year = filters.fechaFinal.slice(0, 4);
+  const queryParams = { periodo: vista, ...(vista === 'mes' ? { fechaInicial: `${year}-01-01`, fechaFinal: `${year}-12-31` } : {}) };
 
-  const config = useMemo(() => (vista === 'diario' ? dailyTableConfig : totalConfig), [vista]);
+  const config = useMemo(() => ({ ...dailyTableConfig, xLabel: vista === 'dia' ? 'Fecha' : vista === 'semana' ? 'Semana' : 'Mes' }), [vista]);
+  const completeMonths = (rows: DataRow[]): DataRow[] => {
+    if (vista !== 'mes' || rows.length === 0) return rows;
+    const styles = Array.from(new Set(rows.map((row) => String(row.estilo))));
+    const present = new Set(rows.map((row) => `${row.periodo}|${row.estilo}`));
+    const empty: DataRow[] = [];
+    for (let month = 1; month <= 12; month += 1) {
+      const periodo = `${year}-${String(month).padStart(2, '0')}`;
+      for (const estilo of styles) {
+        if (!present.has(`${periodo}|${estilo}`)) empty.push({ periodo, estilo, libras: 0, horasTrabajadas: 0, personas: 0 });
+      }
+    }
+    return [...rows, ...empty];
+  };
 
   const chartWidget = (
     <ChartWidget
       config={config}
+      queryParams={queryParams}
+      transform={completeMonths}
       actions={
         <Stack direction="row" spacing={1}>
           <ToggleButtonGroup
@@ -82,16 +88,9 @@ export default function PeladoEstiloWidget() {
             onChange={(_e, next: Vista | null) => next && setVista(next)}
             sx={{ '& .MuiToggleButton-root': { px: 1.25, py: 0.5, fontSize: 11, fontWeight: 700, lineHeight: 1 } }}
           >
-            <ToggleButton value="total" aria-label="Vista total">
-              <Tooltip title="Total del rango filtrado">
-                <span>Total</span>
-              </Tooltip>
-            </ToggleButton>
-            <ToggleButton value="diario" aria-label="Vista diaria">
-              <Tooltip title="Total diario">
-                <span>Diario</span>
-              </Tooltip>
-            </ToggleButton>
+            <ToggleButton value="dia" aria-label="Vista por día">Día</ToggleButton>
+            <ToggleButton value="semana" aria-label="Vista por semana">Semana</ToggleButton>
+            <ToggleButton value="mes" aria-label="Vista por mes">Mes</ToggleButton>
           </ToggleButtonGroup>
           <Button
             size="small"
@@ -109,11 +108,7 @@ export default function PeladoEstiloWidget() {
 
   return (
     <>
-      {vista === 'diario' ? (
-        <Box sx={{ height: TABLE_H, flexShrink: 0 }}>{chartWidget}</Box>
-      ) : (
-        chartWidget
-      )}
+      <Box sx={{ height: TABLE_H, flexShrink: 0 }}>{chartWidget}</Box>
       <Dialog open={tallaOpen} onClose={() => setTallaOpen(false)} fullWidth maxWidth="md">
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 1.5 }}>
           Detalle de Libras Peladas por Talla

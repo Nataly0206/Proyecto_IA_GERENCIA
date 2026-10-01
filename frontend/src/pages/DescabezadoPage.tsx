@@ -19,7 +19,7 @@ export default function DescabezadoPage() {
     >
       <ProcessFilters
         title="Filtros de descabezado"
-        hint="Los contadores muestran el día, semana y mes en curso; la tabla diaria responde al rango de fechas."
+        hint="Los contadores muestran el día, semana y mes en curso; la tabla cambia entre día, semana y mes, como en recepción."
         hideTurno
       />
 
@@ -65,38 +65,21 @@ export default function DescabezadoPage() {
 
       <Box sx={{ flexShrink: 0 }}>
         <WidgetDataTable
-          title="Libras Descabezadas — Diario"
-          subtitle="Rango de fechas seleccionado · personas sin repetir por fecha"
+          title="Libras Descabezadas"
+          subtitle="Día y semana: rango seleccionado · mes: año seleccionado · personas sin repetir por período"
           icon={<SetMealOutlinedIcon color="primary" sx={{ fontSize: 16 }} />}
           endpoint="descabezado-por-dia"
+          periodGrouping
+          groupByKey="fecha"
           defaultSortKey="fecha"
           maxHeight={TABLE_H}
           stickySummary
           columns={[
             { key: 'fecha', label: 'Fecha', format: 'periodo' },
-            { key: 'personas', label: 'Personas', align: 'center', format: 'number', total: 'sum', average: true },
+            { key: 'personas', label: 'Personas', align: 'center', format: 'number', distinctByKey: 'personaIds', total: 'sum', average: true },
             { key: 'cola', label: 'Cola', align: 'center', format: 'number', total: 'sum', average: true },
             { key: 'cabezas', label: 'Cabezas', align: 'center', format: 'number', total: 'sum', average: true },
-            { key: 'librasPorHora', label: 'Libras por hora', align: 'center', format: 'decimal', total: 'sum', average: true },
-            { key: 'total', label: 'Total', align: 'center', format: 'number', total: 'sum', average: true },
-          ]}
-        />
-      </Box>
-      <Box sx={{ flexShrink: 0 }}>
-        <WidgetDataTable
-          title="Libras Descabezadas — Mensual"
-          subtitle="Últimos 12 meses · cada persona se cuenta una vez por mes"
-          icon={<SetMealOutlinedIcon color="primary" sx={{ fontSize: 16 }} />}
-          endpoint="descabezado-por-dia-mes"
-          defaultSortKey="fecha"
-          maxHeight={TABLE_H}
-          stickySummary
-          columns={[
-            { key: 'fecha', label: 'Fecha' },
-            { key: 'personas', label: 'Personas', align: 'center', format: 'number', total: 'sum', average: true },
-            { key: 'cola', label: 'Cola', align: 'center', format: 'number', total: 'sum', average: true },
-            { key: 'cabezas', label: 'Cabezas', align: 'center', format: 'number', total: 'sum', average: true },
-            { key: 'librasPorHora', label: 'Libras por hora', align: 'center', format: 'decimal', total: 'sum', average: true },
+            { key: 'librasPorHora', label: 'Libras por hora', align: 'center', format: 'decimal', total: { ratio: ['cabezas', 'horas'] }, average: true },
             { key: 'total', label: 'Total', align: 'center', format: 'number', total: 'sum', average: true },
           ]}
         />

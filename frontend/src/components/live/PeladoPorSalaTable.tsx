@@ -24,7 +24,6 @@ import {
   TextField,
   ToggleButton,
   ToggleButtonGroup,
-  Tooltip,
   Typography,
 } from '@mui/material';
 import MeetingRoomOutlinedIcon from '@mui/icons-material/MeetingRoomOutlined';
@@ -105,7 +104,11 @@ export default function PeladoPorSalaTable({ userId }: { userId: string }) {
   const { filters } = useFilters();
   const { data, isLoading, isError, error, dataUpdatedAt } = usePeladoPorSala();
   const [tallaOpen, setTallaOpen] = useState(false);
-  const [vista, setVista] = useState<'salas' | 'diario'>('salas');
+  const [vista, setVista] = useState<'salas' | 'dia' | 'semana' | 'mes'>('dia');
+  const reportYear = filters.fechaFinal.slice(0, 4);
+  const reportFilters = vista === 'mes'
+    ? { ...filters, fechaInicial: `${reportYear}-01-01`, fechaFinal: `${reportYear}-12-31` }
+    : filters;
   const [minHours, setMinHours] = useState(() => readStoredHours(userId));
   const [preferencesUserId, setPreferencesUserId] = useState<string | null>(null);
   const [preferenceError, setPreferenceError] = useState('');
@@ -114,11 +117,11 @@ export default function PeladoPorSalaTable({ userId }: { userId: string }) {
   const hoursThreshold = minHours !== '' && Number.isFinite(parsedHours) && parsedHours >= 0 && parsedHours <= 24 ? parsedHours : null;
   const validHours = minHours === '' || (Number.isFinite(parsedHours) && parsedHours >= 0 && parsedHours <= 24);
   const dailyQuery = useQuery<SalaDailyRow[]>({
-    queryKey: ['pelado-por-sala-diario', filters, hoursThreshold],
+    queryKey: ['pelado-por-sala-diario:periodos-v1', vista, reportFilters, hoursThreshold],
     queryFn: async () => (await apiClient.get<SalaDailyRow[]>('/dashboard/pelado-por-sala-diario', {
-      params: { ...filters, minHours: hoursThreshold ?? undefined },
+      params: { ...reportFilters, periodo: vista === 'salas' ? 'dia' : vista, minHours: hoursThreshold ?? undefined },
     })).data,
-    enabled: vista === 'diario' && validHours,
+    enabled: vista !== 'salas' && validHours,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -176,7 +179,15 @@ export default function PeladoPorSalaTable({ userId }: { userId: string }) {
     },
   );
 
-  const dailyRows = dailyQuery.data ?? [];
+  const dailyRows = [...(dailyQuery.data ?? [])];
+  if (vista === 'mes' && dailyRows.length > 0) {
+    const present = new Set(dailyRows.map((row) => row.fecha));
+    for (let month = 1; month <= 12; month += 1) {
+      const fecha = `${reportYear}-${String(month).padStart(2, '0')}`;
+      if (!present.has(fecha)) dailyRows.push({ fecha, personas: 0, libras: 0, librasPorHoraPromedio: 0, horasTrabajadas: 0 });
+    }
+    dailyRows.sort((a, b) => a.fecha.localeCompare(b.fecha));
+  }
   const dailyDays = dailyRows.length;
   const dailyTotales = dailyRows.reduce(
     (acc, r) => ({
@@ -231,7 +242,7 @@ export default function PeladoPorSalaTable({ userId }: { userId: string }) {
             <Typography variant="subtitle2" fontWeight={800} sx={{ fontSize: 14, lineHeight: 1.2 }}>
               Actividad de Pelado por Sala
             </Typography>
-            {data && data.dia !== '' && (
+            {vista === 'salas' && data && data.dia !== '' && (
               <Typography
                 variant="caption"
                 color="text.secondary"
@@ -252,30 +263,26 @@ export default function PeladoPorSalaTable({ userId }: { userId: string }) {
             inputProps={{ min: 0, max: 24, step: 0.25, 'aria-label': 'Horas trabajadas mínimas por sala' }}
             InputProps={{ endAdornment: <InputAdornment position="end">h</InputAdornment> }}
             sx={{ width: 110, flexShrink: 0, '& .MuiInputBase-input': { py: 0.7 } }} />
-          <Typography variant="body2" color="text.secondary" sx={{ flexShrink: 0 }}>trabajadas hoy</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ flexShrink: 0 }}>{vista === 'salas' ? 'trabajadas hoy' : 'trabajadas por día'}</Typography>
           {minHours !== '' && <Button size="small" sx={{ flexShrink: 0 }} onClick={() => setMinHours('')}>Quitar filtro</Button>}
           <Typography variant="caption" color="text.secondary" sx={{ ml: 1, flexShrink: 0 }}>
-            {salas.length} de {data?.salas.length ?? 0} salas visibles
+            {vista === 'salas' ? `${salas.length} de ${data?.salas.length ?? 0} salas visibles` : 'Personas únicas por período'}
           </Typography>
           <ToggleButtonGroup
             size="small"
             exclusive
             value={vista}
-            onChange={(_e, next: 'salas' | 'diario' | null) => next && setVista(next)}
+            onChange={(_e, next: 'salas' | 'dia' | 'semana' | 'mes' | null) => next && setVista(next)}
             disabled={!validHours}
             sx={{ flexShrink: 0, '& .MuiToggleButton-root': { px: 1.25, py: 0.4, fontSize: 12, fontWeight: 700, lineHeight: 1, textTransform: 'none' } }}
           >
-            <ToggleButton value="salas" aria-label="Vista por sala">
-              <Tooltip title="Actividad por sala">
-                <span>Salas</span>
-              </Tooltip>
-            </ToggleButton>
-            <ToggleButton value="diario" aria-label="Vista diaria">
-              <Tooltip title="Total diario">
-                <span>Diario</span>
-              </Tooltip>
-            </ToggleButton>
+            <ToggleButton value="dia" aria-label="Vista por día">Día</ToggleButton>
+            <ToggleButton value="semana" aria-label="Vista por semana">Semana</ToggleButton>
+            <ToggleButton value="mes" aria-label="Vista por mes">Mes</ToggleButton>
           </ToggleButtonGroup>
+          <Button size="small" variant={vista === 'salas' ? 'contained' : 'outlined'}
+            onClick={() => setVista('salas')} disabled={!validHours}
+            sx={{ flexShrink: 0, whiteSpace: 'nowrap' }}>Salas · hoy</Button>
           <Button
             size="small"
             variant="outlined"
@@ -430,28 +437,28 @@ export default function PeladoPorSalaTable({ userId }: { userId: string }) {
           </TableContainer>
         )}
 
-        {vista === 'diario' && (
+        {vista !== 'salas' && (
           <Box>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-              {formatPeriodo(filters.fechaInicial)} a {formatPeriodo(filters.fechaFinal)}
+              {formatPeriodo(reportFilters.fechaInicial)} a {formatPeriodo(reportFilters.fechaFinal)}
               {filters.turno ? ` · ${filters.turno}` : ' · todos los turnos'}
               {hoursThreshold !== null ? ` · salas con más de ${hoursThreshold} h por día` : ' · todas las salas'}
             </Typography>
             {dailyQuery.isLoading && <Skeleton variant="rounded" height={220} />}
-            {dailyQuery.isError && <Alert severity="error">No se pudo cargar el total diario por sala.</Alert>}
+            {dailyQuery.isError && <Alert severity="error">No se pudo cargar la actividad del período por sala.</Alert>}
             {!dailyQuery.isLoading && !dailyQuery.isError && dailyQuery.data?.length === 0 &&
               <Alert severity="info">Sin actividad para el período y límite de horas seleccionados.</Alert>}
             {!dailyQuery.isLoading && !dailyQuery.isError && Boolean(dailyQuery.data?.length) &&
               <TableContainer sx={{ maxHeight: 360, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
                 <Table size="small" stickyHeader>
                   <TableHead><TableRow>
-                    <HeadCell label="Fecha" align="left" />
+                    <HeadCell label={vista === 'dia' ? 'Fecha' : vista === 'semana' ? 'Semana' : 'Mes'} align="left" />
                     <HeadCell label="Personas" />
                     <HeadCell label="Total libras" unit="lbs" />
-                    <HeadCell label="lbs/h promedio" unit="libras / ventana de operación del día" />
-                    <HeadCell label="Horas trabajadas" unit="h · primer a último registro del día" />
+                    <HeadCell label="lbs/h promedio" unit="libras / horas del período" />
+                    <HeadCell label="Horas trabajadas" unit="h · suma de jornadas" />
                   </TableRow></TableHead>
-                  <TableBody>{dailyQuery.data?.map((row) =>
+                  <TableBody>{dailyRows.map((row) =>
                     <TableRow key={row.fecha} hover>
                       <TableCell>{formatPeriodo(row.fecha)}</TableCell>
                       <TableCell align="right" sx={BODY_NUM_SX}>{formatValue(row.personas)}</TableCell>
@@ -466,7 +473,7 @@ export default function PeladoPorSalaTable({ userId }: { userId: string }) {
                       </TableCell>
                       <TableCell align="right" sx={FOOT_CELL_SX}>{formatValue(dailyTotales.personas)}</TableCell>
                       <TableCell align="right" sx={FOOT_CELL_SX}>{formatValue(dailyTotales.libras)}</TableCell>
-                      <TableCell align="right" sx={{ ...FOOT_CELL_SX, color: 'primary.main' }}>{formatValue(dailyTotales.librasPorHoraPromedio, 'decimal')}</TableCell>
+                      <TableCell align="right" sx={{ ...FOOT_CELL_SX, color: 'primary.main' }}>{formatValue(dailyTotales.horasTrabajadas > 0 ? dailyTotales.libras / dailyTotales.horasTrabajadas : 0, 'decimal')}</TableCell>
                       <TableCell align="right" sx={FOOT_CELL_SX}>{formatValue(dailyTotales.horasTrabajadas, 'decimal')}</TableCell>
                     </TableRow>
                     <TableRow>

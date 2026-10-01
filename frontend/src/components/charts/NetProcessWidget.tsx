@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Box, Button, Checkbox, Divider, FormControlLabel, Popover, Stack, ToggleButton,
-  ToggleButtonGroup, Tooltip, Typography,
+  ToggleButtonGroup, Typography,
 } from '@mui/material';
 import FilterAltOutlinedIcon from '@mui/icons-material/FilterAltOutlined';
-import { ChartConfig } from '../../types';
+import { ChartConfig, DataRow } from '../../types';
+import { useFilters } from '../../context/FiltersContext';
 import { useWidgetData } from '../../hooks/useDashboardData';
 import { apiClient } from '../../api/client';
 import ChartWidget from './ChartWidget';
@@ -14,7 +15,7 @@ interface NetProcessWidgetProps {
   userId: string;
 }
 
-type Granularidad = 'total' | 'dia' | 'mes';
+type Granularidad = 'dia' | 'semana' | 'mes';
 
 const BASE_TITLE = 'Libras Congeladas Netas por Tipo de Proceso';
 const BASE_SUBTITLE = 'Incluye fresco y reempaque como tipos seleccionables';
@@ -29,67 +30,35 @@ function readHiddenProcesses(userId: string): Set<string> {
   }
 }
 
-/**
- * Widget de libras netas por proceso con selector Total / Día / Mensual.
- * El modo "Total" usa la consulta y agregado original del reporte; los
- * modos "Día" y "Mensual" pivotean cada proceso como serie sobre el
- * período correspondiente.
- */
+/** Tabla por proceso con selector Día / Semana / Mes y preferencias de procesos. */
 export default function NetProcessWidget({ height, userId }: NetProcessWidgetProps) {
-  const [granularidad, setGranularidad] = useState<Granularidad>('total');
+  const [granularidad, setGranularidad] = useState<Granularidad>('dia');
   const [hiddenProcesses, setHiddenProcesses] = useState<Set<string>>(() => readHiddenProcesses(userId));
   const [processAnchor, setProcessAnchor] = useState<HTMLElement | null>(null);
   const [preferencesReady, setPreferencesReady] = useState(false);
+  const { filters } = useFilters();
+  const reportYear = filters.fechaFinal.slice(0, 4);
+  const queryParams = {
+    periodo: granularidad,
+    ...(granularidad === 'mes' ? { fechaInicial: `${reportYear}-01-01`, fechaFinal: `${reportYear}-12-31` } : {}),
+  };
 
-  const config: ChartConfig = useMemo(() => {
-    if (granularidad === 'dia') {
-      return {
-        id: 'libras-netas-proceso-dia',
-        type: 'table',
-        title: BASE_TITLE,
-        subtitle: `${BASE_SUBTITLE} — por día`,
-        endpoint: 'libras-netas-proceso-dia',
-        xField: 'periodo',
-        xLabel: 'Fecha',
-        yField: 'libras',
-        seriesField: 'proceso',
-        totalAggregation: 'sum',
-        valueFormat: 'number',
-        height,
-      };
-    }
-    if (granularidad === 'mes') {
-      return {
-        id: 'libras-netas-proceso-mes',
-        type: 'table',
-        title: BASE_TITLE,
-        subtitle: `${BASE_SUBTITLE} — últimos 12 meses`,
-        endpoint: 'libras-netas-proceso-mes',
-        xField: 'periodo',
-        xLabel: 'Mes',
-        yField: 'libras',
-        seriesField: 'proceso',
-        totalAggregation: 'sum',
-        valueFormat: 'number',
-        height,
-      };
-    }
-    return {
-      id: 'libras-netas-proceso',
-      type: 'cards',
-      title: BASE_TITLE,
-      subtitle: BASE_SUBTITLE,
-      endpoint: 'libras-netas-proceso',
-      xField: 'proceso',
-      yField: 'libras',
-      sort: { field: 'libras', direction: 'desc' },
-      valueFormat: 'number',
-      showTotalCard: true,
-      height,
-    };
-  }, [granularidad, height]);
+  const config: ChartConfig = useMemo(() => ({
+    id: 'libras-netas-proceso-dia',
+    type: 'table',
+    title: BASE_TITLE,
+    subtitle: `${BASE_SUBTITLE} · día y semana: rango seleccionado · mes: año seleccionado`,
+    endpoint: 'libras-netas-proceso-dia',
+    xField: 'periodo',
+    xLabel: granularidad === 'dia' ? 'Fecha' : granularidad === 'semana' ? 'Semana' : 'Mes',
+    yField: 'libras',
+    seriesField: 'proceso',
+    totalAggregation: 'sum',
+    valueFormat: 'number',
+    height,
+  }), [granularidad, height]);
 
-  const { data: processRows } = useWidgetData(config.endpoint);
+  const { data: processRows } = useWidgetData(config.endpoint, queryParams);
   const processes = useMemo(() => Array.from(new Set([
     ...(processRows ?? []).map((row) => String(row.proceso ?? '')).filter(Boolean),
     ...hiddenProcesses,
@@ -137,10 +106,26 @@ export default function NetProcessWidget({ height, userId }: NetProcessWidgetPro
     return next;
   });
 
+  const visibleRows = (rows: DataRow[]): DataRow[] => {
+    const visible = rows.filter((row) => !hiddenProcesses.has(String(row.proceso ?? '')));
+    if (granularidad !== 'mes' || visible.length === 0) return visible;
+    const processes = Array.from(new Set(visible.map((row) => String(row.proceso))));
+    const present = new Set(visible.map((row) => `${row.periodo}|${row.proceso}`));
+    const empty: DataRow[] = [];
+    for (let month = 1; month <= 12; month += 1) {
+      const periodo = `${reportYear}-${String(month).padStart(2, '0')}`;
+      for (const proceso of processes) {
+        if (!present.has(`${periodo}|${proceso}`)) empty.push({ periodo, proceso, libras: 0 });
+      }
+    }
+    return [...visible, ...empty];
+  };
+
   return (
     <ChartWidget
       config={config}
-      transform={(rows) => rows.filter((row) => !hiddenProcesses.has(String(row.proceso ?? '')))}
+      queryParams={queryParams}
+      transform={visibleRows}
       actions={
         <>
           <Button
@@ -186,9 +171,9 @@ export default function NetProcessWidget({ height, userId }: NetProcessWidgetPro
             onChange={(_e, next: Granularidad | null) => next && setGranularidad(next)}
             sx={{ '& .MuiToggleButton-root': { px: 1.25, py: 0.5, fontSize: 11, fontWeight: 700, lineHeight: 1 } }}
           >
-            <ToggleButton value="total" aria-label="Vista total"><Tooltip title="Total del rango filtrado"><span>Total</span></Tooltip></ToggleButton>
-            <ToggleButton value="dia" aria-label="Vista diaria"><Tooltip title="Por día"><span>Día</span></Tooltip></ToggleButton>
-            <ToggleButton value="mes" aria-label="Vista mensual"><Tooltip title="Últimos 12 meses"><span>Mensual</span></Tooltip></ToggleButton>
+            <ToggleButton value="dia" aria-label="Vista por día">Día</ToggleButton>
+            <ToggleButton value="semana" aria-label="Vista por semana">Semana</ToggleButton>
+            <ToggleButton value="mes" aria-label="Vista por mes">Mes</ToggleButton>
           </ToggleButtonGroup>
         </>
       }

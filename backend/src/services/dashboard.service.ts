@@ -25,6 +25,7 @@ import {
   PELADO_POR_SALA_ACTIVOS_QUERY,
   PELADO_POR_SALA_HOY_QUERY,
   PELADO_POR_SALA_DIARIO_QUERY,
+  PELADO_POR_SALA_MENSUAL_QUERY,
   PELADO_HORAS_TRABAJADAS_DIA_QUERY,
 } from './stb.queries';
 import { matchesTurno, pickNumber, pickString } from '../utils/rows';
@@ -676,7 +677,7 @@ export async function getPeladoPorSalaDiario(
   filters: DashboardFilters, minHours: number | null, period: ReportPeriod = 'dia',
 ): Promise<{ fecha: string; personas: number; libras: number; librasPorHoraPromedio: number; horasTrabajadas: number }[]> {
   const turno = filters.turno ? `TURNO ${filters.turno.toUpperCase().replace('TURNO ', '')}` : null;
-  const rows = await runStbQuery(PELADO_POR_SALA_DIARIO_QUERY, [
+  const rows = await runStbQuery(period === 'mes' ? PELADO_POR_SALA_MENSUAL_QUERY : PELADO_POR_SALA_DIARIO_QUERY, [
     ...dateParams(filters.fechaInicial, filters.fechaFinal),
     { name: 'Turno', type: sql.VarChar(20), value: turno },
     { name: 'MinHours', type: sql.Decimal(5, 2), value: minHours },

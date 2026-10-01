@@ -280,6 +280,81 @@ ORDER BY t.Dia
 `;
 
 /**
+ * Mensual: lee el detalle una vez y materializa por empleado, sala y día.
+ * Conserva los extremos y la cantidad de horas para reconstruir exactamente
+ * las ventanas diarias, el umbral por sala/día y las personas únicas del mes.
+ * Evita expandir varias veces los CTE sobre todo un año de registros.
+ */
+export const PELADO_POR_SALA_MENSUAL_QUERY = `
+SET NOCOUNT ON;
+
+SELECT h.FECHA AS Dia,
+  COALESCE(s.NOMBRE_SALA, 'Sin sala') AS Sala,
+  k.ID_EMPLEADO AS IdEmpleado,
+  SUM(d.LIBRAS) AS Libras,
+  MIN(d.HORA) AS PrimeraHora,
+  MAX(d.HORA) AS UltimaHora,
+  COUNT_BIG(d.HORA) AS RegistrosConHora
+INTO #PeladoEmpleadoDia
+FROM dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS h
+JOIN dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS_DET d
+  ON h.ID_ASIGNACION_LIBRAS_EMPLEADO = d.ID_ASIGNACION_LIBRAS_EMPLEADO
+LEFT JOIN dbo.DCP_LINEAS l ON l.ID_LINEA = d.ID_LINEA_ACTUAL
+LEFT JOIN dbo.PES_SALAS s ON s.ID_SALA = l.ID_SALA
+LEFT JOIN dbo.PES_EMPLEADOS_LINEAS k ON k.ID_EMPLEADOS_LINEA = d.ID_EMPLEADO_LINEA
+LEFT JOIN dbo.Cl_Turnos tr ON tr.IdTurno = d.ID_TURNO
+WHERE h.FECHA BETWEEN @Fecha_Inicial AND @Fecha_Final
+  AND (@Turno IS NULL OR UPPER(LTRIM(RTRIM(tr.Turno))) = @Turno)
+GROUP BY h.FECHA, COALESCE(s.NOMBRE_SALA, 'Sin sala'), k.ID_EMPLEADO
+OPTION (RECOMPILE);
+
+CREATE CLUSTERED INDEX IX_PeladoEmpleadoDia_Dia ON #PeladoEmpleadoDia (Dia);
+
+;WITH SalaDia AS (
+  SELECT Dia, Sala, SUM(Libras) AS Libras,
+    MIN(PrimeraHora) AS PrimeraHora, MAX(UltimaHora) AS UltimaHora,
+    SUM(RegistrosConHora) AS RegistrosConHora,
+    CASE WHEN SUM(RegistrosConHora) > 1
+      THEN DATEDIFF(SECOND, MIN(PrimeraHora), MAX(UltimaHora)) / 3600.0
+      ELSE 0 END AS Horas
+  FROM #PeladoEmpleadoDia
+  GROUP BY Dia, Sala
+)
+SELECT *, DATEADD(MONTH, DATEDIFF(MONTH, 0, Dia), 0) AS Mes
+INTO #PeladoSalasIncluidas
+FROM SalaDia
+WHERE @MinHours IS NULL OR Horas > @MinHours;
+
+CREATE CLUSTERED INDEX IX_PeladoSalasIncluidas_Dia ON #PeladoSalasIncluidas (Dia);
+
+;WITH PlantaDia AS (
+  SELECT Dia, Mes, SUM(Libras) AS Libras,
+    CASE WHEN SUM(RegistrosConHora) > 1
+      THEN DATEDIFF(SECOND, MIN(PrimeraHora), MAX(UltimaHora)) / 3600.0
+      ELSE 0 END AS Horas
+  FROM #PeladoSalasIncluidas
+  GROUP BY Dia, Mes
+), Totales AS (
+  SELECT Mes, SUM(Libras) AS Libras, SUM(Horas) AS Horas
+  FROM PlantaDia GROUP BY Mes
+), Personas AS (
+  SELECT s.Mes, COUNT(DISTINCT e.IdEmpleado) AS Personas
+  FROM #PeladoEmpleadoDia e
+  JOIN #PeladoSalasIncluidas s ON s.Dia = e.Dia AND s.Sala = e.Sala
+  GROUP BY s.Mes
+)
+SELECT t.Mes AS Dia, ISNULL(p.Personas, 0) AS Personas, t.Libras,
+  t.Horas,
+  CASE WHEN t.Horas > 0 THEN t.Libras / t.Horas ELSE 0 END AS LibrasPorHoraPromedio
+FROM Totales t
+LEFT JOIN Personas p ON p.Mes = t.Mes
+ORDER BY t.Mes;
+
+DROP TABLE #PeladoSalasIncluidas;
+DROP TABLE #PeladoEmpleadoDia;
+`;
+
+/**
  * Ventana en vivo por sala (últimos 30 minutos), solo SALA #1 a SALA #6 y
  * misma restricción que `PELADO_POR_SALA_HOY_QUERY`. Solo cubre pelado
  * individual — los pagos grupales no tienen hora de registro para medir

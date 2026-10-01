@@ -276,7 +276,7 @@ export async function getPeladoPorSalaDiario(req: Request, res: Response): Promi
     throw new ApiError(400, 'minHours debe estar entre 0 y 24');
   }
   res.json(await withTtlCache(
-    JSON.stringify(['pelado-por-sala-diario:periodos-v1', period, filters, minHours]),
+    JSON.stringify([period === 'mes' ? 'pelado-por-sala-diario:mensual-v2' : 'pelado-por-sala-diario:periodos-v1', period, filters, minHours]),
     REPORT_CACHE_MS,
     () => dashboardService.getPeladoPorSalaDiario(filters, minHours, period),
     req.query.refresh === 'true',

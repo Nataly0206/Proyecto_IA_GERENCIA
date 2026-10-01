@@ -117,11 +117,14 @@ export default function PeladoPorSalaTable({ userId }: { userId: string }) {
   const hoursThreshold = minHours !== '' && Number.isFinite(parsedHours) && parsedHours >= 0 && parsedHours <= 24 ? parsedHours : null;
   const validHours = minHours === '' || (Number.isFinite(parsedHours) && parsedHours >= 0 && parsedHours <= 24);
   const dailyQuery = useQuery<SalaDailyRow[]>({
-    queryKey: ['pelado-por-sala-diario:periodos-v1', vista, reportFilters, hoursThreshold],
-    queryFn: async () => (await apiClient.get<SalaDailyRow[]>('/dashboard/pelado-por-sala-diario', {
+    queryKey: [vista === 'mes' ? 'pelado-por-sala-diario:mensual-v2' : 'pelado-por-sala-diario:periodos-v1', vista, reportFilters, hoursThreshold],
+    queryFn: async ({ signal }) => (await apiClient.get<SalaDailyRow[]>('/dashboard/pelado-por-sala-diario', {
       params: { ...reportFilters, periodo: vista === 'salas' ? 'dia' : vista, minHours: hoursThreshold ?? undefined },
+      signal,
     })).data,
     enabled: vista !== 'salas' && validHours,
+    // Evita repetir automáticamente una consulta anual que acaba de fallar.
+    retry: vista === 'mes' ? false : 1,
     staleTime: 5 * 60 * 1000,
   });
 

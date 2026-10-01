@@ -97,4 +97,7 @@ export const env = {
   CACHE_CURRENT_TTL_SECONDS: numberFromEnv('CACHE_CURRENT_TTL_SECONDS', 10 * 60, 30, 24 * 60 * 60),
   CACHE_LIVE_TTL_SECONDS: numberFromEnv('CACHE_LIVE_TTL_SECONDS', 60, 15, 60 * 60),
   CACHE_LOCAL_TTL_SECONDS: numberFromEnv('CACHE_LOCAL_TTL_SECONDS', 30, 1, 300),
+  // Minutos que una consulta se mantiene renovándose en segundo plano tras su último uso. 0 = desactivado.
+  CACHE_REFRESH_AHEAD_MINUTES: numberFromEnv('CACHE_REFRESH_AHEAD_MINUTES', 30, 0, 24 * 60),
+  CACHE_REFRESH_CONCURRENCY: numberFromEnv('CACHE_REFRESH_CONCURRENCY', 2, 1, 8),
 };

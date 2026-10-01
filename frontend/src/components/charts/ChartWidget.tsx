@@ -26,6 +26,8 @@ import ErrorBoundary from '../ErrorBoundary';
 
 interface ChartWidgetProps {
   config: ChartConfig;
+  /** Ajusta la tarjeta a su contenido y conserva el límite de scroll de la tabla. */
+  autoHeight?: boolean;
   workedHours?: 'dia' | 'mes';
   /** Controles adicionales mostrados en la cabecera, junto al selector tabla/gráfica */
   actions?: ReactNode;
@@ -49,7 +51,7 @@ type ViewMode = 'table' | 'chart' | 'trend';
  * DynamicChart. Si el config declara `altChartType`, muestra un selector
  * para alternar entre vista de tabla y gráfica comparativa.
  */
-export default function ChartWidget({ config, actions, columnOrder, onColumnReorder, emptyText = 'Sin datos para los filtros seleccionados.', transform, workedHours, queryParams }: ChartWidgetProps) {
+export default function ChartWidget({ config, actions, columnOrder, onColumnReorder, emptyText = 'Sin datos para los filtros seleccionados.', transform, workedHours, queryParams, autoHeight = false }: ChartWidgetProps) {
   const { data, isLoading, isError, error } = useWidgetData(config.endpoint, queryParams);
   const [view, setView] = useState<ViewMode>('chart');
   const [report, setReport] = useState<'rate' | 'hours'>('rate');
@@ -95,7 +97,7 @@ export default function ChartWidget({ config, actions, columnOrder, onColumnReor
       : seriesFilteredData;
   const transformedData = visibleData && transform ? transform(visibleData) : visibleData;
   const isCards = effectiveConfig.type === 'cards';
-  const widgetHeight = isCards ? 'auto' : { xs: 'auto', md: '100%' };
+  const widgetHeight = isCards || autoHeight ? 'auto' : { xs: 'auto', md: '100%' };
 
   return (
     // "cards" widgets sit bare in the page's outer Stack (height:'100%',
@@ -105,7 +107,7 @@ export default function ChartWidget({ config, actions, columnOrder, onColumnReor
     // when the page's total content is taller than the viewport, the browser
     // squashes this Card down to fit instead of letting the Stack scroll, so it
     // renders empty/collapsed under the next section. flexShrink:0 opts it out.
-    <Card sx={{ height: widgetHeight, minHeight: 0, ...(isCards && { flexShrink: 0 }) }}>
+    <Card sx={{ height: widgetHeight, minHeight: 0, ...((isCards || autoHeight) && { flexShrink: 0 }) }}>
       <CardContent
         sx={{
           height: widgetHeight,
@@ -182,7 +184,7 @@ export default function ChartWidget({ config, actions, columnOrder, onColumnReor
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              height: config.height ?? 340,
+              height: autoHeight ? 96 : config.height ?? 340,
             }}
           >
             <CircularProgress size={32} />
@@ -213,9 +215,9 @@ export default function ChartWidget({ config, actions, columnOrder, onColumnReor
             {isCards ? (
               <KpiCards config={effectiveConfig} data={transformedData} />
             ) : (
-              <Box sx={{ flex: 1, minHeight: 0 }}>
+              <Box sx={{ flex: autoHeight ? '0 0 auto' : 1, minHeight: 0 }}>
                 {effectiveConfig.type === 'table' ? (
-                  <PivotTable config={effectiveConfig} data={transformedData} columnOrder={columnOrder} onColumnReorder={onColumnReorder} />
+                  <PivotTable autoHeight={autoHeight} config={effectiveConfig} data={transformedData} columnOrder={columnOrder} onColumnReorder={onColumnReorder} />
                 ) : (
                   <DynamicChart config={effectiveConfig} data={transformedData} />
                 )}

@@ -18,7 +18,6 @@ import PeladoTallaWidget from './PeladoTallaWidget';
 import { peladoWidgets } from '../../config/dashboardConfig';
 import { useFilters } from '../../context/FiltersContext';
 
-const TABLE_H = 440;
 const BASE_TITLE = 'Libras Peladas por Estilo';
 const BASE_SUBTITLE = 'Día y semana: rango seleccionado · mes: año seleccionado · turno del filtro';
 
@@ -76,6 +75,7 @@ export default function PeladoEstiloWidget() {
 
   const chartWidget = (
     <ChartWidget
+      autoHeight
       config={config}
       queryParams={queryParams}
       transform={completeMonths}
@@ -108,7 +108,7 @@ export default function PeladoEstiloWidget() {
 
   return (
     <>
-      <Box sx={{ height: TABLE_H, flexShrink: 0 }}>{chartWidget}</Box>
+      <Box sx={{ flexShrink: 0 }}>{chartWidget}</Box>
       <Dialog open={tallaOpen} onClose={() => setTallaOpen(false)} fullWidth maxWidth="md">
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 1.5 }}>
           Detalle de Libras Peladas por Talla

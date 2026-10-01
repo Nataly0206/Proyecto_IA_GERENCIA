@@ -15,6 +15,7 @@ import { formatPeriodo, formatValue } from '../../utils/format';
 
 interface PivotTableProps {
   config: ChartConfig;
+  autoHeight?: boolean;
   data: DataRow[];
   columnOrder?: string[];
   onColumnReorder?: (source: string, target: string) => void;
@@ -51,7 +52,7 @@ const SHARE_SX = {
  * son promedios ponderados por weightField (número de grupos), lo que
  * reproduce exactamente los Grand Total del reporte oficial.
  */
-export default function PivotTable({ config, data, columnOrder, onColumnReorder }: PivotTableProps) {
+export default function PivotTable({ config, data, columnOrder, onColumnReorder, autoHeight = false }: PivotTableProps) {
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const valueField = Array.isArray(config.yField) ? config.yField[0] : config.yField;
   const colField = config.seriesField ?? 'linea';
@@ -172,7 +173,7 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder 
     value === null || value === undefined ? '—' : formatValue(value, format ?? config.valueFormat ?? 'decimal');
 
   return (
-    <TableContainer sx={{ height: '100%', maxHeight: config.height ?? 440, mt: 0.5, borderRadius: 1, border: '1px solid rgba(148, 163, 184, 0.18)' }}>
+    <TableContainer sx={{ height: autoHeight ? 'auto' : '100%', maxHeight: config.height ?? 440, mt: 0.5, borderRadius: 1, border: '1px solid rgba(148, 163, 184, 0.18)' }}>
       <Table size="small" stickyHeader>
         <TableHead>
           <TableRow>

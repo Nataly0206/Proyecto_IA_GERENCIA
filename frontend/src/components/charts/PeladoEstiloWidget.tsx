@@ -14,7 +14,6 @@ import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import CloseOutlinedIcon from '@mui/icons-material/CloseOutlined';
 import { ChartConfig, DataRow } from '../../types';
 import ChartWidget from './ChartWidget';
-import KpiCards from './KpiCards';
 import PeladoTallaWidget from './PeladoTallaWidget';
 import { peladoWidgets } from '../../config/dashboardConfig';
 import { useFilters } from '../../context/FiltersContext';
@@ -45,7 +44,7 @@ const dailyTableConfig: ChartConfig = {
   ],
 };
 
-type Vista = 'dia' | 'semana' | 'mes';
+type Vista = 'total' | 'dia' | 'semana' | 'mes';
 
 /**
  * Libras peladas por estilo totalizadas sobre el rango de fechas y turno
@@ -57,10 +56,30 @@ export default function PeladoEstiloWidget() {
   const [vista, setVista] = useState<Vista>('dia');
   const { filters } = useFilters();
   const year = filters.fechaFinal.slice(0, 4);
-  const queryParams = { periodo: vista, ...(vista === 'mes' ? { fechaInicial: `${year}-01-01`, fechaFinal: `${year}-12-31` } : {}) };
+  const queryParams = { periodo: vista === 'total' ? 'dia' : vista, ...(vista === 'mes' ? { fechaInicial: `${year}-01-01`, fechaFinal: `${year}-12-31` } : {}) };
 
-  const config = useMemo(() => ({ ...dailyTableConfig, xLabel: vista === 'dia' ? 'Fecha' : vista === 'semana' ? 'Semana' : 'Mes' }), [vista]);
-  const completeMonths = (rows: DataRow[]): DataRow[] => {
+  const config = useMemo<ChartConfig>(() => vista === 'total' ? {
+    ...dailyTableConfig,
+    type: 'cards',
+    subtitle: 'Total acumulado · rango de fechas y turno seleccionados',
+    xField: 'estilo',
+    seriesField: undefined,
+    extraColumns: undefined,
+    showAverageRow: false,
+    showTotalCard: true,
+    unitLabel: 'lbs',
+    colorByLabel: true,
+  } : { ...dailyTableConfig, xLabel: vista === 'dia' ? 'Fecha' : vista === 'semana' ? 'Semana' : 'Mes' }, [vista]);
+  const transformRows = (rows: DataRow[]): DataRow[] => {
+    if (vista === 'total') {
+      const totals = new Map<string, number>();
+      for (const row of rows) {
+        const estilo = String(row.estilo ?? 'Sin estilo');
+        const libras = Number(row.libras ?? 0);
+        totals.set(estilo, (totals.get(estilo) ?? 0) + (Number.isFinite(libras) ? libras : 0));
+      }
+      return Array.from(totals, ([estilo, libras]) => ({ estilo, libras }));
+    }
     if (vista !== 'mes' || rows.length === 0) return rows;
     const styles = Array.from(new Set(rows.map((row) => String(row.estilo))));
     const present = new Set(rows.map((row) => `${row.periodo}|${row.estilo}`));
@@ -79,27 +98,7 @@ export default function PeladoEstiloWidget() {
       autoHeight
       config={config}
       queryParams={queryParams}
-      transform={completeMonths}
-      renderSummary={(rows) => {
-        const totals = new Map<string, number>();
-        for (const row of rows) {
-          const estilo = String(row.estilo ?? 'Sin estilo');
-          const libras = Number(row.libras ?? 0);
-          totals.set(estilo, (totals.get(estilo) ?? 0) + (Number.isFinite(libras) ? libras : 0));
-        }
-        return (
-          <>
-            <Box sx={{ mb: 0.75, fontSize: 12, color: 'text.secondary' }}>
-              Total acumulado · {vista === 'mes' ? `año ${year}` : 'rango seleccionado'} · turno del filtro
-            </Box>
-            <KpiCards
-              compact
-              config={{ ...config, type: 'cards', xField: 'estilo', yField: 'libras', showTotalCard: true, unitLabel: 'lbs', colorByLabel: true }}
-              data={Array.from(totals, ([estilo, libras]) => ({ estilo, libras }))}
-            />
-          </>
-        );
-      }}
+      transform={transformRows}
       actions={
         <Stack direction="row" spacing={1}>
           <ToggleButtonGroup
@@ -109,6 +108,7 @@ export default function PeladoEstiloWidget() {
             onChange={(_e, next: Vista | null) => next && setVista(next)}
             sx={{ '& .MuiToggleButton-root': { px: 1.25, py: 0.5, fontSize: 11, fontWeight: 700, lineHeight: 1 } }}
           >
+            <ToggleButton value="total" aria-label="Vista de cards acumuladas">Total</ToggleButton>
             <ToggleButton value="dia" aria-label="Vista por día">Día</ToggleButton>
             <ToggleButton value="semana" aria-label="Vista por semana">Semana</ToggleButton>
             <ToggleButton value="mes" aria-label="Vista por mes">Mes</ToggleButton>

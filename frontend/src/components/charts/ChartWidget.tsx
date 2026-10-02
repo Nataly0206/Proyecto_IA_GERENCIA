@@ -31,7 +31,6 @@ interface ChartWidgetProps {
   workedHours?: 'dia' | 'mes';
   /** Controles adicionales mostrados en la cabecera, junto al selector tabla/gráfica */
   actions?: ReactNode;
-  renderSummary?: (data: DataRow[]) => ReactNode;
   columnOrder?: string[];
   onColumnReorder?: (source: string, target: string) => void;
   emptyText?: string;
@@ -52,7 +51,7 @@ type ViewMode = 'table' | 'chart' | 'trend';
  * DynamicChart. Si el config declara `altChartType`, muestra un selector
  * para alternar entre vista de tabla y gráfica comparativa.
  */
-export default function ChartWidget({ config, actions, renderSummary, columnOrder, onColumnReorder, emptyText = 'Sin datos para los filtros seleccionados.', transform, workedHours, queryParams, autoHeight = false }: ChartWidgetProps) {
+export default function ChartWidget({ config, actions, columnOrder, onColumnReorder, emptyText = 'Sin datos para los filtros seleccionados.', transform, workedHours, queryParams, autoHeight = false }: ChartWidgetProps) {
   const { data, isLoading, isError, error } = useWidgetData(config.endpoint, queryParams);
   const [view, setView] = useState<ViewMode>('chart');
   const [report, setReport] = useState<'rate' | 'hours'>('rate');
@@ -206,7 +205,6 @@ export default function ChartWidget({ config, actions, renderSummary, columnOrde
 
         {!showHours && !isLoading && !isError && transformedData && transformedData.length > 0 && (
           <ErrorBoundary label="Error al renderizar el widget">
-            {renderSummary && <Box sx={{ mb: 1.5 }}>{renderSummary(transformedData)}</Box>}
             {/* Solo table/chart viven en un Card de altura fija (height: '100%' en
                 md+) donde flex:1 + minHeight:0 reparte el espacio restante para
                 habilitar el scroll interno. "cards" usa height:'auto' — con esas

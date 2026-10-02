@@ -9,14 +9,13 @@ import { useFilters } from '../../context/FiltersContext';
 import { useWidgetData } from '../../hooks/useDashboardData';
 import { apiClient } from '../../api/client';
 import ChartWidget from './ChartWidget';
-import KpiCards from './KpiCards';
 
 interface NetProcessWidgetProps {
   height?: number;
   userId: string;
 }
 
-type Granularidad = 'dia' | 'semana' | 'mes';
+type Granularidad = 'total' | 'dia' | 'semana' | 'mes';
 
 const BASE_TITLE = 'Libras Congeladas Netas por Tipo de Proceso';
 const BASE_SUBTITLE = 'Incluye fresco y reempaque como tipos seleccionables';
@@ -31,7 +30,7 @@ function readHiddenProcesses(userId: string): Set<string> {
   }
 }
 
-/** Tabla por proceso con selector Día / Semana / Mes y preferencias de procesos. */
+/** Cards y tabla por proceso con selector Total / Día / Semana / Mes. */
 export default function NetProcessWidget({ height, userId }: NetProcessWidgetProps) {
   const [granularidad, setGranularidad] = useState<Granularidad>('dia');
   const [hiddenProcesses, setHiddenProcesses] = useState<Set<string>>(() => readHiddenProcesses(userId));
@@ -40,22 +39,27 @@ export default function NetProcessWidget({ height, userId }: NetProcessWidgetPro
   const { filters } = useFilters();
   const reportYear = filters.fechaFinal.slice(0, 4);
   const queryParams = {
-    periodo: granularidad,
+    periodo: granularidad === 'total' ? 'dia' : granularidad,
     ...(granularidad === 'mes' ? { fechaInicial: `${reportYear}-01-01`, fechaFinal: `${reportYear}-12-31` } : {}),
   };
 
   const config: ChartConfig = useMemo(() => ({
     id: 'libras-netas-proceso-dia',
-    type: 'table',
+    type: granularidad === 'total' ? 'cards' : 'table',
     title: BASE_TITLE,
-    subtitle: `${BASE_SUBTITLE} · día y semana: rango seleccionado · mes: año seleccionado`,
+    subtitle: granularidad === 'total'
+      ? 'Total acumulado · rango de fechas, turno y procesos seleccionados'
+      : `${BASE_SUBTITLE} · día y semana: rango seleccionado · mes: año seleccionado`,
     endpoint: 'libras-netas-proceso-dia',
-    xField: 'periodo',
+    xField: granularidad === 'total' ? 'proceso' : 'periodo',
     xLabel: granularidad === 'dia' ? 'Fecha' : granularidad === 'semana' ? 'Semana' : 'Mes',
     yField: 'libras',
-    seriesField: 'proceso',
+    seriesField: granularidad === 'total' ? undefined : 'proceso',
     totalAggregation: 'sum',
     valueFormat: 'number',
+    showTotalCard: granularidad === 'total',
+    unitLabel: 'lbs netas',
+    colorByLabel: true,
     height,
   }), [granularidad, height]);
 
@@ -109,6 +113,15 @@ export default function NetProcessWidget({ height, userId }: NetProcessWidgetPro
 
   const visibleRows = (rows: DataRow[]): DataRow[] => {
     const visible = rows.filter((row) => !hiddenProcesses.has(String(row.proceso ?? '')));
+    if (granularidad === 'total') {
+      const totals = new Map<string, number>();
+      for (const row of visible) {
+        const proceso = String(row.proceso ?? 'Sin proceso');
+        const libras = Number(row.libras ?? 0);
+        totals.set(proceso, (totals.get(proceso) ?? 0) + (Number.isFinite(libras) ? libras : 0));
+      }
+      return Array.from(totals, ([proceso, libras]) => ({ proceso, libras }));
+    }
     if (granularidad !== 'mes' || visible.length === 0) return visible;
     const processes = Array.from(new Set(visible.map((row) => String(row.proceso))));
     const present = new Set(visible.map((row) => `${row.periodo}|${row.proceso}`));
@@ -127,26 +140,6 @@ export default function NetProcessWidget({ height, userId }: NetProcessWidgetPro
       config={config}
       queryParams={queryParams}
       transform={visibleRows}
-      renderSummary={(rows) => {
-        const totals = new Map<string, number>();
-        for (const row of rows) {
-          const proceso = String(row.proceso ?? 'Sin proceso');
-          const libras = Number(row.libras ?? 0);
-          totals.set(proceso, (totals.get(proceso) ?? 0) + (Number.isFinite(libras) ? libras : 0));
-        }
-        return (
-          <>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75 }}>
-              Total acumulado · {granularidad === 'mes' ? `año ${reportYear}` : 'rango seleccionado'} · turno y procesos seleccionados
-            </Typography>
-            <KpiCards
-              compact
-              config={{ ...config, type: 'cards', xField: 'proceso', yField: 'libras', showTotalCard: true, unitLabel: 'lbs netas', colorByLabel: true }}
-              data={Array.from(totals, ([proceso, libras]) => ({ proceso, libras }))}
-            />
-          </>
-        );
-      }}
       actions={
         <>
           <Button
@@ -192,6 +185,7 @@ export default function NetProcessWidget({ height, userId }: NetProcessWidgetPro
             onChange={(_e, next: Granularidad | null) => next && setGranularidad(next)}
             sx={{ '& .MuiToggleButton-root': { px: 1.25, py: 0.5, fontSize: 11, fontWeight: 700, lineHeight: 1 } }}
           >
+            <ToggleButton value="total" aria-label="Vista de cards acumuladas">Total</ToggleButton>
             <ToggleButton value="dia" aria-label="Vista por día">Día</ToggleButton>
             <ToggleButton value="semana" aria-label="Vista por semana">Semana</ToggleButton>
             <ToggleButton value="mes" aria-label="Vista por mes">Mes</ToggleButton>

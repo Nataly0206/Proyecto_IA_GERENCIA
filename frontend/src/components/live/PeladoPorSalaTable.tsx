@@ -104,7 +104,7 @@ export default function PeladoPorSalaTable({ userId }: { userId: string }) {
   const { filters } = useFilters();
   const { data, isLoading, isError, error, dataUpdatedAt } = usePeladoPorSala();
   const [tallaOpen, setTallaOpen] = useState(false);
-  const [vista, setVista] = useState<'salas' | 'dia' | 'semana' | 'mes'>('dia');
+  const [vista, setVista] = useState<'salas' | 'dia' | 'semana' | 'mes'>('salas');
   const reportYear = filters.fechaFinal.slice(0, 4);
   const reportFilters = vista === 'mes'
     ? { ...filters, fechaInicial: `${reportYear}-01-01`, fechaFinal: `${reportYear}-12-31` }

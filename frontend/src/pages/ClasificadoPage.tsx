@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Box, Button, Checkbox, Dialog, DialogContent, DialogTitle, Divider, FormControlLabel, IconButton, Popover, Stack, Typography } from '@mui/material';
+import { Alert, Box, Button, Checkbox, Dialog, DialogContent, DialogTitle, Divider, FormControlLabel, IconButton, Popover, Stack, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { apiClient } from '../api/client';
@@ -201,21 +201,28 @@ export default function ClasificadoPage({ user }: { user: AuthUser }) {
           ? 'Ninguna máquina seleccionada — marca al menos una en “Máquinas”.'
           : 'Sin datos para los filtros seleccionados.'}
         actions={
-          <Stack direction="row" spacing={1} alignItems="center">
-            <Button size="small" variant="outlined" startIcon={<PrecisionManufacturingOutlinedIcon />}
-              onClick={(event) => setMachineAnchor(event.currentTarget)} sx={{ whiteSpace: 'nowrap', fontWeight: 700 }}>
-              Máquinas ({visibleMachines}/{machines.length})
-            </Button>
-            <Button
-              size="small"
-              variant="outlined"
-              startIcon={<VisibilityOutlinedIcon />}
-              onClick={() => setTallaOpen(true)}
-              sx={{ whiteSpace: 'nowrap', fontWeight: 700 }}
+          <ToggleButtonGroup
+            size="small"
+            aria-label="Acciones de libras clasificadas por máquina"
+            sx={{ '& .MuiToggleButton-root': { px: 1.25, py: 0.5, fontSize: 11, fontWeight: 700, lineHeight: 1 } }}
+          >
+            <ToggleButton
+              value="maquinas"
+              selected={Boolean(machineAnchor)}
+              aria-label="Seleccionar máquinas"
+              onClick={(event) => setMachineAnchor(event.currentTarget)}
             >
-              Ver por talla
-            </Button>
-          </Stack>
+              <PrecisionManufacturingOutlinedIcon sx={{ fontSize: 14, mr: 0.5 }} />Máquinas ({visibleMachines}/{machines.length})
+            </ToggleButton>
+            <ToggleButton
+              value="talla"
+              selected={tallaOpen}
+              aria-label="Ver libras clasificadas por talla"
+              onClick={() => setTallaOpen(true)}
+            >
+              <VisibilityOutlinedIcon sx={{ fontSize: 14, mr: 0.5 }} />Ver por talla
+            </ToggleButton>
+          </ToggleButtonGroup>
         }
       />
       <Popover open={Boolean(machineAnchor)} anchorEl={machineAnchor} onClose={() => setMachineAnchor(null)}

@@ -2,7 +2,6 @@ import { ReactNode, useMemo, useState } from 'react';
 import {
   Alert,
   Box,
-  Button,
   Skeleton,
   Stack,
   Table,
@@ -11,6 +10,8 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  ToggleButton,
+  ToggleButtonGroup,
   Typography,
 } from '@mui/material';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
@@ -70,9 +71,15 @@ export default function InventarioTallaTable({
           <Typography variant="subtitle2" fontWeight={800} sx={{ fontSize: 13 }}>{title}</Typography>
           {subtitle && <Typography variant="caption" color="text.secondary" sx={{ fontSize: 11 }}>{subtitle}{dataUpdatedAt ? ` · actualizado ${new Date(dataUpdatedAt).toLocaleTimeString()}` : ''}</Typography>}
         </Stack>
-        <Button size="small" variant="outlined" startIcon={<VisibilityOutlinedIcon />} onClick={() => setDetailOpen(true)}>
-          Ver detalle
-        </Button>
+        <ToggleButtonGroup
+          size="small"
+          aria-label="Acciones del inventario de clasificado"
+          sx={{ '& .MuiToggleButton-root': { px: 1.25, py: 0.5, fontSize: 11, fontWeight: 700, lineHeight: 1 } }}
+        >
+          <ToggleButton value="detalle" selected={detailOpen} aria-label="Ver detalle de inventario" onClick={() => setDetailOpen(true)}>
+            <VisibilityOutlinedIcon sx={{ fontSize: 14, mr: 0.5 }} />Ver detalle
+          </ToggleButton>
+        </ToggleButtonGroup>
       </Stack>
 
       {isLoading && <Skeleton variant="rounded" height={160} />}

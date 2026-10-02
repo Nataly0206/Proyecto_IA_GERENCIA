@@ -32,7 +32,7 @@ function readHiddenProcesses(userId: string): Set<string> {
 
 /** Cards y tabla por proceso con selector Total / Día / Semana / Mes. */
 export default function NetProcessWidget({ height, userId }: NetProcessWidgetProps) {
-  const [granularidad, setGranularidad] = useState<Granularidad>('dia');
+  const [granularidad, setGranularidad] = useState<Granularidad>('total');
   const [hiddenProcesses, setHiddenProcesses] = useState<Set<string>>(() => readHiddenProcesses(userId));
   const [processAnchor, setProcessAnchor] = useState<HTMLElement | null>(null);
   const [preferencesReady, setPreferencesReady] = useState(false);

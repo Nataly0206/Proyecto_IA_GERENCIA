@@ -53,7 +53,7 @@ type Vista = 'total' | 'dia' | 'semana' | 'mes';
  */
 export default function PeladoEstiloWidget() {
   const [tallaOpen, setTallaOpen] = useState(false);
-  const [vista, setVista] = useState<Vista>('dia');
+  const [vista, setVista] = useState<Vista>('total');
   const { filters } = useFilters();
   const year = filters.fechaFinal.slice(0, 4);
   const queryParams = { periodo: vista === 'total' ? 'dia' : vista, ...(vista === 'mes' ? { fechaInicial: `${year}-01-01`, fechaFinal: `${year}-12-31` } : {}) };

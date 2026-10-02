@@ -110,12 +110,12 @@ const PAGE_HELP: Record<DashboardView, PageHelp> = {
   },
   prestamos: {
     title: 'Préstamos',
-    purpose: 'Administra clientes, préstamos, cuotas y cobros desde un flujo simplificado para un solo operador.',
+    purpose: 'Lleva el control de lo que la empresa debe a bancos y otros acreedores: cuánto se debe a cada uno, qué cuotas vienen y qué se ha pagado.',
     sections: [
-      { title: 'Resumen', body: 'Muestra capital prestado, dinero recuperado, intereses cobrados, cobros programados para hoy y cartera vencida. La agenda permite registrar un pago o abrir WhatsApp directamente.' },
-      { title: 'Clientes y préstamos', body: 'Registra prestatarios y crea préstamos que se activan inmediatamente. La tasa se aplica por cada período seleccionado y el sistema genera automáticamente el calendario de cuotas.' },
-      { title: 'Cobros y mora', body: 'Cobro express aplica el dinero desde la cuota pendiente más antigua. Mora ordena los atrasos por días y ofrece acciones rápidas de cobro y recordatorio.' },
-      { title: 'Reportes', body: 'Consulta el efectivo cobrado por rango de fechas y exporta el resultado en un archivo compatible con Excel.' },
+      { title: 'Resumen', body: 'Muestra por moneda la deuda de capital, el total por pagar con intereses, lo que vence en los próximos 30 días y lo vencido. Incluye la deuda por acreedor y la lista de cuotas vencidas o próximas, con acceso directo para registrar el pago.' },
+      { title: 'Acreedores y préstamos', body: 'Registra cada banco o acreedor y luego el préstamo recibido con su tasa anual, plazo, moneda y seguros o comisiones por cuota. El sistema genera el calendario y cada cuota sin pagos se puede ajustar para que coincida con la tabla del banco.' },
+      { title: 'Pagos y abonos', body: 'El pago de cuota se aplica desde la cuota pendiente más antigua. El abono a capital reduce la deuda y recalcula las cuotas restantes, bajando la cuota o acortando el plazo. Cada pago guarda su fecha, comprobante y el usuario que lo registró.' },
+      { title: 'Pagos realizados', body: 'Consulta los pagos por rango de fechas con su reparto entre capital, intereses y seguros, y exporta el resultado en un archivo compatible con Excel.' },
     ],
   },
   rendimientos: {

@@ -57,9 +57,8 @@ export default function NetProcessWidget({ height, userId }: NetProcessWidgetPro
     seriesField: granularidad === 'total' ? undefined : 'proceso',
     totalAggregation: 'sum',
     valueFormat: 'number',
+    sort: granularidad === 'total' ? { field: 'libras', direction: 'desc' } : undefined,
     showTotalCard: granularidad === 'total',
-    unitLabel: 'lbs netas',
-    colorByLabel: true,
     height,
   }), [granularidad, height]);
 
@@ -120,7 +119,12 @@ export default function NetProcessWidget({ height, userId }: NetProcessWidgetPro
         const libras = Number(row.libras ?? 0);
         totals.set(proceso, (totals.get(proceso) ?? 0) + (Number.isFinite(libras) ? libras : 0));
       }
-      return Array.from(totals, ([proceso, libras]) => ({ proceso, libras }));
+      const total = Array.from(totals.values()).reduce((sum, libras) => sum + libras, 0);
+      return Array.from(totals, ([proceso, libras]) => ({
+        proceso,
+        libras,
+        porcentaje: total > 0 ? Math.round((libras / total) * 10000) / 100 : 0,
+      }));
     }
     if (granularidad !== 'mes' || visible.length === 0) return visible;
     const processes = Array.from(new Set(visible.map((row) => String(row.proceso))));

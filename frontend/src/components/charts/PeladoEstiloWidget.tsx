@@ -66,9 +66,9 @@ export default function PeladoEstiloWidget() {
     seriesField: undefined,
     extraColumns: undefined,
     showAverageRow: false,
+    sort: { field: 'libras', direction: 'desc' },
     showTotalCard: true,
-    unitLabel: 'lbs',
-    colorByLabel: true,
+    unitLabel: 'lbs peladas',
   } : { ...dailyTableConfig, xLabel: vista === 'dia' ? 'Fecha' : vista === 'semana' ? 'Semana' : 'Mes' }, [vista]);
   const transformRows = (rows: DataRow[]): DataRow[] => {
     if (vista === 'total') {
@@ -78,7 +78,12 @@ export default function PeladoEstiloWidget() {
         const libras = Number(row.libras ?? 0);
         totals.set(estilo, (totals.get(estilo) ?? 0) + (Number.isFinite(libras) ? libras : 0));
       }
-      return Array.from(totals, ([estilo, libras]) => ({ estilo, libras }));
+      const total = Array.from(totals.values()).reduce((sum, libras) => sum + libras, 0);
+      return Array.from(totals, ([estilo, libras]) => ({
+        estilo,
+        libras,
+        porcentaje: total > 0 ? Math.round((libras / total) * 10000) / 100 : 0,
+      }));
     }
     if (vista !== 'mes' || rows.length === 0) return rows;
     const styles = Array.from(new Set(rows.map((row) => String(row.estilo))));

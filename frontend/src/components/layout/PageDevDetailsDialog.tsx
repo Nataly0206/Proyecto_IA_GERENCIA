@@ -430,21 +430,22 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
 
   prestamos: {
     title: 'Préstamos',
-    summary: 'Gestión transaccional simplificada de clientes, préstamos, cuotas y pagos. Fuente: base propia del dashboard.',
+    summary: 'Control de la deuda propia: préstamos recibidos de bancos y otros acreedores, con su calendario de cuotas y pagos. Fuente: base propia del dashboard.',
     blocks: [
       {
         heading: 'Datos y cálculo',
         bullets: [
-          'Tablas `prestamos_clientes`, `prestamos`, `prestamos_cuotas`, `prestamos_pagos` y `prestamos_pago_aplicaciones` en la base de autenticación del dashboard.',
-          'Al crear un préstamo se genera inmediatamente su calendario para frecuencia diaria, semanal, quincenal o mensual.',
-          'Los pagos se aplican en transacción SQL desde la cuota pendiente más antigua y liquidan automáticamente el préstamo al completar el saldo.',
+          'Tablas `prestamos_acreedores`, `prestamos`, `prestamos_cuotas`, `prestamos_pagos` y `prestamos_pago_aplicaciones` en la base de autenticación del dashboard (migración 9).',
+          'La tasa se guarda anual y se divide entre los pagos del año. El calendario se genera como cuota nivelada, capital fijo o solo interés, y las cuotas sin pagos se pueden editar para igualar la tabla del banco.',
+          'Los pagos se aplican en transacción SQL desde la cuota pendiente más antigua (cargos, luego interés, luego capital) y el reparto queda guardado por pago.',
+          'El abono a capital recalcula las cuotas sin pagos reduciendo la cuota o el plazo. Cada préstamo tiene moneda (HNL o USD) y los totales nunca se mezclan entre monedas.',
         ],
       },
       {
         heading: 'API y seguridad',
         bullets: [
-          '`/api/prestamos` concentra resumen, clientes, préstamos, detalle, pagos y reporte de cobros.',
-          'Toda la ruta exige sesión activa y el permiso general `prestamos`; no existen aprobaciones ni roles internos adicionales.',
+          '`/api/prestamos` concentra resumen, acreedores, préstamos, simulación, detalle, pagos, abonos, edición de cuotas y reporte de pagos.',
+          'Toda la ruta exige sesión activa y el permiso general `prestamos`. Acreedores, préstamos y pagos guardan el usuario que los registró.',
         ],
       },
       ARQUITECTURA_COMUN,

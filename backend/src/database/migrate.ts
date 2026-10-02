@@ -309,6 +309,120 @@ async function migrate(): Promise<void> {
       END;
     `);
 
+    // Versión 9: el módulo deja de ser cartera por cobrar y pasa a controlar
+    // la deuda propia con bancos y acreedores. Las tablas de la versión 8 solo
+    // tenían datos de prueba, así que se eliminan y se crean de nuevo. Va en
+    // dos lotes porque las tablas nuevas reutilizan nombres de las anteriores.
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT 1 FROM dbo.dashboard_migraciones WHERE version = 9)
+      BEGIN
+        IF OBJECT_ID('dbo.prestamos_pago_aplicaciones', 'U') IS NOT NULL DROP TABLE dbo.prestamos_pago_aplicaciones;
+        IF OBJECT_ID('dbo.prestamos_pagos', 'U') IS NOT NULL DROP TABLE dbo.prestamos_pagos;
+        IF OBJECT_ID('dbo.prestamos_cuotas', 'U') IS NOT NULL DROP TABLE dbo.prestamos_cuotas;
+        IF OBJECT_ID('dbo.prestamos', 'U') IS NOT NULL DROP TABLE dbo.prestamos;
+        IF OBJECT_ID('dbo.prestamos_clientes', 'U') IS NOT NULL DROP TABLE dbo.prestamos_clientes;
+        IF OBJECT_ID('dbo.prestamos_acreedores', 'U') IS NOT NULL DROP TABLE dbo.prestamos_acreedores;
+      END;
+    `);
+
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT 1 FROM dbo.dashboard_migraciones WHERE version = 9)
+      BEGIN
+        CREATE TABLE dbo.prestamos_acreedores (
+          id BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+          nombre NVARCHAR(180) NOT NULL,
+          tipo NVARCHAR(30) NOT NULL DEFAULT N'banco',
+          contacto NVARCHAR(180) NULL,
+          telefono NVARCHAR(30) NULL,
+          notas NVARCHAR(1000) NULL,
+          creado_por NVARCHAR(60) NOT NULL,
+          creado_en DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+          CONSTRAINT UQ_prestamos_acreedores_nombre UNIQUE (nombre)
+        );
+
+        CREATE TABLE dbo.prestamos (
+          id BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+          numero NVARCHAR(30) NULL,
+          acreedor_id BIGINT NOT NULL,
+          referencia NVARCHAR(60) NULL,
+          moneda NVARCHAR(3) NOT NULL,
+          monto DECIMAL(18,2) NOT NULL,
+          tasa_anual DECIMAL(9,4) NOT NULL,
+          cantidad_cuotas INT NOT NULL,
+          frecuencia NVARCHAR(20) NOT NULL,
+          tipo_amortizacion NVARCHAR(30) NOT NULL,
+          fecha_desembolso DATE NOT NULL,
+          fecha_primera_cuota DATE NOT NULL,
+          cargo_cuota DECIMAL(18,2) NOT NULL DEFAULT 0,
+          notas NVARCHAR(1000) NULL,
+          estado NVARCHAR(20) NOT NULL DEFAULT N'activo',
+          creado_por NVARCHAR(60) NOT NULL,
+          creado_en DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+          actualizado_en DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+          CONSTRAINT FK_prestamos_acreedor FOREIGN KEY (acreedor_id) REFERENCES dbo.prestamos_acreedores(id),
+          CONSTRAINT CK_prestamos_monto CHECK (monto > 0),
+          CONSTRAINT CK_prestamos_moneda CHECK (moneda IN (N'HNL',N'USD')),
+          CONSTRAINT CK_prestamos_cuotas CHECK (cantidad_cuotas BETWEEN 1 AND 1000),
+          CONSTRAINT CK_prestamos_frecuencia CHECK (frecuencia IN (N'semanal',N'quincenal',N'mensual',N'trimestral',N'semestral',N'anual')),
+          CONSTRAINT CK_prestamos_tipo CHECK (tipo_amortizacion IN (N'cuota_fija',N'capital_fijo',N'solo_interes')),
+          CONSTRAINT CK_prestamos_estado CHECK (estado IN (N'activo',N'pagado'))
+        );
+        CREATE UNIQUE INDEX UX_prestamos_numero ON dbo.prestamos(numero) WHERE numero IS NOT NULL;
+        CREATE INDEX IX_prestamos_acreedor_estado ON dbo.prestamos(acreedor_id, estado);
+
+        CREATE TABLE dbo.prestamos_cuotas (
+          id BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+          prestamo_id BIGINT NOT NULL,
+          numero INT NOT NULL,
+          fecha_vencimiento DATE NOT NULL,
+          capital DECIMAL(18,2) NOT NULL,
+          interes DECIMAL(18,2) NOT NULL,
+          cargos DECIMAL(18,2) NOT NULL DEFAULT 0,
+          monto DECIMAL(18,2) NOT NULL,
+          pagado DECIMAL(18,2) NOT NULL DEFAULT 0,
+          estado NVARCHAR(20) NOT NULL DEFAULT N'pendiente',
+          CONSTRAINT FK_prestamos_cuotas_prestamo FOREIGN KEY (prestamo_id) REFERENCES dbo.prestamos(id),
+          CONSTRAINT UQ_prestamos_cuota UNIQUE (prestamo_id, numero),
+          CONSTRAINT CK_prestamos_cuota_estado CHECK (estado IN (N'pendiente',N'parcial',N'pagada'))
+        );
+        CREATE INDEX IX_prestamos_cuotas_fecha ON dbo.prestamos_cuotas(fecha_vencimiento, estado);
+
+        CREATE TABLE dbo.prestamos_pagos (
+          id BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+          numero NVARCHAR(30) NULL,
+          prestamo_id BIGINT NOT NULL,
+          tipo NVARCHAR(20) NOT NULL,
+          fecha_pago DATE NOT NULL,
+          monto DECIMAL(18,2) NOT NULL,
+          metodo NVARCHAR(30) NOT NULL,
+          referencia NVARCHAR(100) NULL,
+          notas NVARCHAR(500) NULL,
+          creado_por NVARCHAR(60) NOT NULL,
+          creado_en DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+          CONSTRAINT FK_prestamos_pagos_prestamo FOREIGN KEY (prestamo_id) REFERENCES dbo.prestamos(id),
+          CONSTRAINT CK_prestamos_pago_monto CHECK (monto > 0),
+          CONSTRAINT CK_prestamos_pago_tipo CHECK (tipo IN (N'cuota',N'abono_capital'))
+        );
+        CREATE UNIQUE INDEX UX_prestamos_pagos_numero ON dbo.prestamos_pagos(numero) WHERE numero IS NOT NULL;
+        CREATE INDEX IX_prestamos_pagos_fecha ON dbo.prestamos_pagos(fecha_pago);
+
+        CREATE TABLE dbo.prestamos_pago_aplicaciones (
+          pago_id BIGINT NOT NULL,
+          cuota_id BIGINT NOT NULL,
+          monto DECIMAL(18,2) NOT NULL,
+          capital DECIMAL(18,2) NOT NULL,
+          interes DECIMAL(18,2) NOT NULL,
+          cargos DECIMAL(18,2) NOT NULL,
+          CONSTRAINT PK_prestamos_pago_aplicaciones PRIMARY KEY (pago_id, cuota_id),
+          CONSTRAINT FK_prestamos_aplicacion_pago FOREIGN KEY (pago_id) REFERENCES dbo.prestamos_pagos(id),
+          CONSTRAINT FK_prestamos_aplicacion_cuota FOREIGN KEY (cuota_id) REFERENCES dbo.prestamos_cuotas(id)
+        );
+
+        INSERT INTO dbo.dashboard_migraciones (version, nombre)
+        VALUES (9, N'prestamos: control de deuda propia con acreedores');
+      END;
+    `);
+
     console.log(`[migrate] Base [${databaseName}] lista y actualizada.`);
   } finally {
     await pool.close();

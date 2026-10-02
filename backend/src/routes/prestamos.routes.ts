@@ -1,50 +1,110 @@
-import { Router } from 'express';
-import { asyncHandler } from '../middleware/errorHandler';
+import { Request, Response, Router } from 'express';
+import { ApiError, asyncHandler } from '../middleware/errorHandler';
+import { AuthUser } from '../services/auth.service';
 import * as service from '../services/prestamos.service';
 
 const router = Router();
 const text = (value: unknown, max: number) => typeof value === 'string' ? value.trim().slice(0, max) : '';
 const number = (value: unknown) => Number(value);
-const validDate = (value: unknown): value is string => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+const validDate = (value: unknown): value is string =>
+  typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`));
+const usuario = (res: Response) => (res.locals.authUser as AuthUser).usuario;
+const idParam = (value: string, label: string) => {
+  const id = number(value);
+  if (!Number.isInteger(id) || id <= 0) throw new ApiError(400, `${label} no válido.`);
+  return id;
+};
+
+function parsePlan(body: Request['body']): service.PlanInput {
+  const monto = number(body?.monto), tasaAnual = number(body?.tasaAnual), cantidadCuotas = number(body?.cantidadCuotas);
+  const cargoCuota = number(body?.cargoCuota ?? 0);
+  if (!Number.isFinite(monto) || monto <= 0 || !Number.isFinite(tasaAnual) || tasaAnual < 0 || tasaAnual > 200
+    || !Number.isInteger(cantidadCuotas) || cantidadCuotas < 1 || cantidadCuotas > 1000
+    || !Number.isFinite(cargoCuota) || cargoCuota < 0
+    || !service.FRECUENCIAS.includes(body?.frecuencia) || !service.TIPOS_AMORTIZACION.includes(body?.tipoAmortizacion)
+    || !validDate(body?.fechaPrimeraCuota)) {
+    throw new ApiError(400, 'Revisa el monto, la tasa, las cuotas y las fechas del préstamo.');
+  }
+  return {
+    monto, tasaAnual, cantidadCuotas, cargoCuota, frecuencia: body.frecuencia,
+    tipoAmortizacion: body.tipoAmortizacion, fechaPrimeraCuota: body.fechaPrimeraCuota,
+  };
+}
+
+function parsePago(body: Request['body']): service.PagoInput {
+  const monto = number(body?.monto), metodo = text(body?.metodo, 30);
+  if (!Number.isFinite(monto) || monto <= 0 || !service.METODOS_PAGO.includes(metodo) || !validDate(body?.fecha)) {
+    throw new ApiError(400, 'Monto, fecha o forma de pago no válidos.');
+  }
+  return { monto, metodo, fecha: body.fecha, referencia: text(body?.referencia, 100), notas: text(body?.notas, 500) };
+}
 
 router.get('/resumen', asyncHandler(async (_req, res) => res.json(await service.resumen())));
-router.get('/clientes', asyncHandler(async (_req, res) => res.json(await service.listarClientes())));
-router.post('/clientes', asyncHandler(async (req, res) => {
+
+router.get('/acreedores', asyncHandler(async (_req, res) => res.json(await service.listarAcreedores())));
+router.post('/acreedores', asyncHandler(async (req, res) => {
   const nombre = text(req.body?.nombre, 180);
-  const telefono = text(req.body?.telefono, 30);
-  if (!nombre || !telefono) { res.status(400).json({ error: 'Nombre y teléfono son obligatorios.' }); return; }
-  const cliente = await service.crearCliente({
-    nombre, telefono, identidad: text(req.body.identidad,30), telefonoAlterno:text(req.body.telefonoAlterno,30),
-    direccion:text(req.body.direccion,500), correo:text(req.body.correo,254), referenciaNombre:text(req.body.referenciaNombre,180),
-    referenciaTelefono:text(req.body.referenciaTelefono,30), notas:text(req.body.notas,1000),
-  });
-  res.status(201).json({ message: 'Cliente registrado.', cliente });
+  const tipo = text(req.body?.tipo, 30) || 'banco';
+  if (!nombre || !service.TIPOS_ACREEDOR.includes(tipo)) throw new ApiError(400, 'El nombre del acreedor es obligatorio.');
+  const acreedor = await service.crearAcreedor({
+    nombre, tipo, contacto: text(req.body?.contacto, 180), telefono: text(req.body?.telefono, 30),
+    notas: text(req.body?.notas, 1000),
+  }, usuario(res));
+  res.status(201).json({ message: 'Acreedor registrado.', acreedor });
 }));
 
 router.get('/', asyncHandler(async (_req, res) => res.json(await service.listarPrestamos())));
+
 router.get('/reporte', asyncHandler(async (req, res) => {
-  const desde=String(req.query.desde??''),hasta=String(req.query.hasta??'');
-  if(!validDate(desde)||!validDate(hasta)||desde>hasta){res.status(400).json({error:'El rango de fechas no es válido.'});return;}
-  res.json(await service.reporte(desde,hasta));
+  const desde = String(req.query.desde ?? ''), hasta = String(req.query.hasta ?? '');
+  if (!validDate(desde) || !validDate(hasta) || desde > hasta) throw new ApiError(400, 'El rango de fechas no es válido.');
+  res.json(await service.reporte(desde, hasta));
 }));
+
+// Vista previa del calendario antes de guardar el préstamo.
+router.post('/simular', asyncHandler(async (req, res) => res.json(service.calcularPlan(parsePlan(req.body)))));
+
 router.get('/:id', asyncHandler(async (req, res) => {
-  const id=number(req.params.id); if(!Number.isInteger(id)||id<=0){res.status(400).json({error:'Préstamo no válido.'});return;}
-  const result=await service.obtenerPrestamo(id); if(!result.prestamo){res.status(404).json({error:'Préstamo no encontrado.'});return;} res.json(result);
+  const result = await service.obtenerPrestamo(idParam(req.params.id, 'Préstamo'));
+  if (!result.prestamo) throw new ApiError(404, 'Préstamo no encontrado.');
+  res.json(result);
 }));
+
 router.post('/', asyncHandler(async (req, res) => {
-  const clienteId=number(req.body?.clienteId),monto=number(req.body?.monto),tasaPeriodo=number(req.body?.tasaPeriodo),cantidadCuotas=number(req.body?.cantidadCuotas);
-  const frecuencia=req.body?.frecuencia,tipoAmortizacion=req.body?.tipoAmortizacion;
-  if(!Number.isInteger(clienteId)||clienteId<=0||!Number.isFinite(monto)||monto<=0||!Number.isFinite(tasaPeriodo)||tasaPeriodo<0||tasaPeriodo>100||!Number.isInteger(cantidadCuotas)||cantidadCuotas<1||cantidadCuotas>1000
-    ||!['diario','semanal','quincenal','mensual'].includes(frecuencia)||!['cuota_fija','interes_fijo','solo_interes'].includes(tipoAmortizacion)
-    ||!validDate(req.body?.fechaDesembolso)||!validDate(req.body?.fechaPrimeraCuota)||req.body.fechaPrimeraCuota<req.body.fechaDesembolso){res.status(400).json({error:'Revisa los datos financieros y las fechas del préstamo.'});return;}
-  const recargoDiario=number(req.body?.recargoDiario??0); if(!Number.isFinite(recargoDiario)||recargoDiario<0){res.status(400).json({error:'El recargo diario no es válido.'});return;}
-  const prestamo=await service.crearPrestamo({clienteId,monto,tasaPeriodo,cantidadCuotas,frecuencia,tipoAmortizacion,fechaDesembolso:req.body.fechaDesembolso,fechaPrimeraCuota:req.body.fechaPrimeraCuota,recargoDiario,notas:text(req.body.notas,1000)});
-  res.status(201).json({message:'Préstamo creado y activado.',prestamo});
+  const plan = parsePlan(req.body);
+  const acreedorId = number(req.body?.acreedorId);
+  if (!Number.isInteger(acreedorId) || acreedorId <= 0 || !service.MONEDAS.includes(req.body?.moneda)
+    || !validDate(req.body?.fechaDesembolso) || plan.fechaPrimeraCuota < req.body.fechaDesembolso) {
+    throw new ApiError(400, 'Revisa el acreedor, la moneda y las fechas: la primera cuota no puede ser anterior al desembolso.');
+  }
+  const prestamo = await service.crearPrestamo({
+    ...plan, acreedorId, moneda: req.body.moneda, fechaDesembolso: req.body.fechaDesembolso,
+    referencia: text(req.body?.referencia, 60), notas: text(req.body?.notas, 1000),
+  }, usuario(res));
+  res.status(201).json({ message: 'Préstamo registrado.', prestamo });
 }));
-router.post('/:id/pagos', asyncHandler(async (req,res)=>{
-  const id=number(req.params.id),monto=number(req.body?.monto),metodo=text(req.body?.metodo,30);
-  if(!Number.isInteger(id)||id<=0||!Number.isFinite(monto)||monto<=0||!['efectivo','transferencia','deposito','otro'].includes(metodo)){res.status(400).json({error:'Monto o forma de pago no válidos.'});return;}
-  const pago=await service.registrarPago(id,monto,metodo,text(req.body?.referencia,100),text(req.body?.notas,500));res.status(201).json({message:'Pago registrado correctamente.',pago});
+
+router.post('/:id/pagos', asyncHandler(async (req, res) => {
+  const pago = await service.registrarPago(idParam(req.params.id, 'Préstamo'), parsePago(req.body), usuario(res));
+  res.status(201).json({ message: 'Pago registrado correctamente.', pago });
+}));
+
+router.post('/:id/abonos', asyncHandler(async (req, res) => {
+  const modo = req.body?.modo;
+  if (modo !== 'cuota' && modo !== 'plazo') throw new ApiError(400, 'Indica si el abono reduce la cuota o el plazo.');
+  const pago = await service.registrarAbono(idParam(req.params.id, 'Préstamo'), parsePago(req.body), modo, usuario(res));
+  res.status(201).json({ message: 'Abono a capital registrado.', pago });
+}));
+
+router.put('/:id/cuotas/:cuotaId', asyncHandler(async (req, res) => {
+  const capital = number(req.body?.capital), interes = number(req.body?.interes), cargos = number(req.body?.cargos);
+  if (![capital, interes, cargos].every((value) => Number.isFinite(value) && value >= 0)
+    || capital + interes + cargos <= 0 || !validDate(req.body?.fechaVencimiento)) {
+    throw new ApiError(400, 'Los valores de la cuota no son válidos.');
+  }
+  await service.editarCuota(idParam(req.params.id, 'Préstamo'), idParam(req.params.cuotaId, 'Cuota'),
+    { fechaVencimiento: req.body.fechaVencimiento, capital, interes, cargos });
+  res.json({ message: 'Cuota actualizada.' });
 }));
 
 export default router;

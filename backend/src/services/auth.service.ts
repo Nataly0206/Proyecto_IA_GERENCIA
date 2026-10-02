@@ -283,10 +283,11 @@ export async function createUser(
   return { ...user, permisos };
 }
 
-export async function deleteUser(userId: string): Promise<void> {
-  await (await getAuthPool()).request()
+export async function deleteUser(userId: string): Promise<boolean> {
+  const result = await (await getAuthPool()).request()
     .input('id', sql.UniqueIdentifier, userId)
-    .query('DELETE FROM dbo.dashboard_usuarios WHERE id = @id AND es_administrador = 0');
+    .query('DELETE FROM dbo.dashboard_usuarios WHERE id = @id');
+  return result.rowsAffected[0] > 0;
 }
 
 export async function getUserById(userId: string): Promise<AuthUser | null> {

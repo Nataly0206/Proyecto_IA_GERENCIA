@@ -130,4 +130,26 @@ router.patch('/:id/activo', async (req, res, next) => {
   }
 });
 
+router.delete('/:id', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!GUID_REGEX.test(id)) {
+      res.status(400).json({ error: 'Id de usuario inválido.' });
+      return;
+    }
+    const target = await getUserById(id);
+    if (!target) {
+      res.status(404).json({ error: 'Usuario no encontrado.' });
+      return;
+    }
+    if (!await deleteUser(id)) {
+      res.status(409).json({ error: 'El usuario ya no existe o no se puede eliminar. Actualiza la lista.' });
+      return;
+    }
+    res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;

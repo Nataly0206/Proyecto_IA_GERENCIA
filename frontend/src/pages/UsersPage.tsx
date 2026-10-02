@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import PersonAddOutlinedIcon from '@mui/icons-material/PersonAddOutlined';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import {
   Alert, Box, Button, Checkbox, Chip, CircularProgress, Dialog, DialogActions, DialogContent,
   DialogTitle, FormControlLabel, FormGroup, IconButton, Paper, Stack, Switch, Table, TableBody,
@@ -172,6 +173,38 @@ export default function UsersPage({ currentUserId, onCurrentUserUpdated }: Users
   const [editingUser, setEditingUser] = useState<AuthUser | null>(null);
   const [togglingId, setTogglingId] = useState('');
   const [toggleError, setToggleError] = useState('');
+  const [deletingUser, setDeletingUser] = useState<AuthUser | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  const confirmDelete = async () => {
+    if (!deletingUser || deleting) return;
+    setDeleting(true);
+    setDeleteError('');
+    try {
+      await apiClient.delete(`/users/${deletingUser.id}`);
+      if (deletingUser.id === currentUserId) {
+        window.location.reload();
+        return;
+      }
+      setUsers((current) => current.filter((user) => user.id !== deletingUser.id));
+      setSuccess(`El usuario ${deletingUser.usuario} fue eliminado.`);
+      setDeletingUser(null);
+    } catch (requestError) {
+      setDeleteError(axios.isAxiosError(requestError)
+        ? requestError.response?.data?.error ?? 'No se pudo eliminar el usuario.'
+        : 'No se pudo eliminar el usuario.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const openDelete = (user: AuthUser) => {
+    setDeleteError('');
+    setSuccess('');
+    setDeletingUser(user);
+  };
 
   useEffect(() => {
     apiClient.get<{ users: AuthUser[] }>('/users')
@@ -218,6 +251,7 @@ export default function UsersPage({ currentUserId, onCurrentUserUpdated }: Users
 
       {toggleError && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setToggleError('')}>{toggleError}</Alert>}
       {listError && <Alert severity="error" sx={{ mb: 2 }}>{listError}</Alert>}
+      {success && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>{success}</Alert>}
 
       {loadingUsers ? <Paper elevation={0} sx={{ p: 5, textAlign: 'center', border: 1, borderColor: 'divider' }}><CircularProgress /></Paper> : isMobile ? (
         <Stack spacing={1.25}>
@@ -255,6 +289,10 @@ export default function UsersPage({ currentUserId, onCurrentUserUpdated }: Users
                   </Stack>
                 </Stack>
               )}
+                <Button size="small" color="error" startIcon={<DeleteOutlineIcon />}
+                  sx={{ mt: 1 }} disabled={togglingId === user.id} onClick={() => openDelete(user)}>
+                  Eliminar usuario
+                </Button>
             </Paper>
           ))}
         </Stack>
@@ -289,8 +327,8 @@ export default function UsersPage({ currentUserId, onCurrentUserUpdated }: Users
                     {!user.activo ? 'Inactivo' : user.debeCambiarPassword ? 'Contraseña temporal' : 'Activo'}
                   </TableCell>
                   <TableCell align="right">
-                    {!user.esAdministrador && (
                       <Stack direction="row" spacing={0.5} justifyContent="flex-end" alignItems="center">
+                        {!user.esAdministrador && (<>
                         <Tooltip title="Editar permisos">
                           <IconButton size="small" onClick={() => setEditingUser(user)}>
                             <EditOutlinedIcon fontSize="small" />
@@ -306,8 +344,16 @@ export default function UsersPage({ currentUserId, onCurrentUserUpdated }: Users
                             />
                           </span>
                         </Tooltip>
+                        </>)}
+                          <Tooltip title="Eliminar usuario">
+                            <span>
+                              <IconButton size="small" color="error" aria-label={`Eliminar usuario ${user.usuario}`}
+                                disabled={togglingId === user.id} onClick={() => openDelete(user)}>
+                                <DeleteOutlineIcon fontSize="small" />
+                              </IconButton>
+                            </span>
+                          </Tooltip>
                       </Stack>
-                    )}
                   </TableCell>
                 </TableRow>
               ))}
@@ -318,6 +364,29 @@ export default function UsersPage({ currentUserId, onCurrentUserUpdated }: Users
 
       <CreateUserDialog open={createOpen} onClose={() => setCreateOpen(false)} onCreated={upsertUser} />
       <EditPermisosDialog user={editingUser} onClose={() => setEditingUser(null)} onSaved={upsertUser} />
+      <Dialog open={Boolean(deletingUser)} onClose={() => { if (!deleting) setDeletingUser(null); }}
+        fullWidth maxWidth="xs" aria-labelledby="delete-user-title">
+        <DialogTitle id="delete-user-title">Eliminar usuario</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2}>
+            {deleteError && <Alert severity="error">{deleteError}</Alert>}
+            <Typography>¿Deseas eliminar a {deletingUser?.nombre} (@{deletingUser?.usuario})?</Typography>
+            <Typography variant="body2" color="text.secondary">
+              Se eliminarán su cuenta y sus accesos. Esta acción no se puede deshacer.
+            </Typography>
+            {deletingUser?.id === currentUserId && (
+              <Alert severity="warning">Estás eliminando tu propia cuenta. Tu sesión se cerrará.</Alert>
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button disabled={deleting} onClick={() => setDeletingUser(null)}>Cancelar</Button>
+          <Button variant="contained" color="error" disabled={deleting} onClick={confirmDelete}
+            startIcon={deleting ? <CircularProgress size={18} color="inherit" /> : <DeleteOutlineIcon />}>
+            {deleting ? 'Eliminando…' : 'Eliminar usuario'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

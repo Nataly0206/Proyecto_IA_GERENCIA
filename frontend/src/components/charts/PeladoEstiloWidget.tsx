@@ -14,6 +14,7 @@ import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import CloseOutlinedIcon from '@mui/icons-material/CloseOutlined';
 import { ChartConfig, DataRow } from '../../types';
 import ChartWidget from './ChartWidget';
+import KpiCards from './KpiCards';
 import PeladoTallaWidget from './PeladoTallaWidget';
 import { peladoWidgets } from '../../config/dashboardConfig';
 import { useFilters } from '../../context/FiltersContext';
@@ -79,6 +80,26 @@ export default function PeladoEstiloWidget() {
       config={config}
       queryParams={queryParams}
       transform={completeMonths}
+      renderSummary={(rows) => {
+        const totals = new Map<string, number>();
+        for (const row of rows) {
+          const estilo = String(row.estilo ?? 'Sin estilo');
+          const libras = Number(row.libras ?? 0);
+          totals.set(estilo, (totals.get(estilo) ?? 0) + (Number.isFinite(libras) ? libras : 0));
+        }
+        return (
+          <>
+            <Box sx={{ mb: 0.75, fontSize: 12, color: 'text.secondary' }}>
+              Total acumulado · {vista === 'mes' ? `año ${year}` : 'rango seleccionado'} · turno del filtro
+            </Box>
+            <KpiCards
+              compact
+              config={{ ...config, type: 'cards', xField: 'estilo', yField: 'libras', showTotalCard: true, unitLabel: 'lbs', colorByLabel: true }}
+              data={Array.from(totals, ([estilo, libras]) => ({ estilo, libras }))}
+            />
+          </>
+        );
+      }}
       actions={
         <Stack direction="row" spacing={1}>
           <ToggleButtonGroup

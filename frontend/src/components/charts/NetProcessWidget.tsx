@@ -9,6 +9,7 @@ import { useFilters } from '../../context/FiltersContext';
 import { useWidgetData } from '../../hooks/useDashboardData';
 import { apiClient } from '../../api/client';
 import ChartWidget from './ChartWidget';
+import KpiCards from './KpiCards';
 
 interface NetProcessWidgetProps {
   height?: number;
@@ -126,6 +127,26 @@ export default function NetProcessWidget({ height, userId }: NetProcessWidgetPro
       config={config}
       queryParams={queryParams}
       transform={visibleRows}
+      renderSummary={(rows) => {
+        const totals = new Map<string, number>();
+        for (const row of rows) {
+          const proceso = String(row.proceso ?? 'Sin proceso');
+          const libras = Number(row.libras ?? 0);
+          totals.set(proceso, (totals.get(proceso) ?? 0) + (Number.isFinite(libras) ? libras : 0));
+        }
+        return (
+          <>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75 }}>
+              Total acumulado · {granularidad === 'mes' ? `año ${reportYear}` : 'rango seleccionado'} · turno y procesos seleccionados
+            </Typography>
+            <KpiCards
+              compact
+              config={{ ...config, type: 'cards', xField: 'proceso', yField: 'libras', showTotalCard: true, unitLabel: 'lbs netas', colorByLabel: true }}
+              data={Array.from(totals, ([proceso, libras]) => ({ proceso, libras }))}
+            />
+          </>
+        );
+      }}
       actions={
         <>
           <Button

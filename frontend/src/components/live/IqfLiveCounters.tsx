@@ -13,7 +13,7 @@ import { useIqfLive } from '../../hooks/useDashboardData';
 import { formatPeriodo, formatValue } from '../../utils/format';
 import { IqfLiveLine } from '../../types';
 
-function LiveCard({ linea, total = false }: { linea: IqfLiveLine; total?: boolean }) {
+function LiveCard({ linea, total = false, promedioLibras }: { linea: IqfLiveLine; total?: boolean; promedioLibras?: number }) {
   const color = total ? '#164a8b' : linea.libras > 0 ? '#2e7d32' : '#94a3b8';
   const displayName = total
     ? linea.linea
@@ -31,8 +31,8 @@ function LiveCard({ linea, total = false }: { linea: IqfLiveLine; total?: boolea
         height: '100%',
       }}
     >
-      <CardContent sx={{ py: 1.25, px: 1.75, '&:last-child': { pb: 1.25 } }}>
-        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" mb={0.5} spacing={0.5}>
+      <CardContent sx={{ py: 0.75, px: 1.75, '&:last-child': { pb: 0.75 } }}>
+        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" mb={0.25} spacing={0.5}>
           <Typography variant="body2" fontWeight={700} noWrap sx={{ minWidth: 0 }} title={linea.linea}>
             {displayName}
           </Typography>
@@ -63,7 +63,7 @@ function LiveCard({ linea, total = false }: { linea: IqfLiveLine; total?: boolea
           </Stack>
         </Stack>
 
-        <Stack direction="row" justifyContent="space-between" alignItems="baseline" spacing={2}>
+        <Stack direction="row" justifyContent="space-between" alignItems="baseline" spacing={total ? 1 : 2} sx={{ flexWrap: total ? 'wrap' : 'nowrap', rowGap: 0.5 }}>
           <Typography
             variant="h6"
             fontWeight={800}
@@ -87,6 +87,14 @@ function LiveCard({ linea, total = false }: { linea: IqfLiveLine; total?: boolea
             {formatValue(linea.librasPorHora)} lbs/h
           </Typography>
         </Stack>
+        {total && promedioLibras !== undefined && (
+          <Stack direction="row" alignItems="baseline" spacing={0.5} sx={{ mt: 0.25, whiteSpace: 'nowrap' }}>
+            <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.2 }}>Promedio</Typography>
+            <Typography variant="body2" fontWeight={700} sx={{ color, lineHeight: 1.2 }}>
+              {formatValue(promedioLibras)} <Typography component="span" variant="caption" color="text.secondary">lbs</Typography>
+            </Typography>
+          </Stack>
+        )}
       </CardContent>
     </Card>
   );
@@ -163,6 +171,7 @@ export default function IqfLiveCounters() {
           ))}
           <LiveCard
             total
+            promedioLibras={totalIqf / 3}
             linea={{
               linea: 'Total IQF',
               libras: totalIqf,

@@ -62,7 +62,7 @@ GROUP BY CASE WHEN a.fkTipo = 2 THEN 'REEMPAQUE'
  * solamente la fecha final, nunca el acumulado de varios días.
  */
 export const IQF_LIVE_QUERY = `
-DECLARE @Dia date = CAST(GETDATE() AS date);
+DECLARE @Dia date = @Fecha;
 
 SELECT
   CONVERT(varchar(10), @Dia, 23) AS Dia,
@@ -79,6 +79,7 @@ LEFT JOIN dbo.OPship AS o
   ON a.OrdenProduccion = o.OrdenProduccion
 WHERE a.DiaProduccion2024 >= @Dia
   AND a.DiaProduccion2024 < DATEADD(DAY, 1, @Dia)
+  AND (@Turno IS NULL OR REPLACE(UPPER(LTRIM(RTRIM(a.Turno))), 'TURNO ', '') = @Turno)
   AND a.fkTipo < 4
   AND a.LineaEquipoIQF IS NOT NULL
 GROUP BY a.LineaEquipoIQF
@@ -90,7 +91,7 @@ ORDER BY a.LineaEquipoIQF;
  * cuando un IQF todavía no registra producción en el día consultado.
  */
 export const IQF_LIVE_LINES_QUERY = `
-DECLARE @Dia date = CAST(GETDATE() AS date);
+DECLARE @Dia date = @Fecha;
 
 SELECT DISTINCT
   CONVERT(varchar(10), @Dia, 23) AS Dia,
@@ -232,4 +233,18 @@ WHERE DiaProduccion2024 BETWEEN @Fecha_Inicial AND @Fecha_Final
   AND fkTipo < 4 AND CategoriaLinea LIKE '%IQF%'
 GROUP BY CategoriaLinea, Turno, DiaProduccion2024
 HAVING DATEDIFF(MINUTE, MIN(FechaHoraTorre), MAX(FechaHoraTorre)) > 15;
+`;
+
+/** Totales y tiempo entre primera y última lectura por IQF y turno del día. */
+export const IQF_SHIFT_TOTALS_QUERY = `
+DECLARE @Dia date = @Fecha;
+SELECT a.LineaEquipoIQF AS Linea, a.Turno,
+       SUM(a.PesoLibras) AS Libras,
+       CAST(DATEDIFF(MINUTE, MIN(a.FechaHoraTorre), MAX(a.FechaHoraTorre)) AS FLOAT) / 60 AS Horas
+FROM dbo.AV_Produccion_Diaria_2020 AS a
+WHERE a.DiaProduccion2024 >= @Dia
+  AND a.DiaProduccion2024 < DATEADD(DAY, 1, @Dia)
+  AND (@Turno IS NULL OR REPLACE(UPPER(LTRIM(RTRIM(a.Turno))), 'TURNO ', '') = @Turno)
+  AND a.fkTipo < 4 AND a.LineaEquipoIQF IS NOT NULL
+GROUP BY a.LineaEquipoIQF, a.Turno;
 `;

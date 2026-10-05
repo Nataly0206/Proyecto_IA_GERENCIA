@@ -93,10 +93,19 @@ export interface IqfLiveLine {
   activa: boolean;
 }
 
+export interface IqfShiftComparison {
+  turno: string;
+  lineas: { linea: string; libras: number; horas: number; librasPorHora: number | null }[];
+  libras: number;
+  horasEquipo: number;
+  sumatoriaLibrasPorHora: number | null;
+}
+
 export interface IqfLiveResponse {
   dia: string; // YYYY-MM-DD del día de producción mostrado
   actualizado: string; // ISO timestamp de la lectura
   lineas: IqfLiveLine[];
+  turnos?: IqfShiftComparison[];
 }
 
 /** Libras peladas por estilo (PD, PPV, PPV-FR, PPV-UK, COOK, etc.) */

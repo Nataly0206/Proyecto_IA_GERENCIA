@@ -21,9 +21,9 @@ function toParams(filters: DashboardFilters): Record<string, string> {
   return params;
 }
 
-export async function fetchIqfLive(refresh = false): Promise<IqfLiveResponse> {
+export async function fetchIqfLive(refresh = false, filters?: DashboardFilters): Promise<IqfLiveResponse> {
   const { data } = await apiClient.get<IqfLiveResponse>('/dashboard/iqf-tiempo-real', {
-    params: refresh ? { refresh: 'true' } : undefined,
+    params: { ...(filters ? toParams(filters) : {}), ...(refresh ? { refresh: 'true' } : {}) },
   });
   return data;
 }

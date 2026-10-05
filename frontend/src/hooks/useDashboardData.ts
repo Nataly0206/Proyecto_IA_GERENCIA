@@ -115,27 +115,29 @@ export function useWidgetData(endpoint: DashboardEndpoint, extraParams?: Record<
 }
 
 export function useIqfLive() {
+  const { filters } = useFilters();
   const queryClient = useQueryClient();
-  const queryKey = ['dashboard', 'iqf-tiempo-real'] as const;
-  const cacheKey = browserCacheKey(['live', 'current']);
+  const queryKey = ['dashboard', 'iqf-tiempo-real', filters.fechaFinal, filters.turno] as const;
+  const cacheKey = browserCacheKey(['live', 'by-day-v2', filters.fechaFinal, filters.turno]);
   const cached = readBrowserCache<IqfLiveResponse>(cacheKey, LIVE_REFRESH_INTERVAL_MS);
 
   const query = useQuery<IqfLiveResponse>({
     queryKey,
     queryFn: async () => {
-      const data = await fetchIqfLive();
+      const data = await fetchIqfLive(false, filters);
       writeBrowserCache(cacheKey, data);
       return data;
     },
     initialData: cached?.data,
     initialDataUpdatedAt: cached?.updatedAt,
+    enabled: !getDateFilterError(filters),
     staleTime: LIVE_REFRESH_INTERVAL_MS,
     refetchInterval: LIVE_REFRESH_INTERVAL_MS,
     refetchIntervalInBackground: true,
   });
 
   const refreshNow = async (): Promise<IqfLiveResponse> => {
-    const data = await fetchIqfLive(true);
+    const data = await fetchIqfLive(true, filters);
     writeBrowserCache(cacheKey, data);
     queryClient.setQueryData<IqfLiveResponse>(queryKey, data);
     return data;
@@ -359,15 +361,15 @@ export function useRefreshDashboard() {
       activeQueries.some((query) => query.queryKey[1] === endpoint),
     );
 
-    const liveKey = ['dashboard', 'iqf-tiempo-real'] as const;
-    const liveCacheKey = browserCacheKey(['live', 'current']);
+    const liveKey = ['dashboard', 'iqf-tiempo-real', filters.fechaFinal, filters.turno] as const;
+    const liveCacheKey = browserCacheKey(['live', 'by-day-v2', filters.fechaFinal, filters.turno]);
     const peladoLiveKey = ['dashboard', 'pelado-libras-hoy'] as const;
     const peladoLiveCacheKey = browserCacheKey(['pelado-libras-hoy', 'current']);
     const peladoPorSalaKey = ['dashboard', 'pelado-por-sala'] as const;
     const peladoPorSalaCacheKey = browserCacheKey(['pelado-por-sala', 'current']);
 
     await Promise.all([
-      fetchIqfLive(true).then((data) => {
+      fetchIqfLive(true, filters).then((data) => {
         writeBrowserCache(liveCacheKey, data);
         queryClient.setQueryData<IqfLiveResponse>(liveKey, data);
       }),

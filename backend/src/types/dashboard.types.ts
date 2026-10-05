@@ -36,12 +36,21 @@ export interface IqfLiveLine {
   activa: boolean;
 }
 
+export interface IqfShiftComparison {
+  turno: string;
+  lineas: { linea: string; libras: number; horas: number; librasPorHora: number | null }[];
+  libras: number;
+  horasEquipo: number;
+  sumatoriaLibrasPorHora: number | null;
+}
+
 export interface IqfLiveResponse {
   /** Día de producción mostrado (YYYY-MM-DD) */
   dia: string;
   /** Timestamp ISO de esta lectura */
   actualizado: string;
   lineas: IqfLiveLine[];
+  turnos?: IqfShiftComparison[];
 }
 
 /**

@@ -7,6 +7,7 @@ import {
   IQF_WORKED_HOURS_QUERY,
   IQF_LIVE_LINES_QUERY,
   IQF_LIVE_QUERY,
+  IQF_SHIFT_TOTALS_QUERY,
   NET_FROZEN_BY_PROCESS_DAILY_QUERY,
   NET_FROZEN_BY_PROCESS_QUERY,
   PELADO_LIVE_ORDENES_ACTIVAS_QUERY,
@@ -156,6 +157,7 @@ export async function getLibrasNetasPorProcesoMes(
 /* ------------------------------------------------------------------ */
 
 interface IqfGroup {
+  turno: string;
   dia: string;
   linea: string;
   libras: number;
@@ -188,6 +190,7 @@ async function fetchIqfGroups(
       const libras = pickNumber(row, 'TotalLibras');
       const horas = pickNumber(row, 'TiempoHorasDecimales');
       return {
+        turno: pickString(row, 'Turno'),
         dia: pickString(row, 'Dia'),
         linea: normalizeIqfLine(pickString(row, 'Linea')),
         libras,
@@ -263,12 +266,18 @@ export async function getIqfLibrasHoraMes(
 /* Contadores IQF en tiempo real (acumulado del día de producción)     */
 /* ------------------------------------------------------------------ */
 
-export async function getIqfTiempoReal(): Promise<IqfLiveResponse> {
-  const hoy = formatDate(new Date());
-  const [catalogoRows, rows, gruposRendimiento] = await Promise.all([
-    runQuery(IQF_LIVE_LINES_QUERY, []),
-    runQuery(IQF_LIVE_QUERY, []),
-    fetchIqfGroups(hoy, hoy),
+export async function getIqfTiempoReal(filters?: DashboardFilters): Promise<IqfLiveResponse> {
+  const hoy = filters?.fechaFinal ?? formatDate(new Date());
+  const turnoFiltro = filters?.turno?.toUpperCase().replace('TURNO ', '') || null;
+  const params = [
+    { name: 'Fecha', type: sql.Date, value: hoy },
+    { name: 'Turno', type: sql.VarChar(20), value: turnoFiltro },
+  ];
+  const [catalogoRows, rows, gruposRendimiento, shiftRows] = await Promise.all([
+    runQuery(IQF_LIVE_LINES_QUERY, params),
+    runQuery(IQF_LIVE_QUERY, params),
+    fetchIqfGroups(hoy, hoy, filters?.turno),
+    runQuery(IQF_SHIFT_TOTALS_QUERY, params),
   ]);
   const rendimientoPorIqf = new Map(
     aggregateCells(gruposRendimiento, (dia) => dia).flatMap((row) => {
@@ -276,7 +285,7 @@ export async function getIqfTiempoReal(): Promise<IqfLiveResponse> {
       return numero ? [[numero, row.librasPorHora] as const] : [];
     }),
   );
-  const dia = pickString(catalogoRows[0] ?? rows[0] ?? {}, 'Dia') || formatDate(new Date());
+  const dia = pickString(catalogoRows[0] ?? rows[0] ?? {}, 'Dia') || hoy;
   const conDatos = new Map(
     rows.map((row) => {
       const linea = normalizeIqfLine(pickString(row, 'Linea'));
@@ -317,7 +326,30 @@ export async function getIqfTiempoReal(): Promise<IqfLiveResponse> {
       };
     });
 
-  return { dia, actualizado: new Date().toISOString(), lineas };
+  const turnos = (turnoFiltro ? [turnoFiltro] : ['A', 'B']).map((turno) => {
+    const rates = aggregateCells(gruposRendimiento.filter((g) => matchesTurno(g.turno, turno)), (dia) => dia);
+    const shiftLines = Object.values(IQF_LINE_NAMES).map((linea) => {
+      const registros = shiftRows.filter((row) => matchesTurno(pickString(row, 'Turno'), turno)
+        && normalizeIqfLine(pickString(row, 'Linea')) === linea);
+      return {
+        linea,
+        libras: round2(registros.reduce((sum, row) => sum + pickNumber(row, 'Libras'), 0)),
+        horas: round2(registros.reduce((sum, row) => sum + pickNumber(row, 'Horas'), 0)),
+        librasPorHora: rates.find((row) => row.linea === linea)?.librasPorHora ?? null,
+      };
+    });
+    const activeLines = shiftLines.filter((line) => line.libras > 0);
+    const hasRates = activeLines.length > 0 && activeLines.every((line) => line.librasPorHora !== null);
+    return {
+      turno,
+      lineas: shiftLines,
+      libras: round2(shiftLines.reduce((sum, line) => sum + line.libras, 0)),
+      horasEquipo: round2(shiftLines.reduce((sum, line) => sum + line.horas, 0)),
+      sumatoriaLibrasPorHora: hasRates
+        ? round2(activeLines.reduce((sum, line) => sum + (line.librasPorHora ?? 0), 0)) : null,
+    };
+  });
+  return { dia, actualizado: new Date().toISOString(), lineas, turnos };
 }
 
 /* ------------------------------------------------------------------ */
@@ -510,7 +542,7 @@ export async function getPeladoTiempoReal(): Promise<PeladoLiveResponse> {
     runQuery(PELADO_LIVE_QUERY, []),
     runQuery(PELADO_LIVE_ORDENES_ACTIVAS_QUERY, []),
   ]);
-  const dia = pickString(catalogoRows[0] ?? rows[0] ?? {}, 'Dia') || formatDate(new Date());
+  const dia = pickString(catalogoRows[0] ?? rows[0] ?? {}, 'Dia') || hoy;
   const conDatos = new Map(
     rows.map((row) => {
       const estilo = pickString(row, 'Estilo');

@@ -14,9 +14,9 @@ export default function IqfShiftWeekTable({ enabled }: { enabled: boolean }) {
     <TableContainer sx={{ border: 1, borderColor: 'divider', borderRadius: 1, overflow: 'visible' }}>
       <Table size="small" aria-label="Comparación IQF de los últimos siete días" sx={{ width: '100%', tableLayout: 'fixed', '& td, & th': { px: { xs: 0.25, sm: 0.75 }, py: 0.5, fontSize: { xs: 9, sm: 11, md: 12 }, overflowWrap: 'anywhere', lineHeight: 1.25 }, '& td': { fontVariantNumeric: 'tabular-nums' } }}>
         <colgroup>
-          <col style={{ width: '17%' }} />
-          <col style={{ width: '8%' }} />
-          {[1, 2, 3, 4, 5].map((column) => <col key={column} style={{ width: '15%' }} />)}
+          <col style={{ width: '14%' }} />
+          <col style={{ width: '6%' }} />
+          {[1, 2, 3, 4, 5, 6, 7].map((column) => <col key={column} style={{ width: '11.428571%' }} />)}
         </colgroup>
         <TableHead>
           <TableRow sx={{ bgcolor: 'action.hover' }}>
@@ -25,6 +25,8 @@ export default function IqfShiftWeekTable({ enabled }: { enabled: boolean }) {
             {[1, 2, 3].map((number) => <TableCell key={number} align="center">IQF {number}<br />(lbs/h)</TableCell>)}
             <TableCell align="center">Sumatoria IQFs<br />(lbs/h)</TableCell>
             <TableCell align="center">Promedio por IQF activo<br />(lbs/h)</TableCell>
+            <TableCell align="center">Libras totales<br />(lbs)</TableCell>
+            <TableCell align="center">Total del día<br />(lbs)</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
@@ -36,6 +38,8 @@ export default function IqfShiftWeekTable({ enabled }: { enabled: boolean }) {
               {turno.lineas.map((line) => <TableCell key={line.linea} align="center">{value(line.librasPorHora)}</TableCell>)}
               <TableCell align="center" sx={{ fontWeight: 700 }}>{value(metrics.sumatoria)}</TableCell>
               <TableCell align="center" sx={{ fontWeight: 700 }}>{value(metrics.promedio)}</TableCell>
+              <TableCell align="center" sx={{ fontWeight: 700 }}>{turno.libras > 0 ? formatValue(turno.libras) : '—'}</TableCell>
+              {shiftIndex === 0 && <TableCell rowSpan={day.turnos.length} align="center" sx={{ fontWeight: 800, verticalAlign: 'middle' }}>{formatValue(day.turnos.reduce((sum, row) => sum + row.libras, 0))}</TableCell>}
             </TableRow>;
           }))}
         </TableBody>

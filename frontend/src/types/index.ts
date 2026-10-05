@@ -461,3 +461,9 @@ export interface ChartConfig {
   /** Tamaño del widget en la grilla responsive */
   gridSpan?: ChartGridSpan;
 }
+
+export interface IqfShiftWeekResponse {
+  fechaInicial: string;
+  fechaFinal: string;
+  dias: { dia: string; turnos: IqfShiftComparison[] }[];
+}

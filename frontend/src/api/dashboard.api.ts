@@ -7,6 +7,7 @@ import {
   DashboardFilters,
   DataRow,
   IqfLiveResponse,
+  IqfShiftWeekResponse,
   PeladoLibrasHoyResponse,
   PeladoLibrasHoyTallaResponse,
   PeladoPorSalaResponse,
@@ -106,6 +107,13 @@ export async function sendAiChat(history: AiMessage[]): Promise<AiChatResponse> 
     // Una respuesta con herramientas necesita al menos dos llamadas al
     // modelo (decidir consulta + interpretar resultados).
     timeout: 300_000,
+  });
+  return data;
+}
+
+export async function fetchIqfShiftWeek(filters: DashboardFilters, refresh = false): Promise<IqfShiftWeekResponse> {
+  const { data } = await apiClient.get<IqfShiftWeekResponse>('/dashboard/iqf-turnos-semana', {
+    params: { ...toParams(filters), ...(refresh ? { refresh: 'true' } : {}) },
   });
   return data;
 }

@@ -248,3 +248,17 @@ WHERE a.DiaProduccion2024 >= @Dia
   AND a.fkTipo < 4 AND a.LineaEquipoIQF IS NOT NULL
 GROUP BY a.LineaEquipoIQF, a.Turno;
 `;
+
+/** Totales por día/equipo/turno para una comparación de siete días. */
+export const IQF_SHIFT_RANGE_QUERY = `
+SELECT CONVERT(varchar(10), a.DiaProduccion2024, 23) AS Dia,
+       a.LineaEquipoIQF AS Linea, a.Turno,
+       SUM(a.PesoLibras) AS Libras,
+       CAST(DATEDIFF(MINUTE, MIN(a.FechaHoraTorre), MAX(a.FechaHoraTorre)) AS FLOAT) / 60 AS Horas
+FROM dbo.AV_Produccion_Diaria_2020 AS a
+WHERE a.DiaProduccion2024 >= @Fecha_Inicial
+  AND a.DiaProduccion2024 < DATEADD(DAY, 1, @Fecha_Final)
+  AND (@Turno IS NULL OR REPLACE(UPPER(LTRIM(RTRIM(a.Turno))), 'TURNO ', '') = @Turno)
+  AND a.fkTipo < 4 AND a.LineaEquipoIQF IS NOT NULL
+GROUP BY a.DiaProduccion2024, a.LineaEquipoIQF, a.Turno;
+`;

@@ -45,6 +45,7 @@ router.get('/iqf-libras-hora-dia', iqf, asyncHandler(controller.getIqfLibrasHora
 router.get('/iqf-libras-hora-mes', iqf, asyncHandler(controller.getIqfLibrasHoraMes));
 router.get('/iqf-horas-trabajadas-mes', iqf, asyncHandler(controller.getIqfHorasTrabajadasMes));
 router.get('/iqf-horas-trabajadas', iqf, asyncHandler(controller.getIqfHorasTrabajadas));
+router.get('/iqf-turnos-semana', iqf, asyncHandler(controller.getIqfTurnosSemana));
 router.get('/iqf-tiempo-real', iqf, asyncHandler(controller.getIqfTiempoReal));
 router.get('/pelado-por-estilo', pelado, asyncHandler(controller.getPeladoPorEstilo));
 router.get('/pelado-por-estilo-dia', pelado, asyncHandler(controller.getPeladoPorEstiloDia));

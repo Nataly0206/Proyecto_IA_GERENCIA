@@ -8,6 +8,7 @@ import {
   IQF_LIVE_LINES_QUERY,
   IQF_LIVE_QUERY,
   IQF_SHIFT_TOTALS_QUERY,
+  IQF_SHIFT_RANGE_QUERY,
   NET_FROZEN_BY_PROCESS_DAILY_QUERY,
   NET_FROZEN_BY_PROCESS_QUERY,
   PELADO_LIVE_ORDENES_ACTIVAS_QUERY,
@@ -29,6 +30,7 @@ import {
   PELADO_POR_SALA_MENSUAL_QUERY,
   PELADO_HORAS_TRABAJADAS_DIA_QUERY,
 } from './stb.queries';
+import type { SqlRow } from './sql.service';
 import { matchesTurno, pickNumber, pickString } from '../utils/rows';
 import {
   DashboardFilters,
@@ -326,29 +328,7 @@ export async function getIqfTiempoReal(filters?: DashboardFilters): Promise<IqfL
       };
     });
 
-  const turnos = (turnoFiltro ? [turnoFiltro] : ['A', 'B']).map((turno) => {
-    const rates = aggregateCells(gruposRendimiento.filter((g) => matchesTurno(g.turno, turno)), (dia) => dia);
-    const shiftLines = Object.values(IQF_LINE_NAMES).map((linea) => {
-      const registros = shiftRows.filter((row) => matchesTurno(pickString(row, 'Turno'), turno)
-        && normalizeIqfLine(pickString(row, 'Linea')) === linea);
-      return {
-        linea,
-        libras: round2(registros.reduce((sum, row) => sum + pickNumber(row, 'Libras'), 0)),
-        horas: round2(registros.reduce((sum, row) => sum + pickNumber(row, 'Horas'), 0)),
-        librasPorHora: rates.find((row) => row.linea === linea)?.librasPorHora ?? null,
-      };
-    });
-    const activeLines = shiftLines.filter((line) => line.libras > 0);
-    const hasRates = activeLines.length > 0 && activeLines.every((line) => line.librasPorHora !== null);
-    return {
-      turno,
-      lineas: shiftLines,
-      libras: round2(shiftLines.reduce((sum, line) => sum + line.libras, 0)),
-      horasEquipo: round2(shiftLines.reduce((sum, line) => sum + line.horas, 0)),
-      sumatoriaLibrasPorHora: hasRates
-        ? round2(activeLines.reduce((sum, line) => sum + (line.librasPorHora ?? 0), 0)) : null,
-    };
-  });
+  const turnos = buildIqfShiftComparison(gruposRendimiento, shiftRows, turnoFiltro);
   return { dia, actualizado: new Date().toISOString(), lineas, turnos };
 }
 
@@ -542,7 +522,7 @@ export async function getPeladoTiempoReal(): Promise<PeladoLiveResponse> {
     runQuery(PELADO_LIVE_QUERY, []),
     runQuery(PELADO_LIVE_ORDENES_ACTIVAS_QUERY, []),
   ]);
-  const dia = pickString(catalogoRows[0] ?? rows[0] ?? {}, 'Dia') || hoy;
+  const dia = pickString(catalogoRows[0] ?? rows[0] ?? {}, 'Dia') || formatDate(new Date());
   const conDatos = new Map(
     rows.map((row) => {
       const estilo = pickString(row, 'Estilo');
@@ -874,4 +854,49 @@ export async function getIqfHorasTrabajadasMes(filters: DashboardFilters, meses:
   return [...cells.values()]
     .map((c) => ({ periodo: c.periodo, linea: c.linea, horas: round2(c.hoursSum / c.dias) }))
     .sort((a, b) => a.periodo.localeCompare(b.periodo) || a.linea.localeCompare(b.linea));
+}
+
+function buildIqfShiftComparison(gruposRendimiento: IqfGroup[], shiftRows: SqlRow[], turnoFiltro: string | null) {
+  return (turnoFiltro ? [turnoFiltro] : ['A', 'B']).map((turno) => {
+    const rates = aggregateCells(gruposRendimiento.filter((g) => matchesTurno(g.turno, turno)), (dia) => dia);
+    const shiftLines = Object.values(IQF_LINE_NAMES).map((linea) => {
+      const registros = shiftRows.filter((row) => matchesTurno(pickString(row, 'Turno'), turno)
+        && normalizeIqfLine(pickString(row, 'Linea')) === linea);
+      return {
+        linea,
+        libras: round2(registros.reduce((sum, row) => sum + pickNumber(row, 'Libras'), 0)),
+        horas: round2(registros.reduce((sum, row) => sum + pickNumber(row, 'Horas'), 0)),
+        librasPorHora: rates.find((row) => row.linea === linea)?.librasPorHora ?? null,
+      };
+    });
+    const activeLines = shiftLines.filter((line) => line.libras > 0);
+    const hasRates = activeLines.length > 0 && activeLines.every((line) => line.librasPorHora !== null);
+    return {
+      turno,
+      lineas: shiftLines,
+      libras: round2(shiftLines.reduce((sum, line) => sum + line.libras, 0)),
+      horasEquipo: round2(shiftLines.reduce((sum, line) => sum + line.horas, 0)),
+      sumatoriaLibrasPorHora: hasRates
+        ? round2(activeLines.reduce((sum, line) => sum + (line.librasPorHora ?? 0), 0)) : null,
+    };
+  });
+}
+
+export async function getIqfTurnosSemana(filters: DashboardFilters) {
+  const fin = filters.fechaFinal;
+  const inicioDate = new Date(`${fin}T00:00:00Z`);
+  inicioDate.setUTCDate(inicioDate.getUTCDate() - 6);
+  const inicio = inicioDate.toISOString().slice(0, 10);
+  const turno = filters.turno?.toUpperCase().replace('TURNO ', '') || null;
+  const [rows, groups] = await Promise.all([
+    runQuery(IQF_SHIFT_RANGE_QUERY, [...dateParams(inicio, fin), { name: 'Turno', type: sql.VarChar(20), value: turno }]),
+    fetchIqfGroups(inicio, fin, filters.turno),
+  ]);
+  const dias = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(`${inicio}T00:00:00Z`);
+    date.setUTCDate(date.getUTCDate() + index);
+    const dia = date.toISOString().slice(0, 10);
+    return { dia, turnos: buildIqfShiftComparison(groups.filter((g) => g.dia === dia), rows.filter((row) => pickString(row, 'Dia') === dia), turno) };
+  });
+  return { fechaInicial: inicio, fechaFinal: fin, dias };
 }

@@ -345,3 +345,13 @@ export async function getIqfHorasTrabajadasMes(req: Request, res: Response): Pro
     req.query.refresh === 'true',
   ));
 }
+
+export async function getIqfTurnosSemana(req: Request, res: Response): Promise<void> {
+  const filters = parseFilters(req);
+  res.json(await withTtlCache(
+    JSON.stringify(['iqf-turnos-semana:v1', filters.fechaFinal, filters.turno ?? '']),
+    LIVE_CACHE_MS,
+    () => dashboardService.getIqfTurnosSemana(filters),
+    req.query.refresh === 'true',
+  ));
+}

@@ -20,11 +20,14 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  Tabs,
+  Tab,
 } from '@mui/material';
 import BoltOutlinedIcon from '@mui/icons-material/BoltOutlined';
 import { useIqfLive } from '../../hooks/useDashboardData';
 import { formatPeriodo, formatValue } from '../../utils/format';
 import { IqfLiveLine } from '../../types';
+import IqfShiftWeekTable from './IqfShiftWeekTable';
 import { compareIqfShifts, iqfShiftMetrics } from '../../utils/iqfShiftComparison';
 
 function LiveCard({ linea, total = false, sumatoriaLibrasPorHora }: { linea: IqfLiveLine; total?: boolean; sumatoriaLibrasPorHora?: number }) {
@@ -117,6 +120,7 @@ function LiveCard({ linea, total = false, sumatoriaLibrasPorHora }: { linea: Iqf
 export default function IqfLiveCounters() {
   const { data, isLoading, isError, error, dataUpdatedAt } = useIqfLive();
   const [turnosOpen, setTurnosOpen] = useState(false);
+  const [turnosPeriodo, setTurnosPeriodo] = useState<'dia' | 'semana'>('dia');
   const comparacion = compareIqfShifts(data?.turnos ?? []);
   const isToday = data?.dia === dayjs().format('YYYY-MM-DD');
   const lineasIqf = data ? [1, 2, 3].flatMap((number) => {
@@ -149,7 +153,7 @@ export default function IqfLiveCounters() {
             {formatPeriodo(data.dia)} · actualizado {new Date(dataUpdatedAt).toLocaleTimeString()}
           </Typography>
         )}
-        <Button size="small" variant="outlined" onClick={() => setTurnosOpen(true)} sx={{ ml: { sm: 'auto' }, textTransform: 'none', fontWeight: 700 }}>
+        <Button size="small" variant="outlined" onClick={() => { setTurnosPeriodo('dia'); setTurnosOpen(true); }} sx={{ ml: { sm: 'auto' }, textTransform: 'none', fontWeight: 700 }}>
           Ver por Turnos
         </Button>
       </Stack>
@@ -206,9 +210,15 @@ export default function IqfLiveCounters() {
           />
         </Box>
       )}
-      <Dialog open={turnosOpen} onClose={() => setTurnosOpen(false)} fullWidth maxWidth="md" aria-labelledby="iqf-turnos-title">
+      <Dialog open={turnosOpen} onClose={() => setTurnosOpen(false)} fullWidth maxWidth={turnosPeriodo === 'semana' ? 'lg' : 'md'} aria-labelledby="iqf-turnos-title" PaperProps={{ sx: { m: { xs: 1, sm: 4 }, width: { xs: 'calc(100% - 16px)', sm: 'calc(100% - 64px)' } } }}>
         <DialogTitle id="iqf-turnos-title">Comparación IQF por turnos{data ? ` · ${formatPeriodo(data.dia)}` : ''}</DialogTitle>
         <DialogContent dividers sx={{ px: { xs: 1, sm: 3 } }}>
+          <Tabs value={turnosPeriodo} onChange={(_, value: 'dia' | 'semana') => setTurnosPeriodo(value)} aria-label="Período de comparación IQF" sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
+            <Tab value="dia" label={isToday || !data ? 'Hoy' : 'Día seleccionado'} sx={{ textTransform: 'none' }} />
+            <Tab value="semana" label="Últimos 7 días" sx={{ textTransform: 'none' }} />
+          </Tabs>
+          {turnosPeriodo === 'semana' && <IqfShiftWeekTable enabled={turnosOpen} />}
+          {turnosPeriodo === 'dia' && <>
           {isLoading && <Skeleton variant="rounded" height={220} />}
           {isError && <Alert severity="error">No se pudo cargar la comparación por turnos.</Alert>}
           {!isLoading && !isError && data?.turnos && <>
@@ -222,32 +232,32 @@ export default function IqfLiveCounters() {
                   ? 'Selecciona Todos los turnos en el filtro para comparar A y B.'
                   : 'La diferencia se mostrará cuando ambos turnos tengan rendimientos calculables para sus IQFs con producción.'}
             </Alert>
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: `repeat(${data.turnos.length}, minmax(0, 1fr))` }, gap: 1.5, mb: 2.5 }}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: `repeat(${data.turnos.length}, minmax(0, 1fr))` }, gap: 1, mb: 0.75 }}>
               {data.turnos.map((turno) => {
                 const metrics = iqfShiftMetrics(turno);
                 return (
-                  <Card key={turno.turno} elevation={0} sx={{ borderRadius: 2, background: 'linear-gradient(120deg, #123b70, #1b5799)', color: '#fff' }}>
-                    <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.5}>
-                        <Typography fontWeight={800}>Total IQF · Turno {turno.turno}</Typography>
-                        <Chip size="small" label={metrics.equipos ? `${metrics.equipos} IQFs con producción` : 'Sin registros'} sx={{ bgcolor: 'rgba(255,255,255,0.12)', color: '#fff', fontSize: 10 }} />
+                  <Card key={turno.turno} elevation={0} sx={{ borderRadius: 2, bgcolor: '#f3f6fa', border: 1, borderColor: '#dce4ee', color: '#334155' }}>
+                    <CardContent sx={{ p: 1.25, '&:last-child': { pb: 1.25 } }}>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={0.5}>
+                        <Typography variant="body2" fontWeight={700}>Total IQF · Turno {turno.turno}</Typography>
+                        <Chip size="small" label={metrics.equipos ? `${metrics.equipos} IQFs con producción` : 'Sin registros'} sx={{ bgcolor: '#e5ebf2', color: '#64748b', fontSize: 9, height: 19 }} />
                       </Stack>
-                      <Typography variant="caption" sx={{ opacity: 0.75 }}>Libras producidas</Typography>
-                      <Typography sx={{ fontSize: { xs: 29, sm: 34 }, fontWeight: 800, lineHeight: 1.2, fontVariantNumeric: 'tabular-nums', mb: 1.5 }}>
-                        {turno.libras > 0 ? formatValue(turno.libras) : '—'} <Typography component="span" sx={{ fontSize: 13, opacity: 0.7 }}>lbs</Typography>
+                      <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: 10 }}>Libras producidas</Typography>
+                      <Typography sx={{ fontSize: 23, fontWeight: 700, lineHeight: 1.2, fontVariantNumeric: 'tabular-nums', mb: 0.75 }}>
+                        {turno.libras > 0 ? formatValue(turno.libras) : '—'} <Typography component="span" sx={{ fontSize: 10, color: 'text.secondary' }}>lbs</Typography>
                       </Typography>
-                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5, pt: 1.5, borderTop: '1px solid rgba(255,255,255,0.2)' }}>
+                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, pt: 0.75, borderTop: '1px solid #dce4ee' }}>
                         {[
                           { label: 'Sumatoria IQFs', value: metrics.sumatoria },
                           { label: 'Promedio por IQF activo', value: metrics.promedio },
                         ].map((metric) => (
                           <Box key={metric.label}>
-                            <Typography variant="caption" sx={{ opacity: 0.75, display: 'block', fontSize: 11 }}>{metric.label}</Typography>
-                            <Typography sx={{ fontSize: 22, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{metric.value !== null ? formatValue(metric.value) : '—'} <Typography component="span" sx={{ fontSize: 11, opacity: 0.75 }}>lbs/h</Typography></Typography>
+                            <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', fontSize: 10 }}>{metric.label}</Typography>
+                            <Typography sx={{ fontSize: 17, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{metric.value !== null ? formatValue(metric.value) : '—'} <Typography component="span" sx={{ fontSize: 10, color: 'text.secondary' }}>lbs/h</Typography></Typography>
                           </Box>
                         ))}
                       </Box>
-                      {comparacion?.mayor === turno.turno && <Chip size="small" label="Mayor promedio por IQF" sx={{ mt: 1.25, bgcolor: '#d9f5e5', color: '#17613c', fontWeight: 700, fontSize: 10 }} />}
+                      {comparacion?.mayor === turno.turno && <Chip size="small" label="Mayor promedio por IQF" sx={{ mt: 0.75, bgcolor: '#e6eee9', color: '#476454', fontWeight: 600, fontSize: 9, height: 20 }} />}
                     </CardContent>
                   </Card>
                 );
@@ -281,6 +291,7 @@ export default function IqfLiveCounters() {
                 </TableBody>
               </Table>
             </TableContainer>
+          </>}
           </>}
         </DialogContent>
         <DialogActions><Button onClick={() => setTurnosOpen(false)}>Cerrar</Button></DialogActions>

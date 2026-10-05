@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   fetchClasificadoPorMaquinaHoy,
   fetchIqfLive,
+  fetchIqfShiftWeek,
   fetchPeladoLibrasHoy,
   fetchPeladoLibrasHoyTalla,
   fetchPeladoPorSala,
@@ -401,4 +402,15 @@ export function useRefreshDashboard() {
       }),
     ]);
   };
+}
+
+export function useIqfShiftWeek(enabled: boolean) {
+  const { filters } = useFilters();
+  return useQuery({
+    queryKey: ['iqf-turnos-semana', filters.fechaFinal, filters.turno],
+    queryFn: () => fetchIqfShiftWeek(filters),
+    enabled: enabled && !getDateFilterError(filters),
+    staleTime: LIVE_REFRESH_INTERVAL_MS,
+    refetchInterval: enabled ? LIVE_REFRESH_INTERVAL_MS : false,
+  });
 }

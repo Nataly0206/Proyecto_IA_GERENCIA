@@ -89,7 +89,7 @@ function LiveCard({ linea, total = false, promedioLibras }: { linea: IqfLiveLine
         </Stack>
         {total && promedioLibras !== undefined && (
           <Stack direction="row" alignItems="baseline" spacing={0.5} sx={{ mt: 0.25, whiteSpace: 'nowrap' }}>
-            <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.2 }}>Promedio</Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.2 }}>Promedio por IQF</Typography>
             <Typography variant="body2" fontWeight={700} sx={{ color, lineHeight: 1.2 }}>
               {formatValue(promedioLibras)} <Typography component="span" variant="caption" color="text.secondary">lbs</Typography>
             </Typography>

@@ -15,6 +15,7 @@ import {
 import { useWidgetData } from '../../hooks/useDashboardData';
 import { apiClient } from '../../api/client';
 import { formatValue } from '../../utils/format';
+import { mergePeladoDetailSizes, normalizePeladoDetailSize } from '../../utils/peladoTallas';
 
 type SizeOrderResponse = { order: string[]; sizes: string[] };
 
@@ -30,15 +31,15 @@ export default function PeladoTallaWidget() {
     staleTime: 5 * 60 * 1000,
   });
   const orderedSizes = useMemo(() => {
-    const sizes = new Set(sizeOrder?.sizes ?? []);
+    const sizes = new Set((sizeOrder?.sizes ?? []).map(normalizePeladoDetailSize));
     return [
-      ...(sizeOrder?.order ?? []).filter((size) => sizes.delete(size)),
+      ...(sizeOrder?.order ?? []).map(normalizePeladoDetailSize).filter((size) => sizes.delete(size)),
       ...Array.from(sizes).sort((a, b) => a.localeCompare(b, 'es', { numeric: true, sensitivity: 'base' })),
     ];
   }, [sizeOrder]);
   const rows = useMemo(() => {
     const positions = new Map(orderedSizes.map((size, index) => [size, index]));
-    return [...(data ?? [])].sort((a, b) => {
+    return mergePeladoDetailSizes(data ?? []).sort((a, b) => {
       const aSize = String(a.talla ?? 'Sin talla');
       const bSize = String(b.talla ?? 'Sin talla');
       const aPosition = positions.get(aSize) ?? Number.MAX_SAFE_INTEGER;

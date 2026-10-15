@@ -15,7 +15,7 @@ import {
 import { useWidgetData } from '../../hooks/useDashboardData';
 import { apiClient } from '../../api/client';
 import { formatValue } from '../../utils/format';
-import { mergePeladoDetailSizes, normalizePeladoDetailSize } from '../../utils/peladoTallas';
+import { getPeladoDetailPtSize, mergePeladoDetailSizes, normalizePeladoDetailSize } from '../../utils/peladoTallas';
 
 type SizeOrderResponse = { order: string[]; sizes: string[] };
 
@@ -66,12 +66,13 @@ export default function PeladoTallaWidget() {
         Rango de fechas y turno seleccionados · fuente: STB_data
       </Typography>
       <TableContainer sx={{ maxHeight: '65vh', border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}>
-        <Table size="small" stickyHeader sx={{ tableLayout: 'fixed' }}>
+        <Table size="small" stickyHeader sx={{ tableLayout: 'fixed', minWidth: 560 }}>
           <TableHead>
             <TableRow>
-              <TableCell sx={{ width: '28%', fontWeight: 800, bgcolor: '#164a8b', color: '#fff' }}>Talla</TableCell>
-              <TableCell align="right" sx={{ width: '28%', fontWeight: 800, bgcolor: '#164a8b', color: '#fff' }}>Libras peladas</TableCell>
-              <TableCell aria-label="Porcentaje del total" sx={{ width: '44%', fontWeight: 800, bgcolor: '#164a8b', color: '#fff' }} />
+              <TableCell sx={{ width: '22%', fontWeight: 800, bgcolor: '#164a8b', color: '#fff' }}>Talla WSO</TableCell>
+              <TableCell sx={{ width: '22%', fontWeight: 800, bgcolor: '#164a8b', color: '#fff' }}>Talla PT</TableCell>
+              <TableCell align="right" sx={{ width: '24%', fontWeight: 800, bgcolor: '#164a8b', color: '#fff' }}>Libras peladas</TableCell>
+              <TableCell aria-label="Porcentaje del total" sx={{ width: '32%', fontWeight: 800, bgcolor: '#164a8b', color: '#fff' }}>%</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -79,6 +80,7 @@ export default function PeladoTallaWidget() {
               const percentage = total > 0 ? Number(row.libras ?? 0) / total * 100 : 0;
               return <TableRow key={String(row.talla ?? 'Sin talla')} hover sx={{ bgcolor: index % 2 ? '#f8fafc' : '#fff' }}>
                 <TableCell sx={{ fontWeight: 600 }}>{String(row.talla ?? 'Sin talla')}</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>{getPeladoDetailPtSize(String(row.talla ?? 'Sin talla'))}</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 700 }}>{formatValue(Number(row.libras ?? 0), 'number')}</TableCell>
                 <TableCell>
                   <Stack direction="row" spacing={1} alignItems="center">
@@ -89,7 +91,7 @@ export default function PeladoTallaWidget() {
               </TableRow>;
             })}
             <TableRow>
-              <TableCell sx={{ fontWeight: 800, bgcolor: '#e8eef7', borderTop: '2px solid #b8c7d9' }}>Total</TableCell>
+              <TableCell colSpan={2} sx={{ fontWeight: 800, bgcolor: '#e8eef7', borderTop: '2px solid #b8c7d9' }}>Total</TableCell>
               <TableCell align="right" sx={{ fontWeight: 800, bgcolor: '#e8eef7', borderTop: '2px solid #b8c7d9' }}>
                 {formatValue(total, 'number')}
               </TableCell>

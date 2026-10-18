@@ -86,6 +86,8 @@ export interface PeladoStylePeriodRow {
   horasTrabajadas?: number;
   /** Personas (headcount real) que trabajaron ese período (igual para todas las filas del mismo período). */
   personas?: number;
+  /** Días distintos con libras peladas en el período y turno filtrado (igual para todas las filas del mismo período). */
+  diasTrabajados?: number;
 }
 
 export interface PeladoTallaRow {

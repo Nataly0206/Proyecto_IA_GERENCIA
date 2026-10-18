@@ -69,7 +69,13 @@ export default function PeladoEstiloWidget() {
     sort: { field: 'libras', direction: 'desc' },
     showTotalCard: true,
     unitLabel: 'lbs peladas',
-  } : { ...dailyTableConfig, xLabel: vista === 'dia' ? 'Fecha' : vista === 'semana' ? 'Semana' : 'Mes' }, [vista]);
+  } : {
+    ...dailyTableConfig,
+    xLabel: vista === 'dia' ? 'Fecha' : vista === 'semana' ? 'Semana' : 'Mes',
+    ...(vista === 'mes' ? {
+      dailyAverageColumn: { daysField: 'diasTrabajados', label: 'Promedio por día', unit: 'lbs / días trabajados' },
+    } : {}),
+  }, [vista]);
   const transformRows = (rows: DataRow[]): DataRow[] => {
     if (vista === 'total') {
       const totals = new Map<string, number>();
@@ -92,7 +98,7 @@ export default function PeladoEstiloWidget() {
     for (let month = 1; month <= 12; month += 1) {
       const periodo = `${year}-${String(month).padStart(2, '0')}`;
       for (const estilo of styles) {
-        if (!present.has(`${periodo}|${estilo}`)) empty.push({ periodo, estilo, libras: 0, horasTrabajadas: 0, personas: 0 });
+        if (!present.has(`${periodo}|${estilo}`)) empty.push({ periodo, estilo, libras: 0, horasTrabajadas: 0, personas: 0, diasTrabajados: 0 });
       }
     }
     return [...rows, ...empty];

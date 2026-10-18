@@ -106,6 +106,20 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
     return result;
   }, [data, config.xField, extraColumns]);
 
+  const daysField = config.dailyAverageColumn?.daysField;
+  const daysByPeriodo = useMemo(() => {
+    const result = new Map<string, number>();
+    if (!daysField) return result;
+    for (const row of data) {
+      const periodo = String(row[config.xField] ?? '');
+      const days = Number(row[daysField] ?? 0);
+      if (periodo !== '' && Number.isFinite(days)) result.set(periodo, Math.max(result.get(periodo) ?? 0, days));
+    }
+    return result;
+  }, [data, config.xField, daysField]);
+  const perDay = (total: number | null, days: number): number | null =>
+    total === null || days <= 0 ? null : total / days;
+
   /**
    * Grand Total de una columna auxiliar (Horas Trabajadas, Personas):
    * siempre es la suma, igual que el Grand Total de cualquier otra
@@ -219,6 +233,16 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
             <TableCell align="right" sx={HEADER_SX}>
               Grand Total
             </TableCell>
+            {config.dailyAverageColumn && (
+              <TableCell align="right" sx={HEADER_SX}>
+                {config.dailyAverageColumn.label}
+                {config.dailyAverageColumn.unit && (
+                  <Box component="span" sx={{ display: 'block', fontSize: 9, fontWeight: 600, color: '#64748b' }}>
+                    {config.dailyAverageColumn.unit}
+                  </Box>
+                )}
+              </TableCell>
+            )}
           </TableRow>
         </TableHead>
         <TableBody>
@@ -238,6 +262,11 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
               <TableCell align="right" sx={{ fontWeight: 600 }}>
                 {renderValue(aggregate(rowCells(periodo)))}
               </TableCell>
+              {config.dailyAverageColumn && (
+                <TableCell align="right" sx={{ fontWeight: 600, color: 'primary.main' }}>
+                  {renderValue(perDay(aggregate(rowCells(periodo)), daysByPeriodo.get(periodo) ?? 0))}
+                </TableCell>
+              )}
             </TableRow>
           ))}
         </TableBody>
@@ -259,6 +288,11 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
             <TableCell align="right" sx={TOTAL_SX}>
               {renderValue(grandTotal)}
             </TableCell>
+            {config.dailyAverageColumn && (
+              <TableCell align="right" sx={TOTAL_SX}>
+                {renderValue(perDay(grandTotal, periodos.reduce((sum, periodo) => sum + (daysByPeriodo.get(periodo) ?? 0), 0)))}
+              </TableCell>
+            )}
           </TableRow>
           {config.showShareRow && (
             <TableRow>
@@ -274,6 +308,7 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
               <TableCell align="right" sx={SHARE_SX}>
                 {formatValue(grandTotal && grandTotal > 0 ? 100 : 0, 'percent')}
               </TableCell>
+              {config.dailyAverageColumn && <TableCell align="right" sx={SHARE_SX}>—</TableCell>}
             </TableRow>
           )}
           {config.showAverageRow && (
@@ -294,6 +329,7 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
               <TableCell align="right" sx={AVERAGE_SX}>
                 {renderValue(simpleAverage(periodos.flatMap((periodo) => rowCells(periodo))))}
               </TableCell>
+              {config.dailyAverageColumn && <TableCell align="right" sx={AVERAGE_SX}>—</TableCell>}
             </TableRow>
           )}
         </TableFooter>

@@ -464,11 +464,20 @@ export async function getPeladoPorEstiloDia(
     const key = periodOf(dia);
     horas.set(key, (horas.get(key) ?? 0) + hours);
   }
+  const diasPorPeriodo = new Map<string, Set<string>>();
+  for (const g of groups) {
+    if (g.libras <= 0 || g.estilo === '' || (filters.turno && !matchesTurno(g.turno, filters.turno))) continue;
+    const key = periodOf(g.dia);
+    const dias = diasPorPeriodo.get(key) ?? new Set<string>();
+    dias.add(g.dia);
+    diasPorPeriodo.set(key, dias);
+  }
   return aggregateDimensionByPeriod(groups, filters.turno, 'estilo', periodOf)
     .map(({ periodo, valor, libras }) => ({
       periodo, estilo: valor, libras,
       horasTrabajadas: round2(horas.get(periodo) ?? 0),
       personas: personas.get(periodo) ?? 0,
+      diasTrabajados: diasPorPeriodo.get(periodo)?.size ?? 0,
     }));
 }
 

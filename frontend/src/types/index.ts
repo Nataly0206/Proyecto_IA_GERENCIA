@@ -420,6 +420,11 @@ export interface ChartConfig {
   }[];
   /** Agrega una fila "Promedio" (media simple por columna) bajo el Grand Total de una tabla pivote, ambas fijas al fondo. */
   showAverageRow?: boolean;
+  /**
+   * Agrega a la derecha del Grand Total una columna con el promedio por día de cada fila:
+   * total de la fila / valor de `daysField` del período. En el pie usa total general / suma de días.
+   */
+  dailyAverageColumn?: { daysField: string; label: string; unit?: string };
   /** Etiqueta de la fila de promedio (por defecto "Promedio"). */
   averageLabel?: string;
   /** El promedio divide solo entre los períodos con algún valor distinto de 0 (ej. meses rellenados en 0). */

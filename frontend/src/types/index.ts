@@ -420,6 +420,10 @@ export interface ChartConfig {
   }[];
   /** Agrega una fila "Promedio" (media simple por columna) bajo el Grand Total de una tabla pivote, ambas fijas al fondo. */
   showAverageRow?: boolean;
+  /** Etiqueta de la fila de promedio (por defecto "Promedio"). */
+  averageLabel?: string;
+  /** El promedio divide solo entre los períodos con algún valor distinto de 0 (ej. meses rellenados en 0). */
+  averageActivePeriodsOnly?: boolean;
   /** Agrega una fila con la participación porcentual de cada serie sobre el total general. */
   showShareRow?: boolean;
   /**

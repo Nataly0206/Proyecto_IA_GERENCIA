@@ -59,6 +59,9 @@ export default function NetProcessWidget({ height, userId }: NetProcessWidgetPro
     valueFormat: 'number',
     sort: granularidad === 'total' ? { field: 'libras', direction: 'desc' } : undefined,
     showTotalCard: granularidad === 'total',
+    showAverageRow: granularidad !== 'total',
+    averageLabel: granularidad === 'dia' ? 'Promedio por día' : granularidad === 'semana' ? 'Promedio por semana' : 'Promedio por mes',
+    averageActivePeriodsOnly: granularidad === 'mes',
     height,
   }), [granularidad, height]);
 

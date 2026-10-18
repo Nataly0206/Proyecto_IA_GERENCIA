@@ -120,8 +120,8 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
   /** Promedio de una columna auxiliar: siempre divide entre la cantidad
    *  total de días del período mostrado, igual que `simpleAverage`. */
   const avgExtra = (values: number[]): number | null => {
-    if (periodos.length === 0) return null;
-    return values.reduce((acc, v) => acc + v, 0) / periodos.length;
+    if (averageDivisor === 0) return null;
+    return values.reduce((acc, v) => acc + v, 0) / averageDivisor;
   };
 
   const weightedAvg = (items: Cell[]): number | null => {
@@ -144,12 +144,15 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
    * dando un "promedio" que no guarda relación con el total de la columna.
    */
   const simpleAverage = (items: Cell[]): number | null => {
-    if (periodos.length === 0) return null;
-    return items.reduce((acc, cell) => acc + cell.value, 0) / periodos.length;
+    if (averageDivisor === 0) return null;
+    return items.reduce((acc, cell) => acc + cell.value, 0) / averageDivisor;
   };
 
   const rowCells = (periodo: string): Cell[] =>
     columnas.flatMap((col) => cells.get(`${periodo}|${col}`) ?? []);
+  const averageDivisor = config.averageActivePeriodsOnly
+    ? periodos.filter((periodo) => rowCells(periodo).some((cell) => cell.value !== 0)).length
+    : periodos.length;
   const colCells = (col: string): Cell[] =>
     periodos.flatMap((periodo) => cells.get(`${periodo}|${col}`) ?? []);
   const grandTotal = aggregate(periodos.flatMap((periodo) => rowCells(periodo)));
@@ -275,7 +278,7 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
           )}
           {config.showAverageRow && (
             <TableRow>
-              <TableCell sx={AVERAGE_SX}>Promedio</TableCell>
+              <TableCell sx={AVERAGE_SX}>{config.averageLabel ?? 'Promedio'}</TableCell>
               {extraColumns.map((extraCol) => (
                 <TableCell key={extraCol.field} align="right" sx={AVERAGE_SX}>
                   {renderValue(avgExtra(

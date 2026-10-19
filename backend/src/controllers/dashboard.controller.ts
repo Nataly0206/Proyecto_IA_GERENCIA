@@ -77,7 +77,7 @@ export async function getLibrasNetasPorProcesoDia(req: Request, res: Response): 
   const forceRefresh = req.query.refresh === 'true';
   res.json(
     await withTtlCache(
-      JSON.stringify(['libras-netas-proceso-dia:periodos-v1', period, filters]),
+      JSON.stringify(['libras-netas-proceso-dia:periodos-v2', period, filters]),
       REPORT_CACHE_MS,
       () => dashboardService.getLibrasNetasPorProcesoDia(filters, period),
       forceRefresh,

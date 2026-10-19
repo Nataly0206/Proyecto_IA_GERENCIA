@@ -19,6 +19,8 @@ export interface NetProcessPeriodRow {
   periodo: string;
   proceso: string;
   libras: number;
+  /** Días distintos con libras netas en el período y turno filtrado (igual para todas las filas del mismo período). */
+  diasTrabajados: number;
 }
 
 /** Contador en vivo de una línea IQF (día de producción en curso) */

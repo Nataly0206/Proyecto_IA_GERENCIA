@@ -62,6 +62,9 @@ export default function NetProcessWidget({ height, userId }: NetProcessWidgetPro
     showAverageRow: granularidad !== 'total',
     averageLabel: granularidad === 'dia' ? 'Promedio por día' : granularidad === 'semana' ? 'Promedio por semana' : 'Promedio por mes',
     averageActivePeriodsOnly: granularidad === 'mes',
+    ...(granularidad === 'mes' ? {
+      dailyAverageColumn: { daysField: 'diasTrabajados', label: 'Promedio por día', unit: 'lbs / días trabajados' },
+    } : {}),
     height,
   }), [granularidad, height]);
 
@@ -136,7 +139,7 @@ export default function NetProcessWidget({ height, userId }: NetProcessWidgetPro
     for (let month = 1; month <= 12; month += 1) {
       const periodo = `${reportYear}-${String(month).padStart(2, '0')}`;
       for (const proceso of processes) {
-        if (!present.has(`${periodo}|${proceso}`)) empty.push({ periodo, proceso, libras: 0 });
+        if (!present.has(`${periodo}|${proceso}`)) empty.push({ periodo, proceso, libras: 0, diasTrabajados: 0 });
       }
     }
     return [...visible, ...empty];

@@ -120,6 +120,7 @@ function aggregateNetProcessByPeriod(
 ): NetProcessPeriodRow[] {
   const map = new Map<string, { periodo: string; proceso: string; libras: number }>();
   const diasPorPeriodo = new Map<string, Set<string>>();
+  const diasPorProceso = new Map<string, Set<string>>();
   for (const g of groups) {
     const periodo = periodOf(g.dia);
     const key = `${periodo}|${g.proceso}`;
@@ -127,6 +128,9 @@ function aggregateNetProcessByPeriod(
     acc.libras += g.libras;
     map.set(key, acc);
     if (g.libras > 0) {
+      const diasProceso = diasPorProceso.get(key) ?? new Set<string>();
+      diasProceso.add(g.dia);
+      diasPorProceso.set(key, diasProceso);
       const dias = diasPorPeriodo.get(periodo) ?? new Set<string>();
       dias.add(g.dia);
       diasPorPeriodo.set(periodo, dias);
@@ -136,6 +140,7 @@ function aggregateNetProcessByPeriod(
     .map((c) => ({
       periodo: c.periodo, proceso: c.proceso, libras: round2(c.libras),
       diasTrabajados: diasPorPeriodo.get(c.periodo)?.size ?? 0,
+      fechasTrabajadas: Array.from(diasPorProceso.get(`${c.periodo}|${c.proceso}`) ?? []).sort(),
     }))
     .sort((a, b) => a.periodo.localeCompare(b.periodo) || a.proceso.localeCompare(b.proceso));
 }

@@ -9,6 +9,7 @@ import { useFilters } from '../../context/FiltersContext';
 import { useWidgetData } from '../../hooks/useDashboardData';
 import { apiClient } from '../../api/client';
 import ChartWidget from './ChartWidget';
+import { withSelectedProcessDays } from '../../utils/netProcessDays';
 
 interface NetProcessWidgetProps {
   height?: number;
@@ -142,7 +143,7 @@ export default function NetProcessWidget({ height, userId }: NetProcessWidgetPro
         if (!present.has(`${periodo}|${proceso}`)) empty.push({ periodo, proceso, libras: 0, diasTrabajados: 0 });
       }
     }
-    return [...visible, ...empty];
+    return withSelectedProcessDays([...visible, ...empty]);
   };
 
   return (

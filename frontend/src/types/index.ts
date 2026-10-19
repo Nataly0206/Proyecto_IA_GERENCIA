@@ -28,6 +28,8 @@ export interface NetProcessPeriodRow extends DataRow {
   periodo: string; // "YYYY-MM-DD" diario, "YYYY-MM" mensual
   proceso: string;
   libras: number;
+  diasTrabajados: number;
+  fechasTrabajadas: string[];
 }
 
 /**

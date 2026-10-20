@@ -60,7 +60,13 @@ function EstiloCard({
           )}
         </Stack>
 
-        <Stack direction="row" justifyContent="space-between" alignItems="baseline" spacing={2}>
+        <Stack
+          direction={{ xs: 'column', sm: 'row' }}
+          justifyContent="space-between"
+          alignItems={{ xs: 'flex-start', sm: 'baseline' }}
+          useFlexGap
+          sx={{ gap: { xs: 0.75, sm: 1 }, flexWrap: 'wrap' }}
+        >
           <Typography
             variant="h6"
             fontWeight={800}
@@ -75,7 +81,7 @@ function EstiloCard({
               lbs
             </Typography>
           </Typography>
-          <Stack alignItems="flex-end" spacing={0.25} sx={{
+          <Stack alignItems={{ xs: 'flex-start', sm: 'flex-end' }} spacing={0.25} sx={{
             color: '#000',
             fontSize: { xs: 15, sm: 16 },
             fontWeight: 900,

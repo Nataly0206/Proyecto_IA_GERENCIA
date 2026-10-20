@@ -9,7 +9,7 @@ import {
   Typography,
 } from '@mui/material';
 import ContentCutOutlinedIcon from '@mui/icons-material/ContentCutOutlined';
-import { usePeladoLibrasHoy, usePeladoPorSala } from '../../hooks/useDashboardData';
+import { usePeladoLibrasHoy, usePeladoLibrasHoyTalla, usePeladoPorSala } from '../../hooks/useDashboardData';
 import { formatPeriodo, formatValue } from '../../utils/format';
 import { PeladoLibrasHoyEstilo } from '../../types';
 
@@ -17,10 +17,12 @@ function EstiloCard({
   estilo,
   badge,
   librasPorPersona,
+  tallaDominante,
 }: {
   estilo: PeladoLibrasHoyEstilo;
   badge?: string;
   librasPorPersona?: number | null;
+  tallaDominante?: string | null;
 }) {
   const destacado = Boolean(badge);
   const color = destacado ? '#164a8b' : estilo.libras > 0 ? '#2e7d32' : '#94a3b8';
@@ -82,6 +84,8 @@ function EstiloCard({
             </Typography>
           </Typography>
           <Stack alignItems={{ xs: 'flex-start', sm: 'flex-end' }} spacing={0.25} sx={{
+            minWidth: 0,
+            maxWidth: '100%',
             color: '#000',
             fontSize: { xs: 15, sm: 16 },
             fontWeight: 900,
@@ -96,6 +100,15 @@ function EstiloCard({
                 {librasPorPersona === null ? '—' : formatValue(librasPorPersona, 'decimal')} lbs/persona
               </Typography>
             )}
+            {tallaDominante !== undefined && (
+              <Typography
+                variant="body2"
+                title="Talla con más libras producidas hoy"
+                sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit', whiteSpace: 'normal', overflowWrap: 'anywhere' }}
+              >
+                Talla Prom: {tallaDominante ?? '—'}
+              </Typography>
+            )}
           </Stack>
         </Stack>
       </CardContent>
@@ -106,6 +119,13 @@ function EstiloCard({
 export default function PeladoLibrasHoyCards() {
   const { data, isLoading, isError, error, dataUpdatedAt } = usePeladoLibrasHoy();
   const { data: actividad, isError: actividadError } = usePeladoPorSala();
+  const { data: produccionTallas, isError: tallasError } = usePeladoLibrasHoyTalla(true);
+  const tallaDominante = !tallasError && produccionTallas?.dia === data?.dia
+    ? produccionTallas?.tallas.reduce<{ talla: string; libras: number } | null>(
+      (mayor, talla) => talla.libras > 0 && (!mayor || talla.libras > mayor.libras) ? talla : mayor,
+      null,
+    )?.talla ?? null
+    : null;
   const personasActivas = actividad?.salas.reduce((total, sala) => total + sala.personasActivas, 0) ?? 0;
   const librasPorPersona = !actividadError && actividad && actividad.dia === data?.dia && personasActivas > 0
     ? (data.librasPorHoraPromedio ?? 0) / personasActivas
@@ -162,7 +182,7 @@ export default function PeladoLibrasHoyCards() {
           {estilosConLibras.map((estilo) => (
             <EstiloCard key={estilo.estilo} estilo={estilo} />
           ))}
-          <EstiloCard badge="Total del día" librasPorPersona={librasPorPersona} estilo={{ estilo: 'Total', libras: data.total, librasPorHora: data.librasPorHoraPromedio }} />
+          <EstiloCard badge="Total del día" tallaDominante={tallaDominante} librasPorPersona={librasPorPersona} estilo={{ estilo: 'Total', libras: data.total, librasPorHora: data.librasPorHoraPromedio }} />
         </Box>
       )}
     </Box>

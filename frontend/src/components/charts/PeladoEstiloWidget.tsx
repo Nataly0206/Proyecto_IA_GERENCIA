@@ -71,6 +71,7 @@ export default function PeladoEstiloWidget() {
     unitLabel: 'lbs peladas',
   } : {
     ...dailyTableConfig,
+    hourlyPerPersonColumn: vista === 'dia' ? { hoursField: 'horasTrabajadas', peopleField: 'personas' } : undefined,
     xLabel: vista === 'dia' ? 'Fecha' : vista === 'semana' ? 'Semana' : 'Mes',
     ...(vista === 'mes' ? {
       dailyAverageColumn: { daysField: 'diasTrabajados', label: 'Promedio por día', unit: 'lbs / días trabajados' },

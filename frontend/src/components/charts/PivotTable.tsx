@@ -169,6 +169,14 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
     : periodos.length;
   const colCells = (col: string): Cell[] =>
     periodos.flatMap((periodo) => cells.get(`${periodo}|${col}`) ?? []);
+  const hourlyPerPerson = (periodo: string): number | null => {
+    const column = config.hourlyPerPersonColumn;
+    if (!column) return null;
+    const hours = extraByPeriodo.get(column.hoursField)?.get(periodo) ?? 0;
+    const people = extraByPeriodo.get(column.peopleField)?.get(periodo) ?? 0;
+    const total = aggregate(rowCells(periodo));
+    return total !== null && hours > 0 && people > 0 ? total / hours / people : null;
+  };
   const grandTotal = aggregate(periodos.flatMap((periodo) => rowCells(periodo)));
   const shareByColumn = new Map<string, number>();
   if (config.showShareRow && grandTotal && grandTotal > 0 && columnas.length > 0) {
@@ -233,6 +241,11 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
             <TableCell align="right" sx={HEADER_SX}>
               Grand Total
             </TableCell>
+            {config.hourlyPerPersonColumn && (
+              <TableCell align="right" sx={{ ...HEADER_SX, whiteSpace: 'nowrap' }}>
+                lbs/h persona
+              </TableCell>
+            )}
             {config.dailyAverageColumn && (
               <TableCell align="right" sx={HEADER_SX}>
                 {config.dailyAverageColumn.label}
@@ -262,6 +275,11 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
               <TableCell align="right" sx={{ fontWeight: 600 }}>
                 {renderValue(aggregate(rowCells(periodo)))}
               </TableCell>
+              {config.hourlyPerPersonColumn && (
+                <TableCell align="right" sx={{ fontWeight: 600, color: 'primary.main' }}>
+                  {renderValue(hourlyPerPerson(periodo), 'decimal')}
+                </TableCell>
+              )}
               {config.dailyAverageColumn && (
                 <TableCell align="right" sx={{ fontWeight: 600, color: 'primary.main' }}>
                   {renderValue(perDay(aggregate(rowCells(periodo)), daysByPeriodo.get(periodo) ?? 0))}
@@ -288,6 +306,7 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
             <TableCell align="right" sx={TOTAL_SX}>
               {renderValue(grandTotal)}
             </TableCell>
+            {config.hourlyPerPersonColumn && <TableCell align="right" sx={TOTAL_SX}>—</TableCell>}
             {config.dailyAverageColumn && (
               <TableCell align="right" sx={TOTAL_SX}>
                 {renderValue(perDay(grandTotal, periodos.reduce((sum, periodo) => sum + (daysByPeriodo.get(periodo) ?? 0), 0)))}
@@ -308,6 +327,7 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
               <TableCell align="right" sx={SHARE_SX}>
                 {formatValue(grandTotal && grandTotal > 0 ? 100 : 0, 'percent')}
               </TableCell>
+              {config.hourlyPerPersonColumn && <TableCell align="right" sx={SHARE_SX}>—</TableCell>}
               {config.dailyAverageColumn && <TableCell align="right" sx={SHARE_SX}>—</TableCell>}
             </TableRow>
           )}
@@ -329,6 +349,7 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
               <TableCell align="right" sx={AVERAGE_SX}>
                 {renderValue(simpleAverage(periodos.flatMap((periodo) => rowCells(periodo))))}
               </TableCell>
+              {config.hourlyPerPersonColumn && <TableCell align="right" sx={AVERAGE_SX}>—</TableCell>}
               {config.dailyAverageColumn && <TableCell align="right" sx={AVERAGE_SX}>—</TableCell>}
             </TableRow>
           )}

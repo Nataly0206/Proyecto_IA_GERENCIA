@@ -427,6 +427,8 @@ export interface ChartConfig {
    * total de la fila / valor de `daysField` del período. En el pie usa total general / suma de días.
    */
   dailyAverageColumn?: { daysField: string; label: string; unit?: string };
+  /** Rendimiento por persona: total de libras / horas / personas del período. */
+  hourlyPerPersonColumn?: { hoursField: string; peopleField: string };
   /** Etiqueta de la fila de promedio (por defecto "Promedio"). */
   averageLabel?: string;
   /** El promedio divide solo entre los períodos con algún valor distinto de 0 (ej. meses rellenados en 0). */

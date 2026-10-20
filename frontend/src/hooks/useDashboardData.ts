@@ -182,8 +182,7 @@ export function usePeladoLibrasHoy() {
 
 /**
  * Libras peladas hoy por talla. Se consulta de forma perezosa (`enabled`):
- * solo cuando el usuario abre el diálogo desde la tabla de actividad por
- * sala, para no pegarle al endpoint en cada carga de la página.
+ * cuando se muestra la talla dominante o se abre el diálogo por talla.
  */
 export function usePeladoLibrasHoyTalla(enabled: boolean) {
   const queryClient = useQueryClient();
@@ -202,6 +201,8 @@ export function usePeladoLibrasHoyTalla(enabled: boolean) {
     initialData: cached?.data,
     initialDataUpdatedAt: cached?.updatedAt,
     staleTime: LIVE_REFRESH_INTERVAL_MS,
+    refetchInterval: enabled ? LIVE_REFRESH_INTERVAL_MS : false,
+    refetchIntervalInBackground: true,
   });
 
   const refreshNow = async (): Promise<PeladoLibrasHoyTallaResponse> => {

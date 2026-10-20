@@ -253,7 +253,7 @@ export default function ClasificadoPage({ user }: { user: AuthUser }) {
           </IconButton>
         </DialogTitle>
         <DialogContent dividers sx={{ p: 1.5 }}>
-          {tallaOpen && <ClasificadoTallaWidget />}
+          {tallaOpen && <ClasificadoTallaWidget sizeOrder={orderedSizes} />}
         </DialogContent>
       </Dialog>
       {sizeOrderError && <Alert severity="error">No se pudo cargar el orden compartido de las tallas.</Alert>}

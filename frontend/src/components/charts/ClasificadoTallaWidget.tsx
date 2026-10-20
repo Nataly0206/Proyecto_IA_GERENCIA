@@ -16,9 +16,18 @@ import { useWidgetData } from '../../hooks/useDashboardData';
 import { formatValue } from '../../utils/format';
 
 /** Detalle por talla del rango y turno activos, cargado al abrir el diálogo. */
-export default function ClasificadoTallaWidget() {
+export default function ClasificadoTallaWidget({ sizeOrder }: { sizeOrder: string[] }) {
   const { data, isLoading, isError, error } = useWidgetData('clasificado-por-talla');
-  const rows = [...(data ?? [])].sort((a, b) => Number(b.libras ?? 0) - Number(a.libras ?? 0));
+  const rows = [...(data ?? [])].sort((a, b) => {
+    const aSize = String(a.talla ?? 'Sin talla');
+    const bSize = String(b.talla ?? 'Sin talla');
+    const aPosition = sizeOrder.indexOf(aSize);
+    const bPosition = sizeOrder.indexOf(bSize);
+    if (aPosition >= 0 && bPosition >= 0) return aPosition - bPosition;
+    if (aPosition >= 0) return -1;
+    if (bPosition >= 0) return 1;
+    return aSize.localeCompare(bSize);
+  });
   const total = rows.reduce((sum, row) => sum + Number(row.libras ?? 0), 0);
 
   if (isLoading) {

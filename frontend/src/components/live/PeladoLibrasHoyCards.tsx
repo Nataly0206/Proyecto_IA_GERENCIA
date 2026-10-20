@@ -9,16 +9,18 @@ import {
   Typography,
 } from '@mui/material';
 import ContentCutOutlinedIcon from '@mui/icons-material/ContentCutOutlined';
-import { usePeladoLibrasHoy } from '../../hooks/useDashboardData';
+import { usePeladoLibrasHoy, usePeladoPorSala } from '../../hooks/useDashboardData';
 import { formatPeriodo, formatValue } from '../../utils/format';
 import { PeladoLibrasHoyEstilo } from '../../types';
 
 function EstiloCard({
   estilo,
   badge,
+  librasPorPersona,
 }: {
   estilo: PeladoLibrasHoyEstilo;
   badge?: string;
+  librasPorPersona?: number | null;
 }) {
   const destacado = Boolean(badge);
   const color = destacado ? '#164a8b' : estilo.libras > 0 ? '#2e7d32' : '#94a3b8';
@@ -73,18 +75,22 @@ function EstiloCard({
               lbs
             </Typography>
           </Typography>
-          <Typography
-            variant="body2"
-            sx={{
-              color: '#000',
-              fontSize: { xs: 15, sm: 16 },
-              fontWeight: 900,
-              lineHeight: 1.25,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {formatValue(estilo.librasPorHora ?? 0)} lbs/h
-          </Typography>
+          <Stack alignItems="flex-end" spacing={0.25} sx={{
+            color: '#000',
+            fontSize: { xs: 15, sm: 16 },
+            fontWeight: 900,
+            lineHeight: 1.25,
+            whiteSpace: 'nowrap',
+          }}>
+            <Typography variant="body2" sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit' }}>
+              {formatValue(estilo.librasPorHora ?? 0)} lbs/h
+            </Typography>
+            {librasPorPersona !== undefined && (
+              <Typography variant="body2" sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit' }}>
+                {librasPorPersona === null ? '—' : formatValue(librasPorPersona, 'decimal')} lbs/persona
+              </Typography>
+            )}
+          </Stack>
         </Stack>
       </CardContent>
     </Card>
@@ -93,6 +99,11 @@ function EstiloCard({
 
 export default function PeladoLibrasHoyCards() {
   const { data, isLoading, isError, error, dataUpdatedAt } = usePeladoLibrasHoy();
+  const { data: actividad, isError: actividadError } = usePeladoPorSala();
+  const personasActivas = actividad?.salas.reduce((total, sala) => total + sala.personasActivas, 0) ?? 0;
+  const librasPorPersona = !actividadError && actividad && actividad.dia === data?.dia && personasActivas > 0
+    ? (data.librasPorHoraPromedio ?? 0) / personasActivas
+    : null;
   const estilosConLibras = data?.estilos.filter((estilo) => estilo.libras > 0) ?? [];
 
   return (
@@ -145,7 +156,7 @@ export default function PeladoLibrasHoyCards() {
           {estilosConLibras.map((estilo) => (
             <EstiloCard key={estilo.estilo} estilo={estilo} />
           ))}
-          <EstiloCard badge="Total del día" estilo={{ estilo: 'Total', libras: data.total, librasPorHora: data.librasPorHoraPromedio }} />
+          <EstiloCard badge="Total del día" librasPorPersona={librasPorPersona} estilo={{ estilo: 'Total', libras: data.total, librasPorHora: data.librasPorHoraPromedio }} />
         </Box>
       )}
     </Box>

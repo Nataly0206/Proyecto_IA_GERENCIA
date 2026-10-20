@@ -172,6 +172,11 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
   const hourlyPerPerson = (periodo: string): number | null => {
     const column = config.hourlyPerPersonColumn;
     if (!column) return null;
+    if (column.valueField) {
+      const row = data.find((item) => String(item[config.xField] ?? '') === periodo);
+      const value = row?.[column.valueField];
+      if (value !== undefined) return value === null ? null : Number(value);
+    }
     const hours = extraByPeriodo.get(column.hoursField)?.get(periodo) ?? 0;
     const people = extraByPeriodo.get(column.peopleField)?.get(periodo) ?? 0;
     const total = aggregate(rowCells(periodo));

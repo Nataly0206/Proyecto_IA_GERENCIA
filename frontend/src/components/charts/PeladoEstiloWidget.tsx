@@ -16,6 +16,7 @@ import { ChartConfig, DataRow } from '../../types';
 import ChartWidget from './ChartWidget';
 import PeladoTallaWidget from './PeladoTallaWidget';
 import { peladoWidgets } from '../../config/dashboardConfig';
+import { usePeladoLibrasHoy, usePeladoPorSala } from '../../hooks/useDashboardData';
 import { useFilters } from '../../context/FiltersContext';
 
 const BASE_TITLE = 'Libras Peladas por Estilo';
@@ -55,6 +56,12 @@ export default function PeladoEstiloWidget() {
   const [tallaOpen, setTallaOpen] = useState(false);
   const [vista, setVista] = useState<Vista>('total');
   const { filters } = useFilters();
+  const { data: hoy } = usePeladoLibrasHoy();
+  const { data: actividad, isError: actividadError } = usePeladoPorSala();
+  const personasActivas = actividad?.salas.reduce((total, sala) => total + sala.personasActivas, 0) ?? 0;
+  const rendimientoHoy = !actividadError && hoy && actividad?.dia === hoy.dia && personasActivas > 0
+    ? (hoy.librasPorHoraPromedio ?? 0) / personasActivas
+    : null;
   const year = filters.fechaFinal.slice(0, 4);
   const queryParams = { periodo: vista === 'total' ? 'dia' : vista, ...(vista === 'mes' ? { fechaInicial: `${year}-01-01`, fechaFinal: `${year}-12-31` } : {}) };
 
@@ -71,7 +78,7 @@ export default function PeladoEstiloWidget() {
     unitLabel: 'lbs peladas',
   } : {
     ...dailyTableConfig,
-    hourlyPerPersonColumn: vista === 'dia' ? { hoursField: 'horasTrabajadas', peopleField: 'personas' } : undefined,
+    hourlyPerPersonColumn: vista === 'dia' ? { hoursField: 'horasTrabajadas', peopleField: 'personas', valueField: 'rendimientoPorPersona' } : undefined,
     xLabel: vista === 'dia' ? 'Fecha' : vista === 'semana' ? 'Semana' : 'Mes',
     ...(vista === 'mes' ? {
       dailyAverageColumn: { daysField: 'diasTrabajados', label: 'Promedio por día', unit: 'lbs / días trabajados' },
@@ -91,6 +98,11 @@ export default function PeladoEstiloWidget() {
         libras,
         porcentaje: total > 0 ? Math.round((libras / total) * 10000) / 100 : 0,
       }));
+    }
+    if (vista === 'dia' && !filters.turno && hoy) {
+      return rows.map((row) => row.periodo === hoy.dia
+        ? { ...row, rendimientoPorPersona: rendimientoHoy }
+        : row);
     }
     if (vista !== 'mes' || rows.length === 0) return rows;
     const styles = Array.from(new Set(rows.map((row) => String(row.estilo))));

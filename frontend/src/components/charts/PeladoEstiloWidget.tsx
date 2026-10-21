@@ -87,7 +87,14 @@ export default function PeladoEstiloWidget() {
     }
     return new Map(Array.from(totals, ([periodo, sizes]) => [
       periodo,
-      [...sizes].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0],
+      (() => {
+        const ranked = [...sizes].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+        const total = ranked.reduce((sum, [, libras]) => sum + libras, 0);
+        const label = (entry: [string, number] | undefined) => entry
+          ? `${entry[0]} (${(entry[1] / total * 100).toFixed(2)}%)`
+          : null;
+        return { principal: label(ranked[0]), siguiente: label(ranked[1]) };
+      })(),
     ]));
   }, [tallasPorDia]);
   const year = filters.fechaFinal.slice(0, 4);
@@ -109,7 +116,10 @@ export default function PeladoEstiloWidget() {
     stickyFirstColumnMobile: vista === 'dia',
     stickyFirstColumn: vista === 'semana' || vista === 'mes',
     mobileSummaryOnly: vista === 'dia',
-    trailingTextColumn: vista === 'dia' ? { field: 'tallaDominante', label: 'Talla Prom' } : undefined,
+    trailingTextColumns: vista === 'dia' ? [
+      { field: 'tallaDominante', label: 'Talla Prom' },
+      { field: 'tallaSiguiente', label: 'Talla Sig' },
+    ] : undefined,
     hourlyPerPersonColumn: vista === 'dia' ? { hoursField: 'horasTrabajadas', peopleField: 'personas', valueField: 'rendimientoPorPersona' } : undefined,
     xLabel: vista === 'dia' ? 'Fecha' : vista === 'semana' ? 'Semana' : 'Mes',
     ...(vista === 'mes' ? {
@@ -134,7 +144,8 @@ export default function PeladoEstiloWidget() {
     if (vista === 'dia') {
       return rows.map((row) => ({
         ...row,
-        tallaDominante: tallasDominantes.get(String(row.periodo)) ?? row.tallaDominante ?? null,
+        tallaDominante: tallasDominantes.get(String(row.periodo))?.principal ?? null,
+        tallaSiguiente: tallasDominantes.get(String(row.periodo))?.siguiente ?? null,
         ...(!filters.turno && hoy && row.periodo === hoy.dia
           ? { rendimientoPorPersona: rendimientoHoy }
           : {}),

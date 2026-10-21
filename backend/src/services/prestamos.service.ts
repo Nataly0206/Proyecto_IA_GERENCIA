@@ -130,6 +130,38 @@ export async function crearAcreedor(input: AcreedorInput, usuario: string) {
   }
 }
 
+export async function editarAcreedor(id: number, input: AcreedorInput, usuario: string) {
+  const pool = await getAuthPool();
+  try {
+    const result = await pool.request()
+      .input('id', sql.BigInt, id)
+      .input('nombre', sql.NVarChar(180), input.nombre)
+      .input('tipo', sql.NVarChar(30), input.tipo)
+      .input('contacto', sql.NVarChar(180), input.contacto || null)
+      .input('telefono', sql.NVarChar(30), input.telefono || null)
+      .input('notas', sql.NVarChar(1000), input.notas || null)
+      .input('usuario', sql.NVarChar(60), usuario)
+      .query(`UPDATE dbo.prestamos_acreedores SET nombre = @nombre, tipo = @tipo,
+        contacto = @contacto, telefono = @telefono, notas = @notas,
+        actualizado_en = SYSUTCDATETIME(), actualizado_por = @usuario
+        WHERE id = @id AND eliminado_en IS NULL`);
+    if (!result.rowsAffected[0]) throw new ApiError(404, 'Acreedor no encontrado.');
+  } catch (error) {
+    const code = (error as { number?: number }).number;
+    if (code === 2601 || code === 2627) throw new ApiError(409, 'Ya existe un acreedor con ese nombre, incluso entre los eliminados.');
+    throw error;
+  }
+}
+
+export async function eliminarAcreedor(id: number, usuario: string) {
+  const pool = await getAuthPool();
+  const result = await pool.request().input('id', sql.BigInt, id)
+    .input('usuario', sql.NVarChar(60), usuario)
+    .query(`UPDATE dbo.prestamos_acreedores SET eliminado_en = SYSUTCDATETIME(), eliminado_por = @usuario
+      WHERE id = @id AND eliminado_en IS NULL`);
+  if (!result.rowsAffected[0]) throw new ApiError(404, 'Acreedor no encontrado.');
+}
+
 export async function listarAcreedores() {
   const pool = await getAuthPool();
   const saldo = (moneda: Moneda) => `ISNULL((SELECT SUM(${CAPITAL_PENDIENTE})
@@ -141,6 +173,7 @@ export async function listarAcreedores() {
       ${saldo('HNL')} AS saldoHNL,
       ${saldo('USD')} AS saldoUSD
     FROM dbo.prestamos_acreedores a
+    WHERE a.eliminado_en IS NULL
     ORDER BY a.nombre`);
   return result.recordset;
 }
@@ -152,7 +185,7 @@ export async function crearPrestamo(input: PrestamoInput, usuario: string) {
   await tx.begin(sql.ISOLATION_LEVEL.SERIALIZABLE);
   try {
     const acreedor = await new sql.Request(tx).input('id', sql.BigInt, input.acreedorId)
-      .query(`SELECT id FROM dbo.prestamos_acreedores WHERE id = @id`);
+      .query(`SELECT id FROM dbo.prestamos_acreedores WITH (UPDLOCK, HOLDLOCK) WHERE id = @id AND eliminado_en IS NULL`);
     if (!acreedor.recordset[0]) throw new ApiError(400, 'El acreedor seleccionado no existe.');
     const inserted = await new sql.Request(tx)
       .input('acreedorId', sql.BigInt, input.acreedorId)

@@ -423,6 +423,21 @@ async function migrate(): Promise<void> {
       END;
     `);
 
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT 1 FROM dbo.dashboard_migraciones WHERE version = 10)
+      BEGIN
+        BEGIN TRANSACTION;
+        ALTER TABLE dbo.prestamos_acreedores ADD
+          eliminado_en DATETIME2 NULL,
+          eliminado_por NVARCHAR(60) NULL,
+          actualizado_en DATETIME2 NULL,
+          actualizado_por NVARCHAR(60) NULL;
+        INSERT INTO dbo.dashboard_migraciones (version, nombre)
+        VALUES (10, N'acreedores: edición y borrado lógico');
+        COMMIT TRANSACTION;
+      END;
+    `);
+
     console.log(`[migrate] Base [${databaseName}] lista y actualizada.`);
   } finally {
     await pool.close();

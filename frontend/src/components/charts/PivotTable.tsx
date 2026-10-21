@@ -64,6 +64,8 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
     observer.observe(container);
     return () => observer.disconnect();
   }, [config.mobileSummaryOnly]);
+  const trailingColumns = config.trailingTextColumns ?? [];
+  const additionalTextColumns = Math.max(0, trailingColumns.length - 1);
   const summaryWidth = Math.max(0, containerWidth);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const valueField = Array.isArray(config.yField) ? config.yField[0] : config.yField;
@@ -229,7 +231,7 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
     <TableContainer ref={containerRef} sx={{ height: autoHeight ? 'auto' : '100%', maxHeight: config.height ?? 440, mt: 0.5, borderRadius: 1, border: '1px solid rgba(148, 163, 184, 0.18)' }}>
       <Table size="small" stickyHeader sx={config.mobileSummaryOnly ? {
         width: {
-          xs: summaryWidth + (extraColumns.length + columnas.length) * 110,
+          xs: summaryWidth + (extraColumns.length + columnas.length + additionalTextColumns) * 110,
           sm: '100%',
         },
         tableLayout: { xs: 'fixed', sm: 'auto' },
@@ -251,9 +253,10 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
           { width: { xs: 110, sm: 'auto' } },
         ])),
         ...Object.fromEntries([1, 2, 3].map((index) => [
-          `& tr > :nth-last-child(${index})`,
+          `& tr > :nth-last-child(${index + additionalTextColumns})`,
           { width: { xs: summaryWidth * 0.23, sm: 'auto' } },
         ])),
+        ...(additionalTextColumns ? { '& tr > :last-child': { width: { xs: 110, sm: 'auto' } } } : {}),
       } : undefined}>
         <TableHead>
           <TableRow>
@@ -311,7 +314,7 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
                 )}
               </TableCell>
             )}
-            {config.trailingTextColumn && <TableCell align="right" sx={{ ...HEADER_SX, whiteSpace: 'nowrap' }}>{config.trailingTextColumn.label}</TableCell>}
+            {trailingColumns.map((column) => <TableCell key={column.field} align="right" sx={{ ...HEADER_SX, whiteSpace: 'nowrap' }}>{column.label}</TableCell>)}
           </TableRow>
         </TableHead>
         <TableBody>
@@ -341,11 +344,11 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
                   {renderValue(perDay(aggregate(rowCells(periodo)), daysByPeriodo.get(periodo) ?? 0))}
                 </TableCell>
               )}
-              {config.trailingTextColumn && (
-                <TableCell align="right" sx={{ whiteSpace: 'nowrap', fontWeight: 600 }}>
-                  {String(data.find((row) => String(row[config.xField] ?? '') === periodo)?.[config.trailingTextColumn.field] ?? '—')}
+              {trailingColumns.map((column) => (
+                <TableCell key={column.field} align="right" sx={{ whiteSpace: 'normal', fontWeight: 600 }}>
+                  {String(data.find((row) => String(row[config.xField] ?? '') === periodo)?.[column.field] ?? '—')}
                 </TableCell>
-              )}
+              ))}
             </TableRow>
           ))}
         </TableBody>
@@ -373,7 +376,7 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
                 {renderValue(perDay(grandTotal, periodos.reduce((sum, periodo) => sum + (daysByPeriodo.get(periodo) ?? 0), 0)))}
               </TableCell>
             )}
-            {config.trailingTextColumn && <TableCell align="right" sx={TOTAL_SX}>—</TableCell>}
+            {trailingColumns.map((column) => <TableCell key={column.field} align="right" sx={TOTAL_SX}>—</TableCell>)}
           </TableRow>
           {config.showShareRow && (
             <TableRow>
@@ -391,7 +394,7 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
               </TableCell>
               {config.hourlyPerPersonColumn && <TableCell align="right" sx={SHARE_SX}>—</TableCell>}
               {config.dailyAverageColumn && <TableCell align="right" sx={SHARE_SX}>—</TableCell>}
-              {config.trailingTextColumn && <TableCell align="right" sx={SHARE_SX}>—</TableCell>}
+              {trailingColumns.map((column) => <TableCell key={column.field} align="right" sx={SHARE_SX}>—</TableCell>)}
             </TableRow>
           )}
           {config.showAverageRow && (
@@ -421,7 +424,7 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
                 </TableCell>
               )}
               {config.dailyAverageColumn && <TableCell align="right" sx={AVERAGE_SX}>—</TableCell>}
-              {config.trailingTextColumn && <TableCell align="right" sx={AVERAGE_SX}>—</TableCell>}
+              {trailingColumns.map((column) => <TableCell key={column.field} align="right" sx={AVERAGE_SX}>—</TableCell>)}
             </TableRow>
           )}
         </TableFooter>

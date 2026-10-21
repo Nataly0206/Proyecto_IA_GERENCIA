@@ -431,7 +431,7 @@ export interface ChartConfig {
   stickyFirstColumnMobile?: boolean;
   stickyFirstColumn?: boolean;
   mobileSummaryOnly?: boolean;
-  trailingTextColumn?: { field: string; label: string };
+  trailingTextColumns?: { field: string; label: string }[];
   hourlyPerPersonColumn?: { hoursField: string; peopleField: string; valueField?: string };
   /** Etiqueta de la fila de promedio (por defecto "Promedio"). */
   averageLabel?: string;

@@ -7,6 +7,7 @@ import {
 import AccountBalanceOutlinedIcon from '@mui/icons-material/AccountBalanceOutlined';
 import AddOutlinedIcon from '@mui/icons-material/AddOutlined';
 import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
 import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined';
@@ -18,7 +19,7 @@ import { apiClient } from '../api/client';
 type TabKey = 'resumen' | 'acreedores' | 'prestamos' | 'reportes';
 type Moneda = 'HNL' | 'USD';
 
-interface Acreedor { id: number; nombre: string; tipo: string; contacto?: string; telefono?: string; prestamosActivos: number; saldoHNL: number; saldoUSD: number }
+interface Acreedor { id: number; nombre: string; tipo: string; contacto?: string; telefono?: string; notas?: string; prestamosActivos: number; saldoHNL: number; saldoUSD: number }
 interface Prestamo {
   id: number; numero: string; referencia?: string; acreedor: string; moneda: Moneda; monto: number; tasaAnual: number;
   cantidadCuotas: number; frecuencia: string; tipoAmortizacion: string; fechaDesembolso: string; estado: string;
@@ -66,6 +67,37 @@ function Metric({ label, value, color = '#176247' }: { label: string; value: str
 
 function Empty({ children }: { children: string }) { return <Alert severity="info" sx={{ py: 0.4 }}>{children}</Alert>; }
 
+function GroupedNumberField({ label, value, onChange, decimals = 2, min = 0, max, required = false }: {
+  label: string; value: string; onChange: (value: string) => void; decimals?: number; min?: number; max?: number; required?: boolean;
+}) {
+  const format = (raw: string) => {
+    const [integer, fraction] = raw.split('.');
+    return integer.replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (fraction !== undefined ? `.${fraction}` : '');
+  };
+  return <TextField size="small" required={required} label={label} value={format(value)}
+    inputProps={{ inputMode: decimals ? 'decimal' : 'numeric' }}
+    onChange={(event) => {
+      const input = event.target;
+      const raw = input.value.replace(/,/g, '');
+      if (!(decimals ? new RegExp(`^\\d*(?:\\.\\d{0,${decimals}})?$`) : /^\d*$/).test(raw)) return;
+      const position = input.selectionStart ?? input.value.length;
+      const digitsBeforeCursor = input.value.slice(0, position).replace(/,/g, '').length;
+      const normalized = raw.startsWith('.') ? `0${raw}` : raw.replace(/^0+(?=\d)/, '');
+      input.setCustomValidity(normalized && (Number(normalized) < min || (max !== undefined && Number(normalized) > max))
+        ? `Ingresa un valor ${max !== undefined ? `entre ${min} y ${max}` : `mayor o igual a ${min}`}.` : '');
+      onChange(normalized);
+      requestAnimationFrame(() => {
+        const formatted = format(normalized);
+        let cursor = 0, count = 0;
+        while (cursor < formatted.length && count < digitsBeforeCursor) {
+          if (formatted[cursor] !== ',') count += 1;
+          cursor += 1;
+        }
+        input.setSelectionRange(cursor, cursor);
+      });
+    }} />;
+}
+
 function Search({ value, setValue }: { value: string; setValue: (v: string) => void }) {
   return (
     <TextField size="small" value={value} onChange={(e) => setValue(e.target.value)} placeholder="Buscar acreedor, número o referencia"
@@ -90,6 +122,7 @@ export default function PrestamosPage() {
   const [notice, setNotice] = useState('');
   const [search, setSearch] = useState('');
   const [creditorOpen, setCreditorOpen] = useState(false);
+  const [editingCreditor, setEditingCreditor] = useState<Acreedor | null>(null);
   const [loanOpen, setLoanOpen] = useState(false);
   const [payment, setPayment] = useState<Prestamo | null>(null);
   const [detailId, setDetailId] = useState<number | null>(null);
@@ -107,7 +140,7 @@ export default function PrestamosPage() {
   }, []);
   useEffect(() => { void load(); }, [load]);
 
-  const done = (message: string) => { setNotice(message); setCreditorOpen(false); setLoanOpen(false); setPayment(null); void load(); };
+  const done = (message: string) => { setNotice(message); setCreditorOpen(false); setEditingCreditor(null); setLoanOpen(false); setPayment(null); void load(); };
   const payById = (id: number) => { const loan = prestamos.find((p) => p.id === id); if (loan) setPayment(loan); };
 
   if (loading && !resumen) return <Stack height="100%" alignItems="center" justifyContent="center"><CircularProgress /></Stack>;
@@ -120,11 +153,11 @@ export default function PrestamosPage() {
           <Typography variant="caption" color="text.secondary">Lo que debemos a bancos y acreedores, sus cuotas y pagos</Typography>
         </Box>
         <Stack direction="row" spacing={1}>
-          <Button variant="outlined" startIcon={<AccountBalanceOutlinedIcon />} onClick={() => setCreditorOpen(true)}>Nuevo acreedor</Button>
+          <Button variant="outlined" startIcon={<AccountBalanceOutlinedIcon />} onClick={() => { setEditingCreditor(null); setCreditorOpen(true); }}>Nuevo acreedor</Button>
           <Button variant="contained" startIcon={<AddOutlinedIcon />} disabled={!acreedores.length} onClick={() => setLoanOpen(true)}>Nuevo préstamo</Button>
         </Stack>
       </Stack>
-      {error && <Alert severity="error" onClose={() => setError('')}>{error}</Alert>}
+      {error && <Alert severity="error" onClose={() => setError('')} action={<Button color="inherit" size="small" onClick={() => void load()} disabled={loading}>Reintentar</Button>}>{error}</Alert>}
       <Paper variant="outlined">
         <Tabs value={tab} onChange={(_, v) => setTab(v)} variant="scrollable" scrollButtons="auto"
           sx={{ minHeight: 42, '& .MuiTab-root': { minHeight: 42, fontSize: 12, fontWeight: 800 } }}>
@@ -135,10 +168,10 @@ export default function PrestamosPage() {
         </Tabs>
       </Paper>
       {tab === 'resumen' && <Summary data={resumen} pay={payById} />}
-      {tab === 'acreedores' && <Creditors rows={acreedores} search={search} setSearch={setSearch} />}
+      {tab === 'acreedores' && <Creditors rows={acreedores} search={search} setSearch={setSearch} edit={(a) => { setEditingCreditor(a); setCreditorOpen(true); }} done={done} />}
       {tab === 'prestamos' && <Loans rows={prestamos} search={search} setSearch={setSearch} pay={setPayment} detail={setDetailId} />}
       {tab === 'reportes' && <Reports onError={setError} />}
-      <CreditorDialog open={creditorOpen} close={() => setCreditorOpen(false)} done={() => done('Acreedor registrado correctamente.')} />
+      <CreditorDialog open={creditorOpen} creditor={editingCreditor} close={() => setCreditorOpen(false)} done={() => done(editingCreditor ? 'Acreedor actualizado correctamente.' : 'Acreedor registrado correctamente.')} />
       <LoanDialog open={loanOpen} close={() => setLoanOpen(false)} creditors={acreedores} done={done} />
       <PaymentDialog loan={payment} close={() => setPayment(null)} done={done} />
       <DetailDialog id={detailId} close={() => setDetailId(null)} changed={() => void load()} />
@@ -148,7 +181,8 @@ export default function PrestamosPage() {
 }
 
 function Summary({ data, pay }: { data: Resumen | null; pay: (prestamoId: number) => void }) {
-  if (!data?.monedas.length) return <Empty>Aún no hay préstamos registrados. Crea un acreedor y luego registra el préstamo.</Empty>;
+  if (!data) return <Alert severity="warning">No se pudo cargar el resumen de préstamos. Reintenta la carga para consultar los saldos.</Alert>;
+  if (!data.monedas.length) return <Empty>No hay saldos ni pagos para mostrar. Puedes consultar los préstamos registrados en la pestaña Préstamos.</Empty>;
   return (
     <Stack spacing={1.4}>
       {data.monedas.map((m) => (
@@ -222,7 +256,18 @@ function Summary({ data, pay }: { data: Resumen | null; pay: (prestamoId: number
   );
 }
 
-function Creditors({ rows, search, setSearch }: { rows: Acreedor[]; search: string; setSearch: (v: string) => void }) {
+function Creditors({ rows, search, setSearch, edit, done }: { rows: Acreedor[]; search: string; setSearch: (v: string) => void; edit: (a: Acreedor) => void; done: (message: string) => void }) {
+  const [deleting, setDeleting] = useState<Acreedor | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const remove = async () => {
+    if (!deleting) return;
+    setBusy(true); setError('');
+    try {
+      await apiClient.delete(`/prestamos/acreedores/${deleting.id}`);
+      setDeleting(null); done('Acreedor eliminado. Su historial se conserva.');
+    } catch (e) { setError(apiError(e)); } finally { setBusy(false); }
+  };
   const list = rows.filter((a) => `${a.nombre} ${a.tipo} ${a.contacto ?? ''}`.toLowerCase().includes(search.toLowerCase()));
   return (
     <Stack spacing={1}>
@@ -237,6 +282,7 @@ function Creditors({ rows, search, setSearch }: { rows: Acreedor[]; search: stri
               <TableCell sx={HEAD} align="right">Préstamos activos</TableCell>
               <TableCell sx={HEAD} align="right">Deuda en lempiras</TableCell>
               <TableCell sx={HEAD} align="right">Deuda en dólares</TableCell>
+              <TableCell sx={HEAD} align="right">Acciones</TableCell>
             </TableRow></TableHead>
             <TableBody>
               {list.map((a) => (
@@ -247,12 +293,27 @@ function Creditors({ rows, search, setSearch }: { rows: Acreedor[]; search: stri
                   <TableCell align="right">{a.prestamosActivos}</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 800 }}>{money(a.saldoHNL, 'HNL')}</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 800 }}>{money(a.saldoUSD, 'USD')}</TableCell>
+                  <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                    <Tooltip title="Editar acreedor"><IconButton aria-label={`Editar ${a.nombre}`} size="small" onClick={() => edit(a)}><EditOutlinedIcon fontSize="small" /></IconButton></Tooltip>
+                    <Tooltip title="Eliminar acreedor"><IconButton aria-label={`Eliminar ${a.nombre}`} size="small" color="error" onClick={() => { setError(''); setDeleting(a); }}><DeleteOutlineIcon fontSize="small" /></IconButton></Tooltip>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </TableContainer>
       )}
+      <Dialog open={Boolean(deleting)} onClose={() => { if (!busy) setDeleting(null); }} maxWidth="xs" fullWidth>
+        <DialogTitle>Eliminar acreedor</DialogTitle>
+        <DialogContent>
+          {error && <Alert severity="error">{error}</Alert>}
+          <Typography>¿Eliminar a {deleting?.nombre}? Se ocultará de Acreedores y no podrá seleccionarse en nuevos préstamos. Sus datos, préstamos, saldos y pagos se conservarán.</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button disabled={busy} onClick={() => setDeleting(null)}>Cancelar</Button>
+          <Button color="error" variant="contained" disabled={busy} onClick={() => void remove()}>{busy ? 'Eliminando…' : 'Eliminar acreedor'}</Button>
+        </DialogActions>
+      </Dialog>
     </Stack>
   );
 }
@@ -298,20 +359,24 @@ function Loans({ rows, search, setSearch, pay, detail }: { rows: Prestamo[]; sea
   );
 }
 
-function CreditorDialog({ open, close, done }: { open: boolean; close: () => void; done: () => void }) {
+function CreditorDialog({ open, creditor, close, done }: { open: boolean; creditor: Acreedor | null; close: () => void; done: () => void }) {
   const empty = { nombre: '', tipo: 'banco', contacto: '', telefono: '', notas: '' };
   const [form, setForm] = useState(empty);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  useEffect(() => {
+    setForm({ nombre: creditor?.nombre ?? '', tipo: creditor?.tipo ?? 'banco', contacto: creditor?.contacto ?? '', telefono: creditor?.telefono ?? '', notas: creditor?.notas ?? '' });
+    setError('');
+  }, [open, creditor]);
   const submit = async (e: FormEvent) => {
     e.preventDefault(); setBusy(true);
-    try { await apiClient.post('/prestamos/acreedores', form); setForm(empty); setError(''); done(); }
+    try { if (creditor) await apiClient.put(`/prestamos/acreedores/${creditor.id}`, form); else await apiClient.post('/prestamos/acreedores', form); setForm(empty); setError(''); done(); }
     catch (x) { setError(apiError(x)); } finally { setBusy(false); }
   };
   return (
     <Dialog open={open} onClose={close} maxWidth="sm" fullWidth>
       <Box component="form" onSubmit={submit}>
-        <DialogTitle>Nuevo acreedor</DialogTitle>
+        <DialogTitle>{creditor ? 'Editar acreedor' : 'Nuevo acreedor'}</DialogTitle>
         <DialogContent>
           <Stack spacing={1.2} pt={0.5}>
             {error && <Alert severity="error">{error}</Alert>}
@@ -391,16 +456,16 @@ function LoanDialog({ open, close, creditors, done }: { open: boolean; close: ()
                 <TextField size="small" select label="Moneda" value={form.moneda} onChange={set('moneda')}>
                   {MONEDAS.map((x) => <MenuItem key={x} value={x}>{MONEDA_LABEL[x]}</MenuItem>)}
                 </TextField>
-                <TextField size="small" required type="number" label="Monto recibido" inputProps={{ min: 0.01, step: 0.01 }} value={form.monto} onChange={set('monto')} />
+                <GroupedNumberField required label="Monto recibido" min={0.01} value={form.monto} onChange={(monto) => setForm({ ...form, monto })} />
                 <TextField size="small" required type="number" label="Tasa anual (%)" inputProps={{ min: 0, step: 0.0001 }} value={form.tasaAnual} onChange={set('tasaAnual')} />
-                <TextField size="small" required type="number" label="Cantidad de cuotas" inputProps={{ min: 1, step: 1 }} value={form.cantidadCuotas} onChange={set('cantidadCuotas')} />
+                <GroupedNumberField required label="Cantidad de cuotas" decimals={0} min={1} max={1000} value={form.cantidadCuotas} onChange={(cantidadCuotas) => setForm({ ...form, cantidadCuotas })} />
                 <TextField size="small" select label="Frecuencia de pago" value={form.frecuencia} onChange={set('frecuencia')}>
                   {FRECUENCIAS.map((x) => <MenuItem key={x} value={x}>{capitalize(x)}</MenuItem>)}
                 </TextField>
                 <TextField size="small" select label="Amortización" value={form.tipoAmortizacion} onChange={set('tipoAmortizacion')}>
                   {Object.entries(TIPO_LABEL).map(([value, label]) => <MenuItem key={value} value={value}>{label}</MenuItem>)}
                 </TextField>
-                <TextField size="small" type="number" label="Seguro y comisiones por cuota" inputProps={{ min: 0, step: 0.01 }} value={form.cargoCuota} onChange={set('cargoCuota')} />
+                <GroupedNumberField label="Seguro y comisiones por cuota" value={form.cargoCuota} onChange={(cargoCuota) => setForm({ ...form, cargoCuota })} />
                 <TextField size="small" type="date" label="Desembolso" InputLabelProps={{ shrink: true }} value={form.fechaDesembolso} onChange={set('fechaDesembolso')} />
                 <TextField size="small" type="date" label="Primera cuota" InputLabelProps={{ shrink: true }} value={form.fechaPrimeraCuota} onChange={set('fechaPrimeraCuota')} />
               </Box>

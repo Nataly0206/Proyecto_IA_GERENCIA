@@ -53,6 +53,21 @@ router.post('/acreedores', asyncHandler(async (req, res) => {
   res.status(201).json({ message: 'Acreedor registrado.', acreedor });
 }));
 
+router.put('/acreedores/:id', asyncHandler(async (req, res) => {
+  const nombre = text(req.body?.nombre, 180);
+  const tipo = text(req.body?.tipo, 30);
+  if (!nombre || !service.TIPOS_ACREEDOR.includes(tipo)) throw new ApiError(400, 'Revisa el nombre y el tipo del acreedor.');
+  await service.editarAcreedor(idParam(req.params.id, 'Acreedor'), {
+    nombre, tipo, contacto: text(req.body?.contacto, 180), telefono: text(req.body?.telefono, 30),
+    notas: text(req.body?.notas, 1000),
+  }, usuario(res));
+  res.json({ message: 'Acreedor actualizado.' });
+}));
+router.delete('/acreedores/:id', asyncHandler(async (req, res) => {
+  await service.eliminarAcreedor(idParam(req.params.id, 'Acreedor'), usuario(res));
+  res.json({ message: 'Acreedor eliminado. Su historial se conserva.' });
+}));
+
 router.get('/', asyncHandler(async (_req, res) => res.json(await service.listarPrestamos())));
 
 router.get('/reporte', asyncHandler(async (req, res) => {

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import {
   Box,
@@ -53,6 +53,18 @@ const SHARE_SX = {
  * reproduce exactamente los Grand Total del reporte oficial.
  */
 export default function PivotTable({ config, data, columnOrder, onColumnReorder, autoHeight = false }: PivotTableProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !config.mobileSummaryOnly) return;
+    const updateWidth = () => setContainerWidth(container.clientWidth);
+    updateWidth();
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [config.mobileSummaryOnly]);
+  const summaryWidth = Math.max(0, containerWidth);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const valueField = Array.isArray(config.yField) ? config.yField[0] : config.yField;
   const colField = config.seriesField ?? 'linea';
@@ -209,8 +221,35 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
     value === null || value === undefined ? '—' : formatValue(value, format ?? config.valueFormat ?? 'decimal');
 
   return (
-    <TableContainer sx={{ height: autoHeight ? 'auto' : '100%', maxHeight: config.height ?? 440, mt: 0.5, borderRadius: 1, border: '1px solid rgba(148, 163, 184, 0.18)' }}>
-      <Table size="small" stickyHeader>
+    <TableContainer ref={containerRef} sx={{ height: autoHeight ? 'auto' : '100%', maxHeight: config.height ?? 440, mt: 0.5, borderRadius: 1, border: '1px solid rgba(148, 163, 184, 0.18)' }}>
+      <Table size="small" stickyHeader sx={config.mobileSummaryOnly ? {
+        width: {
+          xs: summaryWidth + (extraColumns.length + columnas.length) * 110,
+          sm: '100%',
+        },
+        tableLayout: { xs: 'fixed', sm: 'auto' },
+        '& .MuiTableCell-root': {
+          boxSizing: 'border-box',
+          px: { xs: 0.5, sm: 2 },
+          fontSize: { xs: 11, sm: 'inherit' },
+          lineHeight: { xs: 1.35, sm: 'inherit' },
+        },
+        '& thead .MuiTableCell-root': {
+          whiteSpace: { xs: 'normal', sm: 'nowrap' },
+          overflowWrap: { xs: 'anywhere', sm: 'normal' },
+        },
+        '& tr > :first-child': {
+          width: { xs: summaryWidth * 0.31, sm: 'auto' },
+        },
+        ...Object.fromEntries(Array.from({ length: extraColumns.length + columnas.length }, (_, index) => [
+          `& tr > :nth-child(${index + 2})`,
+          { width: { xs: 110, sm: 'auto' } },
+        ])),
+        ...Object.fromEntries([1, 2, 3].map((index) => [
+          `& tr > :nth-last-child(${index})`,
+          { width: { xs: summaryWidth * 0.23, sm: 'auto' } },
+        ])),
+      } : undefined}>
         <TableHead>
           <TableRow>
             <TableCell sx={{ ...HEADER_SX, ...firstColumnSx, zIndex: { xs: 4, sm: 2 } }}>{config.xLabel ?? 'Período'}</TableCell>
@@ -368,7 +407,14 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
               <TableCell align="right" sx={AVERAGE_SX}>
                 {renderValue(simpleAverage(periodos.flatMap((periodo) => rowCells(periodo))))}
               </TableCell>
-              {config.hourlyPerPersonColumn && <TableCell align="right" sx={AVERAGE_SX}>—</TableCell>}
+              {config.hourlyPerPersonColumn && (
+                <TableCell align="right" sx={AVERAGE_SX}>
+                  {renderValue((() => {
+                    const values = periodos.map(hourlyPerPerson).filter((value): value is number => value !== null && Number.isFinite(value));
+                    return values.length > 0 ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+                  })(), 'decimal')}
+                </TableCell>
+              )}
               {config.dailyAverageColumn && <TableCell align="right" sx={AVERAGE_SX}>—</TableCell>}
               {config.trailingTextColumn && <TableCell align="right" sx={AVERAGE_SX}>—</TableCell>}
             </TableRow>

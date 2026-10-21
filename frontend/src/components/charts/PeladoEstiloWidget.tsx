@@ -19,6 +19,7 @@ import ChartWidget from './ChartWidget';
 import PeladoTallaWidget from './PeladoTallaWidget';
 import { peladoWidgets } from '../../config/dashboardConfig';
 import { usePeladoLibrasHoy, usePeladoPorSala } from '../../hooks/useDashboardData';
+import { normalizePeladoDetailSize } from '../../utils/peladoTallas';
 import { useFilters } from '../../context/FiltersContext';
 
 const BASE_TITLE = 'Libras Peladas por Estilo';
@@ -78,7 +79,7 @@ export default function PeladoEstiloWidget() {
     const totals = new Map<string, Map<string, number>>();
     for (const row of tallasPorDia ?? []) {
       const periodo = String(row.periodo ?? '');
-      const talla = String(row.talla ?? '').trim();
+      const talla = normalizePeladoDetailSize(String(row.talla ?? '').trim());
       const libras = Number(row.libras ?? 0);
       if (!periodo || !talla || !Number.isFinite(libras) || libras <= 0) continue;
       const sizes = totals.get(periodo) ?? new Map<string, number>();

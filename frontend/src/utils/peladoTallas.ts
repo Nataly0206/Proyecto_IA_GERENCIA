@@ -1,7 +1,7 @@
 import type { DataRow } from '../types';
 
 export function normalizePeladoDetailSize(talla: string): string {
-  return /^61\s*-\s*70\s+(ALTO|NORMAL|BAJO)$/i.test(talla.trim()) ? '61-70' : talla;
+  return /^61\s*[-/]\s*70(?:\s+(?:ALTO|NORMAL|BAJO))?$/i.test(talla.trim()) ? '61-70' : talla;
 }
 
 const PT_BY_SIZE: Record<string, string> = {

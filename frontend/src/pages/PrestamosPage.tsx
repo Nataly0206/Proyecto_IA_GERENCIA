@@ -169,7 +169,7 @@ export default function PrestamosPage() {
       </Paper>
       {tab === 'resumen' && <Summary data={resumen} pay={payById} />}
       {tab === 'acreedores' && <Creditors rows={acreedores} search={search} setSearch={setSearch} edit={(a) => { setEditingCreditor(a); setCreditorOpen(true); }} done={done} />}
-      {tab === 'prestamos' && <Loans rows={prestamos} search={search} setSearch={setSearch} pay={setPayment} detail={setDetailId} />}
+      {tab === 'prestamos' && <Loans rows={prestamos} search={search} setSearch={setSearch} pay={setPayment} detail={setDetailId} done={done} />}
       {tab === 'reportes' && <Reports onError={setError} />}
       <CreditorDialog open={creditorOpen} creditor={editingCreditor} close={() => setCreditorOpen(false)} done={() => done(editingCreditor ? 'Acreedor actualizado correctamente.' : 'Acreedor registrado correctamente.')} />
       <LoanDialog open={loanOpen} close={() => setLoanOpen(false)} creditors={acreedores} done={done} />
@@ -318,7 +318,18 @@ function Creditors({ rows, search, setSearch, edit, done }: { rows: Acreedor[]; 
   );
 }
 
-function Loans({ rows, search, setSearch, pay, detail }: { rows: Prestamo[]; search: string; setSearch: (v: string) => void; pay: (p: Prestamo) => void; detail: (id: number) => void }) {
+function Loans({ rows, search, setSearch, pay, detail, done }: { rows: Prestamo[]; search: string; setSearch: (v: string) => void; pay: (p: Prestamo) => void; detail: (id: number) => void; done: (message: string) => void }) {
+  const [deleting, setDeleting] = useState<Prestamo | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const remove = async () => {
+    if (!deleting || busy) return;
+    setBusy(true); setError('');
+    try {
+      await apiClient.delete(`/prestamos/${deleting.id}`);
+      setDeleting(null); done('Préstamo eliminado. Sus cuotas y pagos se conservan.');
+    } catch (e) { setError(apiError(e)); } finally { setBusy(false); }
+  };
   const list = useMemo(() => rows.filter((p) => `${p.numero} ${p.referencia ?? ''} ${p.acreedor}`.toLowerCase().includes(search.toLowerCase())), [rows, search]);
   const headers = ['Préstamo', 'Acreedor', 'Monto recibido', 'Tasa anual', 'Deuda de capital', 'Total por pagar', 'Próxima cuota', 'Estado', 'Acciones'];
   const right = ['Monto recibido', 'Tasa anual', 'Deuda de capital', 'Total por pagar', 'Acciones'];
@@ -348,6 +359,7 @@ function Loans({ rows, search, setSearch, pay, detail }: { rows: Prestamo[]; sea
                   <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                     <Tooltip title="Ver calendario y pagos"><IconButton size="small" onClick={() => detail(p.id)}><VisibilityOutlinedIcon fontSize="small" /></IconButton></Tooltip>
                     {p.estado === 'activo' && <Button size="small" onClick={() => pay(p)}>Pagar</Button>}
+                    <Tooltip title="Eliminar préstamo"><IconButton aria-label={`Eliminar ${p.numero}`} size="small" color="error" onClick={() => { setError(''); setDeleting(p); }}><DeleteOutlineIcon fontSize="small" /></IconButton></Tooltip>
                   </TableCell>
                 </TableRow>
               ))}
@@ -355,6 +367,18 @@ function Loans({ rows, search, setSearch, pay, detail }: { rows: Prestamo[]; sea
           </Table>
         </TableContainer>
       )}
+      <Dialog open={Boolean(deleting)} onClose={() => { if (!busy) setDeleting(null); }} maxWidth="sm" fullWidth>
+        <DialogTitle>Eliminar préstamo</DialogTitle>
+        <DialogContent>
+          {error && <Alert severity="error">{error}</Alert>}
+          <Typography>¿Eliminar el préstamo {deleting?.numero} de {deleting?.acreedor}?</Typography>
+          <Typography sx={{ mt: 1 }}>Se ocultará del listado, resumen y reportes, y dejará de contar en los saldos. Sus datos, cuotas y pagos se conservarán mediante borrado lógico.</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button disabled={busy} onClick={() => setDeleting(null)}>Cancelar</Button>
+          <Button color="error" variant="contained" disabled={busy} onClick={() => void remove()}>{busy ? 'Eliminando…' : 'Eliminar préstamo'}</Button>
+        </DialogActions>
+      </Dialog>
     </Stack>
   );
 }

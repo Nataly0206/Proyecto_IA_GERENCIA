@@ -166,10 +166,10 @@ export async function listarAcreedores() {
   const pool = await getAuthPool();
   const saldo = (moneda: Moneda) => `ISNULL((SELECT SUM(${CAPITAL_PENDIENTE})
     FROM dbo.prestamos_cuotas q JOIN dbo.prestamos p ON p.id = q.prestamo_id
-    WHERE p.acreedor_id = a.id AND p.estado = N'activo' AND p.moneda = N'${moneda}'), 0)`;
+    WHERE p.acreedor_id = a.id AND p.estado = N'activo' AND p.eliminado_en IS NULL AND p.moneda = N'${moneda}'), 0)`;
   const result = await pool.request().query(`
     SELECT a.id, a.nombre, a.tipo, a.contacto, a.telefono, a.notas,
-      (SELECT COUNT(*) FROM dbo.prestamos p WHERE p.acreedor_id = a.id AND p.estado = N'activo') AS prestamosActivos,
+      (SELECT COUNT(*) FROM dbo.prestamos p WHERE p.acreedor_id = a.id AND p.estado = N'activo' AND p.eliminado_en IS NULL) AS prestamosActivos,
       ${saldo('HNL')} AS saldoHNL,
       ${saldo('USD')} AS saldoUSD
     FROM dbo.prestamos_acreedores a
@@ -225,6 +225,15 @@ async function insertarCuota(tx: sql.Transaction, prestamoId: number, numero: nu
       VALUES (@prestamoId, @numero, @fecha, @capital, @interes, @cargos, @monto)`);
 }
 
+export async function eliminarPrestamo(id: number, usuario: string) {
+  const pool = await getAuthPool();
+  const result = await pool.request().input('id', sql.BigInt, id)
+    .input('usuario', sql.NVarChar(60), usuario)
+    .query(`UPDATE dbo.prestamos SET eliminado_en = SYSUTCDATETIME(), eliminado_por = @usuario,
+      actualizado_en = SYSUTCDATETIME() WHERE id = @id AND eliminado_en IS NULL`);
+  if (!result.rowsAffected[0]) throw new ApiError(404, 'Préstamo no encontrado.');
+}
+
 export async function listarPrestamos() {
   const pool = await getAuthPool();
   const result = await pool.request().query(`
@@ -247,6 +256,7 @@ export async function listarPrestamos() {
     OUTER APPLY (
       SELECT TOP 1 CONVERT(varchar(10), q.fecha_vencimiento, 23) proximaFecha, q.monto - q.pagado proximaCuota
       FROM dbo.prestamos_cuotas q WHERE q.prestamo_id = p.id AND q.pagado < q.monto ORDER BY q.numero) n
+    WHERE p.eliminado_en IS NULL
     ORDER BY CASE WHEN p.estado = N'activo' THEN 0 ELSE 1 END, a.nombre, p.id DESC`);
   return result.recordset;
 }
@@ -259,7 +269,7 @@ export async function obtenerPrestamo(id: number) {
         p.cantidad_cuotas AS cantidadCuotas, p.frecuencia, p.tipo_amortizacion AS tipoAmortizacion,
         CONVERT(varchar(10), p.fecha_desembolso, 23) AS fechaDesembolso, p.notas, p.estado,
         p.creado_por AS creadoPor, p.creado_en AS creadoEn
-      FROM dbo.prestamos p JOIN dbo.prestamos_acreedores a ON a.id = p.acreedor_id WHERE p.id = @id`),
+      FROM dbo.prestamos p JOIN dbo.prestamos_acreedores a ON a.id = p.acreedor_id WHERE p.id = @id AND p.eliminado_en IS NULL`),
     pool.request().input('id', sql.BigInt, id).query(`
       SELECT id, numero, CONVERT(varchar(10), fecha_vencimiento, 23) AS fechaVencimiento,
         capital, interes, cargos, monto, pagado, estado
@@ -280,7 +290,7 @@ export async function obtenerPrestamo(id: number) {
 async function prestamoActivo(tx: sql.Transaction, prestamoId: number) {
   const loan = await new sql.Request(tx).input('id', sql.BigInt, prestamoId).query(`
     SELECT id, tasa_anual, frecuencia, tipo_amortizacion, estado
-    FROM dbo.prestamos WITH (UPDLOCK, HOLDLOCK) WHERE id = @id`);
+    FROM dbo.prestamos WITH (UPDLOCK, HOLDLOCK) WHERE id = @id AND eliminado_en IS NULL`);
   const row = loan.recordset[0];
   if (!row) throw new ApiError(404, 'Préstamo no encontrado.');
   if (row.estado !== 'activo') throw new ApiError(400, 'El préstamo no está activo.');
@@ -405,7 +415,7 @@ export async function editarCuota(
     .input('monto', sql.Decimal(18, 2), money(input.capital + input.interes + input.cargos))
     .query(`UPDATE q SET fecha_vencimiento = @fecha, capital = @capital, interes = @interes, cargos = @cargos, monto = @monto
       FROM dbo.prestamos_cuotas q JOIN dbo.prestamos p ON p.id = q.prestamo_id
-      WHERE q.id = @cuotaId AND q.prestamo_id = @prestamoId AND q.pagado = 0 AND p.estado = N'activo'`);
+      WHERE q.id = @cuotaId AND q.prestamo_id = @prestamoId AND q.pagado = 0 AND p.estado = N'activo' AND p.eliminado_en IS NULL`);
   if (!result.rowsAffected[0]) throw new ApiError(400, 'Solo se pueden editar cuotas sin pagos de un préstamo activo.');
 }
 
@@ -418,7 +428,7 @@ export async function resumen() {
         SUM(CASE WHEN q.fecha_vencimiento < ${HOY} THEN q.monto - q.pagado ELSE 0 END) AS vencido,
         SUM(CASE WHEN q.fecha_vencimiento BETWEEN ${HOY} AND DATEADD(day, 30, ${HOY}) THEN q.monto - q.pagado ELSE 0 END) AS proximos30
       FROM dbo.prestamos p JOIN dbo.prestamos_cuotas q ON q.prestamo_id = p.id
-      WHERE p.estado = N'activo' AND q.pagado < q.monto
+      WHERE p.estado = N'activo' AND p.eliminado_en IS NULL AND q.pagado < q.monto
       GROUP BY p.moneda`),
     pool.request().query(`
       SELECT p.moneda,
@@ -427,6 +437,7 @@ export async function resumen() {
       FROM dbo.prestamos_pagos pg JOIN dbo.prestamos p ON p.id = pg.prestamo_id
       LEFT JOIN (SELECT pago_id, SUM(capital) capital, SUM(interes) interes, SUM(cargos) cargos
         FROM dbo.prestamos_pago_aplicaciones GROUP BY pago_id) a ON a.pago_id = pg.id
+      WHERE p.eliminado_en IS NULL
       GROUP BY p.moneda`),
     pool.request().query(`
       SELECT a.id AS acreedorId, a.nombre AS acreedor, p.moneda, COUNT(*) AS prestamos, SUM(p.monto) AS montoOriginal,
@@ -438,7 +449,7 @@ export async function resumen() {
           SUM(CASE WHEN q.fecha_vencimiento < ${HOY} THEN q.monto - q.pagado ELSE 0 END) vencido,
           MIN(q.fecha_vencimiento) proximaFecha
         FROM dbo.prestamos_cuotas q WHERE q.prestamo_id = p.id AND q.pagado < q.monto) x
-      WHERE p.estado = N'activo'
+      WHERE p.estado = N'activo' AND p.eliminado_en IS NULL
       GROUP BY a.id, a.nombre, p.moneda
       ORDER BY p.moneda, saldoCapital DESC`),
     pool.request().query(`
@@ -447,13 +458,14 @@ export async function resumen() {
         DATEDIFF(day, q.fecha_vencimiento, ${HOY}) AS diasAtraso
       FROM dbo.prestamos_cuotas q JOIN dbo.prestamos p ON p.id = q.prestamo_id
       JOIN dbo.prestamos_acreedores a ON a.id = p.acreedor_id
-      WHERE p.estado = N'activo' AND q.pagado < q.monto AND q.fecha_vencimiento <= DATEADD(day, 30, ${HOY})
+      WHERE p.estado = N'activo' AND p.eliminado_en IS NULL AND q.pagado < q.monto AND q.fecha_vencimiento <= DATEADD(day, 30, ${HOY})
       ORDER BY q.fecha_vencimiento, a.nombre`),
     pool.request().query(`
       SELECT TOP 15 pg.id, pg.numero, pg.tipo, CONVERT(varchar(10), pg.fecha_pago, 23) AS fecha, a.nombre AS acreedor,
         p.numero AS prestamo, p.moneda, pg.monto, pg.creado_por AS creadoPor
       FROM dbo.prestamos_pagos pg JOIN dbo.prestamos p ON p.id = pg.prestamo_id
       JOIN dbo.prestamos_acreedores a ON a.id = p.acreedor_id
+      WHERE p.eliminado_en IS NULL
       ORDER BY pg.fecha_pago DESC, pg.id DESC`),
   ]);
   const monedas = MONEDAS.map((moneda) => {
@@ -487,7 +499,7 @@ export async function reporte(desde: string, hasta: string) {
     JOIN dbo.prestamos_acreedores a ON a.id = p.acreedor_id
     LEFT JOIN (SELECT pago_id, SUM(capital) capital, SUM(interes) interes, SUM(cargos) cargos
       FROM dbo.prestamos_pago_aplicaciones GROUP BY pago_id) x ON x.pago_id = pg.id
-    WHERE pg.fecha_pago BETWEEN @desde AND @hasta
+    WHERE p.eliminado_en IS NULL AND pg.fecha_pago BETWEEN @desde AND @hasta
     ORDER BY pg.fecha_pago DESC, pg.id DESC`);
   return result.recordset;
 }

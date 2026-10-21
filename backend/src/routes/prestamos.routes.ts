@@ -99,6 +99,11 @@ router.post('/', asyncHandler(async (req, res) => {
   res.status(201).json({ message: 'Préstamo registrado.', prestamo });
 }));
 
+router.delete('/:id', asyncHandler(async (req, res) => {
+  await service.eliminarPrestamo(idParam(req.params.id, 'Préstamo'), usuario(res));
+  res.json({ message: 'Préstamo eliminado. Sus cuotas y pagos se conservan.' });
+}));
+
 router.post('/:id/pagos', asyncHandler(async (req, res) => {
   const pago = await service.registrarPago(idParam(req.params.id, 'Préstamo'), parsePago(req.body), usuario(res));
   res.status(201).json({ message: 'Pago registrado correctamente.', pago });

@@ -12,17 +12,20 @@ import ContentCutOutlinedIcon from '@mui/icons-material/ContentCutOutlined';
 import { usePeladoLibrasHoy, usePeladoLibrasHoyTalla, usePeladoPorSala } from '../../hooks/useDashboardData';
 import { formatPeriodo, formatValue } from '../../utils/format';
 import { PeladoLibrasHoyEstilo } from '../../types';
+import { normalizePeladoDetailSize } from '../../utils/peladoTallas';
 
 function EstiloCard({
   estilo,
   badge,
   librasPorPersona,
   tallaDominante,
+  tallaSiguiente,
 }: {
   estilo: PeladoLibrasHoyEstilo;
   badge?: string;
   librasPorPersona?: number | null;
   tallaDominante?: string | null;
+  tallaSiguiente?: string | null;
 }) {
   const destacado = Boolean(badge);
   const color = destacado ? '#164a8b' : estilo.libras > 0 ? '#2e7d32' : '#94a3b8';
@@ -97,17 +100,20 @@ function EstiloCard({
             </Typography>
             {librasPorPersona !== undefined && (
               <Typography variant="body2" sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit' }}>
-                {librasPorPersona === null ? '—' : formatValue(librasPorPersona, 'decimal')} lbs/persona
+                {librasPorPersona === null ? '—' : formatValue(librasPorPersona, 'decimal')} lbs/pers/hora
               </Typography>
             )}
             {tallaDominante !== undefined && (
-              <Typography
-                variant="body2"
-                title="Talla con más libras producidas hoy"
-                sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit', whiteSpace: 'normal', overflowWrap: 'anywhere' }}
-              >
-                Talla Prom: {tallaDominante ?? '—'}
-              </Typography>
+              <Stack direction="row" useFlexGap sx={{ gap: 1, flexWrap: 'wrap', justifyContent: { xs: 'flex-start', sm: 'flex-end' }, maxWidth: '100%' }}>
+                <Typography variant="body2" title="Talla con más libras producidas hoy y su porcentaje del total por talla"
+                  sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit', whiteSpace: 'normal' }}>
+                  Talla Prom: {tallaDominante ?? '—'}
+                </Typography>
+                <Typography variant="body2" title="Segunda talla con más libras producidas hoy y su porcentaje del total por talla"
+                  sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit', whiteSpace: 'normal' }}>
+                  Talla Sig: {tallaSiguiente ?? '—'}
+                </Typography>
+              </Stack>
             )}
           </Stack>
         </Stack>
@@ -120,12 +126,22 @@ export default function PeladoLibrasHoyCards() {
   const { data, isLoading, isError, error, dataUpdatedAt } = usePeladoLibrasHoy();
   const { data: actividad, isError: actividadError } = usePeladoPorSala();
   const { data: produccionTallas, isError: tallasError } = usePeladoLibrasHoyTalla(true);
-  const tallaDominante = !tallasError && produccionTallas?.dia === data?.dia
-    ? produccionTallas?.tallas.reduce<{ talla: string; libras: number } | null>(
-      (mayor, talla) => talla.libras > 0 && (!mayor || talla.libras > mayor.libras) ? talla : mayor,
-      null,
-    )?.talla ?? null
+  const tallasAgrupadas = new Map<string, number>();
+  if (!tallasError && produccionTallas?.dia === data?.dia) {
+    for (const row of produccionTallas?.tallas ?? []) {
+      const talla = normalizePeladoDetailSize(row.talla.trim());
+      if (talla && Number.isFinite(row.libras) && row.libras > 0) {
+        tallasAgrupadas.set(talla, (tallasAgrupadas.get(talla) ?? 0) + row.libras);
+      }
+    }
+  }
+  const tallasOrdenadas = [...tallasAgrupadas].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const totalTallas = tallasOrdenadas.reduce((total, [, libras]) => total + libras, 0);
+  const etiquetaTalla = (row: [string, number] | undefined) => row && totalTallas > 0
+    ? `${row[0]} (${formatValue(row[1] / totalTallas * 100, 'decimal')}%)`
     : null;
+  const tallaDominante = etiquetaTalla(tallasOrdenadas[0]);
+  const tallaSiguiente = etiquetaTalla(tallasOrdenadas[1]);
   const personasActivas = actividad?.salas.reduce((total, sala) => total + sala.personasActivas, 0) ?? 0;
   const librasPorPersona = !actividadError && actividad && actividad.dia === data?.dia && personasActivas > 0
     ? (data.librasPorHoraPromedio ?? 0) / personasActivas
@@ -182,7 +198,7 @@ export default function PeladoLibrasHoyCards() {
           {estilosConLibras.map((estilo) => (
             <EstiloCard key={estilo.estilo} estilo={estilo} />
           ))}
-          <EstiloCard badge="Total del día" tallaDominante={tallaDominante} librasPorPersona={librasPorPersona} estilo={{ estilo: 'Total', libras: data.total, librasPorHora: data.librasPorHoraPromedio }} />
+          <EstiloCard badge="Total del día" tallaDominante={tallaDominante} tallaSiguiente={tallaSiguiente} librasPorPersona={librasPorPersona} estilo={{ estilo: 'Total', libras: data.total, librasPorHora: data.librasPorHoraPromedio }} />
         </Box>
       )}
     </Box>

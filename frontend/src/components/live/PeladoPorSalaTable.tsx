@@ -452,8 +452,19 @@ export default function PeladoPorSalaTable({ userId }: { userId: string }) {
             {!dailyQuery.isLoading && !dailyQuery.isError && dailyQuery.data?.length === 0 &&
               <Alert severity="info">Sin actividad para el período y límite de horas seleccionados.</Alert>}
             {!dailyQuery.isLoading && !dailyQuery.isError && Boolean(dailyQuery.data?.length) &&
-              <TableContainer sx={{ maxHeight: 360, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
-                <Table size="small" stickyHeader>
+              <TableContainer sx={{ maxHeight: 360, maxWidth: '100%', overflowX: 'auto', border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+                <Table size="small" stickyHeader sx={{
+                  '& tr > :first-child': {
+                    position: 'sticky',
+                    left: 0,
+                    zIndex: 1,
+                    whiteSpace: 'nowrap',
+                    boxShadow: '2px 0 0 #e2e8f0',
+                  },
+                  '& thead tr > :first-child': { zIndex: 4 },
+                  '& tbody tr > :first-child': { bgcolor: 'background.paper' },
+                  '& tfoot tr > :first-child': { zIndex: 3 },
+                }}>
                   <TableHead><TableRow>
                     <HeadCell label={vista === 'dia' ? 'Fecha' : vista === 'semana' ? 'Semana' : 'Mes'} align="left" />
                     <HeadCell label="Personas" />

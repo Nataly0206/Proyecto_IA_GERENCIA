@@ -74,6 +74,7 @@ interface WidgetDataTableProps {
   maxHeight?: number;
   /** Mantiene las filas de resumen visibles al desplazar la tabla. */
   stickySummary?: boolean;
+  stickyFirstColumn?: boolean;
   /** Variante visual para tablas operativas con mayor densidad de datos. */
   variant?: 'default' | 'recepcion';
   /** Permite seleccionar uno o varios valores desde el encabezado de cada columna. */
@@ -161,6 +162,7 @@ export default function WidgetDataTable({
   emptyText = 'Sin datos para los filtros seleccionados.',
   maxHeight = 420,
   stickySummary = false,
+  stickyFirstColumn = false,
   variant = 'default',
   filterable = false,
   groupByKey,
@@ -548,12 +550,28 @@ export default function WidgetDataTable({
         <TableContainer
           sx={{
             maxHeight,
+            minWidth: 0,
+            maxWidth: '100%',
+            overflowX: 'auto',
             borderRadius: isRecepcion ? 1.5 : 1,
             border: isRecepcion ? '1px solid #d8e3f0' : '1px solid rgba(148, 163, 184, 0.18)',
             boxShadow: isRecepcion ? 'inset 0 0 0 1px rgba(255,255,255,0.5)' : 'none',
           }}
         >
-          <Table size="small" stickyHeader sx={isRecepcion ? { minWidth: 1180 } : undefined}>
+          <Table size="small" stickyHeader sx={{
+            ...(isRecepcion ? { minWidth: 1180 } : {}),
+            ...(stickyFirstColumn ? {
+              '& tr > :first-child': {
+                position: 'sticky',
+                left: 0,
+                zIndex: 1,
+                boxShadow: '2px 0 0 #d8e3f0',
+              },
+              '& thead tr > :first-child': { zIndex: 4 },
+              '& tbody tr > :first-child': { bgcolor: isRecepcion ? 'inherit' : 'background.paper' },
+              '& tfoot tr > :first-child': { zIndex: 3 },
+            } : {}),
+          }}>
             <TableHead>
               <TableRow>
                 {displayColumns.map((col) => (

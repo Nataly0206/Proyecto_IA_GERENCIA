@@ -211,7 +211,12 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
     for (const share of shares) shareByColumn.set(share.col, share.basisPoints / 100);
   }
 
-  const firstColumnSx = config.stickyFirstColumnMobile ? {
+  const firstColumnSx = config.stickyFirstColumn ? {
+    position: 'sticky',
+    left: 0,
+    zIndex: 1,
+    whiteSpace: 'nowrap',
+  } : config.stickyFirstColumnMobile ? {
     position: { xs: 'sticky', sm: 'static' },
     left: { xs: 0, sm: 'auto' },
     zIndex: { xs: 1, sm: 'auto' },

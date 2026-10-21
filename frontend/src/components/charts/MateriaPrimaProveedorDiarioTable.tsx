@@ -96,7 +96,7 @@ export default function MateriaPrimaProveedorDiarioTable({ hiddenProviders, peri
 
   const isWeekly = period === 'semana';
 
-  return <Box>
+  return <Box sx={{ minWidth: 0, width: '100%' }}>
     <Typography variant="subtitle2" fontWeight={800} sx={{ fontSize: 13, mb: 0.25 }}>Materia Prima por Proveedor — {isWeekly ? 'Semanal' : 'Diario'}</Typography>
     <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.9 }}>
       {isWeekly ? 'Semanas (lunes a domingo)' : 'Fechas'} del rango seleccionado · valores en lbs HOSO (WSO ÷ 0.65)
@@ -104,8 +104,14 @@ export default function MateriaPrimaProveedorDiarioTable({ hiddenProviders, peri
     {isLoading && <Skeleton variant="rounded" height={260} />}
     {isError && <Alert severity="error" sx={{ py: 0.5 }}>Error al cargar el detalle {isWeekly ? 'semanal' : 'diario'}: {error instanceof Error ? error.message : 'desconocido'}</Alert>}
     {!isLoading && !isError && rows.length === 0 && !isWeekly && <Alert severity="info" sx={{ py: 0.5 }}>Sin materia prima de proveedores visibles en el rango seleccionado.</Alert>}
-    {!isLoading && !isError && (rows.length > 0 || isWeekly) && <TableContainer sx={{ maxHeight: 460, borderRadius: 1, border: '1px solid rgba(148, 163, 184, 0.18)' }}>
-      <Table size="small" stickyHeader>
+    {!isLoading && !isError && (rows.length > 0 || isWeekly) && <TableContainer sx={{ maxHeight: 460, borderRadius: 1, minWidth: 0, maxWidth: '100%', overflowX: 'auto', border: '1px solid rgba(148, 163, 184, 0.18)' }}>
+      <Table size="small" stickyHeader sx={{
+            '& tr > :first-child': {
+              position: 'sticky',
+              left: 0,
+              boxShadow: '2px 0 0 #e2e8f0',
+            },
+          }}>
         <TableHead><TableRow>
           <TableCell sx={{ ...HEADER_SX, position: 'sticky', left: 0, zIndex: 4, minWidth: isWeekly ? 210 : 125 }}>{isWeekly ? 'Semana' : 'Fecha'}</TableCell>
           {report.proveedores.map((proveedor) => <TableCell key={proveedor} align="right" sx={HEADER_SX}>{proveedor}</TableCell>)}

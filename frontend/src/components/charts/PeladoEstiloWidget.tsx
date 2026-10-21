@@ -107,6 +107,7 @@ export default function PeladoEstiloWidget() {
   } : {
     ...dailyTableConfig,
     stickyFirstColumnMobile: vista === 'dia',
+    stickyFirstColumn: vista === 'semana' || vista === 'mes',
     mobileSummaryOnly: vista === 'dia',
     trailingTextColumn: vista === 'dia' ? { field: 'tallaDominante', label: 'Talla Prom' } : undefined,
     hourlyPerPersonColumn: vista === 'dia' ? { hoursField: 'horasTrabajadas', peopleField: 'personas', valueField: 'rendimientoPorPersona' } : undefined,

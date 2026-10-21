@@ -78,6 +78,7 @@ export default function MateriaPrimaProveedorWidget({ hidden, height }: { hidden
     endpoint: 'compra-mp-materia-prima',
     xField: 'periodo',
     xLabel: 'Mes',
+    stickyFirstColumn: true,
     yField: 'libras',
     seriesField: 'serie',
     totalAggregation: 'sum',

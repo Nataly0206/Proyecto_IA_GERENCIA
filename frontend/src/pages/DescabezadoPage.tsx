@@ -70,6 +70,7 @@ export default function DescabezadoPage() {
           icon={<SetMealOutlinedIcon color="primary" sx={{ fontSize: 16 }} />}
           endpoint="descabezado-por-dia"
           periodGrouping
+          stickyFirstColumn
           groupByKey="fecha"
           defaultSortKey="fecha"
           maxHeight={TABLE_H}

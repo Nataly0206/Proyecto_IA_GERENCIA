@@ -74,7 +74,7 @@ export default function MateriaPrimaTallaTable({
   }, [rows]);
 
   return (
-    <Box>
+    <Box sx={{ minWidth: 0, width: '100%' }}>
       <Stack direction="row" alignItems="center" spacing={0.75} mb={0.9} flexWrap="wrap" useFlexGap>
         {icon}
         <Typography variant="subtitle2" fontWeight={800} sx={{ fontSize: 13 }}>{title}</Typography>
@@ -90,11 +90,17 @@ export default function MateriaPrimaTallaTable({
       {!isLoading && !isError && rows.length === 0 && <Alert severity="info" sx={{ py: 0.5 }}>{emptyText}</Alert>}
 
       {!isLoading && !isError && rows.length > 0 && (
-        <TableContainer sx={{ maxHeight, borderRadius: 1, border: '1px solid rgba(148, 163, 184, 0.18)' }}>
-          <Table size="small" stickyHeader>
+        <TableContainer sx={{ maxHeight, borderRadius: 1, minWidth: 0, maxWidth: '100%', overflowX: 'auto', border: '1px solid rgba(148, 163, 184, 0.18)' }}>
+          <Table size="small" stickyHeader sx={{
+            '& tr > :first-child': {
+              position: 'sticky',
+              left: 0,
+              boxShadow: '2px 0 0 #e2e8f0',
+            },
+          }}>
             <TableHead>
               <TableRow>
-                <TableCell sx={{ ...HEADER_SX, left: 0, zIndex: 4, minWidth: 210 }}>Nombre Proveedor</TableCell>
+                <TableCell sx={{ ...HEADER_SX, position: 'sticky', left: 0, zIndex: 4, minWidth: 210 }}>Nombre Proveedor</TableCell>
                 {report.tallas.map((talla) => <TableCell key={talla} align="right" sx={HEADER_SX}>{talla}</TableCell>)}
                 <TableCell align="right" sx={HEADER_SX}>Total proveedor</TableCell>
               </TableRow>

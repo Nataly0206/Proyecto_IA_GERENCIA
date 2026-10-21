@@ -53,6 +53,7 @@ export default function RecepcionPage() {
         variant="recepcion"
         filterable
         periodGrouping
+        stickyFirstColumn
         groupByKey="fecha"
         defaultSortKey="fecha"
         maxHeight={520}

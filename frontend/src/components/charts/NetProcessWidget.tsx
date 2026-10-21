@@ -54,6 +54,7 @@ export default function NetProcessWidget({ height, userId }: NetProcessWidgetPro
     endpoint: 'libras-netas-proceso-dia',
     xField: granularidad === 'total' ? 'proceso' : 'periodo',
     xLabel: granularidad === 'dia' ? 'Fecha' : granularidad === 'semana' ? 'Semana' : 'Mes',
+    stickyFirstColumn: granularidad !== 'total',
     yField: 'libras',
     seriesField: granularidad === 'total' ? undefined : 'proceso',
     totalAggregation: 'sum',

@@ -159,7 +159,7 @@ export async function getPeladoPorEstiloDia(req: Request, res: Response): Promis
   const forceRefresh = req.query.refresh === 'true';
   res.json(
     await withTtlCache(
-      JSON.stringify(['pelado-por-estilo-dia:periodos-v2', period, filters]),
+      JSON.stringify(['pelado-por-estilo-dia:talla-dominante-v3', period, filters]),
       REPORT_CACHE_MS,
       () => dashboardService.getPeladoPorEstiloDia(filters, period),
       forceRefresh,

@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { apiClient } from '../../api/client';
 import {
   Box,
   Button,
@@ -62,6 +64,32 @@ export default function PeladoEstiloWidget() {
   const rendimientoHoy = !actividadError && hoy && actividad?.dia === hoy.dia && personasActivas > 0
     ? (hoy.librasPorHoraPromedio ?? 0) / personasActivas
     : null;
+  const { data: tallasPorDia } = useQuery<DataRow[]>({
+    queryKey: ['dashboard', 'pelado-talla-dominante-diaria:v1', filters],
+    queryFn: async ({ signal }) => (await apiClient.get<DataRow[]>('/dashboard/pelado-por-talla-dia', {
+      params: filters,
+      signal,
+    })).data,
+    enabled: vista === 'dia',
+    staleTime: 60_000,
+    refetchInterval: 60_000,
+  });
+  const tallasDominantes = useMemo(() => {
+    const totals = new Map<string, Map<string, number>>();
+    for (const row of tallasPorDia ?? []) {
+      const periodo = String(row.periodo ?? '');
+      const talla = String(row.talla ?? '').trim();
+      const libras = Number(row.libras ?? 0);
+      if (!periodo || !talla || !Number.isFinite(libras) || libras <= 0) continue;
+      const sizes = totals.get(periodo) ?? new Map<string, number>();
+      sizes.set(talla, (sizes.get(talla) ?? 0) + libras);
+      totals.set(periodo, sizes);
+    }
+    return new Map(Array.from(totals, ([periodo, sizes]) => [
+      periodo,
+      [...sizes].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0],
+    ]));
+  }, [tallasPorDia]);
   const year = filters.fechaFinal.slice(0, 4);
   const queryParams = { periodo: vista === 'total' ? 'dia' : vista, ...(vista === 'mes' ? { fechaInicial: `${year}-01-01`, fechaFinal: `${year}-12-31` } : {}) };
 
@@ -101,10 +129,14 @@ export default function PeladoEstiloWidget() {
         porcentaje: total > 0 ? Math.round((libras / total) * 10000) / 100 : 0,
       }));
     }
-    if (vista === 'dia' && !filters.turno && hoy) {
-      return rows.map((row) => row.periodo === hoy.dia
-        ? { ...row, rendimientoPorPersona: rendimientoHoy }
-        : row);
+    if (vista === 'dia') {
+      return rows.map((row) => ({
+        ...row,
+        tallaDominante: tallasDominantes.get(String(row.periodo)) ?? row.tallaDominante ?? null,
+        ...(!filters.turno && hoy && row.periodo === hoy.dia
+          ? { rendimientoPorPersona: rendimientoHoy }
+          : {}),
+      }));
     }
     if (vista !== 'mes' || rows.length === 0) return rows;
     const styles = Array.from(new Set(rows.map((row) => String(row.estilo))));

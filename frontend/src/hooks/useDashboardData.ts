@@ -83,7 +83,7 @@ export function useWidgetData(endpoint: DashboardEndpoint, extraParams?: Record<
       : endpoint === 'libras-netas-proceso-dia' || endpoint === 'libras-netas-proceso-mes'
         ? `${endpoint}:fechas-trabajadas-v3`
       : endpoint === 'pelado-por-estilo-dia'
-        ? `${endpoint}:periodos-v2`
+        ? `${endpoint}:talla-dominante-v3`
       : endpoint === 'descabezado-por-dia' || endpoint === 'descabezado-por-dia-mes'
         ? `${endpoint}:pesos-v4`
       : endpoint === 'compra-mp-por-proveedor-dia'

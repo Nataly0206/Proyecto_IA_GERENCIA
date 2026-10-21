@@ -78,6 +78,8 @@ export default function PeladoEstiloWidget() {
     unitLabel: 'lbs peladas',
   } : {
     ...dailyTableConfig,
+    stickyFirstColumnMobile: vista === 'dia',
+    trailingTextColumn: vista === 'dia' ? { field: 'tallaDominante', label: 'Talla Prom' } : undefined,
     hourlyPerPersonColumn: vista === 'dia' ? { hoursField: 'horasTrabajadas', peopleField: 'personas', valueField: 'rendimientoPorPersona' } : undefined,
     xLabel: vista === 'dia' ? 'Fecha' : vista === 'semana' ? 'Semana' : 'Mes',
     ...(vista === 'mes' ? {

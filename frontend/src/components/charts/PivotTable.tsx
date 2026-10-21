@@ -199,6 +199,12 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
     for (const share of shares) shareByColumn.set(share.col, share.basisPoints / 100);
   }
 
+  const firstColumnSx = config.stickyFirstColumnMobile ? {
+    position: { xs: 'sticky', sm: 'static' },
+    left: { xs: 0, sm: 'auto' },
+    zIndex: { xs: 1, sm: 'auto' },
+    whiteSpace: 'nowrap',
+  } : {};
   const renderValue = (value: number | null | undefined, format?: ValueFormat) =>
     value === null || value === undefined ? '—' : formatValue(value, format ?? config.valueFormat ?? 'decimal');
 
@@ -207,7 +213,7 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
       <Table size="small" stickyHeader>
         <TableHead>
           <TableRow>
-            <TableCell sx={HEADER_SX}>{config.xLabel ?? 'Período'}</TableCell>
+            <TableCell sx={{ ...HEADER_SX, ...firstColumnSx, zIndex: { xs: 4, sm: 2 } }}>{config.xLabel ?? 'Período'}</TableCell>
             {extraColumns.map((extraCol) => (
               <TableCell key={extraCol.field} align="right" sx={HEADER_SX}>
                 {extraCol.label}
@@ -261,12 +267,13 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
                 )}
               </TableCell>
             )}
+            {config.trailingTextColumn && <TableCell align="right" sx={{ ...HEADER_SX, whiteSpace: 'nowrap' }}>{config.trailingTextColumn.label}</TableCell>}
           </TableRow>
         </TableHead>
         <TableBody>
           {periodos.map((periodo) => (
             <TableRow key={periodo} hover>
-              <TableCell sx={{ fontWeight: 600 }}>{formatPeriodo(periodo)}</TableCell>
+              <TableCell sx={{ fontWeight: 600, bgcolor: 'background.paper', ...firstColumnSx }}>{formatPeriodo(periodo)}</TableCell>
               {extraColumns.map((extraCol) => (
                 <TableCell key={extraCol.field} align="right">
                   {renderValue(extraByPeriodo.get(extraCol.field)?.get(periodo) ?? null, extraCol.format)}
@@ -290,12 +297,17 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
                   {renderValue(perDay(aggregate(rowCells(periodo)), daysByPeriodo.get(periodo) ?? 0))}
                 </TableCell>
               )}
+              {config.trailingTextColumn && (
+                <TableCell align="right" sx={{ whiteSpace: 'nowrap', fontWeight: 600 }}>
+                  {String(data.find((row) => String(row[config.xField] ?? '') === periodo)?.[config.trailingTextColumn.field] ?? '—')}
+                </TableCell>
+              )}
             </TableRow>
           ))}
         </TableBody>
         <TableFooter sx={{ position: 'sticky', bottom: 0, zIndex: 2 }}>
           <TableRow>
-            <TableCell sx={TOTAL_SX}>Grand Total</TableCell>
+            <TableCell sx={{ ...TOTAL_SX, ...firstColumnSx }}>Grand Total</TableCell>
             {extraColumns.map((extraCol) => (
               <TableCell key={extraCol.field} align="right" sx={TOTAL_SX}>
                 {renderValue(sumExtra(
@@ -317,10 +329,11 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
                 {renderValue(perDay(grandTotal, periodos.reduce((sum, periodo) => sum + (daysByPeriodo.get(periodo) ?? 0), 0)))}
               </TableCell>
             )}
+            {config.trailingTextColumn && <TableCell align="right" sx={TOTAL_SX}>—</TableCell>}
           </TableRow>
           {config.showShareRow && (
             <TableRow>
-              <TableCell sx={SHARE_SX}>% del total</TableCell>
+              <TableCell sx={{ ...SHARE_SX, ...firstColumnSx }}>% del total</TableCell>
               {extraColumns.map((extraCol) => (
                 <TableCell key={extraCol.field} align="right" sx={SHARE_SX}>—</TableCell>
               ))}
@@ -334,11 +347,12 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
               </TableCell>
               {config.hourlyPerPersonColumn && <TableCell align="right" sx={SHARE_SX}>—</TableCell>}
               {config.dailyAverageColumn && <TableCell align="right" sx={SHARE_SX}>—</TableCell>}
+              {config.trailingTextColumn && <TableCell align="right" sx={SHARE_SX}>—</TableCell>}
             </TableRow>
           )}
           {config.showAverageRow && (
             <TableRow>
-              <TableCell sx={AVERAGE_SX}>{config.averageLabel ?? 'Promedio'}</TableCell>
+              <TableCell sx={{ ...AVERAGE_SX, ...firstColumnSx }}>{config.averageLabel ?? 'Promedio'}</TableCell>
               {extraColumns.map((extraCol) => (
                 <TableCell key={extraCol.field} align="right" sx={AVERAGE_SX}>
                   {renderValue(avgExtra(
@@ -356,6 +370,7 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
               </TableCell>
               {config.hourlyPerPersonColumn && <TableCell align="right" sx={AVERAGE_SX}>—</TableCell>}
               {config.dailyAverageColumn && <TableCell align="right" sx={AVERAGE_SX}>—</TableCell>}
+              {config.trailingTextColumn && <TableCell align="right" sx={AVERAGE_SX}>—</TableCell>}
             </TableRow>
           )}
         </TableFooter>

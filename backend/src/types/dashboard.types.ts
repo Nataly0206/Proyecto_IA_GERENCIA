@@ -82,6 +82,7 @@ export interface PeladoStyleRow {
 
 /** Celda del reporte de libras peladas por estilo, agrupada por día, semana o mes. */
 export interface PeladoStylePeriodRow {
+  tallaDominante?: string | null;
   /** "YYYY-MM-DD" para diario, "YYYY-Www" para semanal, "YYYY-MM" para mensual */
   periodo: string;
   estilo: string;

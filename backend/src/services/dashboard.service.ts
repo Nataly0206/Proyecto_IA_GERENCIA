@@ -486,9 +486,17 @@ export async function getPeladoPorEstiloDia(
     dias.add(g.dia);
     diasPorPeriodo.set(key, dias);
   }
+  const tallasDominantes = new Map<string, { talla: string; libras: number }>();
+  for (const row of aggregateDimensionByPeriod(groups, filters.turno, 'talla', periodOf)) {
+    const dominante = tallasDominantes.get(row.periodo);
+    if (row.libras > 0 && (!dominante || row.libras > dominante.libras)) {
+      tallasDominantes.set(row.periodo, { talla: row.valor, libras: row.libras });
+    }
+  }
   return aggregateDimensionByPeriod(groups, filters.turno, 'estilo', periodOf)
     .map(({ periodo, valor, libras }) => ({
       periodo, estilo: valor, libras,
+      tallaDominante: tallasDominantes.get(periodo)?.talla ?? null,
       horasTrabajadas: round2(horas.get(periodo) ?? 0),
       personas: personas.get(periodo) ?? 0,
       diasTrabajados: diasPorPeriodo.get(periodo)?.size ?? 0,

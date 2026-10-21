@@ -428,6 +428,8 @@ export interface ChartConfig {
    */
   dailyAverageColumn?: { daysField: string; label: string; unit?: string };
   /** Rendimiento por persona: total de libras / horas / personas del período. */
+  stickyFirstColumnMobile?: boolean;
+  trailingTextColumn?: { field: string; label: string };
   hourlyPerPersonColumn?: { hoursField: string; peopleField: string; valueField?: string };
   /** Etiqueta de la fila de promedio (por defecto "Promedio"). */
   averageLabel?: string;

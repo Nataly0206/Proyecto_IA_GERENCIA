@@ -18,8 +18,8 @@ import { ChartConfig, DataRow } from '../../types';
 import ChartWidget from './ChartWidget';
 import PeladoTallaWidget from './PeladoTallaWidget';
 import { peladoWidgets } from '../../config/dashboardConfig';
-import { usePeladoLibrasHoy, usePeladoPorSala } from '../../hooks/useDashboardData';
-import { normalizePeladoDetailSize } from '../../utils/peladoTallas';
+import { usePeladoLibrasHoy, usePeladoLibrasHoyTalla, usePeladoPorSala } from '../../hooks/useDashboardData';
+import { getPeladoSizeLeaders } from '../../utils/peladoTallas';
 import { useFilters } from '../../context/FiltersContext';
 
 const BASE_TITLE = 'Libras Peladas por Estilo';
@@ -60,6 +60,8 @@ export default function PeladoEstiloWidget() {
   const [vista, setVista] = useState<Vista>('total');
   const { filters } = useFilters();
   const { data: hoy } = usePeladoLibrasHoy();
+  const { data: tallasHoy, isError: tallasHoyError } = usePeladoLibrasHoyTalla(vista === 'dia');
+  const lideresHoy = getPeladoSizeLeaders(!tallasHoyError ? tallasHoy?.tallas ?? [] : []);
   const { data: actividad, isError: actividadError } = usePeladoPorSala();
   const personasActivas = actividad?.salas.reduce((total, sala) => total + sala.personasActivas, 0) ?? 0;
   const rendimientoHoy = !actividadError && hoy && actividad?.dia === hoy.dia && personasActivas > 0
@@ -76,27 +78,15 @@ export default function PeladoEstiloWidget() {
     refetchInterval: 60_000,
   });
   const tallasDominantes = useMemo(() => {
-    const totals = new Map<string, Map<string, number>>();
+    const totals = new Map<string, { talla: string; libras: number }[]>();
     for (const row of tallasPorDia ?? []) {
       const periodo = String(row.periodo ?? '');
-      const talla = normalizePeladoDetailSize(String(row.talla ?? '').trim());
-      const libras = Number(row.libras ?? 0);
-      if (!periodo || !talla || !Number.isFinite(libras) || libras <= 0) continue;
-      const sizes = totals.get(periodo) ?? new Map<string, number>();
-      sizes.set(talla, (sizes.get(talla) ?? 0) + libras);
+      if (!periodo) continue;
+      const sizes = totals.get(periodo) ?? [];
+      sizes.push({ talla: String(row.talla ?? ''), libras: Number(row.libras ?? 0) });
       totals.set(periodo, sizes);
     }
-    return new Map(Array.from(totals, ([periodo, sizes]) => [
-      periodo,
-      (() => {
-        const ranked = [...sizes].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-        const total = ranked.reduce((sum, [, libras]) => sum + libras, 0);
-        const label = (entry: [string, number] | undefined) => entry
-          ? `${entry[0]} (${(entry[1] / total * 100).toFixed(2)}%)`
-          : null;
-        return { principal: label(ranked[0]), siguiente: label(ranked[1]) };
-      })(),
-    ]));
+    return new Map([...totals].map(([periodo, sizes]) => [periodo, getPeladoSizeLeaders(sizes)]));
   }, [tallasPorDia]);
   const year = filters.fechaFinal.slice(0, 4);
   const queryParams = { periodo: vista === 'total' ? 'dia' : vista, ...(vista === 'mes' ? { fechaInicial: `${year}-01-01`, fechaFinal: `${year}-12-31` } : {}) };
@@ -145,8 +135,12 @@ export default function PeladoEstiloWidget() {
     if (vista === 'dia') {
       return rows.map((row) => ({
         ...row,
-        tallaDominante: tallasDominantes.get(String(row.periodo))?.principal ?? null,
-        tallaSiguiente: tallasDominantes.get(String(row.periodo))?.siguiente ?? null,
+        tallaDominante: (!filters.turno && hoy && row.periodo === hoy.dia
+          ? tallasHoy?.dia === hoy.dia ? lideresHoy.principal : null
+          : tallasDominantes.get(String(row.periodo))?.principal) ?? null,
+        tallaSiguiente: (!filters.turno && hoy && row.periodo === hoy.dia
+          ? tallasHoy?.dia === hoy.dia ? lideresHoy.siguiente : null
+          : tallasDominantes.get(String(row.periodo))?.siguiente) ?? null,
         ...(!filters.turno && hoy && row.periodo === hoy.dia
           ? { rendimientoPorPersona: rendimientoHoy }
           : {}),

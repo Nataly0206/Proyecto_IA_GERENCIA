@@ -40,3 +40,19 @@ export function mergePeladoDetailSizes(rows: DataRow[]): DataRow[] {
   }
   return Array.from(grouped.values());
 }
+
+/** Las dos tallas con más libras y su participación sobre el mismo total. */
+export function getPeladoSizeLeaders(rows: { talla: string; libras: number }[]) {
+  const sizes = new Map<string, number>();
+  for (const row of rows) {
+    const talla = normalizePeladoDetailSize(row.talla.trim());
+    if (!talla || !Number.isFinite(row.libras) || row.libras <= 0) continue;
+    sizes.set(talla, (sizes.get(talla) ?? 0) + row.libras);
+  }
+  const ranked = [...sizes].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const total = ranked.reduce((sum, [, libras]) => sum + libras, 0);
+  const label = (row: [string, number] | undefined) => row && total > 0
+    ? `${row[0]} (${(row[1] / total * 100).toFixed(2)}%)`
+    : null;
+  return { principal: label(ranked[0]), siguiente: label(ranked[1]) };
+}

@@ -348,6 +348,8 @@ export function useRefreshDashboard() {
     const liveEndpoints = new Set<string>([
       'iqf-tiempo-real',
       'pelado-libras-hoy',
+      'pelado-libras-hoy-talla',
+      'pelado-talla-dominante-diaria:v1',
       'pelado-por-sala',
       ...PROCESO_RESUMEN_ENDPOINTS,
     ]);
@@ -381,6 +383,17 @@ export function useRefreshDashboard() {
         writeBrowserCache(peladoLiveCacheKey, data);
         queryClient.setQueryData<PeladoLibrasHoyResponse>(peladoLiveKey, data);
       }),
+      ...(activeQueries.some((query) => query.queryKey[1] === 'pelado-libras-hoy-talla') ? [
+        fetchPeladoLibrasHoyTalla(true).then((data) => {
+          writeBrowserCache(browserCacheKey(['pelado-libras-hoy-talla', 'current']), data);
+          queryClient.setQueryData(['dashboard', 'pelado-libras-hoy-talla'], data);
+        }),
+      ] : []),
+      ...(activeQueries.some((query) => query.queryKey[1] === 'pelado-talla-dominante-diaria:v1') ? [
+        fetchWidgetData('pelado-por-talla-dia', filters, true).then((data) => {
+          queryClient.setQueryData(['dashboard', 'pelado-talla-dominante-diaria:v1', filters], data);
+        }),
+      ] : []),
       fetchPeladoPorSala(true).then((data) => {
         writeBrowserCache(peladoPorSalaCacheKey, data);
         queryClient.setQueryData<PeladoPorSalaResponse>(peladoPorSalaKey, data);

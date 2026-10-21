@@ -12,7 +12,7 @@ import ContentCutOutlinedIcon from '@mui/icons-material/ContentCutOutlined';
 import { usePeladoLibrasHoy, usePeladoLibrasHoyTalla, usePeladoPorSala } from '../../hooks/useDashboardData';
 import { formatPeriodo, formatValue } from '../../utils/format';
 import { PeladoLibrasHoyEstilo } from '../../types';
-import { normalizePeladoDetailSize } from '../../utils/peladoTallas';
+import { getPeladoSizeLeaders } from '../../utils/peladoTallas';
 
 function EstiloCard({
   estilo,
@@ -126,22 +126,9 @@ export default function PeladoLibrasHoyCards() {
   const { data, isLoading, isError, error, dataUpdatedAt } = usePeladoLibrasHoy();
   const { data: actividad, isError: actividadError } = usePeladoPorSala();
   const { data: produccionTallas, isError: tallasError } = usePeladoLibrasHoyTalla(true);
-  const tallasAgrupadas = new Map<string, number>();
-  if (!tallasError && produccionTallas?.dia === data?.dia) {
-    for (const row of produccionTallas?.tallas ?? []) {
-      const talla = normalizePeladoDetailSize(row.talla.trim());
-      if (talla && Number.isFinite(row.libras) && row.libras > 0) {
-        tallasAgrupadas.set(talla, (tallasAgrupadas.get(talla) ?? 0) + row.libras);
-      }
-    }
-  }
-  const tallasOrdenadas = [...tallasAgrupadas].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-  const totalTallas = tallasOrdenadas.reduce((total, [, libras]) => total + libras, 0);
-  const etiquetaTalla = (row: [string, number] | undefined) => row && totalTallas > 0
-    ? `${row[0]} (${formatValue(row[1] / totalTallas * 100, 'decimal')}%)`
-    : null;
-  const tallaDominante = etiquetaTalla(tallasOrdenadas[0]);
-  const tallaSiguiente = etiquetaTalla(tallasOrdenadas[1]);
+  const tallas = getPeladoSizeLeaders(!tallasError && produccionTallas && produccionTallas.dia === data?.dia ? produccionTallas.tallas : []);
+  const tallaDominante = tallas.principal;
+  const tallaSiguiente = tallas.siguiente;
   const personasActivas = actividad?.salas.reduce((total, sala) => total + sala.personasActivas, 0) ?? 0;
   const librasPorPersona = !actividadError && actividad && actividad.dia === data?.dia && personasActivas > 0
     ? (data.librasPorHoraPromedio ?? 0) / personasActivas

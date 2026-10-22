@@ -132,14 +132,14 @@ function EstiloCard({
               </Stack>
             )}
             {tallaDominante !== undefined && (
-              <Stack direction="row" useFlexGap sx={{ gap: 0.75, flexWrap: 'nowrap', justifyContent: 'flex-end', maxWidth: '100%',
-                fontSize: 'inherit', overflowX: 'auto' }}>
+              <Stack direction={{ xs: 'column', sm: 'row' }} useFlexGap sx={{ gap: { xs: 0.25, sm: 0.75 }, flexWrap: 'nowrap', justifyContent: 'flex-end', maxWidth: '100%', minWidth: 0,
+                alignItems: { xs: 'flex-start', sm: 'baseline' }, fontSize: 'inherit', overflowX: { xs: 'visible', sm: 'auto' } }}>
                 <Typography variant="body2" title="Talla con más libras producidas hoy y su porcentaje del total por talla"
-                  sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit', letterSpacing: 'inherit', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                  sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit', letterSpacing: 'inherit', whiteSpace: { xs: 'normal', sm: 'nowrap' }, overflowWrap: { xs: 'anywhere', sm: 'normal' }, maxWidth: '100%', flexShrink: 0 }}>
                   Talla Prom: <TallaConPorcentaje value={tallaDominante} />
                 </Typography>
                 <Typography variant="body2" title="Segunda talla con más libras producidas hoy y su porcentaje del total por talla"
-                  sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit', letterSpacing: 'inherit', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                  sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit', letterSpacing: 'inherit', whiteSpace: { xs: 'normal', sm: 'nowrap' }, overflowWrap: { xs: 'anywhere', sm: 'normal' }, maxWidth: '100%', flexShrink: 0 }}>
                   Talla Sig: <TallaConPorcentaje value={tallaSiguiente} />
                 </Typography>
               </Stack>

@@ -43,6 +43,7 @@ function EstiloCard({
             : 'background.paper',
         height: '100%',
         minWidth: 0,
+        ...(destacado && { containerType: 'inline-size' }),
       }}
     >
       <CardContent sx={{ py: destacado ? 0.875 : 1.25, px: destacado ? 1.25 : 1.75, minWidth: 0, '&:last-child': { pb: destacado ? 0.875 : 1.25 } }}>
@@ -74,7 +75,8 @@ function EstiloCard({
           useFlexGap
           sx={{ gap: destacado ? 0.375 : { xs: 0.75, sm: 1 }, flexWrap: 'wrap' }}
         >
-          <Stack direction="row" alignItems="baseline" useFlexGap sx={{ gap: 1, flexWrap: 'wrap' }}>
+          <Stack direction="row" alignItems="baseline" justifyContent={destacado ? 'space-between' : undefined}
+            useFlexGap sx={{ gap: 1, flexWrap: destacado ? 'nowrap' : 'wrap', ...(destacado && { width: '100%' }) }}>
             <Typography
               variant="h6"
               fontWeight={800}
@@ -125,13 +127,14 @@ function EstiloCard({
               </Stack>
             )}
             {tallaDominante !== undefined && (
-              <Stack direction="row" useFlexGap sx={{ gap: 0.75, flexWrap: 'wrap', justifyContent: { xs: 'flex-start', sm: 'flex-end' }, maxWidth: '100%' }}>
+              <Stack direction="row" useFlexGap sx={{ gap: 0.75, flexWrap: 'nowrap', justifyContent: 'flex-end', maxWidth: '100%',
+                fontSize: destacado ? 'clamp(9px, 2.8cqw, 14px)' : 'inherit', overflowX: 'auto' }}>
                 <Typography variant="body2" title="Talla con más libras producidas hoy y su porcentaje del total por talla"
-                  sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit', letterSpacing: 'inherit', whiteSpace: 'normal' }}>
+                  sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit', letterSpacing: 'inherit', whiteSpace: 'nowrap', flexShrink: 0 }}>
                   Talla Prom: {tallaDominante ?? '—'}
                 </Typography>
                 <Typography variant="body2" title="Segunda talla con más libras producidas hoy y su porcentaje del total por talla"
-                  sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit', letterSpacing: 'inherit', whiteSpace: 'normal' }}>
+                  sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit', letterSpacing: 'inherit', whiteSpace: 'nowrap', flexShrink: 0 }}>
                   Talla Sig: {tallaSiguiente ?? '—'}
                 </Typography>
               </Stack>

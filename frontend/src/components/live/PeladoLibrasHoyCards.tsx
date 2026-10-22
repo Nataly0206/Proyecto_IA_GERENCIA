@@ -43,7 +43,6 @@ function EstiloCard({
             : 'background.paper',
         height: '100%',
         minWidth: 0,
-        ...(destacado && { containerType: 'inline-size' }),
       }}
     >
       <CardContent sx={{ py: destacado ? 0.875 : 1.25, px: destacado ? 1.25 : 1.75, minWidth: 0, '&:last-child': { pb: destacado ? 0.875 : 1.25 } }}>
@@ -128,7 +127,7 @@ function EstiloCard({
             )}
             {tallaDominante !== undefined && (
               <Stack direction="row" useFlexGap sx={{ gap: 0.75, flexWrap: 'nowrap', justifyContent: 'flex-end', maxWidth: '100%',
-                fontSize: destacado ? 'clamp(9px, 2.8cqw, 14px)' : 'inherit', overflowX: 'auto' }}>
+                fontSize: 'inherit', overflowX: 'auto' }}>
                 <Typography variant="body2" title="Talla con más libras producidas hoy y su porcentaje del total por talla"
                   sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit', letterSpacing: 'inherit', whiteSpace: 'nowrap', flexShrink: 0 }}>
                   Talla Prom: {tallaDominante ?? '—'}

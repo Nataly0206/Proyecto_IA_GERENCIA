@@ -168,6 +168,8 @@ export interface PeladoLibrasHoyResponse {
   estilos: PeladoLibrasHoyEstilo[];
   total: number;
   librasPorHoraPromedio: number;
+  /** Producción real de todo el equipo en los últimos 60 minutos, sin extrapolar. */
+  ritmoUltimaHora: { libras: number; desde: string; hasta: string };
 }
 
 /** Libras peladas hoy por talla (fuente: STB_data.dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS). */

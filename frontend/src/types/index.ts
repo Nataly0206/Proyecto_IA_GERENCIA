@@ -169,6 +169,8 @@ export interface PeladoLibrasHoyResponse {
   estilos: PeladoLibrasHoyEstilo[];
   total: number;
   librasPorHoraPromedio: number;
+  /** Producción real de todo el equipo en los últimos 60 minutos. */
+  ritmoUltimaHora: { libras: number; desde: string; hasta: string };
 }
 
 /** Libras clasificadas hoy por máquina, en vivo (fuente: CL_LLENADO_RECIPIENTES) */

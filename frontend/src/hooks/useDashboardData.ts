@@ -154,7 +154,8 @@ export function usePeladoLibrasHoy() {
   const queryKey = ['dashboard', 'pelado-libras-hoy'] as const;
   const cacheKey = browserCacheKey(['pelado-libras-hoy', 'current']);
   const cached = readBrowserCache<PeladoLibrasHoyResponse>(cacheKey, LIVE_REFRESH_INTERVAL_MS);
-  const currentCache = cached?.data.estilos.every((estilo) => typeof estilo.librasPorHora === 'number') ? cached : null;
+  const currentCache = cached?.data.estilos.every((estilo) => typeof estilo.librasPorHora === 'number')
+    && typeof cached.data.ritmoUltimaHora?.libras === 'number' ? cached : null;
 
   const query = useQuery<PeladoLibrasHoyResponse>({
     queryKey,

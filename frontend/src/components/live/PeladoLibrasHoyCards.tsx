@@ -97,20 +97,20 @@ function EstiloCard({
             lineHeight: 1.25,
             whiteSpace: 'nowrap',
           }}>
-            {librasTotalesPorHora === undefined && (
-              <Typography variant="body2" sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit' }}>
-                {formatValue(estilo.librasPorHora ?? 0)} lbs/h
-              </Typography>
-            )}
+            <Typography variant="body2" title="Promedio acumulado: libras del día / horas transcurridas desde el inicio del pelado"
+              sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit' }}>
+              {formatValue(estilo.librasPorHora ?? 0)} Lbs/h
+            </Typography>
             {librasPorPersona !== undefined && (
               <Stack direction="row" useFlexGap sx={{ gap: 1.5, flexWrap: 'wrap', justifyContent: { xs: 'flex-start', sm: 'flex-end' }, maxWidth: '100%' }}>
                 <Typography variant="body2" sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit' }}>
-                  {librasPorPersona === null ? '—' : formatValue(librasPorPersona, 'decimal')} lbs/pers/hora
+                  {librasPorPersona === null ? '—' : formatValue(librasPorPersona, 'decimal')} lbs/pers/h
                 </Typography>
                 {librasTotalesPorHora !== undefined && (
-                  <Typography variant="body2" title="Ritmo de todo el equipo: libras del día / horas transcurridas desde el inicio del pelado"
+                  <Typography variant="body2" title="Ritmo reciente de todo el equipo: libras registradas durante los últimos 60 minutos"
                     sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit' }}>
                     {librasTotalesPorHora === null ? '—' : formatValue(librasTotalesPorHora)} Lbs Totales/h
+                    <Typography component="span" sx={{ display: 'block', fontSize: 10, fontWeight: 500, color: 'text.secondary', textAlign: { xs: 'left', sm: 'right' } }}>últimos 60 min</Typography>
                   </Typography>
                 )}
               </Stack>
@@ -145,7 +145,7 @@ export default function PeladoLibrasHoyCards() {
   const librasPorPersona = !actividadError && actividad && actividad.dia === data?.dia && personasActivas > 0
     ? (data.librasPorHoraPromedio ?? 0) / personasActivas
     : null;
-  const librasTotalesPorHora = data?.librasPorHoraPromedio ?? null;
+  const librasTotalesPorHora = data?.ritmoUltimaHora?.libras ?? null;
   const estilosConLibras = data?.estilos.filter((estilo) => estilo.libras > 0) ?? [];
 
   return (

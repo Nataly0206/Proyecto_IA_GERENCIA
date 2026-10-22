@@ -314,13 +314,13 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
             </TableCell>
             {config.hourlyPerPersonColumn && (
               <TableCell align="right" sx={{ ...HEADER_SX, whiteSpace: 'nowrap' }}>
-                lbs/pers/hora
+                lbs/pers/h
               </TableCell>
             )}
             {config.teamHourlyColumn && (
               <TableCell align="right" sx={HEADER_SX} title="Libras del día / horas de la jornada. Hoy usa el ritmo en curso de la card Total.">
-                Lbs Totales/h
-                <Box component="span" sx={{ display: 'block', fontSize: 9, fontWeight: 600, color: '#64748b' }}>equipo completo</Box>
+                Lbs/h
+                <Box component="span" sx={{ display: 'block', fontSize: 9, fontWeight: 600, color: '#64748b' }}>promedio del equipo</Box>
               </TableCell>
             )}
             {config.dailyAverageColumn && (

@@ -166,6 +166,25 @@ GROUP BY COALESCE(NULLIF(LTRIM(RTRIM(t.NOMBRE_TALLA)), ''), 'Sin talla')
 ORDER BY Libras DESC
 `;
 
+/** Ritmo reciente del equipo: libras reales en una ventana móvil de 60 minutos.
+ * Usa fecha + hora del detalle, excluye anulados y no extrapola ventanas parciales.
+ * Al cruzar medianoche también incluye los registros de la fecha anterior.
+ */
+export const PELADO_RITMO_ULTIMA_HORA_QUERY = `
+DECLARE @Hasta datetime = GETDATE();
+DECLARE @Desde datetime = DATEADD(MINUTE, -60, @Hasta);
+SELECT ISNULL(SUM(d.LIBRAS), 0) AS Libras,
+  CONVERT(varchar(19), @Desde, 126) AS Desde,
+  CONVERT(varchar(19), @Hasta, 126) AS Hasta
+FROM dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS h
+JOIN dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS_DET d
+  ON h.ID_ASIGNACION_LIBRAS_EMPLEADO = d.ID_ASIGNACION_LIBRAS_EMPLEADO
+CROSS APPLY (SELECT DATEADD(SECOND, DATEDIFF(SECOND, 0, d.HORA), CAST(h.FECHA AS datetime)) AS Marca) r
+WHERE h.FECHA BETWEEN CAST(@Desde AS date) AND CAST(@Hasta AS date)
+  AND d.ANULADO = 0
+  AND r.Marca > @Desde AND r.Marca <= @Hasta
+`;
+
 /**
  * Libras peladas por sala desde exactamente el mismo detalle que el total
  * oficial por estilo. Las uniones son LEFT para conservar registros sin

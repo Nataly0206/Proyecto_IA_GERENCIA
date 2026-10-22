@@ -22,6 +22,7 @@ import {
   PELADO_LIBRAS_HOY_ESTILOS_QUERY,
   PELADO_LIBRAS_HOY_QUERY,
   PELADO_LIBRAS_HOY_TALLA_QUERY,
+  PELADO_RITMO_ULTIMA_HORA_QUERY,
   PELADO_MINUTOS_TRANSCURRIDOS_HOY_QUERY,
   PELADO_PERSONAL_DAILY_QUERY,
   PELADO_POR_SALA_ACTIVOS_QUERY,
@@ -598,10 +599,11 @@ export async function getPeladoTiempoReal(): Promise<PeladoLiveResponse> {
 /* ------------------------------------------------------------------ */
 
 export async function getPeladoLibrasHoy(): Promise<PeladoLibrasHoyResponse> {
-  const [catalogRows, rows, transcurridoRows] = await Promise.all([
+  const [catalogRows, rows, transcurridoRows, ritmoRows] = await Promise.all([
     runStbQuery(PELADO_LIBRAS_HOY_ESTILOS_QUERY, []),
     runStbQuery(PELADO_LIBRAS_HOY_QUERY, []),
     runStbQuery(PELADO_MINUTOS_TRANSCURRIDOS_HOY_QUERY, []),
+    runStbQuery(PELADO_RITMO_ULTIMA_HORA_QUERY, []),
   ]);
   if (catalogRows.length === 0) {
     catalogRows.push(...(await runStbQuery(PELADO_LIBRAS_HOY_ESTILOS_FALLBACK_QUERY, [])));
@@ -635,6 +637,11 @@ export async function getPeladoLibrasHoy(): Promise<PeladoLibrasHoyResponse> {
     estilos,
     total,
     librasPorHoraPromedio,
+    ritmoUltimaHora: {
+      libras: round2(pickNumber(ritmoRows[0] ?? {}, 'Libras')),
+      desde: pickString(ritmoRows[0] ?? {}, 'Desde'),
+      hasta: pickString(ritmoRows[0] ?? {}, 'Hasta'),
+    },
   };
 }
 

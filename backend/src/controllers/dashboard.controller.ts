@@ -237,7 +237,7 @@ export async function getPeladoLibrasHoy(req: Request, res: Response): Promise<v
   const forceRefresh = req.query.refresh === 'true';
   res.json(
     await withTtlCache(
-      'pelado-libras-hoy:current',
+      'pelado-libras-hoy:ritmo-60m-v1',
       LIVE_CACHE_MS,
       () => dashboardService.getPeladoLibrasHoy(),
       forceRefresh,

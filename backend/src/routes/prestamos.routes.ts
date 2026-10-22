@@ -2,12 +2,11 @@ import { Request, Response, Router } from 'express';
 import { ApiError, asyncHandler } from '../middleware/errorHandler';
 import { AuthUser } from '../services/auth.service';
 import * as service from '../services/prestamos.service';
+import { validarPlan, validDate, money } from '../services/amortizacion';
 
 const router = Router();
 const text = (value: unknown, max: number) => typeof value === 'string' ? value.trim().slice(0, max) : '';
 const number = (value: unknown) => Number(value);
-const validDate = (value: unknown): value is string =>
-  typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`));
 const usuario = (res: Response) => (res.locals.authUser as AuthUser).usuario;
 const idParam = (value: string, label: string) => {
   const id = number(value);
@@ -25,15 +24,18 @@ function parsePlan(body: Request['body']): service.PlanInput {
     || !validDate(body?.fechaPrimeraCuota)) {
     throw new ApiError(400, 'Revisa el monto, la tasa, las cuotas y las fechas del préstamo.');
   }
-  return {
+  const input: service.PlanInput = {
     monto, tasaAnual, cantidadCuotas, cargoCuota, frecuencia: body.frecuencia,
     tipoAmortizacion: body.tipoAmortizacion, fechaPrimeraCuota: body.fechaPrimeraCuota,
+    opciones: body.opciones,
   };
+  validarPlan(input);
+  return input;
 }
 
 function parsePago(body: Request['body']): service.PagoInput {
   const monto = number(body?.monto), metodo = text(body?.metodo, 30);
-  if (!Number.isFinite(monto) || monto <= 0 || !service.METODOS_PAGO.includes(metodo) || !validDate(body?.fecha)) {
+  if (!Number.isFinite(monto) || monto < 0.01 || monto > 1e12 || Math.abs(monto - money(monto)) > 1e-6 || !service.METODOS_PAGO.includes(metodo) || !validDate(body?.fecha)) {
     throw new ApiError(400, 'Monto, fecha o forma de pago no válidos.');
   }
   return { monto, metodo, fecha: body.fecha, referencia: text(body?.referencia, 100), notas: text(body?.notas, 500) };
@@ -118,12 +120,12 @@ router.post('/:id/abonos', asyncHandler(async (req, res) => {
 
 router.put('/:id/cuotas/:cuotaId', asyncHandler(async (req, res) => {
   const capital = number(req.body?.capital), interes = number(req.body?.interes), cargos = number(req.body?.cargos);
-  if (![capital, interes, cargos].every((value) => Number.isFinite(value) && value >= 0)
+  if (![capital, interes, cargos].every((value) => Number.isFinite(value) && value >= 0 && value <= 1e12 && Math.abs(value - money(value)) < 1e-6)
     || capital + interes + cargos <= 0 || !validDate(req.body?.fechaVencimiento)) {
     throw new ApiError(400, 'Los valores de la cuota no son válidos.');
   }
   await service.editarCuota(idParam(req.params.id, 'Préstamo'), idParam(req.params.cuotaId, 'Cuota'),
-    { fechaVencimiento: req.body.fechaVencimiento, capital, interes, cargos });
+    { fechaVencimiento: req.body.fechaVencimiento, capital, interes, cargos }, usuario(res));
   res.json({ message: 'Cuota actualizada.' });
 }));
 

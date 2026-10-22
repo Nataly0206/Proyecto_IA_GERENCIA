@@ -449,6 +449,38 @@ async function migrate(): Promise<void> {
       END;
     `);
 
+    await pool.request().query(`
+      SET XACT_ABORT ON;
+      IF NOT EXISTS (SELECT 1 FROM dbo.dashboard_migraciones WHERE version = 12)
+      BEGIN
+        BEGIN TRANSACTION;
+        ALTER TABLE dbo.prestamos ADD opciones_plan NVARCHAR(MAX) NULL,
+          interes_capitalizado DECIMAL(18,2) NOT NULL CONSTRAINT DF_prestamos_capitalizado DEFAULT 0;
+        ALTER TABLE dbo.prestamos DROP CONSTRAINT CK_prestamos_tipo;
+        ALTER TABLE dbo.prestamos ADD CONSTRAINT CK_prestamos_tipo CHECK
+          (tipo_amortizacion IN (N'cuota_fija',N'capital_fijo',N'solo_interes',N'pago_unico',N'balon',N'creciente',N'extraordinarias',N'manual'));
+        ALTER TABLE dbo.prestamos_cuotas ADD eliminado_en DATETIME2 NULL, eliminado_por NVARCHAR(60) NULL,
+          motivo_reemplazo NVARCHAR(200) NULL, concepto NVARCHAR(200) NULL;
+        ALTER TABLE dbo.prestamos_cuotas DROP CONSTRAINT UQ_prestamos_cuota;
+        EXEC(N'CREATE UNIQUE INDEX UX_prestamos_cuota_vigente ON dbo.prestamos_cuotas(prestamo_id, numero) WHERE eliminado_en IS NULL');
+        INSERT INTO dbo.dashboard_migraciones (version, nombre)
+        VALUES (12, N'amortizaciones estructuradas e historial de cuotas');
+        COMMIT TRANSACTION;
+      END;
+    `);
+
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT 1 FROM dbo.dashboard_migraciones WHERE version = 13)
+      BEGIN
+        BEGIN TRANSACTION;
+        ALTER TABLE dbo.prestamos_cuotas ADD interes_diferido DECIMAL(18,2) NOT NULL
+          CONSTRAINT DF_prestamos_cuotas_diferido DEFAULT 0;
+        INSERT INTO dbo.dashboard_migraciones (version, nombre)
+        VALUES (13, N'intereses diferidos preservados en abonos');
+        COMMIT TRANSACTION;
+      END;
+    `);
+
     console.log(`[migrate] Base [${databaseName}] lista y actualizada.`);
   } finally {
     await pool.close();

@@ -18,12 +18,14 @@ function EstiloCard({
   estilo,
   badge,
   librasPorPersona,
+  librasTotalesPorHora,
   tallaDominante,
   tallaSiguiente,
 }: {
   estilo: PeladoLibrasHoyEstilo;
   badge?: string;
   librasPorPersona?: number | null;
+  librasTotalesPorHora?: number | null;
   tallaDominante?: string | null;
   tallaSiguiente?: string | null;
 }) {
@@ -99,9 +101,17 @@ function EstiloCard({
               {formatValue(estilo.librasPorHora ?? 0)} lbs/h
             </Typography>
             {librasPorPersona !== undefined && (
-              <Typography variant="body2" sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit' }}>
-                {librasPorPersona === null ? '—' : formatValue(librasPorPersona, 'decimal')} lbs/pers/hora
-              </Typography>
+              <Stack direction="row" useFlexGap sx={{ gap: 1.5, flexWrap: 'wrap', justifyContent: { xs: 'flex-start', sm: 'flex-end' }, maxWidth: '100%' }}>
+                <Typography variant="body2" sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit' }}>
+                  {librasPorPersona === null ? '—' : formatValue(librasPorPersona, 'decimal')} lbs/pers/hora
+                </Typography>
+                {librasTotalesPorHora !== undefined && (
+                  <Typography variant="body2" title="Libras por persona por hora × personas activas"
+                    sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit' }}>
+                    {librasTotalesPorHora === null ? '—' : formatValue(librasTotalesPorHora)} Lbs Totales/h
+                  </Typography>
+                )}
+              </Stack>
             )}
             {tallaDominante !== undefined && (
               <Stack direction="row" useFlexGap sx={{ gap: 1, flexWrap: 'wrap', justifyContent: { xs: 'flex-start', sm: 'flex-end' }, maxWidth: '100%' }}>
@@ -133,6 +143,7 @@ export default function PeladoLibrasHoyCards() {
   const librasPorPersona = !actividadError && actividad && actividad.dia === data?.dia && personasActivas > 0
     ? (data.librasPorHoraPromedio ?? 0) / personasActivas
     : null;
+  const librasTotalesPorHora = librasPorPersona !== null ? librasPorPersona * personasActivas : null;
   const estilosConLibras = data?.estilos.filter((estilo) => estilo.libras > 0) ?? [];
 
   return (
@@ -185,7 +196,7 @@ export default function PeladoLibrasHoyCards() {
           {estilosConLibras.map((estilo) => (
             <EstiloCard key={estilo.estilo} estilo={estilo} />
           ))}
-          <EstiloCard badge="Total del día" tallaDominante={tallaDominante} tallaSiguiente={tallaSiguiente} librasPorPersona={librasPorPersona} estilo={{ estilo: 'Total', libras: data.total, librasPorHora: data.librasPorHoraPromedio }} />
+          <EstiloCard badge="Total del día" tallaDominante={tallaDominante} tallaSiguiente={tallaSiguiente} librasPorPersona={librasPorPersona} librasTotalesPorHora={librasTotalesPorHora} estilo={{ estilo: 'Total', libras: data.total, librasPorHora: data.librasPorHoraPromedio }} />
         </Box>
       )}
     </Box>

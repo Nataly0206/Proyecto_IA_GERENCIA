@@ -13,6 +13,8 @@ import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
 import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import { apiClient } from '../api/client';
+import GroupedNumberField from '../components/prestamos/GroupedNumberField';
+import AmortizacionOptions, { OpcionesPlan, TIPO_LABEL, opcionesIniciales, descripcionOpciones } from '../components/prestamos/AmortizacionOptions';
 
 // Control de deuda propia: préstamos que la empresa recibe de bancos y otros acreedores.
 
@@ -24,27 +26,26 @@ interface Prestamo {
   id: number; numero: string; referencia?: string; acreedor: string; moneda: Moneda; monto: number; tasaAnual: number;
   cantidadCuotas: number; frecuencia: string; tipoAmortizacion: string; fechaDesembolso: string; estado: string;
   saldoCapital: number; totalPendiente: number; cuotasPendientes: number; cuotasVencidas: number; vencido: number;
-  capitalSinPagos: number; pagado: number; proximaFecha?: string; proximaCuota?: number;
+  capitalSinPagos: number; permiteReducirPlazo: boolean; pagado: number; proximaFecha?: string; proximaCuota?: number;
 }
 interface ResumenMoneda { moneda: Moneda; prestamos: number; saldoCapital: number; totalPendiente: number; vencido: number; proximos30: number; capitalPagado: number; interesPagado: number; cargosPagados: number }
 interface DeudaAcreedor { acreedorId: number; acreedor: string; moneda: Moneda; prestamos: number; montoOriginal: number; saldoCapital: number; totalPendiente: number; vencido: number; proximaFecha?: string }
 interface AgendaRow { cuotaId: number; prestamoId: number; numero: string; acreedor: string; moneda: Moneda; cuota: number; fechaVencimiento: string; pendiente: number; diasAtraso: number }
 interface Resumen { monedas: ResumenMoneda[]; porAcreedor: DeudaAcreedor[]; agenda: AgendaRow[] }
-interface Cuota { id: number; numero: number; fechaVencimiento: string; capital: number; interes: number; cargos: number; monto: number; pagado: number; estado: string }
+interface Cuota { id: number; numero: number; fechaVencimiento: string; capital: number; interes: number; cargos: number; monto: number; pagado: number; estado: string; concepto?: string; interesDiferido?: number }
 interface PagoRow { id: number; numero: string; tipo: string; fecha: string; monto: number; metodo: string; referencia?: string; creadoPor: string }
 interface Detalle {
-  prestamo: { id: number; numero: string; referencia?: string; acreedor: string; moneda: Moneda; monto: number; tasaAnual: number; frecuencia: string; tipoAmortizacion: string; fechaDesembolso: string; notas?: string; estado: string; creadoPor: string };
-  cuotas: Cuota[]; pagos: PagoRow[]; diferenciaCapital: number;
+  prestamo: { id: number; numero: string; referencia?: string; acreedor: string; moneda: Moneda; monto: number; tasaAnual: number; frecuencia: string; tipoAmortizacion: string; fechaDesembolso: string; notas?: string; estado: string; creadoPor: string; opciones: OpcionesPlan; interesCapitalizado: number };
+  cuotas: Cuota[]; historialCuotas: (Cuota & { reemplazadaEn: string; reemplazadaPor: string; motivo: string })[]; pagos: PagoRow[]; diferenciaCapital: number;
 }
 interface ReporteRow { id: number; numero: string; tipo: string; fecha: string; acreedor: string; prestamo: string; referencia?: string; moneda: Moneda; monto: number; capital: number; interes: number; cargos: number; metodo: string; comprobante?: string; creadoPor: string }
-interface Plan { totalInteres: number; totalCargos: number; totalPagar: number; primeraCuota: number; ultimaCuota: number }
+interface Plan { totalInteres: number; interesCapitalizado: number; capitalFinanciado: number; totalCargos: number; totalPagar: number; primeraCuota: number; ultimaCuota: number; cuotas: (Cuota & { saldo: number; concepto: string })[] }
 
 const HEAD = { fontWeight: 800, bgcolor: '#f1f5f9', whiteSpace: 'nowrap' } as const;
 const MONEDAS: Moneda[] = ['HNL', 'USD'];
 const MONEDA_LABEL: Record<Moneda, string> = { HNL: 'Lempiras', USD: 'Dólares' };
 const FRECUENCIAS = ['semanal', 'quincenal', 'mensual', 'trimestral', 'semestral', 'anual'];
 const TIPOS_ACREEDOR = ['banco', 'cooperativa', 'financiera', 'proveedor', 'persona', 'otro'];
-const TIPO_LABEL: Record<string, string> = { cuota_fija: 'Cuota nivelada', capital_fijo: 'Capital fijo', solo_interes: 'Solo interés + capital al final' };
 const METODO_LABEL: Record<string, string> = { transferencia: 'Transferencia', debito_automatico: 'Débito automático', cheque: 'Cheque', efectivo: 'Efectivo', otro: 'Otro' };
 const PAGO_LABEL: Record<string, string> = { cuota: 'Cuota', abono_capital: 'Abono a capital' };
 
@@ -66,37 +67,6 @@ function Metric({ label, value, color = '#176247' }: { label: string; value: str
 }
 
 function Empty({ children }: { children: string }) { return <Alert severity="info" sx={{ py: 0.4 }}>{children}</Alert>; }
-
-function GroupedNumberField({ label, value, onChange, decimals = 2, min = 0, max, required = false }: {
-  label: string; value: string; onChange: (value: string) => void; decimals?: number; min?: number; max?: number; required?: boolean;
-}) {
-  const format = (raw: string) => {
-    const [integer, fraction] = raw.split('.');
-    return integer.replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (fraction !== undefined ? `.${fraction}` : '');
-  };
-  return <TextField size="small" required={required} label={label} value={format(value)}
-    inputProps={{ inputMode: decimals ? 'decimal' : 'numeric' }}
-    onChange={(event) => {
-      const input = event.target;
-      const raw = input.value.replace(/,/g, '');
-      if (!(decimals ? new RegExp(`^\\d*(?:\\.\\d{0,${decimals}})?$`) : /^\d*$/).test(raw)) return;
-      const position = input.selectionStart ?? input.value.length;
-      const digitsBeforeCursor = input.value.slice(0, position).replace(/,/g, '').length;
-      const normalized = raw.startsWith('.') ? `0${raw}` : raw.replace(/^0+(?=\d)/, '');
-      input.setCustomValidity(normalized && (Number(normalized) < min || (max !== undefined && Number(normalized) > max))
-        ? `Ingresa un valor ${max !== undefined ? `entre ${min} y ${max}` : `mayor o igual a ${min}`}.` : '');
-      onChange(normalized);
-      requestAnimationFrame(() => {
-        const formatted = format(normalized);
-        let cursor = 0, count = 0;
-        while (cursor < formatted.length && count < digitsBeforeCursor) {
-          if (formatted[cursor] !== ',') count += 1;
-          cursor += 1;
-        }
-        input.setSelectionRange(cursor, cursor);
-      });
-    }} />;
-}
 
 function Search({ value, setValue }: { value: string; setValue: (v: string) => void }) {
   return (
@@ -431,26 +401,35 @@ function LoanDialog({ open, close, creditors, done }: { open: boolean; close: ()
     acreedorId: '', referencia: '', moneda: 'HNL' as Moneda, monto: '', tasaAnual: '', cantidadCuotas: '12', frecuencia: 'mensual',
     tipoAmortizacion: 'cuota_fija', fechaDesembolso: today(), fechaPrimeraCuota: today(), cargoCuota: '0', notas: '',
   });
+  const [opciones, setOpciones] = useState<OpcionesPlan>({});
+  const [simulating, setSimulating] = useState(false);
+  const [simulationError, setSimulationError] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [plan, setPlan] = useState<Plan | null>(null);
   const set = (key: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [key]: e.target.value });
   const payload = useMemo(() => ({
-    ...form, acreedorId: Number(form.acreedorId), monto: Number(form.monto), tasaAnual: Number(form.tasaAnual),
+    ...form, opciones, acreedorId: Number(form.acreedorId), monto: Number(form.monto), tasaAnual: Number(form.tasaAnual),
     cantidadCuotas: Number(form.cantidadCuotas), cargoCuota: Number(form.cargoCuota),
-  }), [form]);
+  }), [form, opciones]);
 
   // La simulación la calcula el backend con la misma función que genera el calendario real.
   useEffect(() => {
-    if (!open || !(payload.monto > 0) || !(payload.cantidadCuotas > 0) || form.tasaAnual === '') { setPlan(null); return undefined; }
+    setPlan(null); setSimulationError('');
+    if (!open || !(payload.monto > 0) || !(payload.cantidadCuotas > 0) || form.tasaAnual === '') { setSimulating(false); return; }
+    const controller = new AbortController();
+    setSimulating(true);
     const timer = setTimeout(() => {
-      apiClient.post<Plan>('/prestamos/simular', payload).then((r) => setPlan(r.data)).catch(() => setPlan(null));
+      apiClient.post<Plan>('/prestamos/simular', payload, { signal: controller.signal })
+        .then((r) => { if (!controller.signal.aborted) setPlan(r.data); })
+        .catch((e) => { if (!controller.signal.aborted) setSimulationError(apiError(e)); })
+        .finally(() => { if (!controller.signal.aborted) setSimulating(false); });
     }, 350);
-    return () => clearTimeout(timer);
+    return () => { clearTimeout(timer); controller.abort(); };
   }, [open, payload, form.tasaAnual]);
 
   const submit = async (e: FormEvent) => {
-    e.preventDefault(); setBusy(true);
+    e.preventDefault(); if (!plan || simulating) return; setBusy(true);
     try {
       const { data } = await apiClient.post<{ prestamo: { numero: string } }>('/prestamos', payload);
       setError(''); done(`${data.prestamo.numero} registrado con su calendario de cuotas.`);
@@ -458,14 +437,15 @@ function LoanDialog({ open, close, creditors, done }: { open: boolean; close: ()
   };
   const lines: [string, string][] = plan ? [
     ['Capital recibido', money(payload.monto, form.moneda)],
-    ['Intereses', money(plan.totalInteres, form.moneda)],
+    ['Intereses totales', money(plan.totalInteres, form.moneda)],
+    ...(plan.interesCapitalizado > 0 ? [['Interés capitalizado', money(plan.interesCapitalizado, form.moneda)], ['Capital financiado', money(plan.capitalFinanciado, form.moneda)]] as [string, string][] : []),
     ['Seguros y comisiones', money(plan.totalCargos, form.moneda)],
     ['Total a pagar', money(plan.totalPagar, form.moneda)],
     ['Primera cuota', money(plan.primeraCuota, form.moneda)],
     ['Última cuota', money(plan.ultimaCuota, form.moneda)],
   ] : [];
   return (
-    <Dialog open={open} onClose={close} maxWidth="md" fullWidth>
+    <Dialog open={open} onClose={close} maxWidth="lg" fullWidth>
       <Box component="form" onSubmit={submit}>
         <DialogTitle>Registrar préstamo recibido</DialogTitle>
         <DialogContent>
@@ -482,32 +462,47 @@ function LoanDialog({ open, close, creditors, done }: { open: boolean; close: ()
                 </TextField>
                 <GroupedNumberField required label="Monto recibido" min={0.01} value={form.monto} onChange={(monto) => setForm({ ...form, monto })} />
                 <TextField size="small" required type="number" label="Tasa anual (%)" inputProps={{ min: 0, step: 0.0001 }} value={form.tasaAnual} onChange={set('tasaAnual')} />
-                <GroupedNumberField required label="Cantidad de cuotas" decimals={0} min={1} max={1000} value={form.cantidadCuotas} onChange={(cantidadCuotas) => setForm({ ...form, cantidadCuotas })} />
-                <TextField size="small" select label="Frecuencia de pago" value={form.frecuencia} onChange={set('frecuencia')}>
+                <GroupedNumberField required label={form.tipoAmortizacion === 'pago_unico' ? 'Plazo en períodos' : 'Cantidad de períodos (incluye gracia)'} decimals={0} min={1} max={1000} value={form.cantidadCuotas} onChange={(cantidadCuotas) => setForm({ ...form, cantidadCuotas })} />
+                <TextField size="small" select label={form.tipoAmortizacion === 'pago_unico' ? 'Unidad del plazo' : 'Frecuencia de pago'} value={form.frecuencia} onChange={set('frecuencia')}>
                   {FRECUENCIAS.map((x) => <MenuItem key={x} value={x}>{capitalize(x)}</MenuItem>)}
                 </TextField>
-                <TextField size="small" select label="Amortización" value={form.tipoAmortizacion} onChange={set('tipoAmortizacion')}>
+                <TextField size="small" select label="Amortización" value={form.tipoAmortizacion} onChange={(e) => { setForm({ ...form, tipoAmortizacion: e.target.value }); setOpciones(opcionesIniciales(e.target.value)); }}>
                   {Object.entries(TIPO_LABEL).map(([value, label]) => <MenuItem key={value} value={value}>{label}</MenuItem>)}
                 </TextField>
                 <GroupedNumberField label="Seguro y comisiones por cuota" value={form.cargoCuota} onChange={(cargoCuota) => setForm({ ...form, cargoCuota })} />
                 <TextField size="small" type="date" label="Desembolso" InputLabelProps={{ shrink: true }} value={form.fechaDesembolso} onChange={set('fechaDesembolso')} />
-                <TextField size="small" type="date" label="Primera cuota" InputLabelProps={{ shrink: true }} value={form.fechaPrimeraCuota} onChange={set('fechaPrimeraCuota')} />
+                <TextField size="small" type="date" label={form.tipoAmortizacion === 'pago_unico' ? 'Vencimiento del pago único' : 'Primer vencimiento (incluye gracia)'} InputLabelProps={{ shrink: true }} value={form.fechaPrimeraCuota} onChange={set('fechaPrimeraCuota')} />
               </Box>
+              <AmortizacionOptions tipo={form.tipoAmortizacion} opciones={opciones} onChange={setOpciones}
+                cantidad={payload.cantidadCuotas} monto={payload.monto} fecha={form.fechaPrimeraCuota} frecuencia={form.frecuencia} cargo={payload.cargoCuota} />
               <TextField size="small" label="Notas o garantía" value={form.notas} onChange={set('notas')} />
             </Stack>
             <Paper variant="outlined" sx={{ p: 1.5, bgcolor: '#f6f8f7', alignSelf: 'start' }}>
               <Typography fontWeight={900}>Simulación</Typography>
-              {!plan ? <Typography variant="body2" color="text.secondary" mt={1}>Ingresa monto, tasa y cuotas para ver el plan.</Typography>
+              {simulationError && <Alert severity="warning" sx={{ mt: 1 }}>{simulationError}</Alert>}
+              {!plan ? <Typography variant="body2" color="text.secondary" mt={1}>{simulating ? 'Calculando…' : 'Completa los datos para ver el plan.'}</Typography>
                 : lines.map(([a, b]) => <Stack key={a} direction="row" justifyContent="space-between" mt={1}><Typography variant="body2">{a}</Typography><b>{b}</b></Stack>)}
               <Alert severity="info" sx={{ mt: 1.5, fontSize: 11 }}>
-                La tasa anual se divide entre los pagos del año. Después de guardar puedes ajustar cada cuota para que coincida con la tabla del banco.
+                Tasa anual nominal dividida entre los períodos del año. Los períodos incluyen la gracia; durante gracia total no se cobran cargos. El pago único cobra los cargos una sola vez.
               </Alert>
             </Paper>
           </Box>
+          {plan && <Box mt={2}>
+            <Typography fontWeight={800} mb={1}>Calendario de pagos · {plan.cuotas.length} filas</Typography>
+            <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 300 }}>
+              <Table size="small" stickyHeader>
+                <TableHead><TableRow>{['#', 'Fecha', 'Concepto', 'Capital', 'Interés', 'Cargos', 'Pago', 'Saldo'].map(label => <TableCell key={label} sx={HEAD}>{label}</TableCell>)}</TableRow></TableHead>
+                <TableBody>{plan.cuotas.map(q => <TableRow key={q.numero}>
+                  <TableCell>{q.numero}</TableCell><TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDate(q.fechaVencimiento)}</TableCell><TableCell>{q.concepto}</TableCell>
+                  {[q.capital, q.interes, q.cargos, q.monto, q.saldo].map((v, i) => <TableCell key={i} align="right" sx={{ whiteSpace: 'nowrap' }}>{money(v, form.moneda)}</TableCell>)}
+                </TableRow>)}</TableBody>
+              </Table>
+            </TableContainer>
+          </Box>}
         </DialogContent>
         <DialogActions>
           <Button onClick={close}>Cancelar</Button>
-          <Button type="submit" variant="contained" disabled={busy}>{busy ? 'Guardando…' : 'Registrar préstamo'}</Button>
+          <Button type="submit" variant="contained" disabled={busy || simulating || !plan}>{busy ? 'Guardando…' : 'Registrar préstamo'}</Button>
         </DialogActions>
       </Box>
     </Dialog>
@@ -524,7 +519,7 @@ function PaymentDialog({ loan, close, done }: { loan: Prestamo | null; close: ()
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   useEffect(() => {
-    setKind('cuota'); setAmount(loan?.proximaCuota ? Number(loan.proximaCuota).toFixed(2) : ''); setDate(today()); setReference(''); setError('');
+    setKind('cuota'); setMode('cuota'); setAmount(loan?.proximaCuota ? Number(loan.proximaCuota).toFixed(2) : ''); setDate(today()); setReference(''); setError('');
   }, [loan]);
   if (!loan) return null;
   const limit = kind === 'cuota' ? loan.totalPendiente : loan.capitalSinPagos;
@@ -561,9 +556,9 @@ function PaymentDialog({ loan, close, done }: { loan: Prestamo | null; close: ()
               helperText={kind === 'cuota' ? `Se aplica desde la cuota más antigua. Máximo ${money(limit, loan.moneda)}.` : `Reduce el capital de las cuotas sin pagos. Máximo ${money(limit, loan.moneda)}.`} />
             {kind === 'abono' && (
               <TextField size="small" select label="Efecto del abono" value={mode} onChange={(e) => setMode(e.target.value as 'cuota' | 'plazo')}
-                helperText="Las cuotas sin pagos se recalculan con la tasa del préstamo; los ajustes manuales de interés en ellas se pierden.">
+                helperText={loan.permiteReducirPlazo ? "Se recalculan las cuotas sin pagos con la tasa del préstamo. Se conserva el historial anterior." : "Conserva fechas y estructura; reduce capital e intereses futuros proporcionalmente. Conserva intereses diferidos y, en calendario manual, los intereses pactados. Se conserva el historial anterior."}>
                 <MenuItem value="cuota">Reducir la cuota y mantener el plazo</MenuItem>
-                <MenuItem value="plazo">Reducir el plazo y mantener la cuota</MenuItem>
+                <MenuItem value="plazo" disabled={!loan.permiteReducirPlazo}>Reducir el plazo y mantener la cuota</MenuItem>
               </TextField>
             )}
             <TextField size="small" required type="date" label="Fecha del pago" InputLabelProps={{ shrink: true }} value={date} onChange={(e) => setDate(e.target.value)} />
@@ -586,8 +581,9 @@ function DetailDialog({ id, close, changed }: { id: number | null; close: () => 
   const [data, setData] = useState<Detalle | null>(null);
   const [error, setError] = useState('');
   const [editing, setEditing] = useState<Cuota | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
   const fetchDetail = useCallback(async () => {
-    if (id === null) { setData(null); return; }
+    if (id === null) { setData(null); setShowHistory(false); return; }
     try { setData((await apiClient.get<Detalle>(`/prestamos/${id}`)).data); setError(''); } catch (e) { setError(apiError(e)); }
   }, [id]);
   useEffect(() => { void fetchDetail(); }, [fetchDetail]);
@@ -607,15 +603,17 @@ function DetailDialog({ id, close, changed }: { id: number | null; close: () => 
                 {money(loan.monto, m)} al {Number(loan.tasaAnual).toFixed(2)}% anual · {TIPO_LABEL[loan.tipoAmortizacion]} · pago {loan.frecuencia} · desembolso {formatDate(loan.fechaDesembolso)} · registrado por {loan.creadoPor}
               </Typography>
             </Box>
+            {loan.interesCapitalizado > 0 && <Alert severity="info">El capital financiado incluye {money(loan.interesCapitalizado, m)} de intereses capitalizados durante la gracia. Los pagos de ese importe se contabilizan como capital.</Alert>}
+            <Typography variant="body2" color="text.secondary">{descripcionOpciones(loan.opciones)}</Typography>
             {Math.abs(data.diferenciaCapital) > 0.01 && (
               <Alert severity="warning" sx={{ py: 0.4 }}>
-                El capital del calendario más los abonos difiere del monto recibido en {money(data.diferenciaCapital, m)}. Revisa las cuotas editadas.
+                El capital del calendario más los abonos difiere del capital financiado (monto recibido + interés capitalizado) en {money(data.diferenciaCapital, m)}. Revisa las cuotas editadas.
               </Alert>
             )}
             <TableContainer sx={{ maxHeight: 360 }}>
               <Table size="small" stickyHeader>
                 <TableHead><TableRow>
-                  {['#', 'Vencimiento', 'Capital', 'Interés', 'Seguro y comis.', 'Cuota', 'Pagado', 'Estado', ''].map((x) => (
+                  {['#', 'Vencimiento', 'Concepto', 'Capital', 'Interés', 'Seguro y comis.', 'Cuota', 'Pagado', 'Estado', ''].map((x) => (
                     <TableCell key={x} sx={HEAD} align={['#', 'Capital', 'Interés', 'Seguro y comis.', 'Cuota', 'Pagado'].includes(x) ? 'right' : 'left'}>{x}</TableCell>
                   ))}
                 </TableRow></TableHead>
@@ -624,12 +622,13 @@ function DetailDialog({ id, close, changed }: { id: number | null; close: () => 
                     <TableRow key={q.id}>
                       <TableCell align="right">{q.numero}</TableCell>
                       <TableCell>{formatDate(q.fechaVencimiento)}</TableCell>
+                      <TableCell>{q.concepto || 'Cuota'}</TableCell>
                       <TableCell align="right">{money(q.capital, m)}</TableCell>
-                      <TableCell align="right">{money(q.interes, m)}</TableCell>
+                      <TableCell align="right">{money(q.interes, m)}{Number(q.interesDiferido) > 0 && <Typography variant="caption" display="block" color="text.secondary">Incluye {money(q.interesDiferido, m)} diferidos</Typography>}</TableCell>
                       <TableCell align="right">{money(q.cargos, m)}</TableCell>
                       <TableCell align="right" sx={{ fontWeight: 800 }}>{money(q.monto, m)}</TableCell>
                       <TableCell align="right">{money(q.pagado, m)}</TableCell>
-                      <TableCell><Chip size="small" color={q.estado === 'pagada' ? 'success' : q.estado === 'parcial' ? 'warning' : 'default'} label={capitalize(q.estado)} /></TableCell>
+                      <TableCell><Chip size="small" color={q.estado === 'pagada' ? 'success' : q.estado === 'parcial' ? 'warning' : 'default'} label={Number(q.monto) === 0 ? 'Sin pago' : capitalize(q.estado)} /></TableCell>
                       <TableCell align="right" sx={{ py: 0 }}>
                         {editable && Number(q.pagado) === 0 && (
                           <Tooltip title="Ajustar a la tabla del banco"><IconButton size="small" onClick={() => setEditing(q)}><EditOutlinedIcon fontSize="small" /></IconButton></Tooltip>
@@ -640,6 +639,17 @@ function DetailDialog({ id, close, changed }: { id: number | null; close: () => 
                 </TableBody>
               </Table>
             </TableContainer>
+            {data.historialCuotas.length > 0 && <Box>
+              <Button size="small" onClick={() => setShowHistory(!showHistory)}>{showHistory ? 'Ocultar' : 'Ver'} historial de cuotas ({data.historialCuotas.length})</Button>
+              {showHistory && <TableContainer sx={{ maxHeight: 240 }}><Table size="small" stickyHeader>
+                <TableHead><TableRow>{['#', 'Vencimiento', 'Capital', 'Interés', 'Cargos', 'Monto', 'Reemplazada', 'Usuario', 'Motivo'].map(x => <TableCell key={x} sx={HEAD}>{x}</TableCell>)}</TableRow></TableHead>
+                <TableBody>{data.historialCuotas.map(q => <TableRow key={q.id}>
+                  <TableCell>{q.numero}</TableCell><TableCell>{formatDate(q.fechaVencimiento)}</TableCell>
+                  {[q.capital, q.interes, q.cargos, q.monto].map((v, i) => <TableCell key={i}>{money(v, m)}</TableCell>)}
+                  <TableCell>{new Date(q.reemplazadaEn).toLocaleString('es-HN')}</TableCell><TableCell>{q.reemplazadaPor}</TableCell><TableCell>{q.motivo}</TableCell>
+                </TableRow>)}</TableBody>
+              </Table></TableContainer>}
+            </Box>}
             <Typography fontWeight={800}>Pagos realizados</Typography>
             {!data.pagos.length ? <Empty>Aún no se han registrado pagos de este préstamo.</Empty> : (
               <TableContainer sx={{ maxHeight: 220 }}>

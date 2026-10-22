@@ -56,6 +56,8 @@ app.use(
   }),
 );
 
+// Un calendario manual de hasta 1.000 cuotas supera el límite general.
+app.use('/api/prestamos', express.json({ limit: '256kb', strict: true }));
 app.use(express.json({ limit: '64kb', strict: true }));
 
 const generalLimiter = rateLimit({

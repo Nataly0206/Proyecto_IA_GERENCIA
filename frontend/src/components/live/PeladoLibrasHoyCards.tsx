@@ -45,9 +45,9 @@ function EstiloCard({
         minWidth: 0,
       }}
     >
-      <CardContent sx={{ py: 1.25, px: 1.75, minWidth: 0, '&:last-child': { pb: 1.25 } }}>
-        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" mb={0.5} spacing={0.5}>
-          <Typography variant="body2" fontWeight={700} noWrap sx={{ minWidth: 0 }} title={estilo.estilo}>
+      <CardContent sx={{ py: destacado ? 0.875 : 1.25, px: destacado ? 1.25 : 1.75, minWidth: 0, '&:last-child': { pb: destacado ? 0.875 : 1.25 } }}>
+        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" mb={destacado ? 0.25 : 0.5} spacing={0.5}>
+          <Typography variant="body2" fontWeight={700} noWrap sx={{ minWidth: 0, ...(destacado && { fontSize: 13 }) }} title={estilo.estilo}>
             {estilo.estilo}
           </Typography>
           {badge && (
@@ -68,61 +68,70 @@ function EstiloCard({
         </Stack>
 
         <Stack
-          direction={{ xs: 'column', sm: 'row' }}
+          direction={destacado ? 'column' : { xs: 'column', sm: 'row' }}
           justifyContent="space-between"
-          alignItems={{ xs: 'flex-start', sm: 'baseline' }}
+          alignItems={destacado ? 'stretch' : { xs: 'flex-start', sm: 'baseline' }}
           useFlexGap
-          sx={{ gap: { xs: 0.75, sm: 1 }, flexWrap: 'wrap' }}
+          sx={{ gap: destacado ? 0.375 : { xs: 0.75, sm: 1 }, flexWrap: 'wrap' }}
         >
-          <Typography
-            variant="h6"
-            fontWeight={800}
-            sx={{
-              color: estilo.libras > 0 ? '#164a8b' : 'text.secondary',
-              lineHeight: 1.1,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {formatValue(estilo.libras)}
-            <Typography component="span" variant="caption" color="text.secondary" ml={0.5}>
-              lbs
+          <Stack direction="row" alignItems="baseline" useFlexGap sx={{ gap: 1, flexWrap: 'wrap' }}>
+            <Typography
+              variant="h6"
+              fontWeight={800}
+              sx={{
+                color: estilo.libras > 0 ? '#164a8b' : 'text.secondary',
+                lineHeight: 1.1,
+                whiteSpace: 'nowrap',
+                ...(destacado && { fontSize: 18, letterSpacing: '-0.2px' }),
+              }}
+            >
+              {formatValue(estilo.libras)}
+              <Typography component="span" variant="caption" color="text.secondary" ml={0.5}>
+                lbs
+              </Typography>
             </Typography>
-          </Typography>
-          <Stack alignItems={{ xs: 'flex-start', sm: 'flex-end' }} spacing={0.25} sx={{
+            {destacado && (
+              <Typography variant="body2" title="Promedio acumulado: libras del día / horas transcurridas desde el inicio del pelado"
+                sx={{ fontSize: { xs: 13, sm: 14 }, fontWeight: 800, color: '#000', lineHeight: 1.15, letterSpacing: '-0.2px', whiteSpace: 'nowrap' }}>
+                {formatValue(estilo.librasPorHora ?? 0)} Lbs/h
+              </Typography>
+            )}
+          </Stack>
+          <Stack alignItems={{ xs: 'flex-start', sm: 'flex-end' }} spacing={destacado ? 0.125 : 0.25} sx={{
             minWidth: 0,
             maxWidth: '100%',
             color: '#000',
-            fontSize: { xs: 15, sm: 16 },
-            fontWeight: 900,
-            lineHeight: 1.25,
+            fontSize: destacado ? { xs: 13, sm: 14 } : { xs: 15, sm: 16 },
+            fontWeight: destacado ? 800 : 900,
+            lineHeight: destacado ? 1.15 : 1.25,
+            ...(destacado && { letterSpacing: '-0.2px' }),
             whiteSpace: 'nowrap',
           }}>
-            <Typography variant="body2" title="Promedio acumulado: libras del día / horas transcurridas desde el inicio del pelado"
-              sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit' }}>
+            {!destacado && <Typography variant="body2" title="Promedio acumulado: libras del día / horas transcurridas desde el inicio del pelado"
+              sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit', letterSpacing: 'inherit' }}>
               {formatValue(estilo.librasPorHora ?? 0)} Lbs/h
-            </Typography>
+            </Typography>}
             {librasPorPersona !== undefined && (
-              <Stack direction="row" useFlexGap sx={{ gap: 1.5, flexWrap: 'wrap', justifyContent: { xs: 'flex-start', sm: 'flex-end' }, maxWidth: '100%' }}>
-                <Typography variant="body2" sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit' }}>
+              <Stack direction="row" useFlexGap sx={{ gap: 0.75, flexWrap: 'wrap', justifyContent: { xs: 'flex-start', sm: 'flex-end' }, maxWidth: '100%' }}>
+                <Typography variant="body2" sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit', letterSpacing: 'inherit' }}>
                   {librasPorPersona === null ? '—' : formatValue(librasPorPersona, 'decimal')} lbs/pers/h
                 </Typography>
                 {librasTotalesPorHora !== undefined && (
                   <Typography variant="body2" title="Ritmo reciente de todo el equipo: libras registradas durante los últimos 60 minutos"
-                    sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit' }}>
+                    sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit', letterSpacing: 'inherit' }}>
                     {librasTotalesPorHora === null ? '—' : formatValue(librasTotalesPorHora)} Lbs Totales/h
-                    <Typography component="span" sx={{ display: 'block', fontSize: 10, fontWeight: 500, color: 'text.secondary', textAlign: { xs: 'left', sm: 'right' } }}>últimos 60 min</Typography>
                   </Typography>
                 )}
               </Stack>
             )}
             {tallaDominante !== undefined && (
-              <Stack direction="row" useFlexGap sx={{ gap: 1, flexWrap: 'wrap', justifyContent: { xs: 'flex-start', sm: 'flex-end' }, maxWidth: '100%' }}>
+              <Stack direction="row" useFlexGap sx={{ gap: 0.75, flexWrap: 'wrap', justifyContent: { xs: 'flex-start', sm: 'flex-end' }, maxWidth: '100%' }}>
                 <Typography variant="body2" title="Talla con más libras producidas hoy y su porcentaje del total por talla"
-                  sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit', whiteSpace: 'normal' }}>
+                  sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit', letterSpacing: 'inherit', whiteSpace: 'normal' }}>
                   Talla Prom: {tallaDominante ?? '—'}
                 </Typography>
                 <Typography variant="body2" title="Segunda talla con más libras producidas hoy y su porcentaje del total por talla"
-                  sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit', whiteSpace: 'normal' }}>
+                  sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit', letterSpacing: 'inherit', whiteSpace: 'normal' }}>
                   Talla Sig: {tallaSiguiente ?? '—'}
                 </Typography>
               </Stack>

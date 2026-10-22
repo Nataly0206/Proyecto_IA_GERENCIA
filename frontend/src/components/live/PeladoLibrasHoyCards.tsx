@@ -119,7 +119,8 @@ function EstiloCard({
               {formatValue(estilo.librasPorHora ?? 0)} Lbs/h
             </Typography>}
             {librasPorPersona !== undefined && (
-              <Stack direction="row" useFlexGap sx={{ gap: 0.75, flexWrap: 'wrap', justifyContent: { xs: 'flex-start', sm: 'flex-end' }, maxWidth: '100%' }}>
+              <Stack direction="row" useFlexGap sx={{ gap: 0.75, flexWrap: 'wrap', justifyContent: { xs: 'flex-start', sm: 'flex-end' }, width: '100%',
+                borderTop: '1px solid rgba(22, 74, 139, 0.18)', pt: 0.5, mt: 0.25 }}>
                 <Typography variant="body2" sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit', letterSpacing: 'inherit' }}>
                   {librasPorPersona === null ? '—' : formatValue(librasPorPersona, 'decimal')} lbs/pers/h
                 </Typography>
@@ -133,7 +134,8 @@ function EstiloCard({
             )}
             {tallaDominante !== undefined && (
               <Stack direction={{ xs: 'column', sm: 'row' }} useFlexGap sx={{ gap: { xs: 0.25, sm: 0.75 }, flexWrap: 'nowrap', justifyContent: 'flex-end', maxWidth: '100%', minWidth: 0,
-                alignItems: { xs: 'flex-start', sm: 'baseline' }, fontSize: 'inherit', overflowX: { xs: 'visible', sm: 'auto' } }}>
+                alignItems: { xs: 'flex-start', sm: 'baseline' }, fontSize: 'inherit', overflowX: { xs: 'visible', sm: 'auto' }, width: '100%',
+                borderTop: '1px solid rgba(22, 74, 139, 0.18)', pt: 0.5, mt: 0.25 }}>
                 <Typography variant="body2" title="Talla con más libras producidas hoy y su porcentaje del total por talla"
                   sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit', letterSpacing: 'inherit', whiteSpace: { xs: 'normal', sm: 'nowrap' }, overflowWrap: { xs: 'anywhere', sm: 'normal' }, maxWidth: '100%', flexShrink: 0 }}>
                   Talla Prom: <TallaConPorcentaje value={tallaDominante} />

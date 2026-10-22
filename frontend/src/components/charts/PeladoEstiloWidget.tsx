@@ -112,6 +112,7 @@ export default function PeladoEstiloWidget() {
       { field: 'tallaSiguiente', label: 'Talla Sig' },
     ] : undefined,
     hourlyPerPersonColumn: vista === 'dia' ? { hoursField: 'horasTrabajadas', peopleField: 'personas', valueField: 'rendimientoPorPersona' } : undefined,
+    teamHourlyColumn: vista === 'dia' ? { hoursField: 'horasTrabajadas', valueField: 'ritmoEquipo' } : undefined,
     xLabel: vista === 'dia' ? 'Fecha' : vista === 'semana' ? 'Semana' : 'Mes',
     ...(vista === 'mes' ? {
       dailyAverageColumn: { daysField: 'diasTrabajados', label: 'Promedio por día', unit: 'lbs / días trabajados' },
@@ -142,7 +143,7 @@ export default function PeladoEstiloWidget() {
           ? tallasHoy?.dia === hoy.dia ? lideresHoy.siguiente : null
           : tallasDominantes.get(String(row.periodo))?.siguiente) ?? null,
         ...(!filters.turno && hoy && row.periodo === hoy.dia
-          ? { rendimientoPorPersona: rendimientoHoy }
+          ? { rendimientoPorPersona: rendimientoHoy, ritmoEquipo: hoy.librasPorHoraPromedio }
           : {}),
       }));
     }

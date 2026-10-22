@@ -97,16 +97,18 @@ function EstiloCard({
             lineHeight: 1.25,
             whiteSpace: 'nowrap',
           }}>
-            <Typography variant="body2" sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit' }}>
-              {formatValue(estilo.librasPorHora ?? 0)} lbs/h
-            </Typography>
+            {librasTotalesPorHora === undefined && (
+              <Typography variant="body2" sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit' }}>
+                {formatValue(estilo.librasPorHora ?? 0)} lbs/h
+              </Typography>
+            )}
             {librasPorPersona !== undefined && (
               <Stack direction="row" useFlexGap sx={{ gap: 1.5, flexWrap: 'wrap', justifyContent: { xs: 'flex-start', sm: 'flex-end' }, maxWidth: '100%' }}>
                 <Typography variant="body2" sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit' }}>
                   {librasPorPersona === null ? '—' : formatValue(librasPorPersona, 'decimal')} lbs/pers/hora
                 </Typography>
                 {librasTotalesPorHora !== undefined && (
-                  <Typography variant="body2" title="Libras por persona por hora × personas activas"
+                  <Typography variant="body2" title="Ritmo de todo el equipo: libras del día / horas transcurridas desde el inicio del pelado"
                     sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit' }}>
                     {librasTotalesPorHora === null ? '—' : formatValue(librasTotalesPorHora)} Lbs Totales/h
                   </Typography>
@@ -143,7 +145,7 @@ export default function PeladoLibrasHoyCards() {
   const librasPorPersona = !actividadError && actividad && actividad.dia === data?.dia && personasActivas > 0
     ? (data.librasPorHoraPromedio ?? 0) / personasActivas
     : null;
-  const librasTotalesPorHora = librasPorPersona !== null ? librasPorPersona * personasActivas : null;
+  const librasTotalesPorHora = data?.librasPorHoraPromedio ?? null;
   const estilosConLibras = data?.estilos.filter((estilo) => estilo.libras > 0) ?? [];
 
   return (

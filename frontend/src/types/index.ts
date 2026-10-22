@@ -433,6 +433,8 @@ export interface ChartConfig {
   mobileSummaryOnly?: boolean;
   trailingTextColumns?: { field: string; label: string }[];
   hourlyPerPersonColumn?: { hoursField: string; peopleField: string; valueField?: string };
+  /** Ritmo del equipo completo: libras totales / horas del período. */
+  teamHourlyColumn?: { hoursField: string; valueField?: string };
   /** Etiqueta de la fila de promedio (por defecto "Promedio"). */
   averageLabel?: string;
   /** El promedio divide solo entre los períodos con algún valor distinto de 0 (ej. meses rellenados en 0). */

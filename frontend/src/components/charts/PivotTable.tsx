@@ -66,6 +66,7 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
   }, [config.mobileSummaryOnly]);
   const trailingColumns = config.trailingTextColumns ?? [];
   const additionalTextColumns = Math.max(0, trailingColumns.length - 1);
+  const summaryValueColumns = 3 + (config.teamHourlyColumn ? 1 : 0);
   const summaryWidth = Math.max(0, containerWidth);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const valueField = Array.isArray(config.yField) ? config.yField[0] : config.yField;
@@ -196,6 +197,18 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
     const total = aggregate(rowCells(periodo));
     return total !== null && hours > 0 && people > 0 ? total / hours / people : null;
   };
+  const teamHourly = (periodo: string): number | null => {
+    const column = config.teamHourlyColumn;
+    if (!column) return null;
+    if (column.valueField) {
+      const row = data.find(item => String(item[config.xField] ?? '') === periodo);
+      const value = row?.[column.valueField];
+      if (value !== undefined) return value !== null && Number.isFinite(Number(value)) ? Number(value) : null;
+    }
+    const hours = extraByPeriodo.get(column.hoursField)?.get(periodo) ?? 0;
+    const total = aggregate(rowCells(periodo));
+    return total !== null && Number.isFinite(hours) && hours > 0 ? total / hours : null;
+  };
   const grandTotal = aggregate(periodos.flatMap((periodo) => rowCells(periodo)));
   const shareByColumn = new Map<string, number>();
   if (config.showShareRow && grandTotal && grandTotal > 0 && columnas.length > 0) {
@@ -252,9 +265,9 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
           `& tr > :nth-child(${index + 2})`,
           { width: { xs: 110, sm: 'auto' } },
         ])),
-        ...Object.fromEntries([1, 2, 3].map((index) => [
+        ...Object.fromEntries(Array.from({ length: summaryValueColumns }, (_, i) => i + 1).map((index) => [
           `& tr > :nth-last-child(${index + additionalTextColumns})`,
-          { width: { xs: summaryWidth * 0.23, sm: 'auto' } },
+          { width: { xs: summaryWidth * 0.69 / summaryValueColumns, sm: 'auto' } },
         ])),
         ...(additionalTextColumns ? { '& tr > :last-child': { width: { xs: 110, sm: 'auto' } } } : {}),
       } : undefined}>
@@ -301,7 +314,13 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
             </TableCell>
             {config.hourlyPerPersonColumn && (
               <TableCell align="right" sx={{ ...HEADER_SX, whiteSpace: 'nowrap' }}>
-                lbs/h persona
+                lbs/pers/hora
+              </TableCell>
+            )}
+            {config.teamHourlyColumn && (
+              <TableCell align="right" sx={HEADER_SX} title="Libras del día / horas de la jornada. Hoy usa el ritmo en curso de la card Total.">
+                Lbs Totales/h
+                <Box component="span" sx={{ display: 'block', fontSize: 9, fontWeight: 600, color: '#64748b' }}>equipo completo</Box>
               </TableCell>
             )}
             {config.dailyAverageColumn && (
@@ -339,6 +358,11 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
                   {renderValue(hourlyPerPerson(periodo), 'decimal')}
                 </TableCell>
               )}
+              {config.teamHourlyColumn && (
+                <TableCell align="right" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                  {renderValue(teamHourly(periodo), 'number')}
+                </TableCell>
+              )}
               {config.dailyAverageColumn && (
                 <TableCell align="right" sx={{ fontWeight: 600, color: 'primary.main' }}>
                   {renderValue(perDay(aggregate(rowCells(periodo)), daysByPeriodo.get(periodo) ?? 0))}
@@ -371,6 +395,7 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
               {renderValue(grandTotal)}
             </TableCell>
             {config.hourlyPerPersonColumn && <TableCell align="right" sx={TOTAL_SX}>—</TableCell>}
+            {config.teamHourlyColumn && <TableCell align="right" sx={TOTAL_SX}>—</TableCell>}
             {config.dailyAverageColumn && (
               <TableCell align="right" sx={TOTAL_SX}>
                 {renderValue(perDay(grandTotal, periodos.reduce((sum, periodo) => sum + (daysByPeriodo.get(periodo) ?? 0), 0)))}
@@ -393,6 +418,7 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
                 {formatValue(grandTotal && grandTotal > 0 ? 100 : 0, 'percent')}
               </TableCell>
               {config.hourlyPerPersonColumn && <TableCell align="right" sx={SHARE_SX}>—</TableCell>}
+              {config.teamHourlyColumn && <TableCell align="right" sx={SHARE_SX}>—</TableCell>}
               {config.dailyAverageColumn && <TableCell align="right" sx={SHARE_SX}>—</TableCell>}
               {trailingColumns.map((column) => <TableCell key={column.field} align="right" sx={SHARE_SX}>—</TableCell>)}
             </TableRow>
@@ -421,6 +447,14 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
                     const values = periodos.map(hourlyPerPerson).filter((value): value is number => value !== null && Number.isFinite(value));
                     return values.length > 0 ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
                   })(), 'decimal')}
+                </TableCell>
+              )}
+              {config.teamHourlyColumn && (
+                <TableCell align="right" sx={AVERAGE_SX} title="Promedio de los ritmos diarios del equipo con horas disponibles; no es una suma de tasas.">
+                  {renderValue((() => {
+                    const values = periodos.map(teamHourly).filter((value): value is number => value !== null && Number.isFinite(value));
+                    return values.length > 0 ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+                  })(), 'number')}
                 </TableCell>
               )}
               {config.dailyAverageColumn && <TableCell align="right" sx={AVERAGE_SX}>—</TableCell>}

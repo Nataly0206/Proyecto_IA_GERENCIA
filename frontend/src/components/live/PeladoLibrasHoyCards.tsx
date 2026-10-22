@@ -14,6 +14,12 @@ import { formatPeriodo, formatValue } from '../../utils/format';
 import { PeladoLibrasHoyEstilo } from '../../types';
 import { getPeladoSizeLeaders } from '../../utils/peladoTallas';
 
+function TallaConPorcentaje({ value }: { value?: string | null }) {
+  const parts = value?.match(/^(.*?)\s+(\([^()]*%\))$/);
+  if (!parts) return <>{value ?? '—'}</>;
+  return <>{parts[1]} <Box component="span" sx={{ fontSize: '0.8em' }}>{parts[2]}</Box></>;
+}
+
 function EstiloCard({
   estilo,
   badge,
@@ -130,11 +136,11 @@ function EstiloCard({
                 fontSize: 'inherit', overflowX: 'auto' }}>
                 <Typography variant="body2" title="Talla con más libras producidas hoy y su porcentaje del total por talla"
                   sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit', letterSpacing: 'inherit', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                  Talla Prom: {tallaDominante ?? '—'}
+                  Talla Prom: <TallaConPorcentaje value={tallaDominante} />
                 </Typography>
                 <Typography variant="body2" title="Segunda talla con más libras producidas hoy y su porcentaje del total por talla"
                   sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit', letterSpacing: 'inherit', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                  Talla Sig: {tallaSiguiente ?? '—'}
+                  Talla Sig: <TallaConPorcentaje value={tallaSiguiente} />
                 </Typography>
               </Stack>
             )}

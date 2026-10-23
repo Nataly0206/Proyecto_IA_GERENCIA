@@ -63,7 +63,7 @@ export async function getLibrasNetasPorProceso(req: Request, res: Response): Pro
   const forceRefresh = req.query.refresh === 'true';
   res.json(
     await withTtlCache(
-      JSON.stringify(['libras-netas-proceso', filters]),
+      JSON.stringify(['libras-netas-proceso:empaque-v1', filters]),
       REPORT_CACHE_MS,
       () => dashboardService.getLibrasNetasPorProceso(filters),
       forceRefresh,
@@ -77,7 +77,7 @@ export async function getLibrasNetasPorProcesoDia(req: Request, res: Response): 
   const forceRefresh = req.query.refresh === 'true';
   res.json(
     await withTtlCache(
-      JSON.stringify(['libras-netas-proceso-dia:periodos-v3', period, filters]),
+      JSON.stringify(['libras-netas-proceso-dia:periodos-v3:empaque-v1', period, filters]),
       REPORT_CACHE_MS,
       () => dashboardService.getLibrasNetasPorProcesoDia(filters, period),
       forceRefresh,
@@ -91,7 +91,7 @@ export async function getLibrasNetasPorProcesoMes(req: Request, res: Response): 
   const forceRefresh = req.query.refresh === 'true';
   res.json(
     await withTtlCache(
-      JSON.stringify(['libras-netas-proceso-mes:periodos-v3', filters.turno ?? '', meses]),
+      JSON.stringify(['libras-netas-proceso-mes:periodos-v3:empaque-v1', filters.turno ?? '', meses]),
       REPORT_CACHE_MS,
       () => dashboardService.getLibrasNetasPorProcesoMes(filters, meses),
       forceRefresh,
@@ -104,7 +104,7 @@ export async function getIqfLibrasHoraDia(req: Request, res: Response): Promise<
   const forceRefresh = req.query.refresh === 'true';
   res.json(
     await withTtlCache(
-      JSON.stringify(['iqf-libras-hora-dia', filters]),
+      JSON.stringify(['iqf-libras-hora-dia:empaque-v1', filters]),
       REPORT_CACHE_MS,
       () => dashboardService.getIqfLibrasHoraDia(filters),
       forceRefresh,
@@ -118,7 +118,7 @@ export async function getIqfLibrasHoraMes(req: Request, res: Response): Promise<
   const forceRefresh = req.query.refresh === 'true';
   res.json(
     await withTtlCache(
-      JSON.stringify(['iqf-libras-hora-mes', filters.turno ?? '', meses]),
+      JSON.stringify(['iqf-libras-hora-mes:empaque-v1', filters.turno ?? '', meses]),
       REPORT_CACHE_MS,
       () => dashboardService.getIqfLibrasHoraMes(filters, meses),
       forceRefresh,
@@ -132,7 +132,7 @@ export async function getIqfTiempoReal(req: Request, res: Response): Promise<voi
   const forceRefresh = req.query.refresh === 'true';
   res.json(
     await withTtlCache(
-      JSON.stringify(['iqf-tiempo-real:v2', filters?.fechaFinal ?? 'current', filters?.turno ?? '']),
+      JSON.stringify(['iqf-tiempo-real:v2:empaque-v1', filters?.fechaFinal ?? 'current', filters?.turno ?? '']),
       LIVE_CACHE_MS,
       () => dashboardService.getIqfTiempoReal(filters),
       forceRefresh,
@@ -328,7 +328,7 @@ export async function getPeladoPersonalMes(req: Request, res: Response): Promise
 export async function getIqfHorasTrabajadas(req: Request, res: Response): Promise<void> {
   const filters = parseFilters(req);
   res.json(await withTtlCache(
-    JSON.stringify(['iqf-horas-trabajadas', filters]),
+    JSON.stringify(['iqf-horas-trabajadas:empaque-v1', filters]),
     REPORT_CACHE_MS,
     () => dashboardService.getIqfHorasTrabajadas(filters),
     req.query.refresh === 'true',
@@ -339,7 +339,7 @@ export async function getIqfHorasTrabajadasMes(req: Request, res: Response): Pro
   const filters = parseFilters(req);
   const meses = Math.min(Math.max(Number(req.query.meses) || 12, 1), 36);
   res.json(await withTtlCache(
-    JSON.stringify(['iqf-horas-trabajadas-mes', filters.turno ?? '', meses]),
+    JSON.stringify(['iqf-horas-trabajadas-mes:empaque-v1', filters.turno ?? '', meses]),
     REPORT_CACHE_MS,
     () => dashboardService.getIqfHorasTrabajadasMes(filters, meses),
     req.query.refresh === 'true',
@@ -349,7 +349,7 @@ export async function getIqfHorasTrabajadasMes(req: Request, res: Response): Pro
 export async function getIqfTurnosSemana(req: Request, res: Response): Promise<void> {
   const filters = parseFilters(req);
   res.json(await withTtlCache(
-    JSON.stringify(['iqf-turnos-semana:v1', filters.fechaFinal, filters.turno ?? '']),
+    JSON.stringify(['iqf-turnos-semana:v1:empaque-v1', filters.fechaFinal, filters.turno ?? '']),
     LIVE_CACHE_MS,
     () => dashboardService.getIqfTurnosSemana(filters),
     req.query.refresh === 'true',

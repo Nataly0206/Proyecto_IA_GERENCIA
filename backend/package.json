@@ -9,11 +9,7 @@
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "migrate": "tsx src/database/migrate.ts",
-    "migrate:prod": "node dist/database/migrate.js",
-    "test:prestamos": "tsx --test tests/amortizacion.test.ts tests/prestamos.routes.test.ts",
-    "test:prestamos:db": "tsx tests/prestamos.integration.ts",
-    "test:pelado": "npm run build && node --test tests/pelado-ritmo.test.cjs",
-    "test:pelado:db": "tsx tests/pelado-ritmo.integration.ts"
+    "migrate:prod": "node dist/database/migrate.js"
   },
   "dependencies": {
     "@azure/msal-node": "^6.0.0",

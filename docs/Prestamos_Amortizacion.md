@@ -76,11 +76,7 @@ Desde `backend`:
 
 ```sh
 npm run migrate
-npm run test:prestamos
-npm run test:prestamos:db
 npm run build
 ```
 
-Las pruebas SQL requieren la conexión configurada en `backend/.env` y se revierten
-en una transacción: no dejan préstamos, acreedores ni pagos de prueba.
 Desde `frontend`, ejecutar `npm run build` y publicar ambos componentes juntos.

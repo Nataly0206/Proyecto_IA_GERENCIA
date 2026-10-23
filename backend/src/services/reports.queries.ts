@@ -13,6 +13,17 @@
  *   y descarte de grupos con 15 minutos o menos de trabajo).
  */
 
+/** Turno real de empaque. Las líneas sin TA/TB quedan sin turno;
+ * nunca se les atribuye el turno de la hora de lectura como sustituto.
+ * También admite los nombres existentes terminados en "Turno A/B".
+ */
+export function packingShiftSql(alias: string): string {
+  const line = `UPPER(RTRIM(LTRIM(${alias}.LineaProduccion)))`;
+  return `CASE WHEN ${line} LIKE '% TA' OR ${line} LIKE '%TURNO A' THEN 'A'
+              WHEN ${line} LIKE '% TB' OR ${line} LIKE '%TURNO B' THEN 'B'
+              ELSE NULL END`;
+}
+
 /**
  * Libras procesadas por tipo. Reempaque y registro fresco se consolidan
  * como categorías propias para que el usuario pueda incluirlas o excluirlas.
@@ -22,15 +33,16 @@ SELECT
   CASE WHEN a.fkTipo = 2 THEN 'REEMPAQUE'
        WHEN a.fkTipo = 4 THEN 'FRESCO'
        ELSE a.NombreTipoProceso END AS Proceso,
-  a.Turno,
+  empaque.Turno,
   SUM(a.PesoLibras) AS Libras
 FROM dbo.AV_Produccion_Diaria_Resumen a
+CROSS APPLY (VALUES (${packingShiftSql('a')})) empaque(Turno)
 WHERE CAST(a.DiaProduccion2024 AS DATE) BETWEEN @Fecha_Inicial AND @Fecha_Final
   AND a.VaEjecutivo = 1
   AND a.ProcesadaPlanta = 1
 GROUP BY CASE WHEN a.fkTipo = 2 THEN 'REEMPAQUE'
               WHEN a.fkTipo = 4 THEN 'FRESCO'
-              ELSE a.NombreTipoProceso END, a.Turno
+              ELSE a.NombreTipoProceso END, empaque.Turno
 `;
 
 /**
@@ -43,17 +55,18 @@ SELECT
   CASE WHEN a.fkTipo = 2 THEN 'REEMPAQUE'
        WHEN a.fkTipo = 4 THEN 'FRESCO'
        ELSE a.NombreTipoProceso END AS Proceso,
-  a.Turno,
+  empaque.Turno,
   CAST(a.DiaProduccion2024 AS DATE) AS Dia,
   SUM(a.PesoLibras) AS Libras
 FROM dbo.AV_Produccion_Diaria_Resumen a
+CROSS APPLY (VALUES (${packingShiftSql('a')})) empaque(Turno)
 WHERE CAST(a.DiaProduccion2024 AS DATE) BETWEEN @Fecha_Inicial AND @Fecha_Final
   AND a.VaEjecutivo = 1
   AND a.ProcesadaPlanta = 1
 GROUP BY CASE WHEN a.fkTipo = 2 THEN 'REEMPAQUE'
               WHEN a.fkTipo = 4 THEN 'FRESCO'
               ELSE a.NombreTipoProceso END,
-  a.Turno, CAST(a.DiaProduccion2024 AS DATE)
+  empaque.Turno, CAST(a.DiaProduccion2024 AS DATE)
 `;
 
 /**
@@ -75,11 +88,12 @@ SELECT
     ELSE -1
   END AS MinutosDesdeUltima
 FROM dbo.AV_Produccion_Diaria_2020 AS a
+CROSS APPLY (VALUES (${packingShiftSql('a')})) empaque(Turno)
 LEFT JOIN dbo.OPship AS o
   ON a.OrdenProduccion = o.OrdenProduccion
 WHERE a.DiaProduccion2024 >= @Dia
   AND a.DiaProduccion2024 < DATEADD(DAY, 1, @Dia)
-  AND (@Turno IS NULL OR REPLACE(UPPER(LTRIM(RTRIM(a.Turno))), 'TURNO ', '') = @Turno)
+  AND (@Turno IS NULL OR REPLACE(UPPER(LTRIM(RTRIM(empaque.Turno))), 'TURNO ', '') = @Turno)
   AND a.fkTipo < 4
   AND a.LineaEquipoIQF IS NOT NULL
 GROUP BY a.LineaEquipoIQF
@@ -191,74 +205,79 @@ FROM (
 export const IQF_DAILY_RATE_QUERY = `
 SELECT
   pd.CategoriaLinea COLLATE Modern_Spanish_CI_AS AS Linea,
-  pd.Turno,
+  empaque.Turno,
   pd.DiaProduccion2024 AS Dia,
   SUM(pd.PesoLibras) AS TotalLibras,
   CAST(DATEDIFF(MINUTE, MIN(pd.FechaHoraTorre), MAX(pd.FechaHoraTorre)) AS FLOAT) / 60
     AS TiempoHorasDecimales
 FROM dbo.AV_Produccion_Diaria_2020 pd
+CROSS APPLY (VALUES (${packingShiftSql('pd')})) empaque(Turno)
 WHERE pd.DiaProduccion2024 BETWEEN @Fecha_Inicial AND @Fecha_Final
   AND pd.fkTipo < 4
   AND pd.CategoriaLinea LIKE '%IQF%'
 GROUP BY pd.CategoriaLinea, pd.EstiloFinal, pd.NombreEjecutivo, pd.NombreGrupo,
-         pd.Turno, pd.DiaProduccion2024
+         empaque.Turno, pd.DiaProduccion2024
 HAVING DATEDIFF(MINUTE, MIN(pd.FechaHoraTorre), MAX(pd.FechaHoraTorre)) > 15
 
 UNION ALL
 
 SELECT
   ei.NombreIQF COLLATE Modern_Spanish_CI_AS AS Linea,
-  pd.Turno,
+  empaque.Turno,
   pd.DiaProduccion2024 AS Dia,
   SUM(pd.PesoLibras) AS TotalLibras,
   CAST(DATEDIFF(MINUTE, MIN(pd.FechaHoraTorre), MAX(pd.FechaHoraTorre)) AS FLOAT) / 60
     AS TiempoHorasDecimales
 FROM dbo.AV_Produccion_Diaria_2020 pd
+CROSS APPLY (VALUES (${packingShiftSql('pd')})) empaque(Turno)
 INNER JOIN dbo.EquiposIQF ei
   ON pd.EquipoIQF = ei.IDequipo
 WHERE pd.DiaProduccion2024 BETWEEN @Fecha_Inicial AND @Fecha_Final
   AND pd.fkTipo < 4
   AND pd.EquipoIQF > 0
 GROUP BY ei.NombreIQF, pd.EstiloFinal, pd.NombreEjecutivo, pd.NombreGrupo,
-         pd.Turno, pd.DiaProduccion2024
+         empaque.Turno, pd.DiaProduccion2024
 HAVING DATEDIFF(MINUTE, MIN(pd.FechaHoraTorre), MAX(pd.FechaHoraTorre)) > 15
 `;
 
 /** Horas entre primera y última lectura por equipo/día/turno (modo 30). */
 export const IQF_WORKED_HOURS_QUERY = `
-SELECT CategoriaLinea AS Linea, Turno, DiaProduccion2024 AS Dia,
+SELECT CategoriaLinea AS Linea, empaque.Turno, DiaProduccion2024 AS Dia,
        CAST(DATEDIFF(MINUTE, MIN(FechaHoraTorre), MAX(FechaHoraTorre)) AS FLOAT) / 60 AS Horas
-FROM dbo.AV_Produccion_Diaria_2020
+FROM dbo.AV_Produccion_Diaria_2020 pd
+CROSS APPLY (VALUES (${packingShiftSql('pd')})) empaque(Turno)
 WHERE DiaProduccion2024 BETWEEN @Fecha_Inicial AND @Fecha_Final
   AND fkTipo < 4 AND CategoriaLinea LIKE '%IQF%'
-GROUP BY CategoriaLinea, Turno, DiaProduccion2024
+GROUP BY CategoriaLinea, empaque.Turno, DiaProduccion2024
 HAVING DATEDIFF(MINUTE, MIN(FechaHoraTorre), MAX(FechaHoraTorre)) > 15;
 `;
 
 /** Totales y tiempo entre primera y última lectura por IQF y turno del día. */
 export const IQF_SHIFT_TOTALS_QUERY = `
 DECLARE @Dia date = @Fecha;
-SELECT a.LineaEquipoIQF AS Linea, a.Turno,
+SELECT a.LineaEquipoIQF AS Linea, empaque.Turno,
        SUM(a.PesoLibras) AS Libras,
        CAST(DATEDIFF(MINUTE, MIN(a.FechaHoraTorre), MAX(a.FechaHoraTorre)) AS FLOAT) / 60 AS Horas
 FROM dbo.AV_Produccion_Diaria_2020 AS a
+CROSS APPLY (VALUES (${packingShiftSql('a')})) empaque(Turno)
 WHERE a.DiaProduccion2024 >= @Dia
   AND a.DiaProduccion2024 < DATEADD(DAY, 1, @Dia)
-  AND (@Turno IS NULL OR REPLACE(UPPER(LTRIM(RTRIM(a.Turno))), 'TURNO ', '') = @Turno)
+  AND (@Turno IS NULL OR REPLACE(UPPER(LTRIM(RTRIM(empaque.Turno))), 'TURNO ', '') = @Turno)
   AND a.fkTipo < 4 AND a.LineaEquipoIQF IS NOT NULL
-GROUP BY a.LineaEquipoIQF, a.Turno;
+GROUP BY a.LineaEquipoIQF, empaque.Turno;
 `;
 
 /** Totales por día/equipo/turno para una comparación de siete días. */
 export const IQF_SHIFT_RANGE_QUERY = `
 SELECT CONVERT(varchar(10), a.DiaProduccion2024, 23) AS Dia,
-       a.LineaEquipoIQF AS Linea, a.Turno,
+       a.LineaEquipoIQF AS Linea, empaque.Turno,
        SUM(a.PesoLibras) AS Libras,
        CAST(DATEDIFF(MINUTE, MIN(a.FechaHoraTorre), MAX(a.FechaHoraTorre)) AS FLOAT) / 60 AS Horas
 FROM dbo.AV_Produccion_Diaria_2020 AS a
+CROSS APPLY (VALUES (${packingShiftSql('a')})) empaque(Turno)
 WHERE a.DiaProduccion2024 >= @Fecha_Inicial
   AND a.DiaProduccion2024 < DATEADD(DAY, 1, @Fecha_Final)
-  AND (@Turno IS NULL OR REPLACE(UPPER(LTRIM(RTRIM(a.Turno))), 'TURNO ', '') = @Turno)
+  AND (@Turno IS NULL OR REPLACE(UPPER(LTRIM(RTRIM(empaque.Turno))), 'TURNO ', '') = @Turno)
   AND a.fkTipo < 4 AND a.LineaEquipoIQF IS NOT NULL
-GROUP BY a.DiaProduccion2024, a.LineaEquipoIQF, a.Turno;
+GROUP BY a.DiaProduccion2024, a.LineaEquipoIQF, empaque.Turno;
 `;

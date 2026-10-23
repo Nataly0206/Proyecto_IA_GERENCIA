@@ -528,3 +528,11 @@ foto del inventario actual, explorable como tabla pivote en el navegador.
 | ¿Qué producto terminado hay listo sin despachar? | Inventario | `Seriales`, `OrdenesProduccion`, `AV_Items`, `Masteres` | PlantaEmpacadora |
 
 ---
+
+
+### Corrección de turnos IQF — 23 de octubre de 2026
+
+Los reportes IQF ahora usan el turno de empaque indicado en `LineaProduccion`: sufijo TA → A, TB → B (también Turno A/B), normalizando espacios y mayúsculas. Esta regla sustituye el uso del campo horario `Turno` descrito arriba, tanto para libras netas como para contadores filtrados, comparación diaria/semanal, rendimientos y horas. `DiaProduccion2024` conserva su definición; las horas siguen siendo intervalos entre lecturas agrupadas por el turno real de empaque. Líneas sin sufijo reconocido se conservan en Todos y no se atribuyen a A/B.
+
+Validación en la base: el 21-oct-2026, TA suma 29,309.9877 lb, incluyendo 7,419.0717 lb de Reempaque TA cuyo `LineaEquipoIQF` está vacío y `EquipoIQF=0`. El comparativo de los tres equipos IQF muestra 21,890.916 lb para A (con redondeo por equipo, 21,890.91), y 23,163.5154 lb para B. El reempaque sin equipo no se atribuye a un IQF. La imagen del reporte general y el comparativo por equipos tienen por ello distinto alcance.
+

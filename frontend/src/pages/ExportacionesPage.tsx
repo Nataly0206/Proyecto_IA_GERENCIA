@@ -6,6 +6,7 @@ import ProcessFilters from '../components/filters/ProcessFilters';
 import ResumenCards from '../components/live/ResumenCards';
 import ChartWidget from '../components/charts/ChartWidget';
 import ExportContainersTable from '../components/charts/ExportContainersTable';
+import ExportacionesEstiloWidget from '../components/charts/ExportacionesEstiloWidget';
 import { useProcesoResumen, useWidgetData } from '../hooks/useDashboardData';
 import { ExportacionesResumen } from '../types';
 import { formatPeriodo } from '../utils/format';
@@ -13,7 +14,7 @@ import { exportacionesWidgets } from '../config/dashboardConfig';
 import { apiClient } from '../api/client';
 import { convertPounds, WeightUnit } from '../utils/weightUnits';
 
-const [porEstilo, porClienteMes] = exportacionesWidgets;
+const [, porClienteMes] = exportacionesWidgets;
 const TABLE_H = 440;
 const CLIENTS_STORAGE_KEY = 'exportaciones-clientes-mensual-ocultos:v1';
 
@@ -176,9 +177,7 @@ export default function ExportacionesPage({ userId }: { userId: string }) {
         ]}
       />
 
-      <ChartWidget config={{ ...porEstilo, title: `${weightUnit === 'kg' ? 'Kg' : 'Libras'} Exportadas por Estilo`, unitLabel: `${weightUnit} exportadas`, valueFormat: 'number' }}
-        queryParams={clientQueryParams}
-        transform={(rows) => rows.map((row) => ({ ...row, libras: convertPounds(Number(row.libras ?? 0), weightUnit) }))} />
+      <ExportacionesEstiloWidget weightUnit={weightUnit} queryParams={clientQueryParams} />
 
       <ExportContainersTable weightUnit={weightUnit} queryParams={clientQueryParams} />
 

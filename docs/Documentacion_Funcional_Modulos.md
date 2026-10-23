@@ -460,6 +460,8 @@ y el resumen semanal por destino. Base: `PlantaEmpacadora`. Sin turno.
 | Contenedores exportados y detalle | `Envios`, `Masteres`, `Seriales`, `OrdenesProduccion`, `AV_Items`, `AV_LotesRemision` | principal: una fila por contenedor con libras totales; botón Ver detalle: cliente + estilo + másteres + anillos/máster + libras | `GET /exportaciones-contenedores`; cada fila contiene `detalle[]` |
 | Contenedores por cliente y mes (últimos 6 meses) | tablas base de exportación | `COUNT(DISTINCT NumeroContenedor)` agregado directamente en SQL por mes/cliente | `GET /exportaciones-por-cliente-mes` |
 
+El bloque **Libras Exportadas** permite **Total, Día, Semana y Mes** y las agrupaciones **Por estilo, Por cliente y Estilo y cliente**. Total, Día y Semana usan el rango Desde/Hasta; Mes muestra de enero a diciembre del año de la fecha Hasta, con ceros en meses sin exportaciones para las combinaciones presentes. Todas respetan los clientes visibles; las semanas son ISO, de lunes a domingo, y la fecha es `Envios.FechaCarga`. `GET /exportaciones-por-estilo?periodo=total|dia|semana|mes` devuelve celdas por período, estilo y cliente, con libras; sin `periodo` conserva el total por estilo anterior. La conversión a kg se aplica al mostrar, sin cambiar los totales en libras. El informe de contenedores mensuales conserva su propia ventana de seis meses.
+
 **"Libras que faltan por exportar":** hoy **no existe** un endpoint
 dedicado para esto — hubo una tabla "Órdenes Pendientes de Exportación"
 (basada en la vista `dbo.AV_OrdenesCompraClientes`, columnas

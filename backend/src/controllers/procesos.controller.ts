@@ -104,10 +104,15 @@ export const getExportacionesResumen = async (req: Request, res: Response): Prom
 export const getExportacionesPorEstilo = async (req: Request, res: Response): Promise<void> => {
   const filters = parseFilters(req);
   const excludedClients = parseExcludedClients(req);
+  const periodo = req.query.periodo;
+  if (periodo !== undefined && periodo !== 'total' && periodo !== 'dia' && periodo !== 'semana' && periodo !== 'mes') {
+    res.status(400).json({ error: 'El período debe ser total, dia, semana o mes.' });
+    return;
+  }
   res.json(await withTtlCache(
-    JSON.stringify(['exportaciones-por-estilo', filters, excludedClients]),
+    JSON.stringify(['exportaciones-por-estilo:periodos-clientes-v3', filters, excludedClients, periodo ?? null]),
     REPORT_CACHE_MS,
-    () => procesos.getExportacionesPorEstilo(filters, excludedClients),
+    () => procesos.getExportacionesPorEstilo(filters, excludedClients, periodo),
     req.query.refresh === 'true',
   ));
 };

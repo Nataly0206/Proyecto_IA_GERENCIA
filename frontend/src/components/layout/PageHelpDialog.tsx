@@ -105,7 +105,7 @@ const PAGE_HELP: Record<DashboardView, PageHelp> = {
     sections: [
       { title: 'Filas y agrupaciones', body: 'Puedes arrastrar dimensiones como cliente, estilo, item, talla o empaque para cambiar el nivel de detalle. La tabla presenta una jerarquía según ese orden: cada valor repetido se muestra una sola vez hasta que cambia su grupo. Los subtotales y el gran total se recalculan con la estructura seleccionada.' },
       { title: 'Filtros', body: 'El ícono de filtro en cada columna limita los registros visibles. Las preferencias de agrupación y filtros quedan guardadas en tu cuenta y se recuperan al iniciar sesión.' },
-      { title: 'Peso y cantidad serial', body: 'Peso kilos suma el peso disponible; cantidad serial cuenta las unidades o seriales asociados. Los nombres de clientes e items permiten identificar a qué producto corresponde el saldo.' },
+      { title: 'Peso y cantidad serial', body: 'El selector de peso en los filtros permite ver kilos o libras (1 kg = 2.2046 lb) en filas, subtotales y gran total. La tabla se actualiza automáticamente cada 5 minutos y al volver a la ventana; también puedes pulsar Actualizar. Cantidad serial cuenta las unidades o seriales asociados. Los nombres de clientes e items permiten identificar a qué producto corresponde el saldo.' },
     ],
   },
   prestamos: {

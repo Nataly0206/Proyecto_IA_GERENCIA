@@ -1,8 +1,8 @@
-import { DragEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { DragEvent, useEffect, useMemo, useState } from 'react';
 import {
   Alert, Autocomplete, Box, Button, Checkbox, Chip, CircularProgress, Collapse, IconButton, Paper,
   Popover, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField,
-  Tooltip, Typography,
+  Tooltip, Typography, ToggleButton, ToggleButtonGroup,
 } from '@mui/material';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
@@ -11,6 +11,8 @@ import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { apiClient } from '../api/client';
+import { useQuery } from '@tanstack/react-query';
+import { convertKilograms, WeightUnit } from '../utils/weightUnits';
 
 const DIMENSIONS = {
   nombreCliente: 'Nombre cliente', nombreClientePrincipal: 'Nombre cliente principal',
@@ -38,8 +40,9 @@ const CLIENT_NAME_MIGRATIONS: Record<string, string> = {
   'LYONS SEAFOODS LTD': 'LFF UK 2026 FRESCO',
 };
 const PREFERENCES_KEY = 'inventory-preferences';
-type InventoryPreferences = { rowFields: Dimension[]; filters: Filters };
-const formatKilos = (value: number) => value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+type InventoryPreferences = { rowFields: Dimension[]; filters: Filters; weightUnit: WeightUnit };
+const INVENTORY_REFRESH_MS = 5 * 60_000;
+const formatWeightValue = (value: number) => value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const formatSerials = (value: number) => value.toLocaleString('en-US', { maximumFractionDigits: 0 });
 
 function aggregate(items: InventoryItem[], fields: Dimension[]): AggregateRow[] {
@@ -61,7 +64,7 @@ function aggregate(items: InventoryItem[], fields: Dimension[]): AggregateRow[] 
 
 function normalizePreferences(value: unknown): InventoryPreferences {
   try {
-    const parsed = value as { rowFields?: unknown; filters?: unknown };
+    const parsed = value as { rowFields?: unknown; filters?: unknown; weightUnit?: unknown };
     const rowFields = Array.isArray(parsed.rowFields)
       ? parsed.rowFields.filter((field): field is Dimension => typeof field === 'string' && field in DIMENSIONS)
       : [];
@@ -81,13 +84,14 @@ function normalizePreferences(value: unknown): InventoryPreferences {
     }
     return {
       rowFields: rowFields.length > 0 ? rowFields : DEFAULT_ROWS,
+      weightUnit: parsed.weightUnit === 'lbs' ? 'lbs' : 'kg',
       // Un objeto vacío también es una preferencia válida: significa que el
       // usuario eligió mostrar todos los valores y no debe recibir nuevamente
       // los filtros predeterminados al volver a Inventario.
       filters: hasSavedFilters ? filters : DEFAULT_FILTERS,
     };
   } catch {
-    return { rowFields: DEFAULT_ROWS, filters: DEFAULT_FILTERS };
+    return { rowFields: DEFAULT_ROWS, filters: DEFAULT_FILTERS, weightUnit: 'kg' };
   }
 }
 
@@ -95,34 +99,37 @@ function readPreferences(userId: string): InventoryPreferences {
   try {
     const stored = localStorage.getItem(`${PREFERENCES_KEY}:${userId}`);
     return stored === null
-      ? { rowFields: DEFAULT_ROWS, filters: DEFAULT_FILTERS }
+      ? { rowFields: DEFAULT_ROWS, filters: DEFAULT_FILTERS, weightUnit: 'kg' }
       : normalizePreferences(JSON.parse(stored));
   } catch {
-    return { rowFields: DEFAULT_ROWS, filters: DEFAULT_FILTERS };
+    return { rowFields: DEFAULT_ROWS, filters: DEFAULT_FILTERS, weightUnit: 'kg' };
   }
 }
 
 export default function InventoryPage({ userId }: { userId: string }) {
   const savedPreferences = useMemo(() => readPreferences(userId), [userId]);
-  const [items, setItems] = useState<InventoryItem[]>([]);
+  const [weightUnit, setWeightUnit] = useState<WeightUnit>(savedPreferences.weightUnit);
   const [rowFields, setRowFields] = useState<Dimension[]>(savedPreferences.rowFields);
   const [filters, setFilters] = useState<Filters>(savedPreferences.filters);
   const [filterField, setFilterField] = useState<Dimension | null>(null);
   const [filterAnchor, setFilterAnchor] = useState<HTMLElement | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [preferencesUserId, setPreferencesUserId] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true); setError('');
-    try {
-      const { data } = await apiClient.get<{ items: InventoryItem[] }>('/inventory');
-      setItems(data.items);
-    } catch { setError('No se pudo cargar el inventario. Intenta nuevamente.'); }
-    finally { setLoading(false); }
-  }, []);
-  useEffect(() => { void load(); }, [load]);
+  const inventoryQuery = useQuery<{ items: InventoryItem[] }>({
+    queryKey: ['inventory', userId],
+    queryFn: async ({ signal }) => (await apiClient.get<{ items: InventoryItem[] }>('/inventory', { signal })).data,
+    staleTime: 0,
+    refetchInterval: INVENTORY_REFRESH_MS,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+  });
+  const items = inventoryQuery.data?.items ?? [];
+  const loading = inventoryQuery.isLoading;
+  const error = inventoryQuery.isError
+    ? inventoryQuery.data ? 'No se pudo actualizar el inventario. Se muestran los últimos datos cargados.' : 'No se pudo cargar el inventario. Intenta nuevamente.'
+    : '';
+  const load = () => inventoryQuery.refetch();
+  const formatWeight = (value: number) => formatWeightValue(convertKilograms(value, weightUnit));
   useEffect(() => {
     let active = true;
     setPreferencesUserId(null);
@@ -134,6 +141,7 @@ export default function InventoryPage({ userId }: { userId: string }) {
           : readPreferences(userId);
         setRowFields(preferences.rowFields);
         setFilters(preferences.filters);
+        setWeightUnit(preferences.weightUnit);
         setPreferencesUserId(userId);
       })
       .catch(() => {
@@ -141,25 +149,26 @@ export default function InventoryPage({ userId }: { userId: string }) {
         const preferences = readPreferences(userId);
         setRowFields(preferences.rowFields);
         setFilters(preferences.filters);
+        setWeightUnit(preferences.weightUnit);
       });
     return () => { active = false; };
   }, [userId]);
   useEffect(() => {
-    const preferences = { rowFields, filters };
+    const preferences = { rowFields, filters, weightUnit };
     try {
       localStorage.setItem(`${PREFERENCES_KEY}:${userId}`, JSON.stringify(preferences));
     } catch {
       // El almacenamiento local es solo respaldo; la preferencia principal se guarda en la API.
     }
-  }, [filters, rowFields, userId]);
+  }, [filters, rowFields, weightUnit, userId]);
   useEffect(() => {
     if (preferencesUserId !== userId) return;
-    const preferences = { rowFields, filters };
+    const preferences = { rowFields, filters, weightUnit };
     const timeout = window.setTimeout(() => {
       void apiClient.put('/inventory/preferences', preferences).catch(() => undefined);
     }, 300);
     return () => window.clearTimeout(timeout);
-  }, [filters, preferencesUserId, rowFields, userId]);
+  }, [filters, preferencesUserId, rowFields, weightUnit, userId]);
 
   const availableFields = (Object.keys(DIMENSIONS) as Dimension[]).filter((field) => !rowFields.includes(field));
   const filteredItems = useMemo(() => items.filter((item) =>
@@ -243,8 +252,12 @@ export default function InventoryPage({ userId }: { userId: string }) {
     <Stack sx={{ height: '100%', minHeight: 0, py: 1 }} spacing={1.25}>
       <Stack direction="row" alignItems="center" justifyContent="space-between" gap={2} flexWrap="wrap">
         <Box><Typography variant="h5" fontWeight={800}>Inventario</Typography><Typography color="text.secondary">Organiza, agrupa y filtra el producto disponible.</Typography></Box>
-        <Button variant="outlined" startIcon={<RefreshOutlinedIcon />} onClick={() => void load()} disabled={loading}>Actualizar</Button>
+        <Button variant="outlined" startIcon={<RefreshOutlinedIcon />} onClick={() => void load()} disabled={inventoryQuery.isFetching}>{inventoryQuery.isFetching ? 'Actualizando…' : 'Actualizar'}</Button>
       </Stack>
+
+      <Typography variant="caption" color="text.secondary">
+        Actualización automática cada 5 min{inventoryQuery.dataUpdatedAt > 0 ? ` · Última actualización: ${new Date(inventoryQuery.dataUpdatedAt).toLocaleTimeString('es-HN')}` : ''}
+      </Typography>
 
       <Paper elevation={0} sx={{ border: 1, borderColor: 'divider', p: 1.25 }}>
         <Stack direction="row" alignItems="center" justifyContent="space-between">
@@ -258,6 +271,15 @@ export default function InventoryPage({ userId }: { userId: string }) {
         </Stack>
         <Collapse in={filtersOpen}>
         <Stack spacing={1} sx={{ pt: 1 }}>
+          <Stack direction="row" alignItems="center" spacing={1} useFlexGap flexWrap="wrap">
+            <Typography variant="caption" fontWeight={800} color="text.secondary" sx={{ width: 110 }}>PESO</Typography>
+            <ToggleButtonGroup size="small" exclusive value={weightUnit} aria-label="Unidad de peso del inventario"
+              onChange={(_event, next: WeightUnit | null) => { if (next) setWeightUnit(next); }}>
+              <ToggleButton value="kg">Peso kilos</ToggleButton>
+              <ToggleButton value="lbs">Peso libras</ToggleButton>
+            </ToggleButtonGroup>
+            {weightUnit === 'lbs' && <Typography variant="caption" color="text.secondary">1 kg = 2.2046 lb</Typography>}
+          </Stack>
           <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap" useFlexGap>
             <Typography variant="caption" fontWeight={800} color="text.secondary" sx={{ width: 110 }}>CAMPOS</Typography>
             {availableFields.map((field) => (
@@ -289,12 +311,12 @@ export default function InventoryPage({ userId }: { userId: string }) {
         {loading ? <Box sx={{ minHeight: 280, display: 'grid', placeItems: 'center' }}><CircularProgress /></Box> : rows.length === 0 ? <Stack sx={{ minHeight: 280 }} alignItems="center" justifyContent="center" spacing={1} color="text.secondary"><Inventory2OutlinedIcon sx={{ fontSize: 42 }} /><Typography>No hay resultados para los filtros seleccionados.</Typography></Stack> :
           <Table stickyHeader size="small" sx={{ borderCollapse: 'separate', borderSpacing: 0, '& th, & td': { borderRight: '1px solid', borderRightColor: 'divider', borderBottom: '1px solid', borderBottomColor: 'divider' }, '& th:last-child, & td:last-child': { borderRight: 0 } }}><TableHead><TableRow>
             {rowFields.map((field) => <TableCell key={field} sx={{ minWidth: 160, fontWeight: 800 }}><Stack direction="row" alignItems="center" spacing={.25}><span>{DIMENSIONS[field]}</span><Tooltip title="Filtrar"><IconButton size="small" color={(filters[field]?.length ?? 0) > 0 ? 'primary' : 'default'} onClick={(e) => openFilter(e, field)} sx={{ p: .4 }}><FilterListIcon sx={{ fontSize: 17 }} /></IconButton></Tooltip></Stack></TableCell>)}
-            <TableCell align="right" sx={{ minWidth: 120, fontWeight: 800 }}>Peso kilos</TableCell><TableCell align="right" sx={{ minWidth: 120, fontWeight: 800 }}>Cantidad serial</TableCell>
+            <TableCell align="right" sx={{ minWidth: 120, fontWeight: 800 }}>{weightUnit === 'lbs' ? 'Peso libras' : 'Peso kilos'}</TableCell><TableCell align="right" sx={{ minWidth: 120, fontWeight: 800 }}>Cantidad serial</TableCell>
           </TableRow></TableHead><TableBody>
             {displayRows.map((displayRow) => displayRow.type === 'detail'
-              ? <TableRow key={displayRow.key} hover>{rowFields.map((field) => displayRow.rowSpans[field] ? <TableCell key={field} rowSpan={displayRow.rowSpans[field]} align="center" sx={{ verticalAlign: 'middle', bgcolor: 'background.paper', fontWeight: 600 }}>{displayRow.row[field]}</TableCell> : null)}<TableCell align="right">{formatKilos(displayRow.row.pesoKilos)}</TableCell><TableCell align="right">{formatSerials(displayRow.row.cantidadSerial)}</TableCell></TableRow>
-              : <TableRow key={displayRow.key} sx={{ bgcolor: displayRow.field === 'estiloFinal' ? 'rgba(15, 118, 110, 0.07)' : 'rgba(22, 74, 139, 0.07)', '& td': { fontWeight: 800, borderTop: '2px solid', borderBottom: '2px solid', borderColor: displayRow.field === 'estiloFinal' ? 'secondary.main' : 'primary.main' } }}><TableCell colSpan={rowFields.length - rowFields.indexOf(displayRow.field)}>Subtotal {DIMENSIONS[displayRow.field]}: {displayRow.label}</TableCell><TableCell align="right">{formatKilos(displayRow.pesoKilos)}</TableCell><TableCell align="right">{formatSerials(displayRow.cantidadSerial)}</TableCell></TableRow>)}
-            <TableRow sx={{ bgcolor: 'primary.main', '& td': { color: 'primary.contrastText', fontWeight: 800, borderTop: '3px double', borderBottom: '3px double', borderColor: 'primary.contrastText', textDecoration: 'underline', textUnderlineOffset: '3px' } }}><TableCell colSpan={rowFields.length}>Gran total</TableCell><TableCell align="right">{formatKilos(totalPeso)}</TableCell><TableCell align="right">{formatSerials(totalSerial)}</TableCell></TableRow>
+              ? <TableRow key={displayRow.key} hover>{rowFields.map((field) => displayRow.rowSpans[field] ? <TableCell key={field} rowSpan={displayRow.rowSpans[field]} align="center" sx={{ verticalAlign: 'middle', bgcolor: 'background.paper', fontWeight: 600 }}>{displayRow.row[field]}</TableCell> : null)}<TableCell align="right">{formatWeight(displayRow.row.pesoKilos)}</TableCell><TableCell align="right">{formatSerials(displayRow.row.cantidadSerial)}</TableCell></TableRow>
+              : <TableRow key={displayRow.key} sx={{ bgcolor: displayRow.field === 'estiloFinal' ? 'rgba(15, 118, 110, 0.07)' : 'rgba(22, 74, 139, 0.07)', '& td': { fontWeight: 800, borderTop: '2px solid', borderBottom: '2px solid', borderColor: displayRow.field === 'estiloFinal' ? 'secondary.main' : 'primary.main' } }}><TableCell colSpan={rowFields.length - rowFields.indexOf(displayRow.field)}>Subtotal {DIMENSIONS[displayRow.field]}: {displayRow.label}</TableCell><TableCell align="right">{formatWeight(displayRow.pesoKilos)}</TableCell><TableCell align="right">{formatSerials(displayRow.cantidadSerial)}</TableCell></TableRow>)}
+            <TableRow sx={{ bgcolor: 'primary.main', '& td': { color: 'primary.contrastText', fontWeight: 800, borderTop: '3px double', borderBottom: '3px double', borderColor: 'primary.contrastText', textDecoration: 'underline', textUnderlineOffset: '3px' } }}><TableCell colSpan={rowFields.length}>Gran total</TableCell><TableCell align="right">{formatWeight(totalPeso)}</TableCell><TableCell align="right">{formatSerials(totalSerial)}</TableCell></TableRow>
           </TableBody></Table>}
       </TableContainer>
     </Stack>

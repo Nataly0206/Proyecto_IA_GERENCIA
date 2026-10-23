@@ -4,6 +4,7 @@ import { getAuthPool } from '../config/authDb';
 export interface InventoryPreferences {
   rowFields: string[];
   filters: Record<string, string[]>;
+  weightUnit?: 'kg' | 'lbs';
 }
 
 export async function getInventoryPreferences(userId: string): Promise<InventoryPreferences | null> {

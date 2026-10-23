@@ -406,20 +406,20 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
         bullets: [
           'No hay filtro de fechas ni turno: se trae el inventario disponible completo y el agrupado / filtrado se hace en el navegador (pivot).',
           '`SUM(PesoKilos)` y `SUM(CantidadSerial)` agrupados por todas las dimensiones (cliente, orden, código externo, fecha de producción, item, estilo, talla, empaque, tipo, disponibilidad).',
-          'Las preferencias de agrupación y los filtros de columna se guardan por usuario en `dbo.dashboard_inventario_preferencias`. `localStorage` queda únicamente como respaldo y para migrar selecciones anteriores.',
+          'Las preferencias de agrupación, unidad de peso y los filtros de columna se guardan por usuario en `dbo.dashboard_inventario_preferencias`. `localStorage` queda únicamente como respaldo y para migrar selecciones anteriores.',
         ],
       },
       {
         heading: 'Fórmulas y cálculos',
         bullets: [
-          'Peso kilos = `SUM(AV_Items.PesoKilos)` sobre los seriales del grupo.',
+          'Peso kilos = `SUM(AV_Items.PesoKilos)` sobre los seriales del grupo. Peso libras = kilos × 2.2046; se convierte al mostrar filas, subtotales y total, sin redondear antes de sumar.',
           'Cantidad serial = `SUM(Seriales.Cantidad)` (rama máster) o conteo de filas (rama sobrantes).',
         ],
       },
       {
         heading: 'Endpoints y archivos',
         bullets: [
-          '`GET /api/inventory` → `inventory.service.getInventory`.',
+          '`GET /api/inventory` → `inventory.service.getInventory`. Consulta directa sin caché de servidor; el frontend consulta cada 5 minutos mientras la pestaña está visible y al recuperar el foco o la conexión.',
           'Permiso backend: `requirePermission(\'inventario\')`.',
           'Archivos: `backend/src/routes/inventory.routes.ts`, `backend/src/services/inventory.service.ts`; front `frontend/src/pages/InventoryPage.tsx`.',
         ],

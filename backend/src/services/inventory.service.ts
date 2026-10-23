@@ -20,11 +20,13 @@ export interface InventoryItem {
 }
 
 export async function getInventory(): Promise<InventoryItem[]> {
+  // La orden puede destinar producto de un lote genérico a otro cliente.
+  // Resolver cliente y principal desde el mismo destino evita ocultar existencias.
   const rows = await runQuery(`
     WITH inventario AS (
       SELECT
-        lr.Empresa AS NombreCliente,
-        COALESCE(NULLIF(cp.NombreCliente, ''), lr.Empresa) AS NombreClientePrincipal,
+        COALESCE(NULLIF(destino.Empresa, ''), lr.Empresa) AS NombreCliente,
+        COALESCE(NULLIF(cp.NombreCliente, ''), NULLIF(destino.Empresa, ''), lr.Empresa) AS NombreClientePrincipal,
         op.NoOrdenCompra,
         op.CodigoExterno,
         op.FechaProduccion,
@@ -46,7 +48,10 @@ export async function getInventory(): Promise<InventoryItem[]> {
       INNER JOIN dbo.Masteres m ON m.IdMaster = s.FkMaster
       INNER JOIN dbo.Localidades l ON l.IdLocalidad = m.FkLocalidad
       INNER JOIN dbo.Empresas e ON e.IDEmpresa = lr.IDEmpresa
-      LEFT JOIN dbo.ClientesProduccion cp ON cp.IDCliente = e.fkClienteProduccion
+      LEFT JOIN dbo.Empresas destino ON destino.IDEmpresa = NULLIF(op.fkClienteDestinoOP, 0)
+      LEFT JOIN dbo.ClientesProduccion cp ON cp.IDCliente = CASE
+        WHEN NULLIF(destino.Empresa, '') IS NOT NULL THEN destino.fkClienteProduccion
+        ELSE e.fkClienteProduccion END
       WHERE m.FkEnvio IS NULL
         AND op.FechaProduccion > CAST('2017-07-27' AS DATE)
         AND op.FkTipo < 4
@@ -54,8 +59,8 @@ export async function getInventory(): Promise<InventoryItem[]> {
       UNION ALL
 
       SELECT
-        lr.Empresa AS NombreCliente,
-        COALESCE(NULLIF(cp.NombreCliente, ''), lr.Empresa) AS NombreClientePrincipal,
+        COALESCE(NULLIF(destino.Empresa, ''), lr.Empresa) AS NombreCliente,
+        COALESCE(NULLIF(cp.NombreCliente, ''), NULLIF(destino.Empresa, ''), lr.Empresa) AS NombreClientePrincipal,
         op.NoOrdenCompra,
         op.CodigoExterno,
         op.FechaProduccion,
@@ -78,7 +83,10 @@ export async function getInventory(): Promise<InventoryItem[]> {
       INNER JOIN dbo.Freezers f ON f.IdFreezer = s.FkFreezer
       INNER JOIN dbo.Torres t ON t.IdTorre = s.FkTorre
       INNER JOIN dbo.Empresas e ON e.IDEmpresa = lr.IDEmpresa
-      LEFT JOIN dbo.ClientesProduccion cp ON cp.IDCliente = e.fkClienteProduccion
+      LEFT JOIN dbo.Empresas destino ON destino.IDEmpresa = NULLIF(op.fkClienteDestinoOP, 0)
+      LEFT JOIN dbo.ClientesProduccion cp ON cp.IDCliente = CASE
+        WHEN NULLIF(destino.Empresa, '') IS NOT NULL THEN destino.fkClienteProduccion
+        ELSE e.fkClienteProduccion END
       WHERE s.FkMaster IS NULL
     )
     SELECT NombreCliente, NombreClientePrincipal, NoOrdenCompra, CodigoExterno, CAST(FechaProduccion AS date) AS FechaProduccion,

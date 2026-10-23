@@ -24,14 +24,12 @@ function EstiloCard({
   estilo,
   badge,
   librasPorPersona,
-  librasTotalesPorHora,
   tallaDominante,
   tallaSiguiente,
 }: {
   estilo: PeladoLibrasHoyEstilo;
   badge?: string;
   librasPorPersona?: number | null;
-  librasTotalesPorHora?: number | null;
   tallaDominante?: string | null;
   tallaSiguiente?: string | null;
 }) {
@@ -124,12 +122,7 @@ function EstiloCard({
                 <Typography variant="body2" sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit', letterSpacing: 'inherit' }}>
                   {librasPorPersona === null ? '—' : formatValue(librasPorPersona, 'decimal')} lbs/pers/h
                 </Typography>
-                {librasTotalesPorHora !== undefined && (
-                  <Typography variant="body2" title="Ritmo reciente de todo el equipo: libras registradas durante los últimos 60 minutos"
-                    sx={{ fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit', letterSpacing: 'inherit' }}>
-                    {librasTotalesPorHora === null ? '—' : formatValue(librasTotalesPorHora)} Lbs Totales/h
-                  </Typography>
-                )}
+
               </Stack>
             )}
             {tallaDominante !== undefined && (
@@ -164,7 +157,6 @@ export default function PeladoLibrasHoyCards() {
   const librasPorPersona = !actividadError && actividad && actividad.dia === data?.dia && personasActivas > 0
     ? (data.librasPorHoraPromedio ?? 0) / personasActivas
     : null;
-  const librasTotalesPorHora = data?.ritmoUltimaHora?.libras ?? null;
   const estilosConLibras = data?.estilos.filter((estilo) => estilo.libras > 0) ?? [];
 
   return (
@@ -217,7 +209,7 @@ export default function PeladoLibrasHoyCards() {
           {estilosConLibras.map((estilo) => (
             <EstiloCard key={estilo.estilo} estilo={estilo} />
           ))}
-          <EstiloCard badge="Total del día" tallaDominante={tallaDominante} tallaSiguiente={tallaSiguiente} librasPorPersona={librasPorPersona} librasTotalesPorHora={librasTotalesPorHora} estilo={{ estilo: 'Total', libras: data.total, librasPorHora: data.librasPorHoraPromedio }} />
+          <EstiloCard badge="Total del día" tallaDominante={tallaDominante} tallaSiguiente={tallaSiguiente} librasPorPersona={librasPorPersona} estilo={{ estilo: 'Total', libras: data.total, librasPorHora: data.librasPorHoraPromedio }} />
         </Box>
       )}
     </Box>

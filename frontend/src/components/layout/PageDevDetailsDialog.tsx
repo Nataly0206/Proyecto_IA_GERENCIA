@@ -398,7 +398,7 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
           'Rama 1 (seriales en máster): `dbo.Seriales` → `dbo.OrdenesProduccion` (`FkOrdenProduccion`) → `dbo.AV_LotesRemision` (`FkLoteRemision`) → `dbo.AV_Items` (`FkItem`) → `dbo.Masteres` (`FkMaster`) → `dbo.Localidades` (`FkLocalidad`) → `dbo.Empresas` (`IDEmpresa`) → `dbo.ClientesProduccion` (`fkClienteProduccion`, LEFT JOIN). Filtro: `m.FkEnvio IS NULL`, `op.FechaProduccion > \'2017-07-27\'`, `op.FkTipo < 4`. `CantidadSerial = Seriales.Cantidad`.',
           'Rama 2 (seriales sobrantes): `dbo.Seriales` → `dbo.SerialesSobrantes` (`FkSerial`) → `OrdenesProduccion` → `AV_Items` → `AV_LotesRemision` → `dbo.Freezers` (`FkFreezer`) → `dbo.Torres` (`FkTorre`) → `Empresas` → `ClientesProduccion`. Filtro: `s.FkMaster IS NULL`. `CantidadSerial = 1` por fila.',
           'Disponibilidad: `CASE op.FkStatus` 1 → DISPONIBLE, 2 → PENDIENTE, 3 → RETENIDO, 4 → CUARENTENADO, else DESCONOCIDO.',
-          'Cliente principal = `COALESCE(NULLIF(ClientesProduccion.NombreCliente, \'\'), AV_LotesRemision.Empresa)`.',
+          'Cliente = empresa destino de `OrdenesProduccion.fkClienteDestinoOP` cuando existe y tiene nombre; en otro caso, empresa del lote. Cliente principal = `ClientesProduccion` de esa misma empresa, con respaldo al nombre del cliente. Aplica en ambas ramas.',
         ],
       },
       {

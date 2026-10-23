@@ -79,7 +79,7 @@ export function useWidgetData(endpoint: DashboardEndpoint, extraParams?: Record<
   const endpointCacheVersion = endpoint === 'iqf-horas-trabajadas-mes'
     ? `${endpoint}:promedio-horas-v2`
     : endpoint === 'exportaciones-por-estilo'
-      ? `${endpoint}:anio-calendario-v3`
+      ? `${endpoint}:despachos-sin-contenedor-v4`
     : endpoint === 'exportaciones-contenedores'
       ? `${endpoint}:anillos-v2`
       : endpoint === 'libras-netas-proceso-dia' || endpoint === 'libras-netas-proceso-mes'

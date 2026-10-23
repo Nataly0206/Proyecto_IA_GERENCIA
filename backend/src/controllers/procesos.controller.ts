@@ -110,7 +110,7 @@ export const getExportacionesPorEstilo = async (req: Request, res: Response): Pr
     return;
   }
   res.json(await withTtlCache(
-    JSON.stringify(['exportaciones-por-estilo:periodos-clientes-v3', filters, excludedClients, periodo ?? null]),
+    JSON.stringify(['exportaciones-por-estilo:despachos-clientes-v4', filters, excludedClients, periodo ?? null]),
     REPORT_CACHE_MS,
     () => procesos.getExportacionesPorEstilo(filters, excludedClients, periodo),
     req.query.refresh === 'true',

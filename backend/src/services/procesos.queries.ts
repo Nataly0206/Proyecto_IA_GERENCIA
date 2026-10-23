@@ -452,7 +452,8 @@ GROUP BY CASE WHEN tanque.ID_TANQUE IS NOT NULL
  * a nivel de serial) de ~14s a menos de 2s, además de dar una tabla mucho
  * más legible (una fila por contenedor + estilo + cliente).
  */
-export const EXPORTACIONES_CONTENEDORES_QUERY = `
+function exportacionesGroupsQuery(soloContenedores: boolean): string {
+  return `
 WITH ItemAnillos AS (
   SELECT pci.fkItem, MAX(pc.Unidades) AS AnillosPorMaster
   FROM dbo.ProductosClienteItem pci
@@ -480,11 +481,19 @@ JOIN dbo.AV_Items i ON i.IdItem = op.FkItem
 JOIN dbo.AV_LotesRemision lr ON lr.IdLoteRemision = op.FkLoteRemision
 LEFT JOIN ItemAnillos ia ON ia.fkItem = i.IdItem
 WHERE e.FechaCarga BETWEEN @Fecha_Inicial AND @Fecha_Final
-  AND e.NumeroContenedor IS NOT NULL AND e.NumeroContenedor <> ''
+  AND ${soloContenedores
+    ? "e.NumeroContenedor IS NOT NULL AND e.NumeroContenedor <> ''"
+    : 'e.TipoDestino = 1'}
 GROUP BY e.FechaCarga, e.NumeroContenedor, e.ReferenciaEnvio, e.CodigoEmbarque,
   COALESCE(NULLIF(LTRIM(RTRIM(lr.NombreGrupo)), ''), NULLIF(LTRIM(RTRIM(lr.Empresa)), ''), 'Sin cliente'),
   COALESCE(NULLIF(LTRIM(RTRIM(i.EstiloFinal)), ''), 'Sin estilo'), i.IdItem, ia.AnillosPorMaster
 `;
+}
+
+// Las libras incluyen despachos sin contenedor; los reportes de contenedores
+// conservan su alcance. TipoDestino 2/3/4 son movimientos de otros procesos.
+export const EXPORTACIONES_CONTENEDORES_QUERY = exportacionesGroupsQuery(true);
+export const EXPORTACIONES_LIBRAS_QUERY = exportacionesGroupsQuery(false);
 
 /** Desglose de un contenedor abierto: una fila por cliente, orden e ítem. */
 export const EXPORTACIONES_CONTENEDOR_DETALLE_QUERY = `

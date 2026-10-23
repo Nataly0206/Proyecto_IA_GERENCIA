@@ -65,7 +65,7 @@ test('El controlador valida períodos y separa sus claves de caché', async () =
       await controller.getExportacionesPorEstilo({query:{...filters,periodo}}, {json:data=>{response=data;}});
       assert.ok(Array.isArray(response));
     }
-    const outerKeys=keys.filter(key=>key.includes('exportaciones-por-estilo:periodos-clientes-v3'));
+    const outerKeys=keys.filter(key=>key.includes('exportaciones-por-estilo:despachos-clientes-v4'));
     assert.equal(new Set(outerKeys).size,4);
     let status;
     await controller.getExportacionesPorEstilo({query:{...filters,periodo:'invalido'}}, {status:code=>{status=code;return {json:()=>{}};}});

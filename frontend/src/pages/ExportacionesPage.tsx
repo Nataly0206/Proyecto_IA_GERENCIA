@@ -35,7 +35,7 @@ export default function ExportacionesPage({ userId }: { userId: string }) {
   }), [hiddenClients]);
   const { data, isLoading, isError, error, dataUpdatedAt } =
     useProcesoResumen<ExportacionesResumen>('exportaciones-resumen', clientQueryParams);
-  const { data: clientRows } = useWidgetData('exportaciones-por-cliente-mes');
+  const { data: clientRows } = useWidgetData('exportaciones-por-estilo', { periodo: 'mes' });
   const [weightUnit, setWeightUnit] = useState<WeightUnit>('lbs');
   const [weightPreferenceReady, setWeightPreferenceReady] = useState(false);
   const [clientsAnchor, setClientsAnchor] = useState<HTMLElement | null>(null);

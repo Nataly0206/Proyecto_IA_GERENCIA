@@ -36,6 +36,7 @@ import {
   EXPORTACIONES_CONTENEDOR_DETALLE_QUERY,
   EXPORTACIONES_TRAZABILIDAD_QUERY,
   EXPORTACIONES_CONTENEDORES_QUERY,
+  EXPORTACIONES_LIBRAS_QUERY,
   EXPORTACIONES_RESUMEN_QUERY,
   RECEPCION_REMISIONES_QUERY,
   RECEPCION_RESUMEN_QUERY,
@@ -455,9 +456,9 @@ const EXPORT_GROUPS_CACHE_MS = 15 * 60 * 1000;
 /** Varios widgets de Exportaciones comparten el mismo rango de fechas del
  *  filtro; se cachea por rango para no repetir el escaneo de `AV_Envios`
  *  (vista de ~19M filas) una vez por widget. */
-async function fetchExportGroups(fechaInicial: string, fechaFinal: string): Promise<ExportGroup[]> {
-  return withTtlCache(`exportGroups:anillos-v2:${fechaInicial}:${fechaFinal}`, EXPORT_GROUPS_CACHE_MS, async () => {
-    const rows = await runQuery(EXPORTACIONES_CONTENEDORES_QUERY, dateParams(fechaInicial, fechaFinal));
+async function fetchExportGroups(fechaInicial: string, fechaFinal: string, todosLosDespachos = false): Promise<ExportGroup[]> {
+  return withTtlCache(`exportGroups:despachos-v3:${todosLosDespachos}:${fechaInicial}:${fechaFinal}`, EXPORT_GROUPS_CACHE_MS, async () => {
+    const rows = await runQuery(todosLosDespachos ? EXPORTACIONES_LIBRAS_QUERY : EXPORTACIONES_CONTENEDORES_QUERY, dateParams(fechaInicial, fechaFinal));
     return rows.map((row) => ({
       dia: pickString(row, 'Dia'),
       contenedor: pickString(row, 'Contenedor'),
@@ -481,7 +482,7 @@ export async function getExportacionesPorEstilo(
   const fechaFinal = periodo === 'mes' ? `${year}-12-31` : f.fechaFinal;
   const fechaInicial = periodo === 'mes' ? `${year}-01-01` : f.fechaInicial;
   const inicioMensual = new Date(`${year}-01-01T00:00:00Z`);
-  const groups = (await fetchExportGroups(fechaInicial, fechaFinal)).filter((group) => !excluded.has(group.cliente));
+  const groups = (await fetchExportGroups(fechaInicial, fechaFinal, true)).filter((group) => !excluded.has(group.cliente));
   // Mantener la respuesta anterior para los consumidores sin selector de período.
   if (!periodo) {
     return aggregateTotal(groups.map((g) => ({ valor: g.estilo, libras: g.libras })))

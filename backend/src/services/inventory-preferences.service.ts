@@ -5,6 +5,7 @@ export interface InventoryPreferences {
   rowFields: string[];
   filters: Record<string, string[]>;
   weightUnit?: 'kg' | 'lbs';
+  filterVersion?: 2;
 }
 
 export async function getInventoryPreferences(userId: string): Promise<InventoryPreferences | null> {

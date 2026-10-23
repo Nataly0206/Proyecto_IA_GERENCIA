@@ -29,7 +29,9 @@ function parsePreferences(value: unknown): InventoryPreferences | null {
     filters[field] = Array.from(new Set(values));
   }
   if (input.weightUnit !== undefined && input.weightUnit !== 'kg' && input.weightUnit !== 'lbs') return null;
-  return { rowFields: input.rowFields as string[], filters, weightUnit: input.weightUnit === 'lbs' ? 'lbs' : 'kg' };
+  if (input.filterVersion !== undefined && input.filterVersion !== 2) return null;
+  return { rowFields: input.rowFields as string[], filters, weightUnit: input.weightUnit === 'lbs' ? 'lbs' : 'kg',
+    ...(input.filterVersion === 2 ? { filterVersion: 2 as const } : {}) };
 }
 
 router.get('/', asyncHandler(async (_req, res) => {

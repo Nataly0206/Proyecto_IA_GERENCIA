@@ -22,6 +22,9 @@ test('Inventario conserva la unidad de peso por usuario y acepta preferencias an
     assert.equal((await (await fetch(url)).json()).preferences.weightUnit, 'lbs');
     assert.deepEqual(saved.get('usuario-prueba').rowFields, base.rowFields);
     assert.deepEqual(saved.get('usuario-prueba').filters, {});
+    assert.equal((await update({ ...base, filterVersion: 2 })).status, 200);
+    assert.equal((await (await fetch(url)).json()).preferences.filterVersion, 2);
+    assert.equal((await update({ ...base, filterVersion: 99 })).status, 400);
     assert.equal((await update(base)).status, 200);
     assert.equal(saved.get('usuario-prueba').weightUnit, 'kg');
     assert.equal((await update({ ...base, weightUnit: 'otra' })).status, 400);

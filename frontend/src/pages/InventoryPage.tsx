@@ -13,6 +13,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { apiClient } from '../api/client';
 import { useQuery } from '@tanstack/react-query';
 import { convertKilograms, WeightUnit } from '../utils/weightUnits';
+import { migrateInventoryFilters, INVENTORY_FILTER_VERSION } from '../utils/inventoryFilters';
 
 const DIMENSIONS = {
   nombreCliente: 'Nombre cliente', nombreClientePrincipal: 'Nombre cliente principal',
@@ -31,16 +32,10 @@ type DisplayRow =
 
 const DEFAULT_ROWS: Dimension[] = ['nombreCliente', 'estiloFinal', 'nombreItem'];
 const DEFAULT_FILTERS: Filters = {
-  nombreCliente: ['FRANCIA DP 2026 FRESCO', 'LFF UK 2026 FRESCO'],
-};
-const CLIENT_NAME_MIGRATIONS: Record<string, string> = {
-  'FRANCIA DP': 'FRANCIA DP 2026 FRESCO',
-  'LFF UK': 'LFF UK 2026 FRESCO',
-  'LABEYRIE FINE FOODS FRANCE': 'FRANCIA DP 2026 FRESCO',
-  'LYONS SEAFOODS LTD': 'LFF UK 2026 FRESCO',
+  nombreClientePrincipal: ['FRANCIA DP', 'LFF UK'],
 };
 const PREFERENCES_KEY = 'inventory-preferences';
-type InventoryPreferences = { rowFields: Dimension[]; filters: Filters; weightUnit: WeightUnit };
+type InventoryPreferences = { rowFields: Dimension[]; filters: Filters; weightUnit: WeightUnit; filterVersion?: number };
 const INVENTORY_REFRESH_MS = 5 * 60_000;
 const formatWeightValue = (value: number) => value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const formatSerials = (value: number) => value.toLocaleString('en-US', { maximumFractionDigits: 0 });
@@ -64,7 +59,7 @@ function aggregate(items: InventoryItem[], fields: Dimension[]): AggregateRow[] 
 
 function normalizePreferences(value: unknown): InventoryPreferences {
   try {
-    const parsed = value as { rowFields?: unknown; filters?: unknown; weightUnit?: unknown };
+    const parsed = value as { rowFields?: unknown; filters?: unknown; weightUnit?: unknown; filterVersion?: unknown };
     const rowFields = Array.isArray(parsed.rowFields)
       ? parsed.rowFields.filter((field): field is Dimension => typeof field === 'string' && field in DIMENSIONS)
       : [];
@@ -77,8 +72,7 @@ function normalizePreferences(value: unknown): InventoryPreferences {
       for (const [field, values] of Object.entries(savedFilters as Record<string, unknown>)) {
         if (field in DIMENSIONS && Array.isArray(values)) {
           filters[field as Dimension] = values
-            .filter((value): value is string => typeof value === 'string')
-            .map((value) => field === 'nombreCliente' ? CLIENT_NAME_MIGRATIONS[value] ?? value : value);
+            .filter((value): value is string => typeof value === 'string');
         }
       }
     }
@@ -88,7 +82,7 @@ function normalizePreferences(value: unknown): InventoryPreferences {
       // Un objeto vacío también es una preferencia válida: significa que el
       // usuario eligió mostrar todos los valores y no debe recibir nuevamente
       // los filtros predeterminados al volver a Inventario.
-      filters: hasSavedFilters ? filters : DEFAULT_FILTERS,
+      filters: hasSavedFilters ? migrateInventoryFilters(filters, parsed.filterVersion) : DEFAULT_FILTERS,
     };
   } catch {
     return { rowFields: DEFAULT_ROWS, filters: DEFAULT_FILTERS, weightUnit: 'kg' };
@@ -154,7 +148,7 @@ export default function InventoryPage({ userId }: { userId: string }) {
     return () => { active = false; };
   }, [userId]);
   useEffect(() => {
-    const preferences = { rowFields, filters, weightUnit };
+    const preferences = { rowFields, filters, weightUnit, filterVersion: INVENTORY_FILTER_VERSION };
     try {
       localStorage.setItem(`${PREFERENCES_KEY}:${userId}`, JSON.stringify(preferences));
     } catch {
@@ -163,7 +157,7 @@ export default function InventoryPage({ userId }: { userId: string }) {
   }, [filters, rowFields, weightUnit, userId]);
   useEffect(() => {
     if (preferencesUserId !== userId) return;
-    const preferences = { rowFields, filters, weightUnit };
+    const preferences = { rowFields, filters, weightUnit, filterVersion: INVENTORY_FILTER_VERSION };
     const timeout = window.setTimeout(() => {
       void apiClient.put('/inventory/preferences', preferences).catch(() => undefined);
     }, 300);

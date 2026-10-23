@@ -395,8 +395,8 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
         heading: 'Consulta de origen',
         body: 'Una sola consulta en `backend/src/services/inventory.service.ts` (`getInventory`), con un CTE `inventario` de dos ramas unidas por `UNION ALL`:',
         bullets: [
-          'Rama 1 (seriales en máster): `dbo.Seriales` → `dbo.OrdenesProduccion` (`FkOrdenProduccion`) → `dbo.AV_LotesRemision` (`FkLoteRemision`) → `dbo.AV_Items` (`FkItem`) → `dbo.Masteres` (`FkMaster`) → `dbo.Localidades` (`FkLocalidad`) → `dbo.Empresas` (`IDEmpresa`) → `dbo.ClientesProduccion` (`fkClienteProduccion`, LEFT JOIN). Filtro: `m.FkEnvio IS NULL`, `op.FechaProduccion > \'2017-07-27\'`, `op.FkTipo < 4`, `op.NoOrdenCompra <> \'\'`. `CantidadSerial = Seriales.Cantidad`.',
-          'Rama 2 (seriales sobrantes): `dbo.Seriales` → `dbo.SerialesSobrantes` (`FkSerial`) → `OrdenesProduccion` → `AV_Items` → `AV_LotesRemision` → `dbo.Freezers` (`FkFreezer`) → `dbo.Torres` (`FkTorre`) → `Empresas` → `ClientesProduccion`. Filtro: `s.FkMaster IS NULL`, `op.NoOrdenCompra <> \'\'`. `CantidadSerial = 1` por fila.',
+          'Rama 1 (seriales en máster): `dbo.Seriales` → `dbo.OrdenesProduccion` (`FkOrdenProduccion`) → `dbo.AV_LotesRemision` (`FkLoteRemision`) → `dbo.AV_Items` (`FkItem`) → `dbo.Masteres` (`FkMaster`) → `dbo.Localidades` (`FkLocalidad`) → `dbo.Empresas` (`IDEmpresa`) → `dbo.ClientesProduccion` (`fkClienteProduccion`, LEFT JOIN). Filtro: `m.FkEnvio IS NULL`, `op.FechaProduccion > \'2017-07-27\'`, `op.FkTipo < 4`. `CantidadSerial = Seriales.Cantidad`.',
+          'Rama 2 (seriales sobrantes): `dbo.Seriales` → `dbo.SerialesSobrantes` (`FkSerial`) → `OrdenesProduccion` → `AV_Items` → `AV_LotesRemision` → `dbo.Freezers` (`FkFreezer`) → `dbo.Torres` (`FkTorre`) → `Empresas` → `ClientesProduccion`. Filtro: `s.FkMaster IS NULL`. `CantidadSerial = 1` por fila.',
           'Disponibilidad: `CASE op.FkStatus` 1 → DISPONIBLE, 2 → PENDIENTE, 3 → RETENIDO, 4 → CUARENTENADO, else DESCONOCIDO.',
           'Cliente principal = `COALESCE(NULLIF(ClientesProduccion.NombreCliente, \'\'), AV_LotesRemision.Empresa)`.',
         ],

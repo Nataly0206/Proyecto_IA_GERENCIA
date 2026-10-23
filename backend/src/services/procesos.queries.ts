@@ -442,9 +442,9 @@ GROUP BY CASE WHEN tanque.ID_TANQUE IS NOT NULL
 
 /**
  * Envíos de exportación agregados a nivel contenedor + cliente + estilo
- * (`NumeroContenedor <> ''` son los contenedores realmente exportados; el
- * despacho/fresco/reempaque interno no lleva contenedor). Se filtra por
- * `FechaCarga`.
+ * Los ships se identifican como DESPACHO con referencia EXPORT-. Solo
+ * los reportes de contenedores exigen número de contenedor; el reporte
+ * de libras admite exportaciones sin él. Se filtra por `FechaCarga`.
  *
  * IMPORTANTE: no se agrupa por código de exportación ni por item — agregar
  * por esas dos columnas de más fragmentaba cada contenedor en ~5-6 filas y
@@ -452,6 +452,10 @@ GROUP BY CASE WHEN tanque.ID_TANQUE IS NOT NULL
  * a nivel de serial) de ~14s a menos de 2s, además de dar una tabla mucho
  * más legible (una fila por contenedor + estilo + cliente).
  */
+// Ship de exportación: despacho con referencia EXPORT-. No se exige contenedor
+// para las libras, porque existen exportaciones terrestres sin ese dato.
+const EXPORT_SHIP_FILTER = "e.TipoDestino = 1 AND LTRIM(RTRIM(e.ReferenciaEnvio)) LIKE 'EXPORT-%'";
+
 function exportacionesGroupsQuery(soloContenedores: boolean): string {
   return `
 WITH ItemAnillos AS (
@@ -481,9 +485,8 @@ JOIN dbo.AV_Items i ON i.IdItem = op.FkItem
 JOIN dbo.AV_LotesRemision lr ON lr.IdLoteRemision = op.FkLoteRemision
 LEFT JOIN ItemAnillos ia ON ia.fkItem = i.IdItem
 WHERE e.FechaCarga BETWEEN @Fecha_Inicial AND @Fecha_Final
-  AND ${soloContenedores
-    ? "e.NumeroContenedor IS NOT NULL AND e.NumeroContenedor <> ''"
-    : 'e.TipoDestino = 1'}
+  AND ${EXPORT_SHIP_FILTER}
+  ${soloContenedores ? "AND NULLIF(LTRIM(RTRIM(e.NumeroContenedor)), '') IS NOT NULL" : ''}
 GROUP BY e.FechaCarga, e.NumeroContenedor, e.ReferenciaEnvio, e.CodigoEmbarque,
   COALESCE(NULLIF(LTRIM(RTRIM(lr.NombreGrupo)), ''), NULLIF(LTRIM(RTRIM(lr.Empresa)), ''), 'Sin cliente'),
   COALESCE(NULLIF(LTRIM(RTRIM(i.EstiloFinal)), ''), 'Sin estilo'), i.IdItem, ia.AnillosPorMaster
@@ -524,6 +527,7 @@ JOIN dbo.AV_Items i ON i.IdItem = op.FkItem
 JOIN dbo.AV_LotesRemision lr ON lr.IdLoteRemision = op.FkLoteRemision
 LEFT JOIN ItemAnillos ia ON ia.fkItem = i.IdItem
 WHERE e.FechaCarga = @Fecha
+  AND ${EXPORT_SHIP_FILTER}
   AND e.NumeroContenedor = @Contenedor
   AND COALESCE(e.ReferenciaEnvio, '') = @Referencia
 GROUP BY e.FechaCarga, e.ReferenciaEnvio, e.CodigoEmbarque,
@@ -554,6 +558,7 @@ JOIN dbo.AV_Items i ON i.IdItem = op.FkItem
 JOIN dbo.AV_LotesRemision lr ON lr.IdLoteRemision = op.FkLoteRemision
 LEFT JOIN dbo.Colores c ON c.PKcolor = op.fkColor
 WHERE e.FechaCarga = @Fecha AND e.NumeroContenedor = @Contenedor
+  AND ${EXPORT_SHIP_FILTER}
   AND COALESCE(e.ReferenciaEnvio, '') = @Referencia
 GROUP BY e.ReferenciaEnvio, e.NumeroContenedor, op.NoOrdenCompra,
   COALESCE(NULLIF(LTRIM(RTRIM(lr.NombreGrupo)), ''), NULLIF(LTRIM(RTRIM(lr.Empresa)), ''), ''),
@@ -574,6 +579,7 @@ JOIN dbo.Seriales s ON s.FkMaster = m.IdMaster
 JOIN dbo.OrdenesProduccion op ON op.IdOrdenProduccion = s.FkOrdenProduccion
 JOIN dbo.AV_LotesRemision lr ON lr.IdLoteRemision = op.FkLoteRemision
 WHERE e.FechaCarga BETWEEN @Fecha_Inicial AND @Fecha_Final
+  AND ${EXPORT_SHIP_FILTER}
   AND e.NumeroContenedor IS NOT NULL AND e.NumeroContenedor <> ''
 GROUP BY CONVERT(varchar(7), e.FechaCarga, 23),
   COALESCE(NULLIF(LTRIM(RTRIM(lr.NombreGrupo)), ''), NULLIF(LTRIM(RTRIM(lr.Empresa)), ''), 'Sin cliente')
@@ -610,6 +616,7 @@ JOIN dbo.OrdenesProduccion op ON op.IdOrdenProduccion = s.FkOrdenProduccion
 JOIN dbo.AV_Items i ON i.IdItem = op.FkItem
 JOIN dbo.AV_LotesRemision v ON v.IdLoteRemision = op.FkLoteRemision
 WHERE e.FechaCarga BETWEEN @Lunes AND @Domingo
+  AND ${EXPORT_SHIP_FILTER}
   AND e.NumeroContenedor IS NOT NULL AND e.NumeroContenedor <> ''
 GROUP BY
   COALESCE(NULLIF(LTRIM(RTRIM(v.NombreGrupo)), ''), NULLIF(LTRIM(RTRIM(v.Empresa)), ''), 'Sin cliente'),

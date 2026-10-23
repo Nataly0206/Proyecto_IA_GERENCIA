@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { ReactNode, useState } from 'react';
 import { Stack, ToggleButton, ToggleButtonGroup } from '@mui/material';
 import { ChartConfig, DataRow } from '../../types';
 import { exportacionesWidgets } from '../../config/dashboardConfig';
@@ -10,8 +10,8 @@ import { useFilters } from '../../context/FiltersContext';
 type Periodo = 'total' | 'dia' | 'semana' | 'mes';
 type Agrupacion = ExportGrouping;
 
-export default function ExportacionesEstiloWidget({ weightUnit, queryParams }: {
-  weightUnit: WeightUnit; queryParams: Record<string, string>;
+export default function ExportacionesEstiloWidget({ weightUnit, queryParams, clientFilter }: {
+  weightUnit: WeightUnit; queryParams: Record<string, string>; clientFilter?: ReactNode;
 }) {
   const { filters } = useFilters();
   const [periodo, setPeriodo] = useState<Periodo>('total');
@@ -53,5 +53,6 @@ export default function ExportacionesEstiloWidget({ weightUnit, queryParams }: {
         <ToggleButton value="cliente">Por cliente</ToggleButton>
         <ToggleButton value="ambos">Estilo y cliente</ToggleButton>
       </ToggleButtonGroup>
+      {clientFilter}
     </Stack>} />;
 }

@@ -457,7 +457,7 @@ const EXPORT_GROUPS_CACHE_MS = 15 * 60 * 1000;
  *  filtro; se cachea por rango para no repetir el escaneo de `AV_Envios`
  *  (vista de ~19M filas) una vez por widget. */
 async function fetchExportGroups(fechaInicial: string, fechaFinal: string, todosLosDespachos = false): Promise<ExportGroup[]> {
-  return withTtlCache(`exportGroups:despachos-v3:${todosLosDespachos}:${fechaInicial}:${fechaFinal}`, EXPORT_GROUPS_CACHE_MS, async () => {
+  return withTtlCache(`exportGroups:ships-exportacion-v4:${todosLosDespachos}:${fechaInicial}:${fechaFinal}`, EXPORT_GROUPS_CACHE_MS, async () => {
     const rows = await runQuery(todosLosDespachos ? EXPORTACIONES_LIBRAS_QUERY : EXPORTACIONES_CONTENEDORES_QUERY, dateParams(fechaInicial, fechaFinal));
     return rows.map((row) => ({
       dia: pickString(row, 'Dia'),
@@ -609,7 +609,7 @@ export async function getExportacionesPorClienteMes(
   excludedClients: string[] = [],
 ): Promise<DataRow[]> {
   const [ini, fin] = monthWindow(meses);
-  const rows = await withTtlCache(`exportClientMonth:${ini}:${fin}`, EXPORT_GROUPS_CACHE_MS, async () => {
+  const rows = await withTtlCache(`exportClientMonth:ships-exportacion-v2:${ini}:${fin}`, EXPORT_GROUPS_CACHE_MS, async () => {
     const rows = await runQuery(EXPORTACIONES_CLIENTE_MES_QUERY, dateParams(ini, fin));
     return rows.map((row) => ({
       periodo: pickString(row, 'Mes'),

@@ -95,7 +95,7 @@ export const getClasificadoPorTallaMes = monthlyReport('clasificado-por-talla-me
 export const getExportacionesResumen = async (req: Request, res: Response): Promise<void> => {
   const excludedClients = parseExcludedClients(req);
   res.json(await withTtlCache(
-    JSON.stringify(['exportaciones-resumen', excludedClients]),
+    JSON.stringify(['exportaciones-resumen:ships-exportacion-v2', excludedClients]),
     EXPORT_CACHE_MS,
     () => procesos.getExportacionesResumen(excludedClients),
     req.query.refresh === 'true',
@@ -110,7 +110,7 @@ export const getExportacionesPorEstilo = async (req: Request, res: Response): Pr
     return;
   }
   res.json(await withTtlCache(
-    JSON.stringify(['exportaciones-por-estilo:despachos-clientes-v4', filters, excludedClients, periodo ?? null]),
+    JSON.stringify(['exportaciones-por-estilo:ships-exportacion-v5', filters, excludedClients, periodo ?? null]),
     REPORT_CACHE_MS,
     () => procesos.getExportacionesPorEstilo(filters, excludedClients, periodo),
     req.query.refresh === 'true',
@@ -120,7 +120,7 @@ export const getExportacionesContenedores = async (req: Request, res: Response):
   const filters = parseFilters(req);
   const excludedClients = parseExcludedClients(req);
   res.json(await withTtlCache(
-    JSON.stringify(['exportaciones-contenedores', filters, excludedClients]),
+    JSON.stringify(['exportaciones-contenedores:ships-exportacion-v3', filters, excludedClients]),
     REPORT_CACHE_MS,
     () => procesos.getExportacionesContenedores(filters, excludedClients),
     req.query.refresh === 'true',
@@ -135,7 +135,7 @@ export const getExportacionesContenedorDetalle = async (req: Request, res: Respo
     return;
   }
   res.json(await withTtlCache(
-    JSON.stringify(['exportaciones-contenedor-detalle', fecha, contenedor, referencia]),
+    JSON.stringify(['exportaciones-contenedor-detalle:ships-exportacion-v2', fecha, contenedor, referencia]),
     EXPORT_CACHE_MS,
     () => procesos.getExportacionesContenedorDetalle(fecha, contenedor, referencia),
     req.query.refresh === 'true',
@@ -167,7 +167,7 @@ export const getExportacionesPorClienteMes = async (req: Request, res: Response)
   const meses = Math.min(Math.max(Number(req.query.meses) || 6, 1), 36);
   const excludedClients = parseExcludedClients(req);
   res.json(await withTtlCache(
-    JSON.stringify(['exportaciones-por-cliente-mes', meses, excludedClients]),
+    JSON.stringify(['exportaciones-por-cliente-mes:ships-exportacion-v2', meses, excludedClients]),
     REPORT_CACHE_MS,
     () => procesos.getExportacionesPorClienteMes(filters, meses, excludedClients),
     req.query.refresh === 'true',

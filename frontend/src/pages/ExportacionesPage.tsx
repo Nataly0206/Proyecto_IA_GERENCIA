@@ -136,28 +136,29 @@ export default function ExportacionesPage({ userId }: { userId: string }) {
             onClick={(event) => setClientsAnchor(event.currentTarget)} sx={{ alignSelf: { xs: 'flex-start', sm: 'center' }, fontWeight: 700 }}>
             Clientes ({visibleClients}/{clients.length})
           </Button>
-          <Popover open={Boolean(clientsAnchor)} anchorEl={clientsAnchor} onClose={() => setClientsAnchor(null)}
-            anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}>
-            <Box sx={{ p: 1.5, minWidth: 250, maxHeight: 340, overflowY: 'auto' }}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center" mb={0.5}>
-                <Typography variant="caption" fontWeight={800} color="text.secondary">CLIENTES</Typography>
-                <Stack direction="row" spacing={1}>
-                  <Button size="small" sx={{ fontSize: 11, minWidth: 0, p: 0 }} onClick={() => setHiddenClients(new Set())}>Todos</Button>
-                  <Button size="small" sx={{ fontSize: 11, minWidth: 0, p: 0 }} onClick={() => setHiddenClients(new Set(clients))}>Ninguno</Button>
-                </Stack>
-              </Stack>
-              <Divider sx={{ mb: 0.5 }} />
-              <Stack spacing={0}>
-                {clients.map((client) => <FormControlLabel key={client}
-                  sx={{ '& .MuiFormControlLabel-label': { fontSize: 13 }, ml: 0 }}
-                  control={<Checkbox size="small" checked={!hiddenClients.has(client)} onChange={() => toggleClient(client)} />}
-                  label={client} />)}
-                {clients.length === 0 && <Typography variant="caption" color="text.secondary">Sin clientes disponibles.</Typography>}
-              </Stack>
-            </Box>
-          </Popover>
         </Stack>}
       />
+
+      <Popover open={Boolean(clientsAnchor)} anchorEl={clientsAnchor} onClose={() => setClientsAnchor(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}>
+        <Box sx={{ p: 1.5, minWidth: 250, maxHeight: 340, overflowY: 'auto' }}>
+          <Stack direction="row" justifyContent="space-between" alignItems="center" mb={0.5}>
+            <Typography variant="caption" fontWeight={800} color="text.secondary">CLIENTES</Typography>
+            <Stack direction="row" spacing={1}>
+              <Button size="small" sx={{ fontSize: 11, minWidth: 0, p: 0 }} onClick={() => setHiddenClients(new Set())}>Todos</Button>
+              <Button size="small" sx={{ fontSize: 11, minWidth: 0, p: 0 }} onClick={() => setHiddenClients(new Set(clients))}>Ninguno</Button>
+            </Stack>
+          </Stack>
+          <Divider sx={{ mb: 0.5 }} />
+          <Stack spacing={0}>
+            {clients.map((client) => <FormControlLabel key={client}
+              sx={{ '& .MuiFormControlLabel-label': { fontSize: 13 }, ml: 0 }}
+              control={<Checkbox size="small" checked={!hiddenClients.has(client)} onChange={() => toggleClient(client)} />}
+              label={client} />)}
+            {clients.length === 0 && <Typography variant="caption" color="text.secondary">Sin clientes disponibles.</Typography>}
+          </Stack>
+        </Box>
+      </Popover>
 
       <ResumenCards
         title="Exportaciones — Semana en curso"
@@ -177,7 +178,12 @@ export default function ExportacionesPage({ userId }: { userId: string }) {
         ]}
       />
 
-      <ExportacionesEstiloWidget weightUnit={weightUnit} queryParams={clientQueryParams} />
+      <ExportacionesEstiloWidget weightUnit={weightUnit} queryParams={clientQueryParams}
+        clientFilter={<Button size="small" variant="outlined" startIcon={<PeopleAltOutlinedIcon sx={{ fontSize: 16 }} />}
+          onClick={(event) => setClientsAnchor(event.currentTarget)} aria-label="Seleccionar clientes visibles"
+          sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
+          Clientes ({visibleClients}/{clients.length})
+        </Button>} />
 
       <ExportContainersTable weightUnit={weightUnit} queryParams={clientQueryParams} />
 

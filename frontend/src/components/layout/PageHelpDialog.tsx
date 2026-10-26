@@ -99,8 +99,17 @@ const PAGE_HELP: Record<DashboardView, PageHelp> = {
     ],
     dataNote: 'Los nombres de clientes se muestran porque son necesarios para comprobar el cumplimiento de cada pedido y contenedor.',
   },
+  'inventario-fresco': {
+    title: 'Inventario Fresco',
+    purpose: 'Consulta las existencias actuales en recepción, cola sin clasificar, cola clasificada y pelado.',
+    sections: [
+      { title: 'Saldos actuales', body: 'Incluye todo lo pendiente, aunque su fecha sea de meses anteriores. Se actualiza cada cinco minutos y con Actualizar. Cada etapa tiene su propio saldo; no se suman las etapas.' },
+      { title: 'Desgloses', body: 'Los cuatro inventarios se muestran juntos. Cada bloque permite consultar su resumen o cambiar a Por fecha; Pelado también incluye Por destino. Ver detalle abre la tabla completa con filtros, finca, laguna y remisión. El clasificado muestra talla y destino.' },
+      { title: 'Bins', body: 'El conteo sigue los registros del reporte operativo: un número de recipiente puede utilizarse varias veces. Se incluyen únicamente registros pendientes con libras positivas.' },
+    ],
+  },
   inventory: {
-    title: 'Inventario',
+    title: 'Inventario PT',
     purpose: 'Permite explorar el producto disponible agrupándolo por las dimensiones que sean útiles para la consulta.',
     sections: [
       { title: 'Filas y agrupaciones', body: 'Puedes arrastrar dimensiones como cliente, estilo, item, talla o empaque para cambiar el nivel de detalle. La tabla presenta una jerarquía según ese orden: cada valor repetido se muestra una sola vez hasta que cambia su grupo. Los subtotales y el gran total se recalculan con la estructura seleccionada.' },

@@ -484,6 +484,19 @@ async function migrate(): Promise<void> {
 
     await pool.request().query(TELEGRAM_LOANS_MIGRATION);
 
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT 1 FROM dbo.dashboard_migraciones WHERE version = 15)
+      BEGIN
+        BEGIN TRANSACTION;
+        INSERT dbo.dashboard_usuarios_permisos(usuario_id,permiso)
+        SELECT p.usuario_id,N'inventario_fresco' FROM dbo.dashboard_usuarios_permisos p
+        WHERE p.permiso=N'inventario' AND NOT EXISTS (
+          SELECT 1 FROM dbo.dashboard_usuarios_permisos f WHERE f.usuario_id=p.usuario_id AND f.permiso=N'inventario_fresco');
+        INSERT dbo.dashboard_migraciones(version,nombre) VALUES(15,N'permiso de inventario fresco separado de PT');
+        COMMIT TRANSACTION;
+      END;
+    `);
+
     console.log(`[migrate] Base [${databaseName}] lista y actualizada.`);
   } finally {
     await pool.close();

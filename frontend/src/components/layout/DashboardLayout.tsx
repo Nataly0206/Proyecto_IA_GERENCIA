@@ -56,6 +56,7 @@ export type DashboardView =
   | 'dashboard'
   | 'exportaciones'
   | 'inventory'
+  | 'inventario-fresco'
   | 'prestamos'
   | 'rendimientos'
   | 'power-bi'
@@ -220,7 +221,7 @@ export default function DashboardLayout({
           </Tooltip>
         )}
         {tienePermiso(user, 'inventario') && (
-          <Tooltip title={expanded ? '' : 'Inventario'} placement="right">
+          <Tooltip title={expanded ? '' : 'Inventario PT'} placement="right">
             <ListItemButton
               selected={currentView === 'inventory'}
               onClick={() => navigate('inventory')}
@@ -229,7 +230,18 @@ export default function DashboardLayout({
               <ListItemIcon sx={{ minWidth: expanded ? 36 : 0, justifyContent: 'center' }}>
                 <Inventory2OutlinedIcon fontSize="small" />
               </ListItemIcon>
-              {expanded && <ListItemText primary="Inventario" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
+              {expanded && <ListItemText primary="Inventario PT" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
+            </ListItemButton>
+          </Tooltip>
+        )}
+        {tienePermiso(user, 'inventario_fresco') && (
+          <Tooltip title={expanded ? '' : 'Inventario Fresco'} placement="right">
+            <ListItemButton selected={currentView === 'inventario-fresco'} onClick={() => navigate('inventario-fresco')}
+              sx={{ minHeight: 42, px: 1.25, borderRadius: 1, mb: 0.5 }}>
+              <ListItemIcon sx={{ minWidth: expanded ? 36 : 0, justifyContent: 'center' }}>
+                <Inventory2OutlinedIcon fontSize="small" />
+              </ListItemIcon>
+              {expanded && <ListItemText primary="Inventario Fresco" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
             </ListItemButton>
           </Tooltip>
         )}
@@ -336,7 +348,7 @@ export default function DashboardLayout({
               ESF Seafood
             </Typography>
           </Stack>
-          {currentView !== null && currentView !== 'users' && currentView !== 'inventory' && currentView !== 'prestamos' && currentView !== 'rendimientos' && currentView !== 'power-bi' && (
+          {currentView !== null && currentView !== 'users' && currentView !== 'inventory' && currentView !== 'inventario-fresco' && currentView !== 'prestamos' && currentView !== 'rendimientos' && currentView !== 'power-bi' && (
             <Button
               size="small"
               variant="outlined"
@@ -441,7 +453,7 @@ export default function DashboardLayout({
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
       >
-        {currentView !== 'users' && currentView !== 'inventory' && currentView !== 'prestamos' && currentView !== 'rendimientos' && currentView !== 'power-bi' && (
+        {currentView !== 'users' && currentView !== 'inventory' && currentView !== 'inventario-fresco' && currentView !== 'prestamos' && currentView !== 'rendimientos' && currentView !== 'power-bi' && (
           <MenuItem onClick={() => { setMobileActionsAnchor(null); void handleRefresh(); }} disabled={isRefreshing}>
             <RefreshOutlinedIcon fontSize="small" sx={{ mr: 1.25 }} />
             {isRefreshing ? 'Actualizando…' : 'Actualizar datos'}

@@ -387,8 +387,23 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
     ],
   },
 
+  'inventario-fresco': {
+    title: 'Inventario Fresco',
+    summary: 'Cuatro saldos actuales de STB_data, independientes de las fechas del dashboard.',
+    blocks: [
+      { heading: 'Fuentes', bullets: [
+        'Recepción: RemisionesPlantaPBIInventario. Cola: VInventarioProductoColaPBI, Enviado=0.',
+        'Clasificado: CL_InventarioClasificado, EnInventario=1, Transferido=0, Procesado=0, Enviado=0, Reproceso=0 y LibrasNetas>0. Destino desde CL_LLENADO_RECIPIENTES_D.IdDestinoFinal → CL_DESTINOS_FINAL, con preferencia al Destino explícito del inventario.',
+        'Pelado: PES_V_LLENADO_RECIPIENTES, Procesado=0. Se cuentan filas como bins, igual que el reporte original.',
+      ] },
+      { heading: 'API y acceso', bullets: [
+        'GET /api/dashboard/inventario-fresco-recepcion, -cola, -clasificado y -pelado. Permiso inventario_fresco.',
+        'Solo libras positivas; sin filtro de fecha ni turno. Refresco del navegador cada cinco minutos y caché de servidor de dos minutos; refresh=true fuerza consulta. No hay total que sume etapas.',
+      ] },
+    ],
+  },
   inventory: {
-    title: 'Inventario',
+    title: 'Inventario PT',
     summary: 'Producto terminado disponible (no despachado), explorable como pivote. Fuente: PlantaEmpacadora.',
     blocks: [
       {

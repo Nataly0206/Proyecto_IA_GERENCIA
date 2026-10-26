@@ -8,6 +8,7 @@ import LoginPage from './pages/LoginPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
 import UsersPage from './pages/UsersPage';
 import InventoryPage from './pages/InventoryPage';
+import FreshInventoryPage from './pages/FreshInventoryPage';
 import CompraMateriaPrimaPage from './pages/CompraMateriaPrimaPage';
 import RecepcionPage from './pages/RecepcionPage';
 import DescabezadoPage from './pages/DescabezadoPage';
@@ -31,6 +32,7 @@ const PERMISO_POR_VISTA: Record<DashboardView, Permiso> = {
   exportaciones: 'exportaciones',
   users: 'usuarios',
   inventory: 'inventario',
+  'inventario-fresco': 'inventario_fresco',
   prestamos: 'prestamos',
   rendimientos: 'rendimientos',
   'power-bi': 'power_bi',
@@ -45,6 +47,7 @@ const VIEW_ORDER: DashboardView[] = [
   'dashboard',
   'exportaciones',
   'inventory',
+  'inventario-fresco',
   'prestamos',
   'rendimientos',
   'power-bi',
@@ -159,6 +162,8 @@ export default function App() {
           <ClasificadoPage user={user} />
         ) : view === 'exportaciones' ? (
           <ExportacionesPage userId={user.id} />
+        ) : view === 'inventario-fresco' ? (
+          <FreshInventoryPage />
         ) : view === 'inventory' ? (
           <InventoryPage userId={user.id} />
         ) : view === 'prestamos' ? (

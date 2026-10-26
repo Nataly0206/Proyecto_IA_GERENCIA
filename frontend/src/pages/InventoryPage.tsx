@@ -245,7 +245,7 @@ export default function InventoryPage({ userId }: { userId: string }) {
   return (
     <Stack sx={{ height: '100%', minHeight: 0, py: 1 }} spacing={1.25}>
       <Stack direction="row" alignItems="center" justifyContent="space-between" gap={2} flexWrap="wrap">
-        <Box><Typography variant="h5" fontWeight={800}>Inventario</Typography><Typography color="text.secondary">Organiza, agrupa y filtra el producto disponible.</Typography></Box>
+        <Box><Typography variant="h5" fontWeight={800}>Inventario PT</Typography><Typography color="text.secondary">Organiza, agrupa y filtra el producto disponible.</Typography></Box>
         <Button variant="outlined" startIcon={<RefreshOutlinedIcon />} onClick={() => void load()} disabled={inventoryQuery.isFetching}>{inventoryQuery.isFetching ? 'Actualizando…' : 'Actualizar'}</Button>
       </Stack>
 

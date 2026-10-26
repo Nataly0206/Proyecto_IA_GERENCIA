@@ -75,6 +75,7 @@ function writeBrowserCache<T>(key: string, data: T): void {
 
 export function useWidgetData(endpoint: DashboardEndpoint, extraParams?: Record<string, string>) {
   const { filters } = useFilters();
+  const queryClient = useQueryClient();
   const filtersAreValid = !getDateFilterError(filters);
   const endpointCacheVersion = endpoint === 'iqf-horas-trabajadas-mes'
     ? `${endpoint}:promedio-horas-v2`
@@ -107,7 +108,7 @@ export function useWidgetData(endpoint: DashboardEndpoint, extraParams?: Record<
   ]);
   const cached = readBrowserCache<DataRow[]>(cacheKey, REFRESH_INTERVAL_MS);
 
-  return useQuery<DataRow[]>({
+  const query = useQuery<DataRow[]>({
     queryKey: ['dashboard', endpointCacheVersion, filters, extraParams ?? {}],
     queryFn: async () => {
       const data = await fetchWidgetData(endpoint, filters, false, extraParams);
@@ -121,6 +122,13 @@ export function useWidgetData(endpoint: DashboardEndpoint, extraParams?: Record<
     refetchInterval: REFRESH_INTERVAL_MS,
     refetchIntervalInBackground: true,
   });
+  const refreshNow = async () => {
+    const data = await fetchWidgetData(endpoint, filters, true, extraParams);
+    writeBrowserCache(cacheKey, data);
+    queryClient.setQueryData(['dashboard', endpointCacheVersion, filters, extraParams ?? {}], data);
+    return data;
+  };
+  return { ...query, refreshNow };
 }
 
 export function useIqfLive() {

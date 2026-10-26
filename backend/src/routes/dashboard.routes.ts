@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import { getFreshInventory, FreshInventoryStage } from '../services/fresh-inventory.service';
+import { withTtlCache } from '../utils/ttlCache';
 import * as controller from '../controllers/dashboard.controller';
 import * as procesos from '../controllers/procesos.controller';
 import { asyncHandler } from '../middleware/errorHandler';
@@ -22,6 +24,13 @@ const IQF_HIDDEN_PROCESSES_PREFERENCE = 'iqf.procesos.ocultos';
 const PURCHASE_HIDDEN_PROVIDERS_PREFERENCE = 'compra-mp.proveedores.ocultos';
 const EXPORT_WEIGHT_UNIT_PREFERENCE = 'exportaciones.unidad-peso';
 const CHART_VALUES_PREFERENCE = 'dashboard.mostrar-valores-graficas';
+
+for (const stage of ['recepcion', 'cola', 'clasificado', 'pelado'] as FreshInventoryStage[]) {
+  router.get(`/inventario-fresco-${stage}`, requirePermission('inventario_fresco'), asyncHandler(async (req, res) => {
+    res.json(await withTtlCache(`inventario-fresco:v2:${stage}`, 2 * 60_000,
+      () => getFreshInventory(stage), req.query.refresh === 'true'));
+  }));
+}
 
 router.get('/libras-netas-proceso', iqf, asyncHandler(controller.getLibrasNetasPorProceso));
 router.get('/libras-netas-proceso-dia', iqf, asyncHandler(controller.getLibrasNetasPorProcesoDia));

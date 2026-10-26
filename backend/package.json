@@ -15,7 +15,8 @@
     "test:telegram": "npm run build && node --test tests/telegram*.test.cjs",
     "test:telegram:ai": "npm run build && TELEGRAM_TEST_AI=true node --test tests/telegram-reader.live.cjs",
     "test:telegram:sql": "npm run build && AUTH_DB_DATABASE=DashboardGerencialAuth_Telegram_QA node --test --test-concurrency=1 tests/telegram-store.test.cjs tests/telegram-http.test.cjs tests/telegram-lease.test.cjs",
-    "test:recepcion": "npm run build && node --test tests/recepcion.test.cjs"
+    "test:recepcion": "npm run build && node --test tests/recepcion.test.cjs",
+    "test:inventario-fresco": "npm run build && node --test tests/fresh-inventory.test.cjs"
   },
   "dependencies": {
     "@azure/msal-node": "^6.0.0",

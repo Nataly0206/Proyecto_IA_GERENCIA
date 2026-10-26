@@ -55,6 +55,8 @@ export interface WidgetColumn {
   average?: boolean;
   /** Campo con identificadores separados por comas para contar valores únicos por grupo. */
   distinctByKey?: string;
+  /** Display this value from the row with the greatest numeric reference. */
+  maximumByKey?: string;
   /** Columna oculta por defecto; se agrega desde el panel "Filtros y columnas". */
   optional?: boolean;
 }
@@ -66,6 +68,8 @@ interface WidgetDataTableProps {
   title: string;
   icon: ReactNode;
   endpoint: DashboardEndpoint;
+  /** Independent preferences for multiple tables sharing an endpoint. */
+  preferenceKey?: string;
   columns: WidgetColumn[];
   /** Columna por la que se ordena inicialmente (desc). */
   defaultSortKey?: string;
@@ -117,7 +121,11 @@ function groupRows(list: DataRow[], groupKey: string, columns: WidgetColumn[]): 
     if (items[0]?.__weekNumber) out.__weekNumber = items[0].__weekNumber;
     for (const col of columns) {
       if (col.key === groupKey) continue;
-      if (col.distinctByKey) {
+      if (col.maximumByKey) {
+        const field = col.maximumByKey;
+        const oldest = items.reduce((a, b) => Number(b[field]) > Number(a[field]) ? b : a);
+        out[col.key] = oldest[col.key];
+      } else if (col.distinctByKey) {
         const ids = new Set(items.flatMap((row) => String(row[col.distinctByKey!] ?? '').split(',').filter(Boolean)));
         out[col.key] = ids.size;
         out[col.distinctByKey] = Array.from(ids).join(',');
@@ -156,6 +164,7 @@ export default function WidgetDataTable({
   title,
   icon,
   endpoint,
+  preferenceKey = endpoint,
   columns,
   defaultSortKey,
   subtitle,
@@ -181,7 +190,7 @@ export default function WidgetDataTable({
   const [filterColumn, setFilterColumn] = useState<WidgetColumn | null>(null);
   const [filterAnchor, setFilterAnchor] = useState<HTMLElement | null>(null);
   const [columnsPanelOpen, setColumnsPanelOpen] = useState(false);
-  const groupStorageKey = `widget-table-group:${endpoint}`;
+  const groupStorageKey = `widget-table-group:${preferenceKey}`;
   const [groupEnabled, setGroupEnabled] = useState<boolean>(() => {
     try { return localStorage.getItem(groupStorageKey) !== 'off'; } catch { return true; }
   });
@@ -191,7 +200,7 @@ export default function WidgetDataTable({
   });
 
   const hasOptionalColumns = columns.some((c) => c.optional);
-  const storageKey = `widget-table-columns:${endpoint}`;
+  const storageKey = `widget-table-columns:${preferenceKey}`;
   const [visibleOrder, setVisibleOrder] = useState<string[]>(() => {
     const defaults = columns.filter((c) => !c.optional).map((c) => c.key);
     if (!hasOptionalColumns) return defaults;

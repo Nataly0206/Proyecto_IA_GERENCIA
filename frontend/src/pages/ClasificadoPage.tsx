@@ -12,13 +12,14 @@ import CloseOutlinedIcon from '@mui/icons-material/CloseOutlined';
 import PrecisionManufacturingOutlinedIcon from '@mui/icons-material/PrecisionManufacturingOutlined';
 import ProcessFilters from '../components/filters/ProcessFilters';
 import ResumenCards from '../components/live/ResumenCards';
+import { ClasificadoResumen } from '../types';
+import { formatPeriodo } from '../utils/format';
+import ClasificadoLibrasWidget from '../components/charts/ClasificadoLibrasWidget';
 import ClasificadoPorMaquinaHoyCards from '../components/live/ClasificadoPorMaquinaHoyCards';
 import ChartWidget from '../components/charts/ChartWidget';
 import ClasificadoTallaWidget from '../components/charts/ClasificadoTallaWidget';
 import InventarioTallaTable from '../components/charts/InventarioTallaTable';
 import { REFRESH_INTERVAL_MS, useProcesoResumen, useWidgetData } from '../hooks/useDashboardData';
-import { ClasificadoResumen } from '../types';
-import { formatPeriodo } from '../utils/format';
 import { clasificadoWidgets } from '../config/dashboardConfig';
 
 const [porMaquina, , porTallaDia, porTallaMes] = clasificadoWidgets;
@@ -39,6 +40,7 @@ function readHiddenMachines(userId: string): Set<string> {
 
 export default function ClasificadoPage({ user }: { user: AuthUser }) {
   const queryClient = useQueryClient();
+  const [vistaLibras, setVistaLibras] = useState<'cards' | 'dia' | 'semana' | 'mes'>('cards');
   const [tallaOpen, setTallaOpen] = useState(false);
   const [orderSaving, setOrderSaving] = useState(false);
   const [orderError, setOrderError] = useState('');
@@ -136,6 +138,18 @@ export default function ClasificadoPage({ user }: { user: AuthUser }) {
     }
   };
 
+  const librasActions = (
+    <ToggleButtonGroup size="small" exclusive value={vistaLibras}
+      onChange={(_event, next: typeof vistaLibras | null) => next && setVistaLibras(next)}
+      aria-label="Vista de Clasificado — Libras"
+      sx={{ '& .MuiToggleButton-root': { px: 1.25, py: 0.5, fontSize: 11, fontWeight: 700, lineHeight: 1 } }}>
+      <ToggleButton value="cards">Resumen</ToggleButton>
+      <ToggleButton value="dia">Día</ToggleButton>
+      <ToggleButton value="semana">Semana</ToggleButton>
+      <ToggleButton value="mes">Mes</ToggleButton>
+    </ToggleButtonGroup>
+  );
+
   const semana =
     data && data.semanaInicio
       ? `Semana ${formatPeriodo(data.semanaInicio)} → ${formatPeriodo(data.semanaFin)}`
@@ -148,12 +162,13 @@ export default function ClasificadoPage({ user }: { user: AuthUser }) {
     >
       <ProcessFilters
         title="Filtros de clasificado"
-        hint="Los contadores muestran el día, la semana y el mes en curso; el inventario es el disponible ahora. Las tarjetas y las tablas por talla responden al rango de fechas y turno."
+        hint="Las tarjetas muestran el día, la semana y el mes en curso. Tablas: día y semana: rango seleccionado. Mes: los 12 meses del año de la fecha final. Los reportes responden al turno; el inventario muestra el disponible ahora."
       />
 
       <ClasificadoPorMaquinaHoyCards />
 
-      <ResumenCards
+      {vistaLibras === 'cards' ? <ResumenCards
+        actions={librasActions}
         title="Clasificado — Libras"
         icon={<SortOutlinedIcon color="primary" sx={{ fontSize: 16 }} />}
         isLoading={isLoading}
@@ -185,7 +200,7 @@ export default function ClasificadoPage({ user }: { user: AuthUser }) {
             unit: 'lbs/h',
           },
         ]}
-      />
+      /> : <ClasificadoLibrasWidget vista={vistaLibras} actions={librasActions} />} 
 
       <InventarioTallaTable
         title="Inventario de Clasificado Disponible"

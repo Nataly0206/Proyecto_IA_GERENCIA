@@ -27,6 +27,7 @@ const TONE_COLOR: Record<NonNullable<ResumenMetric['tone']>, string> = {
 interface ResumenCardsProps {
   title: string;
   icon: ReactNode;
+  actions?: ReactNode;
   metrics: ResumenMetric[];
   isLoading: boolean;
   isError: boolean;
@@ -50,6 +51,7 @@ interface ResumenCardsProps {
 export default function ResumenCards({
   title,
   icon,
+  actions,
   metrics,
   isLoading,
   isError,
@@ -90,6 +92,7 @@ export default function ResumenCards({
             {updatedAt ? ` · actualizado ${new Date(updatedAt).toLocaleTimeString()}` : ''}
           </Typography>
         )}
+        {actions && <Box sx={{ ml: 'auto', display: 'flex', justifyContent: 'flex-end', maxWidth: '100%', overflowX: 'auto' }}>{actions}</Box>}
       </Stack>
 
       {isLoading && (

@@ -27,6 +27,7 @@ import PeopleOutlineIcon from '@mui/icons-material/PeopleOutline';
 import ContentCutOutlinedIcon from '@mui/icons-material/ContentCutOutlined';
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
+import KitchenOutlinedIcon from '@mui/icons-material/KitchenOutlined';
 import ShoppingCartOutlinedIcon from '@mui/icons-material/ShoppingCartOutlined';
 import MoveToInboxOutlinedIcon from '@mui/icons-material/MoveToInboxOutlined';
 import SetMealOutlinedIcon from '@mui/icons-material/SetMealOutlined';
@@ -239,7 +240,7 @@ export default function DashboardLayout({
             <ListItemButton selected={currentView === 'inventario-fresco'} onClick={() => navigate('inventario-fresco')}
               sx={{ minHeight: 42, px: 1.25, borderRadius: 1, mb: 0.5 }}>
               <ListItemIcon sx={{ minWidth: expanded ? 36 : 0, justifyContent: 'center' }}>
-                <Inventory2OutlinedIcon fontSize="small" />
+                <KitchenOutlinedIcon fontSize="small" />
               </ListItemIcon>
               {expanded && <ListItemText primary="Inventario Fresco" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
             </ListItemButton>

@@ -4,7 +4,7 @@ import {
   Skeleton, Stack, Table, TableBody, TableCell, TableContainer, TableHead,
   TableRow, ToggleButton, ToggleButtonGroup, Typography,
 } from '@mui/material';
-import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
+import KitchenOutlinedIcon from '@mui/icons-material/KitchenOutlined';
 import MoveToInboxOutlinedIcon from '@mui/icons-material/MoveToInboxOutlined';
 import SetMealOutlinedIcon from '@mui/icons-material/SetMealOutlined';
 import CategoryOutlinedIcon from '@mui/icons-material/CategoryOutlined';
@@ -57,7 +57,7 @@ function InventoryPanel({ stage, query }: { stage: typeof stages[number]; query:
     let libras = 0, bins = 0;
     for (const row of query.data ?? []) {
       const label = view === 'fecha' ? String(row.fecha || 'Sin fecha') : view === 'destino' ? String(row.destino) : String(row[stage.id === 'clasificado' ? 'talla' : group[stage.id]]);
-      const destino = view === 'resumen' && stage.id === 'clasificado' ? String(row.destino) : '';
+      const destino = stage.id === 'clasificado' && view !== 'destino' ? String(row.destino) : '';
       const key = JSON.stringify([label, destino]);
       const cell = grouped.get(key) ?? { key, label, destino, bins: 0, libras: 0, minutos: -1, tiempo: '—' };
       cell.bins += Number(row.bins) || 0; cell.libras += Number(row.libras) || 0;
@@ -66,17 +66,17 @@ function InventoryPanel({ stage, query }: { stage: typeof stages[number]; query:
       libras += Number(row.libras) || 0; bins += Number(row.bins) || 0;
     }
     const rows = [...grouped.values()].sort((a, b) => view === 'fecha'
-      ? b.label.localeCompare(a.label)
+      ? b.label.localeCompare(a.label) || a.destino.localeCompare(b.destino)
       : stage.id === 'clasificado' && view === 'resumen'
         ? a.label.localeCompare(b.label, 'es', { numeric: true }) || a.destino.localeCompare(b.destino)
         : b.libras - a.libras);
     return { rows, libras, bins };
   }, [query.data, stage.id, view]);
-  const showDestination = stage.id === 'clasificado' && view === 'resumen';
+  const showDestination = stage.id === 'clasificado' && view !== 'destino';
   const showAge = stage.id === 'recepcion' && view === 'resumen';
   const count = 3 + Number(showDestination) + Number(showAge);
   const label = view === 'fecha' ? 'Fecha' : view === 'destino' ? 'Destino' : stage.label;
-  const detailColumns = view === 'fecha' ? [date, ...totals, ...details.filter(c => c.key !== 'fecha')]
+  const detailColumns = view === 'fecha' ? [date, ...(showDestination ? [{ key: 'destino', label: 'Destino' }] : []), ...totals, ...details.filter(c => c.key !== 'fecha')]
     : view === 'destino' ? [{ key: 'destino', label: 'Destino' }, ...totals, { key: 'estilo', label: 'Estilo', optional: true }, ...details]
     : columns[stage.id];
   return <Card component="section" aria-label={stage.title} sx={{
@@ -151,7 +151,7 @@ function InventoryPanel({ stage, query }: { stage: typeof stages[number]; query:
       </DialogTitle>
       <DialogContent>
         {detailOpen && <WidgetDataTable key={view} title={`Detalle por ${label.toLowerCase()}`} endpoint={stage.endpoint}
-          preferenceKey={`fresh-detail-${stage.id}-${view}`} icon={<Inventory2OutlinedIcon color="primary" sx={{ fontSize: 16 }} />}
+          preferenceKey={`fresh-detail-${stage.id}-${view}`} icon={<KitchenOutlinedIcon color="primary" sx={{ fontSize: 16 }} />}
           columns={detailColumns} groupByKey={view === 'fecha' ? 'fecha' : view === 'destino' ? 'destino' : group[stage.id]}
           defaultSortKey="libras" filterable stickySummary maxHeight={560}
           subtitle="Desactiva la agrupación para consultar fechas, fincas y lagunas de cada registro."

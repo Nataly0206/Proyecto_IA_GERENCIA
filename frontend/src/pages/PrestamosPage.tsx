@@ -14,6 +14,8 @@ import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import { apiClient } from '../api/client';
 import GroupedNumberField from '../components/prestamos/GroupedNumberField';
+import TelegramLoansDialog from '../components/prestamos/TelegramLoansDialog';
+import TelegramIcon from '@mui/icons-material/Telegram';
 import AmortizacionOptions, { OpcionesPlan, TIPO_LABEL, opcionesIniciales, descripcionOpciones } from '../components/prestamos/AmortizacionOptions';
 
 // Control de deuda propia: préstamos que la empresa recibe de bancos y otros acreedores.
@@ -35,7 +37,7 @@ interface Resumen { monedas: ResumenMoneda[]; porAcreedor: DeudaAcreedor[]; agen
 interface Cuota { id: number; numero: number; fechaVencimiento: string; capital: number; interes: number; cargos: number; monto: number; pagado: number; estado: string; concepto?: string; interesDiferido?: number }
 interface PagoRow { id: number; numero: string; tipo: string; fecha: string; monto: number; metodo: string; referencia?: string; creadoPor: string }
 interface Detalle {
-  prestamo: { id: number; numero: string; referencia?: string; acreedor: string; moneda: Moneda; monto: number; tasaAnual: number; frecuencia: string; tipoAmortizacion: string; fechaDesembolso: string; notas?: string; estado: string; creadoPor: string; opciones: OpcionesPlan; interesCapitalizado: number };
+  prestamo: { id: number; numero: string; referencia?: string; acreedor: string; moneda: Moneda; monto: number; tasaAnual: number; frecuencia: string; tipoAmortizacion: string; fechaDesembolso: string; notas?: string; estado: string; creadoPor: string; origen?: string; opciones: OpcionesPlan; interesCapitalizado: number };
   cuotas: Cuota[]; historialCuotas: (Cuota & { reemplazadaEn: string; reemplazadaPor: string; motivo: string })[]; pagos: PagoRow[]; diferenciaCapital: number;
 }
 interface ReporteRow { id: number; numero: string; tipo: string; fecha: string; acreedor: string; prestamo: string; referencia?: string; moneda: Moneda; monto: number; capital: number; interes: number; cargos: number; metodo: string; comprobante?: string; creadoPor: string }
@@ -83,6 +85,7 @@ function State({ loan }: { loan: Prestamo }) {
 }
 
 export default function PrestamosPage() {
+  const [telegramOpen, setTelegramOpen] = useState(false);
   const [tab, setTab] = useState<TabKey>('resumen');
   const [acreedores, setAcreedores] = useState<Acreedor[]>([]);
   const [prestamos, setPrestamos] = useState<Prestamo[]>([]);
@@ -122,7 +125,8 @@ export default function PrestamosPage() {
           <Typography variant="h6" fontWeight={900}>Préstamos</Typography>
           <Typography variant="caption" color="text.secondary">Lo que debemos a bancos y acreedores, sus cuotas y pagos</Typography>
         </Box>
-        <Stack direction="row" spacing={1}>
+        <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+          <Button variant="outlined" startIcon={<TelegramIcon />} onClick={() => setTelegramOpen(true)}>Telegram</Button>
           <Button variant="outlined" startIcon={<AccountBalanceOutlinedIcon />} onClick={() => { setEditingCreditor(null); setCreditorOpen(true); }}>Nuevo acreedor</Button>
           <Button variant="contained" startIcon={<AddOutlinedIcon />} disabled={!acreedores.length} onClick={() => setLoanOpen(true)}>Nuevo préstamo</Button>
         </Stack>
@@ -141,6 +145,7 @@ export default function PrestamosPage() {
       {tab === 'acreedores' && <Creditors rows={acreedores} search={search} setSearch={setSearch} edit={(a) => { setEditingCreditor(a); setCreditorOpen(true); }} done={done} />}
       {tab === 'prestamos' && <Loans rows={prestamos} search={search} setSearch={setSearch} pay={setPayment} detail={setDetailId} done={done} />}
       {tab === 'reportes' && <Reports onError={setError} />}
+      <TelegramLoansDialog open={telegramOpen} close={() => { setTelegramOpen(false); void load(); }} creditors={acreedores} imported={() => void load()} />
       <CreditorDialog open={creditorOpen} creditor={editingCreditor} close={() => setCreditorOpen(false)} done={() => done(editingCreditor ? 'Acreedor actualizado correctamente.' : 'Acreedor registrado correctamente.')} />
       <LoanDialog open={loanOpen} close={() => setLoanOpen(false)} creditors={acreedores} done={done} />
       <PaymentDialog loan={payment} close={() => setPayment(null)} done={done} />
@@ -603,6 +608,12 @@ function DetailDialog({ id, close, changed }: { id: number | null; close: () => 
                 {money(loan.monto, m)} al {Number(loan.tasaAnual).toFixed(2)}% anual · {TIPO_LABEL[loan.tipoAmortizacion]} · pago {loan.frecuencia} · desembolso {formatDate(loan.fechaDesembolso)} · registrado por {loan.creadoPor}
               </Typography>
             </Box>
+            {loan.origen === 'telegram' && <Stack direction="row" spacing={1} alignItems="center">
+              <Chip size="small" label="Plan original importado por Telegram" />
+              <Button size="small" onClick={() => void apiClient.get(`/prestamos/${loan.id}/documento-original`, { responseType: 'blob' }).then(response => {
+                const url = URL.createObjectURL(response.data), link = document.createElement('a'); link.href = url; link.download = `plan-${loan.numero}`; link.click(); window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+              }).catch(e => setError(apiError(e)))}>Descargar original</Button>
+            </Stack>}
             {loan.interesCapitalizado > 0 && <Alert severity="info">El capital financiado incluye {money(loan.interesCapitalizado, m)} de intereses capitalizados durante la gracia. Los pagos de ese importe se contabilizan como capital.</Alert>}
             <Typography variant="body2" color="text.secondary">{descripcionOpciones(loan.opciones)}</Typography>
             {Math.abs(data.diferenciaCapital) > 0.01 && (

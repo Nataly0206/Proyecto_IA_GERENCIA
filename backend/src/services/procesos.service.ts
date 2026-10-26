@@ -156,8 +156,8 @@ export async function getRecepcionResumen(): Promise<RecepcionResumen> {
 /**
  * Detalle de remisiones recibidas (tabla estilo Power BI): una fila por
  * remisión, finca y laguna con libras de remisión, cola, cabeza y basura,
- * más los rendimientos cola/recepción ("finca") y cola/planta. Fuente:
- * vista `RemisionesPlantaPBI`.
+ * más los rendimientos cola/recepción ("finca") y cola/planta. Bins y
+ * pesados se agregan por sus claves; Power BI solo aporta el nombre del cliente.
  */
 export async function getRecepcionRemisiones(f: DashboardFilters): Promise<DataRow[]> {
   const rows = await runStbQuery(RECEPCION_REMISIONES_QUERY, dateParams(f.fechaInicial, f.fechaFinal));

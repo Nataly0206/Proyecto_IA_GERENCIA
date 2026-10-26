@@ -229,3 +229,9 @@ En la Fase 2, el agente de IA recibirá un comando en lenguaje natural
 ("Compara Turno A contra Turno B"), generará un `ChartConfig` y el frontend lo
 renderizará con el mismo motor — sin cambios de código. El panel lateral
 "Asistente IA" ya está integrado en la barra superior como punto de entrada.
+
+### Préstamos desde Telegram
+
+La importación de PDF/foto conserva el calendario original sin recalcularlo y exige
+revisión antes de registrar. Configuración, vinculación y pruebas locales en
+[Telegram_Prestamos.md](docs/Telegram_Prestamos.md). La entrada calculada se mantiene.

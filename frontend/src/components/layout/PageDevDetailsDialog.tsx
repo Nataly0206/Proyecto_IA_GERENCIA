@@ -63,7 +63,7 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
         bullets: [
           'Contadores de recepción: `dbo.R_REMISIONES_PLANTA` (cabecera) + `dbo.R_REMISIONES_PLANTA_DETALLE` (bins; columnas `LIBRAS`, `PROCESADO`).',
           '`dbo.R_PesadoRecepcion.LibrasNetas` dejó de poblarse en 2026-03; por eso las libras se suman desde el detalle de bins, no de esa tabla.',
-          '"Remisiones Recibidas — Detalle": vista `dbo.RemisionesPlantaPBI` (la misma que alimenta el tablero de Power BI). Trae `LibrasRemision`, `LibrasBasura`, `LibrasCola` / `LibrasCabeza` (vía `VPesadoColaPBI` / `VPesadoCabezaPBI`), `Nombre`, `CodigoFinca`, `Laguna` e `IdRemisionPlanta`. La vista filtra internamente `FechaRemision > 2025-01-01`.',
+          '"Remisiones Recibidas — Detalle": vista `dbo.RemisionesPlantaPBI` (la misma que alimenta el tablero de Power BI). Trae `LibrasRemision`, `LibrasBasura`, `LibrasCola` / `LibrasCabeza` (vía `VPesadoColaPBI` / `VPesadoCabezaPBI`), `Nombre`, `CodigoFinca`, `Laguna` e `IdRemisionPlanta`. Sus pesos no se utilizan porque la vista cruza lagunas; únicamente aporta el nombre del cliente.',
         ],
       },
       {
@@ -71,7 +71,7 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
         bullets: [
           'Contadores: `rp.ANULADA = 0 AND rp.RECHAZADA = 0`. Libras recibidas hoy: `rp.FECHA_REMISION = @Dia`; semana: lunes a hoy; mes: primer día del mes a hoy.',
           'Libras pendientes de procesar: `rp.CERRADA = 0 AND ISNULL(d.PROCESADO, 0) = 0` — es un saldo global, sin filtro de fecha.',
-          'Remisiones recibidas — detalle: `RemisionesPlantaPBI.FechaRemision BETWEEN @Fecha_Inicial AND @Fecha_Final`, agrupado por (fecha, remisión, cliente, código de finca, laguna).',
+          'Remisiones recibidas — detalle: `R_REMISIONES_PLANTA.FECHA_REMISION BETWEEN @Fecha_Inicial AND @Fecha_Final`, con cabeceras no anuladas ni rechazadas. Una fila por fecha/remisión/finca/laguna.',
           'Recepción no maneja turno.',
         ],
       },
@@ -79,7 +79,7 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
         heading: 'Fórmulas y cálculos',
         bullets: [
           'Los contadores se rotulan “Libras recibidas HOSO”. Libras recibidas = `SUM(R_REMISIONES_PLANTA_DETALLE.LIBRAS)` de bins no anulados / no rechazados.',
-          'Detalle de remisiones: `LibrasRemision` se suma (la vista abre la fila por el indicador `Procesado`); `LibrasCola`, `LibrasCabeza` y `LibrasBasura` se toman con `MAX` porque son constantes por remisión-laguna.',
+          'Detalle: se suman bins válidos de `R_REMISIONES_PLANTA_DETALLE` por fecha/remisión/finca/laguna. Cola y cabeza se agregan por remisión + laguna desde sus vistas de pesados; basura por remisión + finca + laguna. Los JOIN se hacen después de agregar, evitando multiplicar pesos.',
           'Total cola + cabeza = `LibrasCola + LibrasCabeza`. Rendimiento finca = `LibrasCola / LibrasRemision`. Rendimiento planta = `LibrasCola / (LibrasCola + LibrasCabeza)`. Se calculan en `procesos.service.ts` y se expresan en porcentaje (0–100).',
           'Fila de Total en la tabla: suma de libras y rendimientos ponderados (Σcola ÷ Σremisión y Σcola ÷ Σ(cola+cabeza)), calculada en `WidgetDataTable`.',
         ],

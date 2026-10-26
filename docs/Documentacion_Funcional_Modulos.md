@@ -196,7 +196,7 @@ Las fuentes de unión y fórmulas ampliadas están incluidas en las secciones de
 | Libras peladas por estilo | `STB_data.dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS` y `dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS_DET` | `SUM(LIBRAS)` no anuladas; estilo resuelto con `PES_ESTILOS` | Cabecera `FECHA`; `/api/dashboard/pelado-por-estilo?fechaInicial=INICIO&fechaFinal=FIN`; turno opcional |
 | Libras peladas por talla | Misma base y detalle de pelado; catálogo `dbo.DCP_TALLAS` | `SUM(LIBRAS)` por talla | Cabecera `FECHA`; `/api/dashboard/pelado-por-talla?fechaInicial=INICIO&fechaFinal=FIN`; turno opcional |
 | Personal y pago de pelado | `STB_data.dbo.V_PagosxPeladoIndividualPBI` | Empleados distintos por `IdEmpleado`, `SUM(libras)`, `SUM(Valor)` | `Fecha`; `/api/dashboard/pelado-personal?fechaInicial=INICIO&fechaFinal=FIN`; turno opcional |
-| Recepción por remisión/finca/laguna | `STB_data.dbo.RemisionesPlantaPBI` | `LibrasRemision`, `LibrasCola`, `LibrasCabeza`, `LibrasBasura`; agregación descrita en Recepción | `FechaRemision`; `/api/dashboard/recepcion-remisiones?fechaInicial=INICIO&fechaFinal=FIN`; sin turno |
+| Recepción por remisión/finca/laguna | `STB_data.dbo.R_REMISIONES_PLANTA[_DETALLE]`, `VPesadoColaPBI`, `VPesadoCabezaPBI`, `VLibrasBasuraPBI` | Bins y pesados agregados antes de unir por remisión/laguna; Power BI solo aporta nombre de cliente | `FECHA_REMISION`; `/api/dashboard/recepcion-remisiones?fechaInicial=INICIO&fechaFinal=FIN`; sin turno |
 | Descabezado por día | `STB_data.dbo.V_TrazabilidadDescabezadoPBI` y tablas de asignación | Cola, cabeza, total; personas y horas desde asignación | `FECHA_DESCABEZADO` y cabecera `FECHA`; `/api/dashboard/descabezado-por-dia?fechaInicial=INICIO&fechaFinal=FIN`; sin turno |
 | Clasificado por talla o máquina | `STB_data.dbo.CL_LLENADO_RECIPIENTES` y `dbo.CL_LLENADO_RECIPIENTES_D` | `SUM(LIBRAS_NETA)` no anuladas; `DCP_TALLAS` o `CL_TANQUES` por `ID_TANQUE` | Cabecera `FECHA`; `/api/dashboard/clasificado-por-talla?fechaInicial=INICIO&fechaFinal=FIN` o `/api/dashboard/clasificado-por-maquina` con las mismas fechas; turno opcional |
 | Exportaciones por contenedor/cliente | `Envios` + `Masteres` + `Seriales` + `OrdenesProduccion` + `AV_Items` + `AV_LotesRemision` | Una fila principal por contenedor con libras totales; `detalle` conserva cliente/estilo; contenedor no vacío | `FechaCarga`; `/api/dashboard/exportaciones-contenedores?fechaInicial=INICIO&fechaFinal=FIN`; sin turno |
@@ -316,7 +316,7 @@ Los endpoints de resumen/en vivo y los de inventario clasificado ignoran fechas 
 | IQF | `DiaProduccion2024` | Día de producción; `FechaHoraTorre` mide tiempos y actividad reciente |
 | Pelado, libras por estilo/talla | Cabecera `PES_ASIGNACION_LIBRAS_EMPLEADOS.FECHA` | Fecha de asignación de libras |
 | Pelado, personal/pago | `V_PagosxPeladoIndividualPBI.Fecha` | Fecha del registro de destajo |
-| Recepción, detalle | `RemisionesPlantaPBI.FechaRemision` | Fecha de remisión; la vista limita internamente a fechas posteriores a `2025-01-01` |
+| Recepción, detalle | `R_REMISIONES_PLANTA.FECHA_REMISION` | Fecha de remisión de la cabecera; no se usan los pesos de la vista multiplicada |
 | Descabezado | `V_TrazabilidadDescabezadoPBI.FECHA_DESCABEZADO`; cabecera de asignación `FECHA` para personal/horas | Día descabezado y día de asignación, según indicador |
 | Clasificado | `CL_LLENADO_RECIPIENTES.FECHA` | Día del llenado/clasificado |
 | Exportaciones | `Envios.FechaCarga` | Fecha de carga, no fecha de orden de compra ni producción |
@@ -408,7 +408,9 @@ a proceso. Base: `STB_data`. Sin filtro de turno.
 | --- | --- | --- | --- |
 | Libras recibidas HOSO hoy / semana / mes | `dbo.R_REMISIONES_PLANTA` + `dbo.R_REMISIONES_PLANTA_DETALLE` | `SUM(LIBRAS)` de bins no anulados/rechazados (`ANULADA=0 AND RECHAZADA=0`) | `GET /recepcion-resumen` |
 | Libras pendientes de procesar (saldo global, sin fecha) | mismas tablas | `SUM(LIBRAS)` donde `CERRADA=0 AND PROCESADO=0` | `GET /recepcion-resumen` |
-| Detalle por remisión/finca/laguna: libras remisión, cola, cabeza, basura, rendimientos | vista `dbo.RemisionesPlantaPBI` (misma que Power BI) | `LibrasRemision` se suma; `LibrasCola/Cabeza/Basura` con `MAX` (son constantes por remisión-laguna); rendimiento finca = cola÷remisión; rendimiento planta = cola÷(cola+cabeza) | `GET /recepcion-remisiones` |
+| Detalle por remisión/finca/laguna: libras remisión, cola, cabeza, basura, rendimientos | `R_REMISIONES_PLANTA[_DETALLE]`, `R_Lagunas`, `R_Fincas`, `VPesadoColaPBI`, `VPesadoCabezaPBI`, `VLibrasBasuraPBI`; nombre de cliente desde Power BI | Suma de bins válidos; cola/cabeza agregadas por remisión + laguna, basura por remisión + finca + laguna; joins después de agregar. Rendimiento finca = cola÷remisión; planta = cola÷(cola+cabeza) | `GET /recepcion-remisiones` |
+
+La vista `RemisionesPlantaPBI` contiene cruces entre las lagunas de cola y cabeza: el 16-sep-2026 cada laguna de `STB0000252-26` aparece 121 veces (11 × 11). Sus pesos no se usan para calcular; solo se agrupa el nombre del cliente. Se conserva cada bin real, incluso si tiene el mismo peso que otro o aún no está procesado. El resumen diario comparte esta misma consulta corregida.
 
 Nota: `R_PesadoRecepcion.LibrasNetas` dejó de poblarse en 2026-03; por eso los totales salen del detalle de bins, no de esa tabla.
 

@@ -73,8 +73,8 @@ function parseExcludedClients(req: Request): string[] {
 }
 
 /* Recepción */
-export const getRecepcionResumen = live('recepcion-resumen:balance-diario-v2', procesos.getRecepcionResumen);
-export const getRecepcionRemisiones = report('recepcion-remisiones', procesos.getRecepcionRemisiones);
+export const getRecepcionResumen = live('recepcion-resumen:balance-laguna-v3', procesos.getRecepcionResumen);
+export const getRecepcionRemisiones = report('recepcion-remisiones:balance-laguna-v2', procesos.getRecepcionRemisiones);
 
 /* Descabezado */
 export const getDescabezadoResumen = live('descabezado-resumen:cola-entero-v3', procesos.getDescabezadoResumen);

@@ -48,33 +48,88 @@
  * (filtros con la fecha del navegador) considera hoy, y este resumen
  * aparece vacío aunque sí haya remisiones del día.
  */
+/** Agrega cada origen antes de unirlo. La vista Power BI solo aporta el
+ * nombre del cliente: sus pesos tienen cruces entre lagunas y no se suman. */
+function recepcionBalanceCte(inicio: string, fin: string): string {
+  return `
+RecepcionBins AS (
+  SELECT rp.FECHA_REMISION AS Fecha,
+    COALESCE(NULLIF(LTRIM(RTRIM(rp.REMISION_GENERAL)), ''), CONCAT('#', rp.ID_REMISION_PLANTA)) AS Remision,
+    COALESCE(NULLIF(LTRIM(RTRIM(f.Codigo)), ''), '') AS CodigoFinca,
+    COALESCE(NULLIF(LTRIM(RTRIM(f.Finca)), ''), '') AS Finca,
+    COALESCE(NULLIF(LTRIM(RTRIM(l.Laguna)), ''), '') AS Laguna,
+    MAX(NULLIF(LTRIM(RTRIM(rp.NombreCliente)), '')) AS ClienteCabecera,
+    SUM(d.LIBRAS) AS LibrasRemision
+  FROM dbo.R_REMISIONES_PLANTA rp
+  JOIN dbo.R_REMISIONES_PLANTA_DETALLE d ON d.ID_REMISION_PLANTA = rp.ID_REMISION_PLANTA
+  LEFT JOIN dbo.R_Lagunas l ON l.IdLaguna = rp.ID_LAGUNA
+  LEFT JOIN dbo.R_Fincas f ON f.IdFinca = l.IdFinca
+  WHERE rp.FECHA_REMISION BETWEEN ${inicio} AND ${fin}
+    AND rp.ANULADA = 0 AND rp.RECHAZADA = 0
+  GROUP BY rp.FECHA_REMISION,
+    COALESCE(NULLIF(LTRIM(RTRIM(rp.REMISION_GENERAL)), ''), CONCAT('#', rp.ID_REMISION_PLANTA)),
+    COALESCE(NULLIF(LTRIM(RTRIM(f.Codigo)), ''), ''),
+    COALESCE(NULLIF(LTRIM(RTRIM(f.Finca)), ''), ''),
+    COALESCE(NULLIF(LTRIM(RTRIM(l.Laguna)), ''), '')
+), NombresRecepcion AS (
+  SELECT v.FechaRemision AS Fecha, LTRIM(RTRIM(v.IdRemisionPlanta)) AS Remision,
+    COALESCE(NULLIF(LTRIM(RTRIM(v.CodigoFinca)), ''), '') AS CodigoFinca,
+    COALESCE(NULLIF(LTRIM(RTRIM(v.Laguna)), ''), '') AS Laguna,
+    MAX(NULLIF(LTRIM(RTRIM(v.Nombre)), '')) AS Cliente
+  FROM dbo.RemisionesPlantaPBI v
+  WHERE v.FechaRemision BETWEEN ${inicio} AND ${fin}
+  GROUP BY v.FechaRemision, LTRIM(RTRIM(v.IdRemisionPlanta)),
+    COALESCE(NULLIF(LTRIM(RTRIM(v.CodigoFinca)), ''), ''),
+    COALESCE(NULLIF(LTRIM(RTRIM(v.Laguna)), ''), '')
+), ColaRecepcion AS (
+  SELECT LTRIM(RTRIM(c.Remision)) AS Remision, LTRIM(RTRIM(c.Laguna)) AS Laguna,
+    SUM(c.LibrasNetas) AS LibrasCola
+  FROM dbo.VPesadoColaPBI c
+  WHERE EXISTS (SELECT 1 FROM RecepcionBins b WHERE b.Remision = LTRIM(RTRIM(c.Remision)))
+  GROUP BY LTRIM(RTRIM(c.Remision)), LTRIM(RTRIM(c.Laguna))
+), CabezaRecepcion AS (
+  SELECT LTRIM(RTRIM(c.Remision)) AS Remision, LTRIM(RTRIM(c.Laguna)) AS Laguna,
+    SUM(c.LibrasNetas) AS LibrasCabeza
+  FROM dbo.VPesadoCabezaPBI c
+  WHERE EXISTS (SELECT 1 FROM RecepcionBins b WHERE b.Remision = LTRIM(RTRIM(c.Remision)))
+  GROUP BY LTRIM(RTRIM(c.Remision)), LTRIM(RTRIM(c.Laguna))
+), BasuraRecepcion AS (
+  SELECT LTRIM(RTRIM(v.REMISION_GENERAL)) AS Remision,
+    COALESCE(NULLIF(LTRIM(RTRIM(f.Codigo)), ''), '') AS CodigoFinca,
+    COALESCE(NULLIF(LTRIM(RTRIM(l.Laguna)), ''), '') AS Laguna,
+    SUM(v.LIBRAS_BASURA) AS LibrasBasura
+  FROM dbo.VLibrasBasuraPBI v
+  JOIN dbo.R_Lagunas l ON l.IdLaguna = v.ID_LAGUNA
+  LEFT JOIN dbo.R_Fincas f ON f.IdFinca = l.IdFinca
+  WHERE EXISTS (SELECT 1 FROM RecepcionBins b WHERE b.Remision = LTRIM(RTRIM(v.REMISION_GENERAL)))
+  GROUP BY LTRIM(RTRIM(v.REMISION_GENERAL)),
+    COALESCE(NULLIF(LTRIM(RTRIM(f.Codigo)), ''), ''),
+    COALESCE(NULLIF(LTRIM(RTRIM(l.Laguna)), ''), '')
+), DetalleRecepcion AS (
+  SELECT b.Fecha, b.Remision, COALESCE(b.ClienteCabecera, n.Cliente, 'Sin cliente') AS Cliente,
+    b.CodigoFinca, b.Finca, b.Laguna, b.LibrasRemision,
+    ISNULL(x.LibrasBasura, 0) AS LibrasBasura,
+    ISNULL(c.LibrasCola, 0) AS LibrasCola, ISNULL(h.LibrasCabeza, 0) AS LibrasCabeza
+  FROM RecepcionBins b
+  LEFT JOIN NombresRecepcion n ON n.Fecha = b.Fecha AND n.Remision = b.Remision
+    AND n.CodigoFinca = b.CodigoFinca AND n.Laguna = b.Laguna
+  LEFT JOIN ColaRecepcion c ON c.Remision = b.Remision AND c.Laguna = b.Laguna
+  LEFT JOIN CabezaRecepcion h ON h.Remision = b.Remision AND h.Laguna = b.Laguna
+  LEFT JOIN BasuraRecepcion x ON x.Remision = b.Remision AND x.CodigoFinca = b.CodigoFinca AND x.Laguna = b.Laguna
+)`;
+}
+
 export const RECEPCION_RESUMEN_QUERY = `
 DECLARE @Lunes date = DATEADD(DAY, -(DATEDIFF(DAY, 0, @Dia) % 7), @Dia);
 DECLARE @PrimerDiaMes date = DATEADD(DAY, 1 - DAY(@Dia), @Dia);
 
-;WITH HoyRemisiones AS (
-  SELECT
-    v.IdRemisionPlanta,
-    COALESCE(NULLIF(LTRIM(RTRIM(v.CodigoFinca)), ''), '') AS CodigoFinca,
-    COALESCE(NULLIF(LTRIM(RTRIM(v.Finca)), ''), '') AS Finca,
-    COALESCE(NULLIF(LTRIM(RTRIM(v.Laguna)), ''), '') AS Laguna,
-    SUM(v.LibrasRemision) AS LibrasRemision,
-    MAX(ISNULL(v.LibrasBasura, 0)) AS LibrasBasura,
-    MAX(ISNULL(v.LibrasCola, 0)) AS LibrasCola,
-    MAX(ISNULL(v.LibrasCabeza, 0)) AS LibrasCabeza
-  FROM dbo.RemisionesPlantaPBI v
-  WHERE v.FechaRemision = @Dia
-  GROUP BY v.IdRemisionPlanta,
-    COALESCE(NULLIF(LTRIM(RTRIM(v.CodigoFinca)), ''), ''),
-    COALESCE(NULLIF(LTRIM(RTRIM(v.Finca)), ''), ''),
-    COALESCE(NULLIF(LTRIM(RTRIM(v.Laguna)), ''), '')
-), TotalesHoy AS (
+;WITH ${recepcionBalanceCte('@Dia', '@Dia')}, TotalesHoy AS (
   SELECT
     ISNULL(SUM(LibrasRemision), 0) AS LibrasRemisionHoy,
     ISNULL(SUM(LibrasBasura), 0) AS LibrasBasuraHoy,
     ISNULL(SUM(LibrasCola), 0) AS LibrasColaHoy,
     ISNULL(SUM(LibrasCabeza), 0) AS LibrasCabezaHoy
-  FROM HoyRemisiones
+  FROM DetalleRecepcion
 )
 SELECT
   (SELECT ISNULL(SUM(d.LIBRAS), 0)
@@ -102,38 +157,13 @@ SELECT
 FROM TotalesHoy t
 `;
 
-/**
- * Detalle de remisiones recibidas en el rango: una fila por remisión, finca
- * y laguna. Fuente: vista `dbo.RemisionesPlantaPBI`, la misma que alimenta
- * el tablero de Power BI (libras de remisión, cola, cabeza y basura). La
- * vista ya filtra internamente `FechaRemision > 2025-01-01`.
- *
- * `LibrasRemision` se suma porque la vista abre la fila por el indicador
- * `Procesado` (una remisión-laguna puede aparecer como procesada y no
- * procesada); las libras de pesado (`LibrasCola`, `LibrasCabeza`) y de
- * basura son constantes por remisión-laguna, así que se toman con MAX para
- * no duplicarlas. Los rendimientos cola/recepción ("finca") y cola/planta
- * se calculan en el servicio a partir de estos totales.
- */
+/** Una fila por fecha/remisión/finca/laguna. Los bins se suman una vez;
+ * cola, cabeza y basura se agregan antes del JOIN con sus claves reales. */
 export const RECEPCION_REMISIONES_QUERY = `
-SELECT
-  v.FechaRemision AS Fecha,
-  v.IdRemisionPlanta AS Remision,
-  COALESCE(NULLIF(LTRIM(RTRIM(v.Nombre)), ''), 'Sin cliente') AS Cliente,
-  COALESCE(NULLIF(LTRIM(RTRIM(v.CodigoFinca)), ''), '') AS CodigoFinca,
-  COALESCE(NULLIF(LTRIM(RTRIM(v.Finca)), ''), '') AS Finca,
-  COALESCE(NULLIF(LTRIM(RTRIM(v.Laguna)), ''), '') AS Laguna,
-  SUM(v.LibrasRemision) AS LibrasRemision,
-  MAX(ISNULL(v.LibrasBasura, 0)) AS LibrasBasura,
-  MAX(ISNULL(v.LibrasCola, 0)) AS LibrasCola,
-  MAX(ISNULL(v.LibrasCabeza, 0)) AS LibrasCabeza
-FROM dbo.RemisionesPlantaPBI v
-WHERE v.FechaRemision BETWEEN @Fecha_Inicial AND @Fecha_Final
-GROUP BY v.FechaRemision, v.IdRemisionPlanta,
-  COALESCE(NULLIF(LTRIM(RTRIM(v.Nombre)), ''), 'Sin cliente'),
-  COALESCE(NULLIF(LTRIM(RTRIM(v.CodigoFinca)), ''), ''),
-  COALESCE(NULLIF(LTRIM(RTRIM(v.Finca)), ''), ''),
-  COALESCE(NULLIF(LTRIM(RTRIM(v.Laguna)), ''), '')
+WITH ${recepcionBalanceCte('@Fecha_Inicial', '@Fecha_Final')}
+SELECT Fecha, Remision, Cliente, CodigoFinca, Finca, Laguna,
+  LibrasRemision, LibrasBasura, LibrasCola, LibrasCabeza
+FROM DetalleRecepcion
 `;
 
 /* ================================================================== */

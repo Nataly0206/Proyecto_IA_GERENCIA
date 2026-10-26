@@ -108,10 +108,12 @@ export async function listarAcreedores() {
 }
 
 export async function crearPrestamo(input: PrestamoInput, usuario: string) {
-  const plan = calcularPlan(input);
-  const pool = await getAuthPool();
-  const tx = new sql.Transaction(pool);
-  await tx.begin(sql.ISOLATION_LEVEL.SERIALIZABLE);
+  return guardarPrestamo(input, usuario, calcularPlan(input));
+}
+
+export async function guardarPrestamo(input: PrestamoInput, usuario: string, plan: ReturnType<typeof calcularPlan>, externalTx?: sql.Transaction, origen = 'calculado') {
+  const tx = externalTx ?? new sql.Transaction(await getAuthPool());
+  if (!externalTx) await tx.begin(sql.ISOLATION_LEVEL.SERIALIZABLE);
   try {
     const acreedor = await new sql.Request(tx).input('id', sql.BigInt, input.acreedorId)
       .query(`SELECT id FROM dbo.prestamos_acreedores WITH (UPDLOCK, HOLDLOCK) WHERE id = @id AND eliminado_en IS NULL`);
@@ -132,19 +134,20 @@ export async function crearPrestamo(input: PrestamoInput, usuario: string) {
       .input('opciones', sql.NVarChar(sql.MAX), JSON.stringify(input.opciones ?? {}))
       .input('capitalizado', sql.Decimal(18, 2), plan.interesCapitalizado)
       .input('usuario', sql.NVarChar(60), usuario)
+      .input('origen', sql.NVarChar(20), origen)
       .query(`INSERT INTO dbo.prestamos
         (acreedor_id, referencia, moneda, monto, tasa_anual, cantidad_cuotas, frecuencia, tipo_amortizacion,
-         fecha_desembolso, fecha_primera_cuota, cargo_cuota, notas, creado_por, opciones_plan, interes_capitalizado)
+         fecha_desembolso, fecha_primera_cuota, cargo_cuota, notas, creado_por, opciones_plan, interes_capitalizado, origen)
         OUTPUT INSERTED.id
         VALUES (@acreedorId, @referencia, @moneda, @monto, @tasa, @cantidad, @frecuencia, @tipo,
-          @desembolso, @primera, @cargo, @notas, @usuario, @opciones, @capitalizado)`);
+          @desembolso, @primera, @cargo, @notas, @usuario, @opciones, @capitalizado, @origen)`);
     const id = Number(inserted.recordset[0].id);
     await new sql.Request(tx).input('id', sql.BigInt, id)
       .query(`UPDATE dbo.prestamos SET numero = N'PRE-' + RIGHT(N'000000' + CONVERT(nvarchar(20), id), 6) WHERE id = @id`);
     for (const row of plan.cuotas) await insertarCuota(tx, id, row.numero, row.fechaVencimiento, row);
-    await tx.commit();
+    if (!externalTx) await tx.commit();
     return { id, numero: `PRE-${String(id).padStart(6, '0')}`, ...plan };
-  } catch (error) { await tx.rollback(); throw error; }
+  } catch (error) { if (!externalTx) await tx.rollback(); throw error; }
 }
 
 async function insertarCuota(tx: sql.Transaction, prestamoId: number, numero: number, fecha: string, row: CuotaCalculada & { concepto?: string }) {
@@ -203,7 +206,7 @@ export async function obtenerPrestamo(id: number) {
       SELECT p.id, p.numero, p.referencia, a.nombre AS acreedor, p.moneda, p.monto, p.tasa_anual AS tasaAnual,
         p.cantidad_cuotas AS cantidadCuotas, p.frecuencia, p.tipo_amortizacion AS tipoAmortizacion,
         CONVERT(varchar(10), p.fecha_desembolso, 23) AS fechaDesembolso, p.notas, p.estado, p.opciones_plan AS opcionesPlan, p.interes_capitalizado AS interesCapitalizado,
-        p.creado_por AS creadoPor, p.creado_en AS creadoEn
+        p.creado_por AS creadoPor, p.creado_en AS creadoEn, p.origen
       FROM dbo.prestamos p JOIN dbo.prestamos_acreedores a ON a.id = p.acreedor_id WHERE p.id = @id AND p.eliminado_en IS NULL`),
     pool.request().input('id', sql.BigInt, id).query(`
       SELECT id, numero, CONVERT(varchar(10), fecha_vencimiento, 23) AS fechaVencimiento,

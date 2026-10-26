@@ -2,6 +2,9 @@ import { Request, Response, Router } from 'express';
 import { ApiError, asyncHandler } from '../middleware/errorHandler';
 import { AuthUser } from '../services/auth.service';
 import * as service from '../services/prestamos.service';
+import telegramRoutes, { sendOriginal } from '../telegram/routes';
+import { getAuthPool } from '../config/authDb';
+import sql from 'mssql';
 import { validarPlan, validDate, money } from '../services/amortizacion';
 
 const router = Router();
@@ -40,6 +43,8 @@ function parsePago(body: Request['body']): service.PagoInput {
   }
   return { monto, metodo, fecha: body.fecha, referencia: text(body?.referencia, 100), notas: text(body?.notas, 500) };
 }
+
+router.use('/telegram', telegramRoutes);
 
 router.get('/resumen', asyncHandler(async (_req, res) => res.json(await service.resumen())));
 
@@ -80,6 +85,15 @@ router.get('/reporte', asyncHandler(async (req, res) => {
 
 // Vista previa del calendario antes de guardar el préstamo.
 router.post('/simular', asyncHandler(async (req, res) => res.json(service.calcularPlan(parsePlan(req.body)))));
+
+router.get('/:id/documento-original', asyncHandler(async (req, res) => {
+  const id = idParam(req.params.id, 'Préstamo');
+  const result = await (await getAuthPool()).request().input('id', sql.BigInt, id)
+    .query(`SELECT t.archivo,t.archivo_nombre,t.archivo_mime FROM dbo.prestamos_telegram_importaciones t
+      JOIN dbo.prestamos p ON p.id=t.prestamo_id WHERE t.prestamo_id=@id AND p.eliminado_en IS NULL AND t.estado=N'registrado'`);
+  if (!result.recordset[0]) throw new ApiError(404, 'Este préstamo no tiene un documento original importado.');
+  sendOriginal(res, result.recordset[0]);
+}));
 
 router.get('/:id', asyncHandler(async (req, res) => {
   const result = await service.obtenerPrestamo(idParam(req.params.id, 'Préstamo'));

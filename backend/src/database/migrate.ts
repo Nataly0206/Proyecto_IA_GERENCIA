@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs';
+import { TELEGRAM_LOANS_MIGRATION } from '../telegram/schema';
 import sql from 'mssql';
 import { env } from '../config/env';
 
@@ -480,6 +481,8 @@ async function migrate(): Promise<void> {
         COMMIT TRANSACTION;
       END;
     `);
+
+    await pool.request().query(TELEGRAM_LOANS_MIGRATION);
 
     console.log(`[migrate] Base [${databaseName}] lista y actualizada.`);
   } finally {

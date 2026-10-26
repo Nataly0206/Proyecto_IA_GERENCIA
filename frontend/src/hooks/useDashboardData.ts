@@ -78,6 +78,8 @@ export function useWidgetData(endpoint: DashboardEndpoint, extraParams?: Record<
   const filtersAreValid = !getDateFilterError(filters);
   const endpointCacheVersion = endpoint === 'iqf-horas-trabajadas-mes'
     ? `${endpoint}:promedio-horas-v2`
+    : endpoint === 'recepcion-remisiones'
+      ? `${endpoint}:balance-laguna-v2`
     : endpoint === 'exportaciones-por-estilo'
       ? `${endpoint}:ships-exportacion-v5`
     : endpoint === 'exportaciones-por-cliente-mes'
@@ -292,7 +294,7 @@ export function useProcesoResumen<T>(endpoint: ProcesoResumenEndpoint, extraPara
   const endpointCacheVersion = endpoint === 'descabezado-resumen'
     ? `${endpoint}:cola-entero-v3`
     : endpoint === 'recepcion-resumen'
-      ? `${endpoint}:balance-diario-v2`
+      ? `${endpoint}:balance-laguna-v3`
     : endpoint === 'exportaciones-resumen'
       ? `${endpoint}:ships-exportacion-v2`
     : endpoint === 'compra-mp-resumen'

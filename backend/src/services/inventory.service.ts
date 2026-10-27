@@ -15,6 +15,10 @@ export interface InventoryItem {
   empaque: string;
   tipoItem: string;
   disponibilidad: string;
+  nombreFinca?: string;
+  laguna?: string;
+  color?: string;
+  codigoProduccion?: string;
   pesoKilos: number;
   cantidadSerial: number;
 }
@@ -30,6 +34,7 @@ export async function getInventory(): Promise<InventoryItem[]> {
         op.NoOrdenCompra,
         op.CodigoExterno,
         op.FechaProduccion,
+        lr.Finca AS NombreFinca, lr.laguna AS Laguna, color.CodigoColor AS Color, op.OrdenProduccion AS CodigoProduccion,
         i.CodigoItem,
         i.EstiloFinal,
         i.Item AS NombreItem,
@@ -43,6 +48,7 @@ export async function getInventory(): Promise<InventoryItem[]> {
         s.Cantidad AS CantidadSerial
       FROM dbo.Seriales s
       INNER JOIN dbo.OrdenesProduccion op ON op.IdOrdenProduccion = s.FkOrdenProduccion
+      LEFT JOIN dbo.Colores color ON color.PKcolor = op.fkColor
       INNER JOIN dbo.AV_LotesRemision lr ON lr.IdLoteRemision = op.FkLoteRemision
       INNER JOIN dbo.AV_Items i ON i.IdItem = op.FkItem
       INNER JOIN dbo.Masteres m ON m.IdMaster = s.FkMaster
@@ -64,6 +70,7 @@ export async function getInventory(): Promise<InventoryItem[]> {
         op.NoOrdenCompra,
         op.CodigoExterno,
         op.FechaProduccion,
+        lr.Finca AS NombreFinca, lr.laguna AS Laguna, color.CodigoColor AS Color, op.OrdenProduccion AS CodigoProduccion,
         i.CodigoItem,
         i.EstiloFinal,
         i.Item AS NombreItem,
@@ -78,6 +85,7 @@ export async function getInventory(): Promise<InventoryItem[]> {
       FROM dbo.Seriales s
       INNER JOIN dbo.SerialesSobrantes ss ON ss.FkSerial = s.IdSerial
       INNER JOIN dbo.OrdenesProduccion op ON op.IdOrdenProduccion = s.FkOrdenProduccion
+      LEFT JOIN dbo.Colores color ON color.PKcolor = op.fkColor
       INNER JOIN dbo.AV_Items i ON i.IdItem = op.FkItem
       INNER JOIN dbo.AV_LotesRemision lr ON lr.IdLoteRemision = op.FkLoteRemision
       INNER JOIN dbo.Freezers f ON f.IdFreezer = s.FkFreezer
@@ -90,12 +98,12 @@ export async function getInventory(): Promise<InventoryItem[]> {
       WHERE s.FkMaster IS NULL
     )
     SELECT NombreCliente, NombreClientePrincipal, NoOrdenCompra, CodigoExterno, CAST(FechaProduccion AS date) AS FechaProduccion,
-      CodigoItem, EstiloFinal, NombreItem, Marca, Talla, Empaque, TipoItem, Disponibilidad,
+      CodigoItem, EstiloFinal, NombreItem, Marca, Talla, Empaque, TipoItem, Disponibilidad, NombreFinca, Laguna, Color, CodigoProduccion,
       SUM(PesoKilos) AS PesoKilos,
       SUM(CantidadSerial) AS CantidadSerial
     FROM inventario
     GROUP BY NombreCliente, NombreClientePrincipal, NoOrdenCompra, CodigoExterno, CAST(FechaProduccion AS date),
-      CodigoItem, EstiloFinal, NombreItem, Marca, Talla, Empaque, TipoItem, Disponibilidad
+      CodigoItem, EstiloFinal, NombreItem, Marca, Talla, Empaque, TipoItem, Disponibilidad, NombreFinca, Laguna, Color, CodigoProduccion
     ORDER BY NombreCliente, NombreItem;
   `, []);
 
@@ -113,6 +121,10 @@ export async function getInventory(): Promise<InventoryItem[]> {
     empaque: pickString(row, 'Empaque') || 'Sin empaque',
     tipoItem: pickString(row, 'TipoItem') || 'Sin tipo',
     disponibilidad: pickString(row, 'Disponibilidad') || 'Desconocido',
+    nombreFinca: pickString(row, 'NombreFinca'),
+    laguna: pickString(row, 'Laguna'),
+    color: pickString(row, 'Color'),
+    codigoProduccion: pickString(row, 'CodigoProduccion'),
     pesoKilos: pickNumber(row, 'PesoKilos'),
     cantidadSerial: pickNumber(row, 'CantidadSerial'),
   }));

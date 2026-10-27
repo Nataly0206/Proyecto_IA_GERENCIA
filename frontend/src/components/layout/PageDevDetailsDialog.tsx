@@ -402,6 +402,10 @@ const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
       ] },
     ],
   },
+  carga: {
+    title: 'Carga', summary: 'Propuestas FIFO persistidas en la base de autenticación.',
+    blocks: [{ heading: 'Origen y persistencia', body: 'GET/POST /api/inventory/preloads, permiso inventario. POST reconsulta Inventario PT y valida cantidades y filtros. Solo DISPONIBLE; orden por fecha de producción, orden de compra y código externo. Snapshot JSON en dashboard_precargas (migración 16). No reserva existencias. Incluye finca y laguna desde AV_LotesRemision, color desde Colores y código desde OrdenesProduccion. Guarda solicitados, asignados y faltantes. Historial filtrado por fecha de creación en hora de Honduras; GET acepta from/to. Índice por fecha en migración 17.' }],
+  },
   inventory: {
     title: 'Inventario PT',
     summary: 'Producto terminado disponible (no despachado), explorable como pivote. Fuente: PlantaEmpacadora.',

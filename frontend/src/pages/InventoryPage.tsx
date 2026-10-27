@@ -10,6 +10,7 @@ import RefreshOutlinedIcon from '@mui/icons-material/RefreshOutlined';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import LoadRequestDialog from '../components/LoadRequestDialog';
 import { apiClient } from '../api/client';
 import { useQuery } from '@tanstack/react-query';
 import { convertKilograms, WeightUnit } from '../utils/weightUnits';
@@ -100,7 +101,8 @@ function readPreferences(userId: string): InventoryPreferences {
   }
 }
 
-export default function InventoryPage({ userId }: { userId: string }) {
+export default function InventoryPage({ userId, onPreload }: { userId: string; onPreload: () => void }) {
+  const [requestOpen, setRequestOpen] = useState(false);
   const savedPreferences = useMemo(() => readPreferences(userId), [userId]);
   const [weightUnit, setWeightUnit] = useState<WeightUnit>(savedPreferences.weightUnit);
   const [rowFields, setRowFields] = useState<Dimension[]>(savedPreferences.rowFields);
@@ -246,9 +248,10 @@ export default function InventoryPage({ userId }: { userId: string }) {
     <Stack sx={{ height: '100%', minHeight: 0, py: 1 }} spacing={1.25}>
       <Stack direction="row" alignItems="center" justifyContent="space-between" gap={2} flexWrap="wrap">
         <Box><Typography variant="h5" fontWeight={800}>Inventario PT</Typography><Typography color="text.secondary">Organiza, agrupa y filtra el producto disponible.</Typography></Box>
-        <Button variant="outlined" startIcon={<RefreshOutlinedIcon />} onClick={() => void load()} disabled={inventoryQuery.isFetching}>{inventoryQuery.isFetching ? 'Actualizando…' : 'Actualizar'}</Button>
+        <Stack direction="row" gap={1}><Button variant="contained" disabled={loading || inventoryQuery.isError || !filteredItems.length} onClick={() => setRequestOpen(true)}>Solicitar carga</Button><Button variant="outlined" startIcon={<RefreshOutlinedIcon />} onClick={() => void load()} disabled={inventoryQuery.isFetching}>{inventoryQuery.isFetching ? 'Actualizando…' : 'Actualizar'}</Button></Stack>
       </Stack>
 
+      {requestOpen && <LoadRequestDialog items={filteredItems} filters={filters} weightUnit={weightUnit} onClose={() => setRequestOpen(false)} onCreated={() => { setRequestOpen(false); onPreload(); }} />}
       <Typography variant="caption" color="text.secondary">
         Actualización automática cada 5 min{inventoryQuery.dataUpdatedAt > 0 ? ` · Última actualización: ${new Date(inventoryQuery.dataUpdatedAt).toLocaleTimeString('es-HN')}` : ''}
       </Typography>

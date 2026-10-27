@@ -7,6 +7,13 @@ import {
   saveInventoryPreferences,
 } from '../services/inventory-preferences.service';
 
+import { planPreload, LoadLine, ITEM_FIELDS } from '../services/preload-planner';
+import { listPreloads, savePreload, getPreload, updatePreload, listLoadEdits } from '../services/preload.service';
+
+import { buildLoadReport, exportLoadReport } from '../services/load-report';
+
+import { editCandidates, applyLoadEdit } from '../services/load-edit';
+
 const router = Router();
 const DIMENSIONS = new Set([
   'nombreCliente', 'nombreClientePrincipal', 'noOrdenCompra', 'codigoExterno',
@@ -51,6 +58,82 @@ router.put('/preferences', asyncHandler(async (req, res) => {
   }
   await saveInventoryPreferences(res.locals.authUser.id, preferences);
   res.json({ message: 'Preferencias de inventario guardadas.', preferences });
+}));
+
+function validDate(value: unknown): value is string {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+    && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
+}
+function validItemKey(value: unknown): boolean {
+  if (typeof value !== 'string' || value.length > 5000) return false;
+  try {
+    const fields = JSON.parse(value);
+    return Array.isArray(fields) && fields.length === ITEM_FIELDS.length && fields.every(field => typeof field === 'string' && field.length <= 500);
+  } catch { return false; }
+}
+
+router.get('/preloads', asyncHandler(async (req, res) => {
+  const { from, to } = req.query;
+  if ((from !== undefined && !validDate(from)) || (to !== undefined && !validDate(to)) || (typeof from === 'string' && typeof to === 'string' && from > to)) {
+    res.status(400).json({ error: 'El rango de fechas de las cargas no es válido.' });
+    return;
+  }
+  res.json({ requests: await listPreloads(from as string | undefined, to as string | undefined) });
+}));
+
+router.get('/preloads/:id/edit', asyncHandler(async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id <= 0 || id > 2147483647) { res.status(400).json({ error: 'Carga no válida.' }); return; }
+  const load = await getPreload(id);
+  if (!load) { res.status(404).json({ error: 'Carga no encontrada.' }); return; }
+  res.json({ revision: load.revision, groups: editCandidates(load.items, await getInventory()), edits: await listLoadEdits(id) });
+}));
+
+router.put('/preloads/:id', asyncHandler(async (req, res) => {
+  const id = Number(req.params.id);
+  const { revision, lines, reason, notes } = req.body ?? {};
+  if (!Number.isSafeInteger(id) || id <= 0 || id > 2147483647 || !Number.isSafeInteger(revision) || revision <= 0 || typeof reason !== 'string' || !reason.trim() || reason.length > 2000 || typeof notes !== 'string' || notes.length > 2000) {
+    res.status(400).json({ error: 'Revisa el motivo, la referencia y los datos de la carga.' }); return;
+  }
+  const load = await getPreload(id);
+  if (!load) { res.status(404).json({ error: 'Carga no encontrada.' }); return; }
+  if (load.revision !== revision) { res.status(409).json({ error: 'Otra persona modificó esta carga. Cierra y vuelve a abrir la edición.' }); return; }
+  const items = applyLoadEdit(load.items, await getInventory(), lines);
+  const next = await updatePreload(id, revision, res.locals.authUser.id, reason.trim(), { notes: notes.trim(), filters: load.filters, items });
+  if (!next) { res.status(409).json({ error: 'Otra persona modificó esta carga. Cierra y vuelve a abrir la edición.' }); return; }
+  res.json({ revision: next });
+}));
+
+router.get('/preloads/:id/report', asyncHandler(async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id <= 0 || id > 2147483647 || (req.query.unit !== undefined && req.query.unit !== 'lbs' && req.query.unit !== 'kg') || (req.query.format !== undefined && req.query.format !== 'pdf')) {
+    res.status(400).json({ error: 'La carga o el formato no es válido.' }); return;
+  }
+  const load = await getPreload(id);
+  if (!load) { res.status(404).json({ error: 'Carga no encontrada.' }); return; }
+  const report = buildLoadReport(load.items, req.query.unit === 'kg' ? 'kg' : 'lbs');
+  if (req.query.format === 'pdf') {
+    const buffer = await exportLoadReport(report, id, load.createdAt);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="Carga-${id}.pdf"`);
+    res.send(Buffer.from(buffer)); return;
+  }
+  res.json(report);
+}));
+
+router.post('/preloads', asyncHandler(async (req, res) => {
+  const { lines, filters, notes = '' } = req.body ?? {};
+  if (!Array.isArray(lines) || !lines.length || lines.length > 500
+    || lines.some(line => !line || !validItemKey(line.key) || !Number.isSafeInteger(line.quantity) || line.quantity <= 0)
+    || new Set(lines.map(line => line.key)).size !== lines.length
+    || typeof notes !== 'string' || notes.length > 2000
+    || !filters || typeof filters !== 'object' || Array.isArray(filters)
+    || Object.entries(filters).some(([key, values]) => !DIMENSIONS.has(key) || !Array.isArray(values) || values.length > 500 || values.some(value => typeof value !== 'string' || value.length > 500))) {
+    res.status(400).json({ error: 'Revisa los ítems, cantidades y filtros de la solicitud.' });
+    return;
+  }
+  const items = planPreload(await getInventory(), filters, lines as LoadLine[]);
+  res.status(201).json({ request: await savePreload(res.locals.authUser.id, { notes: notes.trim(), filters, items }) });
 }));
 
 export default router;

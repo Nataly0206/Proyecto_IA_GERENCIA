@@ -108,6 +108,10 @@ const PAGE_HELP: Record<DashboardView, PageHelp> = {
       { title: 'Bins', body: 'El conteo sigue los registros del reporte operativo: un número de recipiente puede utilizarse varias veces. Se incluyen únicamente registros pendientes con libras positivas.' },
     ],
   },
+  carga: {
+    title: 'Carga', purpose: 'Consulta las solicitudes creadas desde Inventario PT.',
+    sections: [{ title: 'Asignación por antigüedad', body: 'Se propone primero la producción más antigua dentro de los filtros originales. La cantidad se solicita en seriales enteros. Los pesos parciales se estiman proporcionalmente.' }, { title: 'Editar carga', body: 'Editar carga permite reemplazar seriales entre producciones del mismo ítem y cliente, buscar otras órdenes y completar con las más antiguas. Al reducir una producción se marca No completar para evitar reponerla automáticamente. Guarda el motivo del cambio y consulta los cambios anteriores en la misma ventana.' }, { title: 'Historial y faltantes', body: 'Filtra las cargas por fecha de creación y oculta el historial con la flecha. Descargar PDF conserva el diseño gris, las celdas combinadas y los subtotales de la tabla. Se guardan los solicitados, asignados y faltantes en gerencia, sin reservar o descontar inventario. Distintas cargas pueden incluir las mismas existencias.' }],
+  },
   inventory: {
     title: 'Inventario PT',
     purpose: 'Permite explorar el producto disponible agrupándolo por las dimensiones que sean útiles para la consulta.',

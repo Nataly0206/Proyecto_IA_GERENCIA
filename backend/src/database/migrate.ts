@@ -497,6 +497,55 @@ async function migrate(): Promise<void> {
       END;
     `);
 
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT 1 FROM dbo.dashboard_migraciones WHERE version = 16)
+      BEGIN
+        SET XACT_ABORT ON;
+        BEGIN TRANSACTION;
+        CREATE TABLE dbo.dashboard_precargas (
+          id INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+          usuario_id UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.dashboard_usuarios(id),
+          creado_en DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+          contenido NVARCHAR(MAX) NOT NULL CHECK (ISJSON(contenido) = 1)
+        );
+        INSERT dbo.dashboard_migraciones(version,nombre) VALUES(16,N'solicitudes de carga y propuestas FIFO');
+        COMMIT TRANSACTION;
+      END;
+    `);
+
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT 1 FROM dbo.dashboard_migraciones WHERE version = 17)
+      BEGIN
+        SET XACT_ABORT ON;
+        BEGIN TRANSACTION;
+        CREATE INDEX IX_dashboard_precargas_fecha ON dbo.dashboard_precargas(creado_en DESC, id DESC);
+        INSERT dbo.dashboard_migraciones(version,nombre) VALUES(17,N'historial de cargas por fecha');
+        COMMIT TRANSACTION;
+      END;
+    `);
+
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT 1 FROM dbo.dashboard_migraciones WHERE version = 18)
+      BEGIN
+        SET XACT_ABORT ON;
+        BEGIN TRANSACTION;
+        ALTER TABLE dbo.dashboard_precargas ADD revision INT NOT NULL CONSTRAINT DF_cargas_revision DEFAULT 1;
+        CREATE TABLE dbo.dashboard_cargas_ediciones (
+          id INT IDENTITY PRIMARY KEY,
+          carga_id INT NOT NULL REFERENCES dbo.dashboard_precargas(id),
+          revision INT NOT NULL,
+          usuario_id UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.dashboard_usuarios(id),
+          creado_en DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+          motivo NVARCHAR(2000) NOT NULL,
+          anterior NVARCHAR(MAX) NOT NULL CHECK (ISJSON(anterior)=1),
+          nuevo NVARCHAR(MAX) NOT NULL CHECK (ISJSON(nuevo)=1),
+          CONSTRAINT UQ_carga_edicion UNIQUE(carga_id, revision)
+        );
+        INSERT dbo.dashboard_migraciones(version,nombre) VALUES(18,N'edición de cargas con revisiones e historial');
+        COMMIT TRANSACTION;
+      END;
+    `);
+
     console.log(`[migrate] Base [${databaseName}] lista y actualizada.`);
   } finally {
     await pool.close();

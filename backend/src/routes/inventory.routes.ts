@@ -8,11 +8,13 @@ import {
 } from '../services/inventory-preferences.service';
 
 import { planPreload, LoadLine, ITEM_FIELDS } from '../services/preload-planner';
-import { listPreloads, savePreload, getPreload, updatePreload, listLoadEdits, deletePreload } from '../services/preload.service';
+import { listPreloads, savePreload, getPreload, updatePreload, listLoadEdits, deletePreload, getLatestClientPreload } from '../services/preload.service';
 
 import { buildLoadReport, exportLoadReport } from '../services/load-report';
 
 import { editCandidates, applyLoadEdit } from '../services/load-edit';
+
+import { subtractLoad } from '../services/load-remainder';
 
 const router = Router();
 const DIMENSIONS = new Set([
@@ -81,6 +83,16 @@ router.get('/preloads', asyncHandler(async (req, res) => {
   res.json({ requests: await listPreloads(from as string | undefined, to as string | undefined) });
 }));
 
+router.get('/preloads/latest-client', asyncHandler(async (req, res) => {
+  const client = req.query.client;
+  if (typeof client !== 'string' || !client.trim() || client.length > 500) {
+    res.status(400).json({ error: 'Selecciona un cliente válido.' }); return;
+  }
+  const load = await getLatestClientPreload(client);
+  if (!load) { res.status(404).json({ error: 'Este cliente no tiene cargas guardadas.' }); return; }
+  res.json({ load: { id: load.id, revision: load.revision }, items: subtractLoad(await getInventory(), load.items, client) });
+}));
+
 router.get('/preloads/:id/edit', asyncHandler(async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isSafeInteger(id) || id <= 0 || id > 2147483647) { res.status(400).json({ error: 'Carga no válida.' }); return; }
@@ -125,16 +137,16 @@ router.get('/preloads/:id/report', asyncHandler(async (req, res) => {
   if (!load) { res.status(404).json({ error: 'Carga no encontrada.' }); return; }
   const report = buildLoadReport(load.items, req.query.unit === 'kg' ? 'kg' : 'lbs');
   if (req.query.format === 'pdf') {
-    const buffer = await exportLoadReport(report, id, load.createdAt);
+    const buffer = await exportLoadReport(report, id, load.createdAt, load.notes);
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="Carga-${id}.pdf"`);
+    res.setHeader('Content-Disposition', `attachment; filename="PRECARGA.pdf"; filename*=UTF-8''${encodeURIComponent('PRECARGA' + (load.notes?.trim() ? ' ' + load.notes.trim().replace(/[<>:"/\\|?*\x00-\x1f]/g, '_') : '') + '.pdf')}`);
     res.send(Buffer.from(buffer)); return;
   }
   res.json(report);
 }));
 
 router.post('/preloads', asyncHandler(async (req, res) => {
-  const { lines, filters, notes = '' } = req.body ?? {};
+  const { lines, filters, notes = '', subtractLoad: deduction } = req.body ?? {};
   if (!Array.isArray(lines) || !lines.length || lines.length > 500
     || lines.some(line => !line || !validItemKey(line.key) || !Number.isSafeInteger(line.quantity) || line.quantity <= 0)
     || new Set(lines.map(line => line.key)).size !== lines.length
@@ -144,7 +156,19 @@ router.post('/preloads', asyncHandler(async (req, res) => {
     res.status(400).json({ error: 'Revisa los ítems, cantidades y filtros de la solicitud.' });
     return;
   }
-  const items = planPreload(await getInventory(), filters, lines as LoadLine[]);
+  let inventory = await getInventory();
+  if (deduction !== undefined) {
+    const client = filters.nombreCliente?.length === 1 ? filters.nombreCliente[0] : null;
+    if (!client || !deduction || !Number.isSafeInteger(deduction.id) || !Number.isSafeInteger(deduction.revision)) {
+      res.status(400).json({ error: 'La carga a rebajar no es válida.' }); return;
+    }
+    const latest = await getLatestClientPreload(client);
+    if (!latest || latest.id !== deduction.id || latest.revision !== deduction.revision) {
+      res.status(409).json({ error: 'La última carga del cliente cambió. Vuelve a aplicar la rebaja.' }); return;
+    }
+    inventory = subtractLoad(inventory, latest.items, client);
+  }
+  const items = planPreload(inventory, filters, lines as LoadLine[]);
   res.status(201).json({ request: await savePreload(res.locals.authUser.id, { notes: notes.trim(), filters, items }) });
 }));
 

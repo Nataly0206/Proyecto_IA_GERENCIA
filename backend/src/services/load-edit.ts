@@ -21,7 +21,7 @@ export function editCandidates(saved: PlannedItem[], inventory: InventoryItem[])
     const lots: EditableLot[] = [...keys].map(key => {
       const current = live.get(key); const old = previous.get(key);
       return { key, item: current ?? old!, current: current?.cantidadSerial ?? 0, assigned: old?.cantidadSerial ?? 0, maximum: Math.max(current?.cantidadSerial ?? 0, old?.cantidadSerial ?? 0) };
-    }).sort((a, b) => a.item.fechaProduccion.localeCompare(b.item.fechaProduccion) || a.item.noOrdenCompra.localeCompare(b.item.noOrdenCompra));
+    }).sort((a, b) => Number(!!a.item.parcial) - Number(!!b.item.parcial) || a.item.fechaProduccion.localeCompare(b.item.fechaProduccion) || a.item.noOrdenCompra.localeCompare(b.item.noOrdenCompra));
     return { key: group.key, item: group.item, requested: group.requested, excludedLots: group.excludedLots ?? [], lots };
   });
 }
@@ -45,11 +45,14 @@ export function applyLoadEdit(saved: PlannedItem[], inventory: InventoryItem[], 
       const kept = Math.min(choice.quantity, old?.cantidadSerial ?? 0);
       const added = choice.quantity - kept;
       const weight = (old && old.cantidadSerial ? old.pesoKilos * kept / old.cantidadSerial : 0) + (added ? lot.item.pesoKilos * added / lot.item.cantidadSerial : 0);
-      allocations.push({ ...lot.item, cantidadSerial: choice.quantity, pesoKilos: weight });
+      allocations.push({ ...lot.item, availableSerial: Math.max(choice.quantity, old?.availableSerial ?? lot.current), cantidadSerial: choice.quantity, pesoKilos: weight });
     }
     const assigned = allocations.reduce((sum, item) => sum + item.cantidadSerial, 0);
     if (assigned > line.requested) throw new ApiError(400, `La cantidad asignada supera lo solicitado para ${group.item.nombreItem}.`);
     allocations.sort((a, b) => a.fechaProduccion.localeCompare(b.fechaProduccion) || a.noOrdenCompra.localeCompare(b.noOrdenCompra));
-    return { ...group, excludedLots: [...new Set(excluded)], requested: line.requested, assigned, missing: line.requested - assigned, pesoKilos: allocations.reduce((sum, item) => sum + item.pesoKilos, 0), allocations };
+    return { ...group, initialStock: [...lots.values()].map(lot => {
+      const original = group.initialStock?.filter(item => lotKey(item) === lot.key).reduce((sum, item) => sum + item.cantidadSerial, 0);
+      return { ...lot.item, cantidadSerial: Math.max(original ?? 0, lot.current, previous.get(lot.key)?.availableSerial ?? 0) };
+    }), excludedLots: [...new Set(excluded)], requested: line.requested, assigned, missing: line.requested - assigned, pesoKilos: allocations.reduce((sum, item) => sum + item.pesoKilos, 0), allocations };
   });
 }

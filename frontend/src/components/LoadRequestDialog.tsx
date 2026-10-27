@@ -16,9 +16,12 @@ export default function LoadRequestDialog({ items, filters, weightUnit, onClose,
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [deduction, setDeduction] = useState<{ id: number; revision: number } | null>(null);
+  const [adjustedItems, setAdjustedItems] = useState<StockItem[] | null>(null);
+  const [deducting, setDeducting] = useState(false);
   const allGroups = useMemo(() => {
     const grouped = new Map<string, { key: string; item: StockItem; quantity: number; weight: number; lots: StockItem[] }>();
-    items.filter(item => hasOrder(item) && item.disponibilidad === 'DISPONIBLE' && item.cantidadSerial > 0 && Number.isFinite(item.pesoKilos) && item.pesoKilos >= 0).forEach(item => {
+    (adjustedItems ?? items).filter(item => hasOrder(item) && item.disponibilidad === 'DISPONIBLE' && item.cantidadSerial > 0 && Number.isFinite(item.pesoKilos) && item.pesoKilos >= 0).forEach(item => {
       const key = itemKey(item);
       const group = grouped.get(key) ?? { key, item, quantity: 0, weight: 0, lots: [] };
       group.quantity += item.cantidadSerial;
@@ -27,8 +30,8 @@ export default function LoadRequestDialog({ items, filters, weightUnit, onClose,
       grouped.set(key, group);
     });
     return [...grouped.values()].sort((a, b) => a.item.nombreCliente.localeCompare(b.item.nombreCliente) || a.item.nombreItem.localeCompare(b.item.nombreItem));
-  }, [items]);
-  const clients = useMemo(() => [...new Set(allGroups.map(group => group.item.nombreCliente))].sort((a, b) => a.localeCompare(b)), [allGroups]);
+  }, [items, adjustedItems]);
+  const clients = useMemo(() => [...new Set(items.filter(item => hasOrder(item) && item.disponibilidad === 'DISPONIBLE' && item.cantidadSerial > 0).map(item => item.nombreCliente))].sort((a, b) => a.localeCompare(b)), [items]);
   const [selectedClient, setSelectedClient] = useState<string | null>(() => {
     const available = [...new Set(items.filter(item => hasOrder(item) && item.disponibilidad === 'DISPONIBLE' && item.cantidadSerial > 0).map(item => item.nombreCliente))];
     return available.length === 1 ? available[0] : null;
@@ -42,11 +45,21 @@ export default function LoadRequestDialog({ items, filters, weightUnit, onClose,
   const kg = (value: number) => value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const preview = selected.map(group => ({ ...group, requested: Number(quantities[group.key]), requestedKg: requestedWeight(group.lots, Number(quantities[group.key])) }));
   const totalKg = preview.reduce((sum, group) => sum + group.requestedKg, 0);
+  const subtractLatest = async () => {
+    if (!selectedClient || deducting || deduction) return;
+    setDeducting(true); setError('');
+    try {
+      const { data } = await apiClient.get<{ load: { id: number; revision: number }; items: StockItem[] }>('/inventory/preloads/latest-client', { params: { client: selectedClient } });
+      setAdjustedItems(data.items.filter(item => Object.entries(filters).every(([field, values]) => field === 'nombreCliente' || !values.length || values.includes(String(item[field])))));
+      setDeduction(data.load); setQuantities({});
+    } catch (err: any) { setError(err.response?.data?.error ?? 'No se pudo rebajar la última carga. Intenta nuevamente.'); }
+    finally { setDeducting(false); }
+  };
   const submit = async () => {
-    if (saving || invalid || !selected.length) return;
+    if (saving || deducting || invalid || !selected.length) return;
     setSaving(true); setError('');
     try {
-      await apiClient.post('/inventory/preloads', { filters: { ...filters, nombreCliente: selectedClient ? [selectedClient] : [] }, notes, lines: selected.map(group => ({ key: group.key, quantity: Number(quantities[group.key]) })) });
+      await apiClient.post('/inventory/preloads', { filters: { ...filters, nombreCliente: selectedClient ? [selectedClient] : [] }, notes, ...(deduction ? { subtractLoad: deduction } : {}), lines: selected.map(group => ({ key: group.key, quantity: Number(quantities[group.key]) })) });
       await cache.invalidateQueries({ queryKey: ['preloads'] });
       onCreated();
     } catch (err: any) { setError(err.response?.data?.error ?? 'No se pudo guardar la solicitud. Intenta nuevamente.'); }
@@ -57,7 +70,12 @@ export default function LoadRequestDialog({ items, filters, weightUnit, onClose,
     <DialogContent dividers><Stack spacing={2}>
       <Typography color="text.secondary">Escribe cuántos seriales necesitas de cada producto. Los kg de la carga se calculan al instante, tomando primero la producción más antigua dentro de los filtros actuales.</Typography>
       <Stack direction="row" gap={1} flexWrap="wrap">{Object.entries(filters).filter(([, values]) => values.length).map(([field, values]) => <Chip key={field} size="small" label={values.join(', ')} />)}</Stack>
-      <Autocomplete options={clients} value={selectedClient} disabled={saving} onChange={(_, client) => { setSelectedClient(client); setQuantities({}); setError(''); }} renderInput={params => <TextField {...params} label="Cliente" placeholder="Selecciona un cliente" size="small" />} />
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+        <Autocomplete sx={{ width: { xs: '100%', sm: 320 } }} options={clients} value={selectedClient} disabled={saving || deducting} onChange={(_, client) => { setSelectedClient(client); setQuantities({}); setError(''); setDeduction(null); setAdjustedItems(null); }} renderInput={params => <TextField {...params} label="Cliente" placeholder="Selecciona un cliente" size="small" />} />
+        <Button variant="outlined" disabled={!selectedClient || saving || deducting || !!deduction} onClick={() => void subtractLatest()}>{deducting ? 'Rebajando…' : 'Rebajar última carga del cliente'}</Button>
+        {deduction && <Button disabled={saving} onClick={() => { setDeduction(null); setAdjustedItems(null); setQuantities({}); setError(''); }}>Restablecer inventario</Button>}
+      </Stack>
+      {deduction && <Alert severity="success">Inventario mostrado descontando los seriales asignados de la carga #{deduction.id}. La rebaja también se aplica al calcular esta solicitud.</Alert>}
       <Alert severity="info">Solo producto con estado DISPONIBLE. Si la cantidad no alcanza, se guarda la carga parcial con el faltante. No reserva ni descuenta inventario.</Alert>
       {error && <Alert severity="error">{error}</Alert>}
       {!selectedClient ? <Alert severity="info">Selecciona un cliente para ver sus ítems disponibles.</Alert> : !groups.length ? <Alert severity="warning">No hay producto disponible para este cliente con los filtros seleccionados.</Alert> : <TableContainer sx={{ maxHeight: '50vh' }}><Table stickyHeader size="small"><TableHead><TableRow>
@@ -80,6 +98,6 @@ export default function LoadRequestDialog({ items, filters, weightUnit, onClose,
       <TextField label="Referencia u observaciones" multiline minRows={2} value={notes} disabled={saving} inputProps={{ maxLength: 2000 }} onChange={event => setNotes(event.target.value)} />
       <Typography fontWeight={700}>{selected.length} ítems · {selected.reduce((sum, group) => sum + Number(quantities[group.key]), 0).toLocaleString()} seriales solicitados</Typography>
     </Stack></DialogContent>
-    <DialogActions><Button onClick={onClose} disabled={saving}>Cancelar</Button><Button variant="contained" disabled={saving || invalid || !selected.length} onClick={() => void submit()}>{saving ? 'Guardando…' : 'Guardar carga'}</Button></DialogActions>
+    <DialogActions><Button onClick={onClose} disabled={saving}>Cancelar</Button><Button variant="contained" disabled={saving || deducting || invalid || !selected.length} onClick={() => void submit()}>{saving ? 'Guardando…' : 'Guardar carga'}</Button></DialogActions>
   </Dialog>;
 }

@@ -1,10 +1,10 @@
-import { Alert, Button, CircularProgress, Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from '@mui/material';
+import { Alert, Button, CircularProgress, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 import { WeightUnit } from '../utils/weightUnits';
 
 interface ReportCell { column: number; text?: string; value?: number; rowSpan: number; colSpan: number }
-interface LoadReport { headers: string[]; rows: { kind: string; cells: ReportCell[] }[] }
+interface LoadReport { partialCodes: { code: string; order: string; item: string; available: number; loaded: number; remaining: number }[]; headers: string[]; rows: { kind: string; cells: ReportCell[] }[] }
 
 export default function LoadReportTable({ loadId, unit, userId }: { loadId: number; unit: WeightUnit; userId: string }) {
   const query = useQuery({ queryKey: ['load-report', userId, loadId, unit],
@@ -25,5 +25,11 @@ export default function LoadReportTable({ loadId, unit, userId }: { loadId: numb
         {entry.value === undefined ? entry.text : entry.value.toLocaleString('en-US', { minimumFractionDigits: entry.column === 8 ? 4 : 0, maximumFractionDigits: entry.column === 8 ? 4 : 0 })}
       </TableCell>)}</TableRow>)}</TableBody>
     </Table>
+    <Typography sx={{ mt: 2, mb: 1, color: '#000' }} fontWeight={700}>Códigos parciales</Typography>
+    <Table size="small" sx={{ maxWidth: 1000, '& th, & td': { color: '#000', border: '1px solid #000' } }}>
+      <TableHead><TableRow>{['Código', 'Orden', 'Producto', 'Disponible', 'En carga', 'Inventario final'].map(label => <TableCell key={label}>{label}</TableCell>)}</TableRow></TableHead>
+      <TableBody>{query.data.partialCodes?.map((row, i) => <TableRow key={i}><TableCell>{row.code}</TableCell><TableCell>{row.order}</TableCell><TableCell>{row.item}</TableCell>{[row.available, row.loaded, row.remaining].map((value, j) => <TableCell key={j} align="right">{value.toLocaleString()}</TableCell>)}</TableRow>)}</TableBody>
+    </Table>
+    {!query.data.partialCodes?.length && <Typography sx={{ color: '#000', my: 1 }}>No hay códigos parciales registrados en esta carga.</Typography>}
   </TableContainer>;
 }

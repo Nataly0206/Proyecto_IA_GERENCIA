@@ -4,7 +4,7 @@ export const ITEM_FIELDS = ['nombreClientePrincipal', 'nombreCliente', 'codigoIt
 export const itemKey = (item: InventoryItem) => JSON.stringify(ITEM_FIELDS.map(field => item[field]));
 export interface LoadLine { key: string; quantity: number }
 export interface PlannedItem {
-  key: string; excludedLots?: string[]; item: InventoryItem; requested: number; assigned: number; missing: number; pesoKilos: number; allocations: InventoryItem[];
+  key: string; initialStock?: InventoryItem[]; excludedLots?: string[]; item: InventoryItem; requested: number; assigned: number; missing: number; pesoKilos: number; allocations: InventoryItem[];
 }
 
 export function planPreload(inventory: InventoryItem[], filters: Record<string, string[]>, lines: LoadLine[]): PlannedItem[] {
@@ -16,7 +16,7 @@ export function planPreload(inventory: InventoryItem[], filters: Record<string, 
   return lines.map(line => {
     const candidates = eligible.filter(item => itemKey(item) === line.key).sort((a, b) => {
       const date = (value: string) => { const parsed = Date.parse(value); return Number.isFinite(parsed) ? parsed : Infinity; };
-      return (date(a.fechaProduccion) - date(b.fechaProduccion)) || a.noOrdenCompra.localeCompare(b.noOrdenCompra) || a.codigoExterno.localeCompare(b.codigoExterno);
+      return Number(!!a.parcial) - Number(!!b.parcial) || (date(a.fechaProduccion) - date(b.fechaProduccion)) || a.noOrdenCompra.localeCompare(b.noOrdenCompra) || a.codigoExterno.localeCompare(b.codigoExterno);
     });
     const identity = JSON.parse(line.key) as string[];
     const description = candidates[0] ?? inventory.find(item => itemKey(item) === line.key) ?? {
@@ -28,9 +28,9 @@ export function planPreload(inventory: InventoryItem[], filters: Record<string, 
     for (const item of candidates) {
       if (remaining <= 0) break;
       const quantity = Math.min(remaining, item.cantidadSerial);
-      allocations.push({ ...item, cantidadSerial: quantity, pesoKilos: item.pesoKilos * quantity / item.cantidadSerial });
+      allocations.push({ ...item, availableSerial: item.cantidadSerial, cantidadSerial: quantity, pesoKilos: item.pesoKilos * quantity / item.cantidadSerial });
       remaining -= quantity;
     }
-    return { key: line.key, item: description, requested: line.quantity, assigned: line.quantity - remaining, missing: remaining, pesoKilos: allocations.reduce((sum, item) => sum + item.pesoKilos, 0), allocations };
+    return { key: line.key, initialStock: candidates, item: description, requested: line.quantity, assigned: line.quantity - remaining, missing: remaining, pesoKilos: allocations.reduce((sum, item) => sum + item.pesoKilos, 0), allocations };
   });
 }

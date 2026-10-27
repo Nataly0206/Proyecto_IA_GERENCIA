@@ -75,3 +75,16 @@ export async function deletePreload(id: number, revision: number, userId: string
       WHERE id=@id AND revision=@revision AND eliminado_en IS NULL`);
   return Boolean(result.recordset[0]);
 }
+
+/** Latest non-deleted load containing this client, regardless of inventory filters. */
+export async function getLatestClientPreload(client: string) {
+  const result = await (await getAuthPool()).request().input('client', sql.NVarChar(500), client)
+    .query(`SELECT TOP (1) c.id, c.revision, c.creado_en AS createdAt, c.contenido
+      FROM dbo.dashboard_precargas c
+      WHERE c.eliminado_en IS NULL AND EXISTS (
+        SELECT 1 FROM OPENJSON(c.contenido, '$.items')
+        WITH (client NVARCHAR(500) '$.item.nombreCliente') i WHERE i.client = @client)
+      ORDER BY c.creado_en DESC, c.id DESC`);
+  const row = result.recordset[0];
+  return row ? { id: row.id, revision: row.revision, createdAt: row.createdAt, ...JSON.parse(row.contenido) } : null;
+}

@@ -49,7 +49,7 @@ export default function PreloadPage({ onInventory, userId }: { onInventory: () =
     try {
       const response = await apiClient.get(`/inventory/preloads/${selected.id}/report`, { params: { unit, format: 'pdf' }, responseType: 'blob' });
       const url = URL.createObjectURL(response.data);
-      const link = document.createElement('a'); link.href = url; link.download = `Carga-${selected.id}.pdf`;
+      const link = document.createElement('a'); link.href = url; link.download = `PRECARGA${selected.notes.trim() ? ' ' + selected.notes.trim().replace(/[<>:"/\\|?*\x00-\x1f]/g, '_') : ''}.pdf`;
       document.body.appendChild(link); link.click(); link.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch { setDownloadError('No se pudo descargar la tabla. Intenta nuevamente.'); }

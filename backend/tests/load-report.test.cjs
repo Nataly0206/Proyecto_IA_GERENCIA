@@ -39,7 +39,9 @@ test('PDF conserva detalle, subtotales y total en una página horizontal', async
   try {
     const result = await parser.getText();
     assert.equal(result.total,1);
-    for (const text of ['SERVICE AND TRADING BUSINESS S.A. DE C.V.', 'INVENTARIO ACTUAL COMPLETADO MAS SOBRANTES a la fecha 26/10/2026 06:57:09', 'Carga #23','ALGODON Total','M-71 Total','A2 Total','31,723.2398','1,212','3125174']) assert.ok(result.text.includes(text),text);
+    assert.ok(!result.text.includes('Carga #'));
+    assert.ok(result.text.includes('Códigos parciales'));
+    for (const text of ['SERVICE AND TRADING BUSINESS S.A. DE C.V.', 'INVENTARIO ACTUAL COMPLETADO MAS SOBRANTES a la fecha 26/10/2026 06:57:09','ALGODON Total','M-71 Total','A2 Total','31,723.2398','1,212','3125174']) assert.ok(result.text.includes(text),text);
   } finally { await parser.destroy(); }
 });
 
@@ -64,4 +66,25 @@ test('conversión a kilos y tabla sin asignaciones', () => {
   assert.ok(Math.abs(kg.rows.at(-1).cells[1].value*2.2046-pounds.rows.at(-1).cells[1].value)<1e-7);
   const empty=buildLoadReport([],'lbs');
   assert.equal(empty.rows.length,1); assert.equal(empty.rows[0].cells[2].value,0);
+});
+
+test('guarda existencia inicial y muestra 30 disponibles, 15 en carga y 15 finales', async () => {
+  const {planPreload,itemKey}=require('../dist/services/preload-planner');
+  const stock={...fixture[0].allocations[0],disponibilidad:'DISPONIBLE',cantidadSerial:30,pesoKilos:300};
+  const items=planPreload([stock],{},[{key:itemKey(stock),quantity:15}]);
+  const report=buildLoadReport(items,'kg');
+  assert.equal(report.partialCodes.length,1);
+  assert.deepEqual([report.partialCodes[0].available,report.partialCodes[0].loaded,report.partialCodes[0].remaining],[30,15,15]);
+  const bytes=await exportLoadReport(report,4,new Date(),'CLIENTE 123');
+  const parser=new PDFParse({data:bytes});
+  try {
+    const result=await parser.getText();
+    for(const text of ['PRECARGA CLIENTE 123','Códigos parciales','Disponible','En carga','Inventario final']) assert.ok(result.text.includes(text),text);
+    assert.ok(!result.text.includes('Carga #4'));
+    require('node:fs').mkdirSync('/tmp/dashboard-pdf-qa',{recursive:true});
+    require('node:fs').writeFileSync('/tmp/dashboard-pdf-qa/precarga.pdf',bytes);
+    const screenshot=await parser.getScreenshot({scale:1});
+    require('node:fs').writeFileSync('/tmp/dashboard-pdf-qa/precarga.png',screenshot.pages[0].data);
+  } finally {await parser.destroy();}
+  assert.equal(buildLoadReport(planPreload([stock],{},[{key:itemKey(stock),quantity:30}]),'kg').partialCodes.length,0);
 });

@@ -46,3 +46,30 @@ test('guarda exclusiones del autocompletado y permite conservar cantidades parci
  assert.equal(partial[0].missing,9);
  assert.deepEqual(partial[0].excludedLots,[lotKey(base)]);
 });
+
+test('rebaja solo asignaciones del cliente y lote, sin duplicar descuentos ni negativos',()=>{
+ const {subtractLoad}=require('../dist/services/load-remainder');
+ const partial=planPreload([base],{},[{key,quantity:6}]);
+ const other={...base,nombreCliente:'Otro'};
+ const held={...base,disponibilidad:'RETENIDO'};
+ const inventory=[{...base,cantidadSerial:4,pesoKilos:40},{...base,cantidadSerial:4,pesoKilos:40},second,other,held];
+ const remaining=subtractLoad(inventory,partial,'Cliente');
+ assert.deepEqual(remaining.map(row=>row.cantidadSerial),[0,2,10,10,10]);
+ assert.deepEqual(remaining.map(row=>row.pesoKilos),[0,20,200,100,100]);
+ assert.equal(inventory[0].cantidadSerial,4);
+ assert.equal(subtractLoad([base],saved,'Cliente')[0].cantidadSerial,0);
+ const exhausted=subtractLoad([{...base,cantidadSerial:2,pesoKilos:20}],saved,'Cliente');
+ assert.equal(exhausted[0].cantidadSerial,0);assert.equal(exhausted[0].pesoKilos,0);
+ const next=planPreload(remaining,{},[{key,quantity:5}]);
+ assert.equal(next[0].allocations[0].cantidadSerial,5);
+ assert.equal(next[0].allocations[0].codigoProduccion,second.codigoProduccion);
+ assert.equal(next[0].pesoKilos,100);
+});
+
+test('toma todos los códigos completos por antigüedad antes de los parciales',()=>{
+ const partial={...base,parcial:true};
+ const newest={...second,fechaProduccion:'2026-10-25',codigoProduccion:'NEW'};
+ const result=planPreload([partial,newest,second],{},[{key,quantity:25}])[0];
+ assert.deepEqual(result.allocations.map(row=>row.codigoProduccion),['PROD2','NEW','PROD1']);
+ assert.deepEqual(result.allocations.map(row=>row.cantidadSerial),[10,10,5]);
+});

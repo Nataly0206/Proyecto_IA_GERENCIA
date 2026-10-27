@@ -21,6 +21,8 @@ export interface InventoryItem {
   codigoProduccion?: string;
   pesoKilos: number;
   cantidadSerial: number;
+  availableSerial?: number;
+  parcial?: boolean;
 }
 
 export async function getInventory(): Promise<InventoryItem[]> {

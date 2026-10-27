@@ -46,3 +46,15 @@ La migración 18 agrega `revision` a `dashboard_precargas` y crea `dashboard_car
 - `PUT /api/inventory/preloads/:id`: `{ revision, notes, reason, lines: [{ key, requested, excludedLots, allocations: [{ key, quantity }] }] }`.
 
 Todas estas escrituras usan exclusivamente la conexión de gerencia. La fecha de creación original de la carga se conserva.
+
+## Rebajar última carga del cliente
+
+En **Solicitar carga**, el selector compacto tiene al lado **Rebajar última carga del cliente**. Busca la última carga no eliminada por fecha de creación e ID, sin limitarse a los filtros actuales, y descuenta únicamente sus seriales asignados del mismo cliente, orden y producción. Recalcula el peso disponible proporcionalmente, sin existencias negativas, y permite restablecer la vista. Los faltantes de la carga anterior no se descuentan.
+
+La nueva solicitud se calcula y guarda con esa misma rebaja en el servidor. Si la última carga fue editada, eliminada o reemplazada por otra más reciente, se exige volver a aplicar la rebaja. Esta opción cambia el cálculo de la solicitud; no modifica el inventario de planta.
+
+## Referencia PDF y códigos parciales
+
+El archivo se descarga como `PRECARGA <referencia>.pdf` (o `PRECARGA.pdf` sin referencia). El encabezado usa la referencia en lugar del número de carga. Debajo del total se muestran códigos parcialmente utilizados con Disponible, En carga e Inventario final en seriales. La existencia inicial se guarda con las nuevas solicitudes; no se reconstruye desde inventario actual para cargas históricas sin ese dato.
+
+Al rebajar una carga, los saldos parcialmente consumidos se identifican como parciales. La selección automática consume primero códigos completos por fecha de producción y luego parciales por fecha, tanto en la solicitud y su estimación de peso como en el autocompletado de edición.

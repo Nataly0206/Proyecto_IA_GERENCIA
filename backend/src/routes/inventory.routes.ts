@@ -8,7 +8,7 @@ import {
 } from '../services/inventory-preferences.service';
 
 import { planPreload, LoadLine, ITEM_FIELDS } from '../services/preload-planner';
-import { listPreloads, savePreload, getPreload, updatePreload, listLoadEdits } from '../services/preload.service';
+import { listPreloads, savePreload, getPreload, updatePreload, listLoadEdits, deletePreload } from '../services/preload.service';
 
 import { buildLoadReport, exportLoadReport } from '../services/load-report';
 
@@ -102,6 +102,18 @@ router.put('/preloads/:id', asyncHandler(async (req, res) => {
   const next = await updatePreload(id, revision, res.locals.authUser.id, reason.trim(), { notes: notes.trim(), filters: load.filters, items });
   if (!next) { res.status(409).json({ error: 'Otra persona modificó esta carga. Cierra y vuelve a abrir la edición.' }); return; }
   res.json({ revision: next });
+}));
+
+router.delete('/preloads/:id', asyncHandler(async (req, res) => {
+  const id = Number(req.params.id), revision = req.body?.revision;
+  if (!Number.isSafeInteger(id) || id <= 0 || id > 2147483647 || !Number.isSafeInteger(revision) || revision <= 0) {
+    res.status(400).json({ error: 'La carga o su revisión no es válida.' }); return;
+  }
+  if (!await getPreload(id)) { res.status(404).json({ error: 'Carga no encontrada.' }); return; }
+  if (!await deletePreload(id, revision, res.locals.authUser.id)) {
+    res.status(409).json({ error: 'La carga cambió. Actualiza el historial antes de eliminarla.' }); return;
+  }
+  res.json({ message: 'Carga eliminada. El registro y su historial se conservan.' });
 }));
 
 router.get('/preloads/:id/report', asyncHandler(async (req, res) => {

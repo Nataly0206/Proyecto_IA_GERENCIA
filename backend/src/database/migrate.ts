@@ -546,6 +546,18 @@ async function migrate(): Promise<void> {
       END;
     `);
 
+    await pool.request().query(`
+      SET XACT_ABORT ON;
+      IF NOT EXISTS (SELECT 1 FROM dbo.dashboard_migraciones WHERE version = 19)
+      BEGIN
+        BEGIN TRANSACTION;
+        ALTER TABLE dbo.dashboard_precargas ADD eliminado_en DATETIME2 NULL,
+          eliminado_por UNIQUEIDENTIFIER NULL REFERENCES dbo.dashboard_usuarios(id);
+        INSERT dbo.dashboard_migraciones(version,nombre) VALUES(19,N'borrado lógico de cargas');
+        COMMIT TRANSACTION;
+      END;
+    `);
+
     console.log(`[migrate] Base [${databaseName}] lista y actualizada.`);
   } finally {
     await pool.close();

@@ -38,7 +38,7 @@ function Editor({ load, data, onClose, refresh, refreshing }: { load: Preload; d
     setQuantities(next);
   };
   const save = async () => {
-    if (saving || invalid || !reason.trim()) return;
+    if (saving || invalid || !reason.trim() || !notes.trim()) return;
     setSaving(true); setError('');
     try {
       await apiClient.put(`/inventory/preloads/${load.id}`, { revision: data.revision, notes, reason, lines: data.groups.map(group => ({ key: group.key, requested: Number(requested[group.key]), excludedLots: [...new Set([...(group.excludedLots ?? []), ...group.lots.map(lot => lot.key)])].filter(key => excluded[key]), allocations: group.lots.filter(lot => amount(lot) > 0).map(lot => ({ key: lot.key, quantity: amount(lot) })) })) });
@@ -65,10 +65,10 @@ function Editor({ load, data, onClose, refresh, refreshing }: { load: Preload; d
         </Stack></AccordionDetails></Accordion>;
       })}
       {invalid && <Alert severity="warning">Revisa las cantidades: usa seriales enteros y no asignes más de lo solicitado ni del máximo de cada producción.</Alert>}
-      <TextField label="Referencia u observaciones" value={notes} disabled={saving} multiline minRows={2} inputProps={{ maxLength: 2000 }} onChange={event => setNotes(event.target.value)} />
-      <TextField required label="Motivo del cambio" placeholder="Ej.: se reemplazan seriales que no se pudieron mandar." value={reason} disabled={saving} multiline minRows={2} inputProps={{ maxLength: 2000 }} onChange={event => setReason(event.target.value)} />
+      <TextField label="Código Embarque" required helperText="Obligatorio" value={notes} disabled={saving} inputProps={{ maxLength: 2000 }} onChange={event => setNotes(event.target.value)} />
+      <TextField required label="Motivo del cambio" placeholder="Ej.: se reemplazan seriales que no se pudieron mandar." value={reason} disabled={saving} inputProps={{ maxLength: 2000 }} onChange={event => setReason(event.target.value)} />
       {!!data.edits.length && <Accordion disableGutters><AccordionSummary expandIcon={<ExpandMoreIcon />}>Cambios anteriores ({data.edits.length})</AccordionSummary><AccordionDetails><Stack spacing={1}>{data.edits.map(edit => <Typography key={edit.revision} variant="body2">Revisión {edit.revision} · {new Date(edit.createdAt).toLocaleString('es-HN', { timeZone: 'America/Tegucigalpa' })} · {edit.createdBy}: {edit.reason}</Typography>)}</Stack></AccordionDetails></Accordion>}
     </Stack></DialogContent>
-    <DialogActions><Button disabled={saving} onClick={onClose}>Cancelar</Button><Button variant="contained" disabled={saving || refreshing || invalid || !reason.trim()} onClick={() => void save()}>{saving ? 'Guardando…' : 'Guardar cambios'}</Button></DialogActions>
+    <DialogActions><Button disabled={saving} onClick={onClose}>Cancelar</Button><Button variant="contained" disabled={saving || refreshing || invalid || !reason.trim() || !notes.trim()} onClick={() => void save()}>{saving ? 'Guardando…' : 'Guardar cambios'}</Button></DialogActions>
   </Dialog>;
 }

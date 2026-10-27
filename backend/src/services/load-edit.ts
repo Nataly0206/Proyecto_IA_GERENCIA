@@ -56,3 +56,17 @@ export function applyLoadEdit(saved: PlannedItem[], inventory: InventoryItem[], 
     }), excludedLots: [...new Set(excluded)], requested: line.requested, assigned, missing: line.requested - assigned, pesoKilos: allocations.reduce((sum, item) => sum + item.pesoKilos, 0), allocations };
   });
 }
+
+/** Keep saved allocations and fill only the outstanding target with current stock. */
+export function completePreload(saved: PlannedItem[], inventory: InventoryItem[]): PlannedItem[] {
+  const lines = editCandidates(saved, inventory).map(group => {
+    let remaining = Math.max(0, group.requested - group.lots.reduce((sum, lot) => sum + lot.assigned, 0));
+    const allocations = group.lots.map(lot => {
+      const added = group.excludedLots.includes(lot.key) ? 0 : Math.min(remaining, Math.max(0, lot.current - lot.assigned));
+      remaining -= added;
+      return { key: lot.key, quantity: lot.assigned + added };
+    }).filter(lot => lot.quantity > 0);
+    return { key: group.key, requested: group.requested, excludedLots: group.excludedLots, allocations };
+  });
+  return applyLoadEdit(saved, inventory, lines);
+}

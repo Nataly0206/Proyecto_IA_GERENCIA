@@ -56,7 +56,7 @@ export default function LoadRequestDialog({ items, filters, weightUnit, onClose,
     finally { setDeducting(false); }
   };
   const submit = async () => {
-    if (saving || deducting || invalid || !selected.length) return;
+    if (saving || deducting || invalid || !selected.length || !notes.trim()) return;
     setSaving(true); setError('');
     try {
       await apiClient.post('/inventory/preloads', { filters: { ...filters, nombreCliente: selectedClient ? [selectedClient] : [] }, notes, ...(deduction ? { subtractLoad: deduction } : {}), lines: selected.map(group => ({ key: group.key, quantity: Number(quantities[group.key]) })) });
@@ -95,9 +95,9 @@ export default function LoadRequestDialog({ items, filters, weightUnit, onClose,
         </Table></TableContainer>}
         <Typography variant="caption" color="text.secondary">Peso estimado según los lotes más antiguos. Se valida nuevamente al enviar. Los masters pueden agrupar varios seriales.</Typography>
       </Stack>}
-      <TextField label="Referencia u observaciones" multiline minRows={2} value={notes} disabled={saving} inputProps={{ maxLength: 2000 }} onChange={event => setNotes(event.target.value)} />
+      <TextField label="Código Embarque" required helperText="Obligatorio" value={notes} disabled={saving} inputProps={{ maxLength: 2000 }} onChange={event => setNotes(event.target.value)} />
       <Typography fontWeight={700}>{selected.length} ítems · {selected.reduce((sum, group) => sum + Number(quantities[group.key]), 0).toLocaleString()} seriales solicitados</Typography>
     </Stack></DialogContent>
-    <DialogActions><Button onClick={onClose} disabled={saving}>Cancelar</Button><Button variant="contained" disabled={saving || deducting || invalid || !selected.length} onClick={() => void submit()}>{saving ? 'Guardando…' : 'Guardar carga'}</Button></DialogActions>
+    <DialogActions><Button onClick={onClose} disabled={saving}>Cancelar</Button><Button variant="contained" disabled={saving || deducting || invalid || !selected.length || !notes.trim()} onClick={() => void submit()}>{saving ? 'Guardando…' : 'Guardar carga'}</Button></DialogActions>
   </Dialog>;
 }

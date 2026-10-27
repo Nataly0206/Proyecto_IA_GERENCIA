@@ -12,7 +12,7 @@ import { listPreloads, savePreload, getPreload, updatePreload, listLoadEdits, de
 
 import { buildLoadReport, exportLoadReport } from '../services/load-report';
 
-import { editCandidates, applyLoadEdit } from '../services/load-edit';
+import { editCandidates, applyLoadEdit, completePreload } from '../services/load-edit';
 
 import { subtractLoad } from '../services/load-remainder';
 
@@ -101,11 +101,28 @@ router.get('/preloads/:id/edit', asyncHandler(async (req, res) => {
   res.json({ revision: load.revision, groups: editCandidates(load.items, await getInventory()), edits: await listLoadEdits(id) });
 }));
 
+router.post('/preloads/:id/refresh', asyncHandler(async (req, res) => {
+  const id = Number(req.params.id), revision = req.body?.revision;
+  if (!Number.isSafeInteger(id) || id <= 0 || id > 2147483647 || !Number.isSafeInteger(revision) || revision <= 0) {
+    res.status(400).json({ error: 'La precarga o su revisión no es válida.' }); return;
+  }
+  const load = await getPreload(id);
+  if (!load) { res.status(404).json({ error: 'Precarga no encontrada.' }); return; }
+  if (load.revision !== revision) { res.status(409).json({ error: 'La precarga cambió. Actualiza el historial y vuelve a intentarlo.' }); return; }
+  const items = completePreload(load.items, await getInventory());
+  const before = load.items.reduce((sum: number, item: import('../services/preload-planner').PlannedItem) => sum + item.allocations.reduce((total, lot) => total + lot.cantidadSerial, 0), 0);
+  const added = items.reduce((sum, item) => sum + item.assigned, 0) - before;
+  if (!added) { res.json({ added: 0, revision }); return; }
+  const next = await updatePreload(id, revision, res.locals.authUser.id, 'Actualizar precarga: completar faltantes con inventario disponible', { notes: load.notes, filters: load.filters, items });
+  if (!next) { res.status(409).json({ error: 'La precarga cambió. Actualiza el historial y vuelve a intentarlo.' }); return; }
+  res.json({ added, revision: next });
+}));
+
 router.put('/preloads/:id', asyncHandler(async (req, res) => {
   const id = Number(req.params.id);
   const { revision, lines, reason, notes } = req.body ?? {};
-  if (!Number.isSafeInteger(id) || id <= 0 || id > 2147483647 || !Number.isSafeInteger(revision) || revision <= 0 || typeof reason !== 'string' || !reason.trim() || reason.length > 2000 || typeof notes !== 'string' || notes.length > 2000) {
-    res.status(400).json({ error: 'Revisa el motivo, la referencia y los datos de la carga.' }); return;
+  if (!Number.isSafeInteger(id) || id <= 0 || id > 2147483647 || !Number.isSafeInteger(revision) || revision <= 0 || typeof reason !== 'string' || !reason.trim() || reason.length > 2000 || typeof notes !== 'string' || !notes.trim() || notes.length > 2000) {
+    res.status(400).json({ error: 'Revisa el motivo, el Código Embarque obligatorio y los datos de la carga.' }); return;
   }
   const load = await getPreload(id);
   if (!load) { res.status(404).json({ error: 'Carga no encontrada.' }); return; }
@@ -150,10 +167,10 @@ router.post('/preloads', asyncHandler(async (req, res) => {
   if (!Array.isArray(lines) || !lines.length || lines.length > 500
     || lines.some(line => !line || !validItemKey(line.key) || !Number.isSafeInteger(line.quantity) || line.quantity <= 0)
     || new Set(lines.map(line => line.key)).size !== lines.length
-    || typeof notes !== 'string' || notes.length > 2000
+    || typeof notes !== 'string' || !notes.trim() || notes.length > 2000
     || !filters || typeof filters !== 'object' || Array.isArray(filters)
     || Object.entries(filters).some(([key, values]) => !DIMENSIONS.has(key) || !Array.isArray(values) || values.length > 500 || values.some(value => typeof value !== 'string' || value.length > 500))) {
-    res.status(400).json({ error: 'Revisa los ítems, cantidades y filtros de la solicitud.' });
+    res.status(400).json({ error: 'Revisa el Código Embarque obligatorio, los ítems, cantidades y filtros de la solicitud.' });
     return;
   }
   let inventory = await getInventory();

@@ -73,3 +73,27 @@ test('toma todos los códigos completos por antigüedad antes de los parciales',
  assert.deepEqual(result.allocations.map(row=>row.codigoProduccion),['PROD2','NEW','PROD1']);
  assert.deepEqual(result.allocations.map(row=>row.cantidadSerial),[10,10,5]);
 });
+
+test('actualizar precarga agrega existencias nuevas sin duplicar lo asignado y es idempotente',()=>{
+ const {completePreload}=require('../dist/services/load-edit');
+ const initial=planPreload([{...base,cantidadSerial:4,pesoKilos:40}],{},[{key,quantity:10}]);
+ const unchanged=completePreload(initial,[{...base,cantidadSerial:4,pesoKilos:40}]);
+ assert.equal(unchanged[0].assigned,4);assert.equal(unchanged[0].missing,6);
+ const completed=completePreload(initial,[base]);
+ assert.equal(completed[0].assigned,10);assert.equal(completed[0].missing,0);assert.equal(completed[0].pesoKilos,100);
+ assert.equal(completePreload(completed,[base])[0].assigned,10);
+ assert.equal(initial[0].assigned,4);
+});
+
+test('actualizar precarga conserva históricos, exclusiones y separación de ítem y cliente',()=>{
+ const {completePreload}=require('../dist/services/load-edit');
+ const initial=planPreload([{...base,cantidadSerial:4,pesoKilos:40}],{},[{key,quantity:10}]);
+ initial[0].excludedLots=[lotKey(second)];
+ const others=[second,{...second,nombreCliente:'Otro'},{...second,empaque:'Otro'},{...base,disponibilidad:'RETENIDO'}];
+ const unchanged=completePreload(initial,others);
+ assert.equal(unchanged[0].assigned,4);assert.equal(unchanged[0].pesoKilos,40);
+ initial[0].excludedLots=[];
+ const filled=completePreload(initial,[{...second,cantidadSerial:3,pesoKilos:60}]);
+ assert.equal(filled[0].assigned,7);assert.equal(filled[0].missing,3);assert.equal(filled[0].pesoKilos,100);
+ assert.equal(filled[0].allocations.find(row=>row.codigoProduccion===base.codigoProduccion).cantidadSerial,4);
+});

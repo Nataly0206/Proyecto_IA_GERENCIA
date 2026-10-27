@@ -58,3 +58,9 @@ La nueva solicitud se calcula y guarda con esa misma rebaja en el servidor. Si l
 El archivo se descarga como `PRECARGA <referencia>.pdf` (o `PRECARGA.pdf` sin referencia). El encabezado usa la referencia en lugar del número de carga. Debajo del total se muestran códigos parcialmente utilizados con Disponible, En carga e Inventario final en seriales. La existencia inicial se guarda con las nuevas solicitudes; no se reconstruye desde inventario actual para cargas históricas sin ese dato.
 
 Al rebajar una carga, los saldos parcialmente consumidos se identifican como parciales. La selección automática consume primero códigos completos por fecha de producción y luego parciales por fecha, tanto en la solicitud y su estimación de peso como en el autocompletado de edición.
+
+## Actualizar precarga
+
+El botón **Actualizar precarga** del detalle consulta inventario actual y completa únicamente los faltantes hasta el objetivo guardado. Conserva asignaciones históricas, cliente, empaque y demás dimensiones del ítem; respeta **No completar** y la prioridad de códigos completos por antigüedad seguida de parciales. Puede tomar nuevas producciones y órdenes del mismo ítem, fuera de los filtros originales. Descuenta de cada existencia actual lo ya asignado en esa precarga para no duplicarlo al pulsar varias veces. Si no encuentra producto adicional, informa sin crear una revisión. Si agrega seriales, guarda la misma precarga con pesos/faltantes recalculados y una entrada en historial; valida la revisión para no sobrescribir cambios concurrentes.
+
+`POST /api/inventory/preloads/:id/refresh`: `{ revision }`, devuelve `{ added, revision }`. Solo escribe en gerencia y no modifica inventario de planta.

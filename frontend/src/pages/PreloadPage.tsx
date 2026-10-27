@@ -28,6 +28,9 @@ export default function PreloadPage({ onInventory, userId }: { onInventory: () =
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   const [deletedMessage, setDeletedMessage] = useState('');
+  const [updating, setUpdating] = useState(false);
+  const [updateMessage, setUpdateMessage] = useState('');
+  const [updateError, setUpdateError] = useState('');
   const [editing, setEditing] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(true);
   const [downloading, setDownloading] = useState(false);
@@ -43,6 +46,16 @@ export default function PreloadPage({ onInventory, userId }: { onInventory: () =
   const [unit, setUnit] = useState<WeightUnit>('lbs');
   const requests = invalidRange ? [] : query.data ?? [];
   const selected = requests.find(request => request.id === selectedId) ?? requests[0];
+  const updatePreload = async () => {
+    if (!selected || updating) return;
+    setUpdating(true); setUpdateMessage(''); setUpdateError('');
+    try {
+      const { data } = await apiClient.post<{ added: number }>(`/inventory/preloads/${selected.id}/refresh`, { revision: selected.revision });
+      setUpdateMessage(data.added ? `Se agregaron ${data.added.toLocaleString()} seriales a la precarga.` : 'No hay existencias adicionales para completar los faltantes.');
+      await Promise.all([cache.invalidateQueries({ queryKey: ['preloads'] }), cache.invalidateQueries({ queryKey: ['load-report'] }), cache.invalidateQueries({ queryKey: ['edit-load'] })]);
+    } catch (err: any) { setUpdateError(err.response?.data?.error ?? 'No se pudo actualizar la precarga. Intenta nuevamente.'); }
+    finally { setUpdating(false); }
+  };
   const download = async () => {
     if (!selected || downloading) return;
     setDownloading(true); setDownloadError('');
@@ -82,15 +95,17 @@ export default function PreloadPage({ onInventory, userId }: { onInventory: () =
       {query.isError && <Alert severity="error">No se pudieron cargar las cargas. Intenta actualizar.</Alert>}
       {query.isLoading && !invalidRange ? <CircularProgress size={26} /> : !requests.length ? <Typography color="text.secondary">No hay cargas en el rango seleccionado.</Typography> : <TableContainer sx={{ maxHeight: 240 }}><Table stickyHeader size="small"><TableHead><TableRow>{['Carga', 'Fecha', 'Cliente', 'Solicitados', 'Asignados', 'Faltantes', 'Estado', ''].map(label => <TableCell key={label} align={['Solicitados', 'Asignados', 'Faltantes'].includes(label) ? 'center' : 'left'}>{label}</TableCell>)}</TableRow></TableHead><TableBody>{requests.map(request => {
         const sum = totals(request);
-        return <TableRow key={request.id} selected={selected?.id === request.id} hover><TableCell>#{request.id}</TableCell><TableCell sx={{ whiteSpace: 'nowrap' }}>{dateLabel(request.createdAt)}</TableCell><TableCell>{[...new Set(request.items.map(group => group.item.nombreCliente).filter(Boolean))].join(', ') || '—'}</TableCell><TableCell align="center">{sum.requested.toLocaleString()}</TableCell><TableCell align="center">{sum.assigned.toLocaleString()}</TableCell><TableCell align="center">{sum.missing.toLocaleString()}</TableCell><TableCell><Chip size="small" label={sum.missing ? 'Con faltantes' : 'Completa'} color={sum.missing ? 'warning' : 'success'} /></TableCell><TableCell><Button size="small" onClick={() => { setSelectedId(request.id); setHistoryOpen(false); }}>Ver detalle</Button></TableCell></TableRow>;
+        return <TableRow key={request.id} selected={selected?.id === request.id} hover><TableCell>#{request.id}</TableCell><TableCell sx={{ whiteSpace: 'nowrap' }}>{dateLabel(request.createdAt)}</TableCell><TableCell>{[...new Set(request.items.map(group => group.item.nombreCliente).filter(Boolean))].join(', ') || '—'}</TableCell><TableCell align="center">{sum.requested.toLocaleString()}</TableCell><TableCell align="center">{sum.assigned.toLocaleString()}</TableCell><TableCell align="center">{sum.missing.toLocaleString()}</TableCell><TableCell><Chip size="small" label={sum.missing ? 'Con faltantes' : 'Completa'} color={sum.missing ? 'warning' : 'success'} /></TableCell><TableCell><Button size="small" disabled={updating} onClick={() => { setSelectedId(request.id); setHistoryOpen(false); setUpdateMessage(''); setUpdateError(''); }}>Ver detalle</Button></TableCell></TableRow>;
       })}</TableBody></Table></TableContainer>}
       </Stack></Collapse>
     </Stack></Paper>
     {selected && total && <>
-      <Stack direction="row" gap={2} alignItems="center" flexWrap="wrap"><Typography variant="h6" fontWeight={800}>Carga #{selected.id}</Typography><Chip label={total.missing ? 'Con faltantes' : 'Completa'} color={total.missing ? 'warning' : 'success'} size="small" /><ToggleButtonGroup size="small" exclusive value={unit} onChange={(_, next) => { if (next) setUnit(next); }}><ToggleButton value="lbs">Libras</ToggleButton><ToggleButton value="kg">Kilos</ToggleButton></ToggleButtonGroup><Button variant="contained" startIcon={<EditOutlinedIcon />} onClick={() => setEditing(true)}>Editar carga</Button><Button variant="outlined" startIcon={<DownloadOutlinedIcon />} disabled={downloading} onClick={() => void download()}>{downloading ? 'Descargando…' : 'Descargar PDF'}</Button><Button color="error" variant="outlined" startIcon={<DeleteOutlineIcon />} onClick={() => { setDeleteError(''); setDeleteTarget(selected); }}>Eliminar carga</Button></Stack>
+      <Stack direction="row" gap={2} alignItems="center" flexWrap="wrap"><Typography variant="h6" fontWeight={800}>Carga #{selected.id}</Typography><Chip label={total.missing ? 'Con faltantes' : 'Completa'} color={total.missing ? 'warning' : 'success'} size="small" /><ToggleButtonGroup size="small" exclusive value={unit} onChange={(_, next) => { if (next) setUnit(next); }}><ToggleButton value="lbs">Libras</ToggleButton><ToggleButton value="kg">Kilos</ToggleButton></ToggleButtonGroup><Button variant="outlined" startIcon={<RefreshOutlinedIcon />} disabled={updating || editing || !total.missing} onClick={() => void updatePreload()}>{updating ? 'Actualizando precarga…' : 'Actualizar precarga'}</Button><Button disabled={updating} variant="contained" startIcon={<EditOutlinedIcon />} onClick={() => setEditing(true)}>Editar carga</Button><Button variant="outlined" startIcon={<DownloadOutlinedIcon />} disabled={downloading || updating} onClick={() => void download()}>{downloading ? 'Descargando…' : 'Descargar PDF'}</Button><Button disabled={updating} color="error" variant="outlined" startIcon={<DeleteOutlineIcon />} onClick={() => { setDeleteError(''); setDeleteTarget(selected); }}>Eliminar carga</Button></Stack>
       <Typography color="text.secondary">Solicitados: {total.requested.toLocaleString()} · Asignados: {total.assigned.toLocaleString()} · Faltantes: {total.missing.toLocaleString()} seriales</Typography>
-      {selected.notes && <Typography sx={{ whiteSpace: 'pre-wrap' }}>{selected.notes}</Typography>}
+      {selected.notes && <Typography sx={{ whiteSpace: 'pre-wrap' }}>Código Embarque: {selected.notes}</Typography>}
       {total.missing > 0 && <Alert severity="warning">Carga parcial. Los faltantes quedan registrados para revisión; no se sustituyen automáticamente por otros productos.</Alert>}
+      {updateMessage && <Alert severity="info" onClose={() => setUpdateMessage('')}>{updateMessage}</Alert>}
+      {updateError && <Alert severity="error" onClose={() => setUpdateError('')}>{updateError}</Alert>}
       {downloadError && <Alert severity="error">{downloadError}</Alert>}
       {editing && <EditLoadDialog load={selected} onClose={() => setEditing(false)} />}
       <LoadReportTable loadId={selected.id} unit={unit} userId={userId} />

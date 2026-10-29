@@ -1,10 +1,11 @@
 import { FormEvent, useEffect, useState } from 'react';
 import PersonAddOutlinedIcon from '@mui/icons-material/PersonAddOutlined';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import {
   Alert, Box, Button, Checkbox, Chip, CircularProgress, Dialog, DialogActions, DialogContent,
-  DialogTitle, FormControlLabel, FormGroup, IconButton, Paper, Stack, Switch, Table, TableBody,
+  DialogTitle, FormControlLabel, FormGroup, IconButton, InputAdornment, Paper, Stack, Switch, Table, TableBody,
   TableCell, TableContainer, TableHead, TableRow, TextField, Tooltip, Typography, useMediaQuery, useTheme,
 } from '@mui/material';
 import axios from 'axios';
@@ -12,29 +13,34 @@ import { apiClient } from '../api/client';
 import { AuthUser, normalizeAuthUser } from '../types/auth';
 import { Permiso, PERMISOS, PERMISO_LABELS } from '../config/permissions';
 
-function PermisosCheckboxes({ value, onChange }: { value: Permiso[]; onChange: (permisos: Permiso[]) => void }) {
-  const toggle = (permiso: Permiso) => {
-    onChange(value.includes(permiso) ? value.filter((p) => p !== permiso) : [...value, permiso]);
+const normalizeSearch = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+
+function PermisosCheckboxes({ value, onChange, disabled = false }: { value: Permiso[]; onChange: (permisos: Permiso[]) => void; disabled?: boolean }) {
+  const [search, setSearch] = useState('');
+  const needle = normalizeSearch(search);
+  const visiblePermissions = PERMISOS.filter(permission => !needle || normalizeSearch(PERMISO_LABELS[permission]).includes(needle));
+  const select = (permissions: Permiso[], checked: boolean) => {
+    const next = new Set(value);
+    permissions.forEach(permission => checked ? next.add(permission) : next.delete(permission));
+    onChange(PERMISOS.filter(permission => next.has(permission)));
   };
-  return (
-    <Box>
-      <Typography variant="body2" fontWeight={700} mb={0.5}>Permisos</Typography>
-      <FormGroup>
-        {PERMISOS.map((permiso) => (
-          <FormControlLabel
-            key={permiso}
-            control={<Checkbox size="small" checked={value.includes(permiso)} onChange={() => toggle(permiso)} />}
-            label={PERMISO_LABELS[permiso]}
-          />
-        ))}
-      </FormGroup>
-      {value.length === 0 && (
-        <Typography variant="caption" color="text.secondary">
-          Sin permisos, el usuario no verá ninguna sección al ingresar.
-        </Typography>
-      )}
-    </Box>
-  );
+  return <Stack spacing={1.5}>
+    <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1} flexWrap="wrap">
+      <Box><Typography fontWeight={800}>Accesos del usuario</Typography><Typography variant="caption" color="text.secondary">Selecciona los módulos a los que tendrá acceso.</Typography></Box>
+      <Chip size="small" color="primary" variant="outlined" label={`${value.length} de ${PERMISOS.length} asignados`} />
+    </Stack>
+    <TextField size="small" fullWidth label="Buscar permiso" placeholder="Ej. Cargas, Pelado, Productividad…" value={search} disabled={disabled} onChange={event => setSearch(event.target.value)} InputProps={{ startAdornment: <InputAdornment position="start"><SearchOutlinedIcon fontSize="small" /></InputAdornment> }} />
+    <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap" useFlexGap>
+      <Button size="small" disabled={disabled || !visiblePermissions.some(permission => !value.includes(permission))} onClick={() => select(visiblePermissions, true)}>{needle ? 'Seleccionar resultados' : 'Seleccionar todos'}</Button>
+      <Button size="small" color="inherit" disabled={disabled || !visiblePermissions.some(permission => value.includes(permission))} onClick={() => select(visiblePermissions, false)}>{needle ? 'Quitar resultados' : 'Quitar todos'}</Button>
+      {needle && <Typography variant="caption" color="text.secondary">{visiblePermissions.length} resultados</Typography>}
+    </Stack>
+    <FormGroup sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr' }, gap: 0.75 }}>
+      {visiblePermissions.map(permission => <FormControlLabel key={permission} sx={{ m: 0, px: 0.5, py: 0.5, minHeight: 44, borderRadius: 1, bgcolor: value.includes(permission) ? 'rgba(25,118,210,.045)' : undefined, '&:hover': { bgcolor: 'action.hover' }, '& .MuiFormControlLabel-label': { fontSize: 13 } }} control={<Checkbox size="small" disabled={disabled} checked={value.includes(permission)} onChange={(_, checked) => select([permission], checked)} />} label={PERMISO_LABELS[permission]} />)}
+    </FormGroup>
+    {!visiblePermissions.length && <Typography color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>No se encontraron permisos. <Button size="small" onClick={() => setSearch('')}>Limpiar búsqueda</Button></Typography>}
+    {value.length === 0 && <Typography variant="caption" color="text.secondary">Sin permisos, el usuario no verá ninguna sección al ingresar.</Typography>}
+  </Stack>;
 }
 
 function CreateUserDialog({ open, onClose, onCreated }: {
@@ -72,10 +78,10 @@ function CreateUserDialog({ open, onClose, onCreated }: {
   };
 
   return (
-    <Dialog open={open} onClose={() => { reset(); onClose(); }} fullWidth maxWidth="xs">
+    <Dialog open={open} onClose={() => { if (!loading) { reset(); onClose(); } }} fullWidth maxWidth="md">
       <DialogTitle>Nuevo usuario</DialogTitle>
-      <Box component="form" onSubmit={submit}>
-        <DialogContent>
+      <Box component="form" onSubmit={submit} sx={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+        <DialogContent dividers>
           <Stack spacing={2}>
             {error && <Alert severity="error">{error}</Alert>}
             <TextField label="Usuario" value={form.usuario} required autoFocus
@@ -85,14 +91,14 @@ function CreateUserDialog({ open, onClose, onCreated }: {
               onChange={(e) => setForm({ ...form, nombre: e.target.value })} />
             <TextField label="Correo electrónico" type="email" value={form.correo} required
               onChange={(e) => setForm({ ...form, correo: e.target.value })} />
-            <PermisosCheckboxes value={form.permisos} onChange={(permisos) => setForm({ ...form, permisos })} />
+            <PermisosCheckboxes disabled={loading} value={form.permisos} onChange={(permisos) => setForm({ ...form, permisos })} />
             <Typography variant="caption" color="text.secondary">
               Recibirá por correo una contraseña temporal que deberá cambiar al ingresar.
             </Typography>
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2.5 }}>
-          <Button onClick={() => { reset(); onClose(); }}>Cancelar</Button>
+          <Button disabled={loading} onClick={() => { reset(); onClose(); }}>Cancelar</Button>
           <Button type="submit" variant="contained" startIcon={<PersonAddOutlinedIcon />}
             disabled={loading || !form.usuario || !form.nombre || !form.correo}>
             {loading ? <CircularProgress size={22} color="inherit" /> : 'Crear y enviar acceso'}
@@ -138,17 +144,17 @@ function EditPermisosDialog({ user, onClose, onSaved }: {
   };
 
   return (
-    <Dialog open={Boolean(user)} onClose={onClose} fullWidth maxWidth="xs">
+    <Dialog open={Boolean(user)} onClose={() => { if (!loading) onClose(); }} fullWidth maxWidth="md">
       <DialogTitle>Editar permisos{user ? ` — ${user.nombre}` : ''}</DialogTitle>
-      <Box component="form" onSubmit={submit}>
-        <DialogContent>
+      <Box component="form" onSubmit={submit} sx={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+        <DialogContent dividers>
           <Stack spacing={2}>
             {error && <Alert severity="error">{error}</Alert>}
-            <PermisosCheckboxes value={permisos} onChange={setPermisos} />
+            <PermisosCheckboxes key={user?.id} disabled={loading} value={permisos} onChange={setPermisos} />
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2.5 }}>
-          <Button onClick={onClose}>Cancelar</Button>
+          <Button disabled={loading} onClick={onClose}>Cancelar</Button>
           <Button type="submit" variant="contained" disabled={loading}>
             {loading ? <CircularProgress size={22} color="inherit" /> : 'Guardar cambios'}
           </Button>
@@ -367,7 +373,7 @@ export default function UsersPage({ currentUserId, onCurrentUserUpdated }: Users
       <Dialog open={Boolean(deletingUser)} onClose={() => { if (!deleting) setDeletingUser(null); }}
         fullWidth maxWidth="xs" aria-labelledby="delete-user-title">
         <DialogTitle id="delete-user-title">Eliminar usuario</DialogTitle>
-        <DialogContent>
+        <DialogContent dividers>
           <Stack spacing={2}>
             {deleteError && <Alert severity="error">{deleteError}</Alert>}
             <Typography>¿Deseas eliminar a {deletingUser?.nombre} (@{deletingUser?.usuario})?</Typography>

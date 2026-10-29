@@ -19,6 +19,7 @@ export const PERMISOS = [
   'prestamos',
   'rendimientos',
   'resumen_procesos',
+  'rankings',
   'power_bi',
   'usuarios',
   'asistente_ia',

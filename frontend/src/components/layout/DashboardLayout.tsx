@@ -40,6 +40,8 @@ import DataObjectIcon from '@mui/icons-material/DataObject';
 import BarChartOutlinedIcon from '@mui/icons-material/BarChartOutlined';
 import AccountBalanceOutlinedIcon from '@mui/icons-material/AccountBalanceOutlined';
 import TrendingUpOutlinedIcon from '@mui/icons-material/TrendingUpOutlined';
+import EmojiEventsOutlinedIcon from '@mui/icons-material/EmojiEventsOutlined';
+import SpeedOutlinedIcon from '@mui/icons-material/SpeedOutlined';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { Menu, MenuItem } from '@mui/material';
 import { AuthUser } from '../../types/auth';
@@ -63,6 +65,7 @@ export type DashboardView =
   | 'prestamos'
   | 'rendimientos'
   | 'resumen-procesos'
+  | 'rankings'
   | 'power-bi'
   | 'users';
 
@@ -273,7 +276,7 @@ export default function DashboardLayout({
           </Tooltip>
         )}
         {tienePermiso(user, 'resumen_procesos') && (
-          <Tooltip title={expanded ? '' : 'Resumen procesos'} placement="right">
+          <Tooltip title={expanded ? '' : 'Productividad'} placement="right">
             <ListItemButton
               selected={currentView === 'resumen-procesos'}
               onClick={() => navigate('resumen-procesos')}
@@ -282,7 +285,21 @@ export default function DashboardLayout({
               <ListItemIcon sx={{ minWidth: expanded ? 36 : 0, justifyContent: 'center' }}>
                 <TrendingUpOutlinedIcon fontSize="small" />
               </ListItemIcon>
-              {expanded && <ListItemText primary="Resumen procesos" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
+              {expanded && <ListItemText primary="Productividad" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
+            </ListItemButton>
+          </Tooltip>
+        )}
+        {tienePermiso(user, 'rankings') && (
+          <Tooltip title={expanded ? '' : 'Rankings'} placement="right">
+            <ListItemButton
+              selected={currentView === 'rankings'}
+              onClick={() => navigate('rankings')}
+              sx={{ minHeight: 42, px: 1.25, borderRadius: 1, mb: 0.5 }}
+            >
+              <ListItemIcon sx={{ minWidth: expanded ? 36 : 0, justifyContent: 'center' }}>
+                <EmojiEventsOutlinedIcon fontSize="small" />
+              </ListItemIcon>
+              {expanded && <ListItemText primary="Rankings" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
             </ListItemButton>
           </Tooltip>
         )}
@@ -294,7 +311,7 @@ export default function DashboardLayout({
               sx={{ minHeight: 42, px: 1.25, borderRadius: 1, mb: 0.5 }}
             >
               <ListItemIcon sx={{ minWidth: expanded ? 36 : 0, justifyContent: 'center' }}>
-                <TrendingUpOutlinedIcon fontSize="small" />
+                <SpeedOutlinedIcon fontSize="small" />
               </ListItemIcon>
               {expanded && <ListItemText primary="Rendimientos" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
             </ListItemButton>
@@ -375,7 +392,7 @@ export default function DashboardLayout({
               ESF Seafood
             </Typography>
           </Stack>
-          {currentView !== null && currentView !== 'users' && currentView !== 'inventory' && currentView !== 'carga' && currentView !== 'inventario-fresco' && currentView !== 'prestamos' && currentView !== 'resumen-procesos' && currentView !== 'rendimientos' && currentView !== 'power-bi' && (
+          {currentView !== null && currentView !== 'users' && currentView !== 'inventory' && currentView !== 'carga' && currentView !== 'inventario-fresco' && currentView !== 'prestamos' && currentView !== 'rankings' && currentView !== 'resumen-procesos' && currentView !== 'rendimientos' && currentView !== 'power-bi' && (
             <Button
               size="small"
               variant="outlined"
@@ -480,7 +497,7 @@ export default function DashboardLayout({
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
       >
-        {currentView !== 'users' && currentView !== 'inventory' && currentView !== 'carga' && currentView !== 'inventario-fresco' && currentView !== 'prestamos' && currentView !== 'resumen-procesos' && currentView !== 'rendimientos' && currentView !== 'power-bi' && (
+        {currentView !== 'users' && currentView !== 'inventory' && currentView !== 'carga' && currentView !== 'inventario-fresco' && currentView !== 'prestamos' && currentView !== 'rankings' && currentView !== 'resumen-procesos' && currentView !== 'rendimientos' && currentView !== 'power-bi' && (
           <MenuItem onClick={() => { setMobileActionsAnchor(null); void handleRefresh(); }} disabled={isRefreshing}>
             <RefreshOutlinedIcon fontSize="small" sx={{ mr: 1.25 }} />
             {isRefreshing ? 'Actualizando…' : 'Actualizar datos'}

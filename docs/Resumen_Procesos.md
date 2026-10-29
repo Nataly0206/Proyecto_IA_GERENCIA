@@ -18,3 +18,17 @@ Los grupos con horas no positivas o cantidades inválidas se excluyen de ambos c
 Caché de cinco minutos por fecha actual; `refresh=true` fuerza la consulta. La pantalla actualiza automáticamente cada cinco minutos y permite Actualizar manualmente. Incluye rangos, actualización, carga, errores y ayuda de cálculo.
 
 Verificación: `npm run build` en frontend y backend; `npm run test:resumen-procesos` en backend. Se probó lectura real de los cuatro procesos el 29 de octubre de 2026. Las pruebas cubren cambio de año, semana calendario, cociente ponderado, promedio IQF y ausencia de intervalos válidos.
+
+## Optimización de carga
+
+La API admite `process=Descabezado|Clasificado|Pelado|IQF`. La pantalla consulta y presenta cada fila independientemente, de modo que IQF no retrasa los demás procesos ni oculta sus resultados si falla. Mantiene la tabla previa durante actualizaciones y conserva datos del navegador durante 30 minutos (vigencia de cinco minutos, sin solicitudes adicionales al cambiar de ventana).
+
+Las muestras hasta ayer se comparten entre usuarios durante una hora, con caché en memoria que conserva ese plazo incluso sin Redis. Las solicitudes concurrentes comparten la misma lectura histórica. Las muestras de hoy se actualizan cada cinco minutos; Actualizar fuerza solo la lectura actual. Correcciones retroactivas quedan reflejadas al vencer la hora del histórico. Al cambiar de día se usa una clave nueva. No se cambiaron numeradores, denominadores ni filtros de las consultas originales; la división por fecha conserva grupos diarios y el promedio oficial IQF. La primera carga tras reiniciar aún debe obtener el histórico desde SQL.
+
+`npm run test:resumen-procesos` también verifica carga por proceso, caché compartida, actualización sin releer el año, recuperación tras fallos y equivalencia de acumulados.
+
+## Redis y preparación al arrancar
+
+Productividad usa `getCachedProcessSummary`, compartido por la API y la preparación de caché al iniciar el backend. Esta preparación no bloquea el servidor; carga las mismas cuatro claves por proceso que usa la pantalla. `docker compose up -d redis` inicia el Redis local; el puerto 6379 se publica únicamente en 127.0.0.1 para el backend que corre fuera de Docker. Dentro de Docker el backend mantiene `redis://redis:6379`.
+
+La comprobación del 29 de octubre encontró Redis detenido aunque CACHE_ENABLED estaba activo y REDIS_URL apuntaba a 127.0.0.1:6379. Tras iniciarlo, `/api/health` confirmó redis=ready y un proceso nuevo leyó los cuatro resultados preparados desde Redis en 23 ms sin ninguna consulta SQL. El histórico y las lecturas actuales mantienen sus plazos de caché y la pantalla continúa actualizándose cada cinco minutos.

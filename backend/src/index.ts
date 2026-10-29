@@ -18,6 +18,7 @@ import { assertAuthDatabaseReady } from './services/auth.service';
 import { closeAuthPool } from './config/authDb';
 import { closeStbPool } from './config/stbDb';
 import { closeRedis, getRedisClient, redisStatus } from './config/redis';
+import { warmProcessSummary } from './services/process-summary.service';
 import { cacheMetrics } from './utils/ttlCache';
 
 // Fail-closed: en producción no se arranca sin API_KEY, para no exponer
@@ -108,6 +109,8 @@ async function start(): Promise<void> {
   });
   // Reduce la ventana para ataques de conexiones lentas sin limitar las
   // consultas legítimas a SQL/IA, que tienen sus propios timeouts.
+  // Prepara Productividad sin retrasar el arranque ni exigir Redis para operar.
+  if (env.CACHE_ENABLED) void warmProcessSummary().catch(error => console.error('[productividad] Falló la preparación de caché:', error));
   server.headersTimeout = 15_000;
   server.requestTimeout = 310_000;
   server.keepAliveTimeout = 5_000;

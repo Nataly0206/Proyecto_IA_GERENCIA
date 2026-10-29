@@ -17,6 +17,7 @@ import ClasificadoPage from './pages/ClasificadoPage';
 import ExportacionesPage from './pages/ExportacionesPage';
 import PowerBIPage from './pages/PowerBIPage';
 import PrestamosPage from './pages/PrestamosPage';
+import RankingsPage from './pages/RankingsPage';
 import ProcessSummaryPage from './pages/ProcessSummaryPage';
 import RendimientosPage from './pages/RendimientosPage';
 import { FiltersProvider } from './context/FiltersContext';
@@ -39,6 +40,7 @@ const PERMISO_POR_VISTA: Record<DashboardView, Permiso> = {
   prestamos: 'prestamos',
   rendimientos: 'rendimientos',
   'resumen-procesos': 'resumen_procesos',
+  rankings: 'rankings',
   'power-bi': 'power_bi',
 };
 
@@ -56,6 +58,7 @@ const VIEW_ORDER: DashboardView[] = [
   'prestamos',
   'rendimientos',
   'resumen-procesos',
+  'rankings',
   'power-bi',
   'users',
 ];
@@ -177,6 +180,8 @@ export default function App() {
           <PreloadPage canViewInventory={tienePermiso(user, 'inventario')} userId={user.id} onInventory={() => { setCurrentView('inventory'); persistView('inventory'); }} />
         ) : view === 'prestamos' ? (
           <PrestamosPage />
+        ) : view === 'rankings' ? (
+          <RankingsPage userId={user.id} />
         ) : view === 'resumen-procesos' ? (
           <ProcessSummaryPage userId={user.id} />
         ) : view === 'rendimientos' ? (

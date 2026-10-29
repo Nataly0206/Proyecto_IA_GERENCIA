@@ -8,12 +8,27 @@ import { requirePermission } from '../middleware/sessionAuth';
 import { getUserPreference, saveUserPreference } from '../services/user-preferences.service';
 import { getClassifiedSizeOrder, getClassifiedSizes, saveClassifiedSizeOrder } from '../services/shared-config.service';
 
-import { getProcessSummary } from '../services/process-summary.service';
+import { getCachedProcessSummary } from '../services/process-summary.service';
+
+import { getEmployeeRankings } from '../services/rankings.service';
 
 const router = Router();
+router.get('/rankings/:process', requirePermission('rankings'), asyncHandler(async (req, res) => {
+  const process = req.params.process;
+  if (!['pelado', 'descabezado'].includes(process)) {
+    res.status(400).json({ error: 'Proceso no válido.' }); return;
+  }
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Tegucigalpa', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  res.json(await withTtlCache(`rankings:today-v2:${process}:${today}`, 5 * 60_000,
+    () => getEmployeeRankings(process as 'pelado' | 'descabezado', today, today), req.query.refresh === 'true'));
+}));
 router.get('/resumen-procesos', requirePermission('resumen_procesos'), asyncHandler(async (req, res) => {
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Tegucigalpa', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-  res.json(await withTtlCache(`resumen-procesos:v1:${today}`, 5 * 60_000, () => getProcessSummary(today), req.query.refresh === 'true'));
+  const process = req.query.process;
+  if (process !== undefined && (typeof process !== 'string' || !['Descabezado', 'Clasificado', 'Pelado', 'IQF'].includes(process))) {
+    res.status(400).json({ error: 'Proceso no válido.' }); return;
+  }
+  res.json(await getCachedProcessSummary(today, req.query.refresh === 'true', process as string | undefined));
 }));
 
 const iqf = requirePermission('iqf');

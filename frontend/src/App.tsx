@@ -17,6 +17,7 @@ import ClasificadoPage from './pages/ClasificadoPage';
 import ExportacionesPage from './pages/ExportacionesPage';
 import PowerBIPage from './pages/PowerBIPage';
 import PrestamosPage from './pages/PrestamosPage';
+import ProcessSummaryPage from './pages/ProcessSummaryPage';
 import RendimientosPage from './pages/RendimientosPage';
 import { FiltersProvider } from './context/FiltersContext';
 import { apiClient } from './api/client';
@@ -33,10 +34,11 @@ const PERMISO_POR_VISTA: Record<DashboardView, Permiso> = {
   exportaciones: 'exportaciones',
   users: 'usuarios',
   inventory: 'inventario',
-  carga: 'inventario',
+  carga: 'cargas',
   'inventario-fresco': 'inventario_fresco',
   prestamos: 'prestamos',
   rendimientos: 'rendimientos',
+  'resumen-procesos': 'resumen_procesos',
   'power-bi': 'power_bi',
 };
 
@@ -53,6 +55,7 @@ const VIEW_ORDER: DashboardView[] = [
   'inventario-fresco',
   'prestamos',
   'rendimientos',
+  'resumen-procesos',
   'power-bi',
   'users',
 ];
@@ -169,11 +172,13 @@ export default function App() {
         ) : view === 'inventario-fresco' ? (
           <FreshInventoryPage />
         ) : view === 'inventory' ? (
-          <InventoryPage userId={user.id} onPreload={() => { setCurrentView('carga'); persistView('carga'); }} />
+          <InventoryPage canRequestLoad={tienePermiso(user, 'cargas')} userId={user.id} onPreload={() => { setCurrentView('carga'); persistView('carga'); }} />
         ) : view === 'carga' ? (
-          <PreloadPage userId={user.id} onInventory={() => { setCurrentView('inventory'); persistView('inventory'); }} />
+          <PreloadPage canViewInventory={tienePermiso(user, 'inventario')} userId={user.id} onInventory={() => { setCurrentView('inventory'); persistView('inventory'); }} />
         ) : view === 'prestamos' ? (
           <PrestamosPage />
+        ) : view === 'resumen-procesos' ? (
+          <ProcessSummaryPage userId={user.id} />
         ) : view === 'rendimientos' ? (
           <RendimientosPage userId={user.id} />
         ) : view === 'power-bi' ? (

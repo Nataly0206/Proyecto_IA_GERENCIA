@@ -86,7 +86,7 @@ app.get('/api/health', (_req, res) => {
 app.use('/api', generalLimiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', usersRoutes);
-app.use('/api/inventory', sessionAuth, changedPasswordAuth, requirePermission('inventario'), inventoryRoutes);
+app.use('/api/inventory', sessionAuth, changedPasswordAuth, inventoryRoutes);
 app.use('/api/powerbi', sessionAuth, changedPasswordAuth, requirePermission('power_bi'), powerbiRoutes);
 app.use('/api/rendimientos', sessionAuth, changedPasswordAuth, requirePermission('rendimientos'), rendimientosRoutes);
 app.use('/api/prestamos', sessionAuth, changedPasswordAuth, requirePermission('prestamos'), prestamosRoutes);

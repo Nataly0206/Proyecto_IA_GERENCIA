@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Alert, Autocomplete, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography } from '@mui/material';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Autocomplete, Button, Checkbox, Chip, FormControlLabel, Dialog, DialogActions, DialogContent, DialogTitle, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography } from '@mui/material';
 import { useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 import { itemKey, StockItem } from '../types/preload';
@@ -14,6 +14,11 @@ export default function LoadRequestDialog({ items, filters, weightUnit, onClose,
   const cache = useQueryClient();
   const [quantities, setQuantities] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState('');
+  const manualCode = useRef('');
+  const [followPrevious, setFollowPrevious] = useState(false);
+  const [codeLoading, setCodeLoading] = useState(false);
+  const [codeError, setCodeError] = useState('');
+  const [previousCode, setPreviousCode] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [deduction, setDeduction] = useState<{ id: number; revision: number } | null>(null);
@@ -36,6 +41,21 @@ export default function LoadRequestDialog({ items, filters, weightUnit, onClose,
     const available = [...new Set(items.filter(item => hasOrder(item) && item.disponibilidad === 'DISPONIBLE' && item.cantidadSerial > 0).map(item => item.nombreCliente))];
     return available.length === 1 ? available[0] : null;
   });
+  useEffect(() => {
+    if (!followPrevious || !selectedClient) { setCodeLoading(false); return; }
+    const controller = new AbortController();
+    let active = true;
+    setCodeLoading(true); setCodeError(''); setPreviousCode('');
+    apiClient.get<{ previous: string; code: string }>('/inventory/preloads/next-shipping-code', { params: { client: selectedClient }, signal: controller.signal })
+      .then(({ data }) => { if (active) { setNotes(data.code); setPreviousCode(data.previous); } })
+      .catch(err => {
+        if (!active) return;
+        setCodeError(err.response?.data?.error ?? 'No se pudo buscar el correlativo. Intenta nuevamente o ingresa el código manualmente.');
+        setFollowPrevious(false); setNotes(manualCode.current);
+      })
+      .finally(() => { if (active) setCodeLoading(false); });
+    return () => { active = false; controller.abort(); };
+  }, [followPrevious, selectedClient]);
   const groups = allGroups.filter(group => group.item.nombreCliente === selectedClient);
   const selected = groups.filter(group => Number(quantities[group.key]) > 0);
   const invalid = groups.some(group => {
@@ -56,7 +76,7 @@ export default function LoadRequestDialog({ items, filters, weightUnit, onClose,
     finally { setDeducting(false); }
   };
   const submit = async () => {
-    if (saving || deducting || invalid || !selected.length || !notes.trim()) return;
+    if (saving || deducting || codeLoading || invalid || !selected.length || !notes.trim()) return;
     setSaving(true); setError('');
     try {
       await apiClient.post('/inventory/preloads', { filters: { ...filters, nombreCliente: selectedClient ? [selectedClient] : [] }, notes, ...(deduction ? { subtractLoad: deduction } : {}), lines: selected.map(group => ({ key: group.key, quantity: Number(quantities[group.key]) })) });
@@ -70,11 +90,13 @@ export default function LoadRequestDialog({ items, filters, weightUnit, onClose,
     <DialogContent dividers><Stack spacing={2}>
       <Typography color="text.secondary">Escribe cuántos seriales necesitas de cada producto. Los kg de la carga se calculan al instante, tomando primero la producción más antigua dentro de los filtros actuales.</Typography>
       <Stack direction="row" gap={1} flexWrap="wrap">{Object.entries(filters).filter(([, values]) => values.length).map(([field, values]) => <Chip key={field} size="small" label={values.join(', ')} />)}</Stack>
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
-        <Autocomplete sx={{ width: { xs: '100%', sm: 320 } }} options={clients} value={selectedClient} disabled={saving || deducting} onChange={(_, client) => { setSelectedClient(client); setQuantities({}); setError(''); setDeduction(null); setAdjustedItems(null); }} renderInput={params => <TextField {...params} label="Cliente" placeholder="Selecciona un cliente" size="small" />} />
-        <Button variant="outlined" disabled={!selectedClient || saving || deducting || !!deduction} onClick={() => void subtractLatest()}>{deducting ? 'Rebajando…' : 'Rebajar última carga del cliente'}</Button>
-        {deduction && <Button disabled={saving} onClick={() => { setDeduction(null); setAdjustedItems(null); setQuantities({}); setError(''); }}>Restablecer inventario</Button>}
+      <Stack direction="row" spacing={1.5} alignItems="flex-start" sx={{ overflowX: 'auto', pt: 0.5, pb: 1 }}>
+        <Autocomplete sx={{ flex: '1 0 200px', minWidth: 200 }} options={clients} value={selectedClient} disabled={saving || deducting} onChange={(_, client) => { setSelectedClient(client); setFollowPrevious(false); setCodeLoading(false); setNotes(''); manualCode.current = ''; setCodeError(''); setPreviousCode(''); setQuantities({}); setError(''); setDeduction(null); setAdjustedItems(null); }} renderInput={params => <TextField {...params} label="Cliente" placeholder="Selecciona un cliente" size="small" />} />
+        <Button variant="outlined" size="small" sx={{ height: 40, flexShrink: 0, whiteSpace: 'nowrap' }} disabled={!selectedClient || saving || deducting || !!deduction} onClick={() => void subtractLatest()}>{deducting ? 'Rebajando…' : 'Rebajar última carga del cliente'}</Button>
+        <TextField label="Código Embarque" size="small" required sx={{ flex: '1 0 190px', minWidth: 190 }} value={notes} disabled={saving || codeLoading || followPrevious} error={!!codeError} helperText={codeLoading ? 'Buscando último código…' : codeError || (previousCode && followPrevious ? `Anterior: ${previousCode}` : 'Obligatorio')} inputProps={{ maxLength: 2000 }} onChange={event => { setNotes(event.target.value); manualCode.current = event.target.value; setCodeError(''); }} />
+        <FormControlLabel sx={{ flexShrink: 0, height: 40, m: 0, whiteSpace: 'nowrap', '& .MuiFormControlLabel-label': { fontSize: 13 } }} control={<Checkbox size="small" checked={followPrevious} disabled={saving || !selectedClient} onChange={(_, checked) => { setCodeError(''); setPreviousCode(''); setFollowPrevious(checked); setCodeLoading(checked); if (checked) manualCode.current = notes; else setNotes(manualCode.current); }} />} label="Seguir correlativo anterior" />
       </Stack>
+      {deduction && <Button disabled={saving} onClick={() => { setDeduction(null); setAdjustedItems(null); setQuantities({}); setError(''); }}>Restablecer inventario</Button>}
       {deduction && <Alert severity="success">Inventario mostrado descontando los seriales asignados de la carga #{deduction.id}. La rebaja también se aplica al calcular esta solicitud.</Alert>}
       <Alert severity="info">Solo producto con estado DISPONIBLE. Si la cantidad no alcanza, se guarda la carga parcial con el faltante. No reserva ni descuenta inventario.</Alert>
       {error && <Alert severity="error">{error}</Alert>}
@@ -95,9 +117,9 @@ export default function LoadRequestDialog({ items, filters, weightUnit, onClose,
         </Table></TableContainer>}
         <Typography variant="caption" color="text.secondary">Peso estimado según los lotes más antiguos. Se valida nuevamente al enviar. Los masters pueden agrupar varios seriales.</Typography>
       </Stack>}
-      <TextField label="Código Embarque" required helperText="Obligatorio" value={notes} disabled={saving} inputProps={{ maxLength: 2000 }} onChange={event => setNotes(event.target.value)} />
+
       <Typography fontWeight={700}>{selected.length} ítems · {selected.reduce((sum, group) => sum + Number(quantities[group.key]), 0).toLocaleString()} seriales solicitados</Typography>
     </Stack></DialogContent>
-    <DialogActions><Button onClick={onClose} disabled={saving}>Cancelar</Button><Button variant="contained" disabled={saving || deducting || invalid || !selected.length || !notes.trim()} onClick={() => void submit()}>{saving ? 'Guardando…' : 'Guardar carga'}</Button></DialogActions>
+    <DialogActions><Button onClick={onClose} disabled={saving}>Cancelar</Button><Button variant="contained" disabled={saving || deducting || codeLoading || invalid || !selected.length || !notes.trim()} onClick={() => void submit()}>{saving ? 'Guardando…' : 'Guardar carga'}</Button></DialogActions>
   </Dialog>;
 }

@@ -25,6 +25,7 @@ type PageHelp = {
 };
 
 const PAGE_HELP: Record<DashboardView, PageHelp> = {
+  'resumen-procesos': { title: 'Resumen procesos', purpose: 'Compara las libras por hora de Descabezado, Clasificado, Pelado e IQF.', sections: [{ title: 'Períodos', body: 'Hoy, semana desde el lunes, mes y año calendario hasta hoy, en hora de Honduras. Actualizar consulta nuevamente las fuentes.' }, { title: 'Cálculo', body: 'Descabezado usa las libras asignadas sin anular y la ventana diaria. Clasificado usa libras netas y horas por máquina y turno. Pelado usa libras registradas y la ventana diaria de planta. Estos procesos dividen libras entre horas válidas acumuladas. IQF conserva el promedio simple de rendimientos por grupo del reporte oficial. Sin intervalo válido se muestra —.' }] },
   'compra-materia-prima': {
     title: 'Compra de materia prima',
     purpose: 'Resume la materia prima recibida en libras WSO, su equivalente entero y cómo se reparte por proveedor, mes y talla.',

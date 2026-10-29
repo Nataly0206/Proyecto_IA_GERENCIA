@@ -1,3 +1,5 @@
+import { requirePermission } from '../middleware/sessionAuth';
+import { nextShippingCode } from '../utils/shippingCode';
 import { Router } from 'express';
 import { asyncHandler } from '../middleware/errorHandler';
 import { getInventory } from '../services/inventory.service';
@@ -17,6 +19,7 @@ import { editCandidates, applyLoadEdit, completePreload } from '../services/load
 import { subtractLoad } from '../services/load-remainder';
 
 const router = Router();
+router.use('/preloads', requirePermission('cargas'));
 const DIMENSIONS = new Set([
   'nombreCliente', 'nombreClientePrincipal', 'noOrdenCompra', 'codigoExterno',
   'fechaProduccion', 'codigoItem', 'estiloFinal', 'nombreItem', 'marca', 'talla',
@@ -43,16 +46,16 @@ function parsePreferences(value: unknown): InventoryPreferences | null {
     ...(input.filterVersion === 2 ? { filterVersion: 2 as const } : {}) };
 }
 
-router.get('/', asyncHandler(async (_req, res) => {
+router.get('/', requirePermission('inventario'), asyncHandler(async (_req, res) => {
   res.json({ items: await getInventory() });
 }));
 
-router.get('/preferences', asyncHandler(async (_req, res) => {
+router.get('/preferences', requirePermission('inventario'), asyncHandler(async (_req, res) => {
   const preferences = await getInventoryPreferences(res.locals.authUser.id);
   res.json({ preferences });
 }));
 
-router.put('/preferences', asyncHandler(async (req, res) => {
+router.put('/preferences', requirePermission('inventario'), asyncHandler(async (req, res) => {
   const preferences = parsePreferences(req.body);
   if (!preferences) {
     res.status(400).json({ error: 'Las preferencias de inventario no son válidas.' });
@@ -81,6 +84,22 @@ router.get('/preloads', asyncHandler(async (req, res) => {
     return;
   }
   res.json({ requests: await listPreloads(from as string | undefined, to as string | undefined) });
+}));
+
+router.get('/preloads/next-shipping-code', asyncHandler(async (req, res) => {
+  const client = req.query.client;
+  if (typeof client !== 'string' || !client.trim() || client.length > 500) {
+    res.status(400).json({ error: 'Selecciona un cliente válido.' }); return;
+  }
+  const load = await getLatestClientPreload(client);
+  if (!load || typeof load.notes !== 'string' || !load.notes.trim()) {
+    res.status(404).json({ error: 'Este cliente no tiene un Código Embarque anterior. Ingresa el código manualmente.' }); return;
+  }
+  const code = nextShippingCode(load.notes);
+  if (!code) {
+    res.status(422).json({ error: 'El último Código Embarque no tiene un correlativo numérico válido. Ingresa el código manualmente.' }); return;
+  }
+  res.json({ previous: load.notes.trim(), code });
 }));
 
 router.get('/preloads/latest-client', asyncHandler(async (req, res) => {

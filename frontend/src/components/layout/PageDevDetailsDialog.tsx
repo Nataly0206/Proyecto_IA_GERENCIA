@@ -54,6 +54,7 @@ const ARQUITECTURA_COMUN: DevBlock = {
 };
 
 const PAGE_DEV_DETAILS: Record<DashboardView, PageDevDetails> = {
+  'resumen-procesos': { title: 'Resumen procesos', summary: 'Matriz de productividad por proceso y período.', blocks: [{ heading: 'Datos y cálculo', bullets: ['GET /api/dashboard/resumen-procesos; permiso resumen_procesos; caché de cinco minutos con actualización forzada.', 'STB_data: DES_ASIG_LBRS_EMPLEADOS y detalle, CL_LLENADO_RECIPIENTES y detalle, PES_ASIGNACION_LIBRAS_EMPLEADOS y detalle. IQF reutiliza IQF_DAILY_RATE_QUERY de PlantaEmpacadora.', 'Períodos calendario en Honduras. Cociente de sumas para Descabezado, Clasificado y Pelado; promedio por grupo para IQF. Se excluyen intervalos sin duración válida.'] }] },
   recepcion: {
     title: 'Recepción',
     summary: 'Camarón recibido desde fincas y saldo pendiente de pasar a proceso. Fuente: STB_data.',

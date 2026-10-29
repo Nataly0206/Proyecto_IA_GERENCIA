@@ -8,7 +8,13 @@ import { requirePermission } from '../middleware/sessionAuth';
 import { getUserPreference, saveUserPreference } from '../services/user-preferences.service';
 import { getClassifiedSizeOrder, getClassifiedSizes, saveClassifiedSizeOrder } from '../services/shared-config.service';
 
+import { getProcessSummary } from '../services/process-summary.service';
+
 const router = Router();
+router.get('/resumen-procesos', requirePermission('resumen_procesos'), asyncHandler(async (req, res) => {
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Tegucigalpa', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  res.json(await withTtlCache(`resumen-procesos:v1:${today}`, 5 * 60_000, () => getProcessSummary(today), req.query.refresh === 'true'));
+}));
 
 const iqf = requirePermission('iqf');
 const pelado = requirePermission('pelado');

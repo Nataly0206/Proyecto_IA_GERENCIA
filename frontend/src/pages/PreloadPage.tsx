@@ -22,7 +22,7 @@ const totals = (request: Preload) => request.items.reduce((sum, item) => ({
   missing: sum.missing + item.missing, kg: sum.kg + item.pesoKilos,
 }), { requested: 0, assigned: 0, missing: 0, kg: 0 });
 
-export default function PreloadPage({ onInventory, userId }: { onInventory: () => void; userId: string }) {
+export default function PreloadPage({ onInventory, userId, canViewInventory }: { canViewInventory: boolean; onInventory: () => void; userId: string }) {
   const cache = useQueryClient();
   const [deleteTarget, setDeleteTarget] = useState<Preload | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -85,7 +85,7 @@ export default function PreloadPage({ onInventory, userId }: { onInventory: () =
   };
   const total = selected ? totals(selected) : null;
   return <Stack spacing={2} sx={{ height: '100%', minHeight: 0, py: 1, overflow: 'auto' }}>
-    <Stack direction="row" justifyContent="space-between" gap={2} flexWrap="wrap"><Box><Typography variant="h5" fontWeight={800}>Carga</Typography><Typography color="text.secondary">Historial de cargas guardadas y distribución de producto por antigüedad.</Typography></Box><Stack direction="row" gap={1}><Button onClick={onInventory}>Ir a Inventario PT</Button><Button variant="outlined" startIcon={<RefreshOutlinedIcon />} disabled={query.isFetching || invalidRange} onClick={() => void query.refetch()}>Actualizar</Button></Stack></Stack>
+    <Stack direction="row" justifyContent="space-between" gap={2} flexWrap="wrap"><Box><Typography variant="h5" fontWeight={800}>Carga</Typography><Typography color="text.secondary">Historial de cargas guardadas y distribución de producto por antigüedad.</Typography></Box><Stack direction="row" gap={1}>{canViewInventory && <Button onClick={onInventory}>Ir a Inventario PT</Button>}<Button variant="outlined" startIcon={<RefreshOutlinedIcon />} disabled={query.isFetching || invalidRange} onClick={() => void query.refetch()}>Actualizar</Button></Stack></Stack>
     {deletedMessage && <Alert severity="success" onClose={() => setDeletedMessage('')}>{deletedMessage}</Alert>}
     <Paper variant="outlined" sx={{ p: 2 }}><Stack spacing={2}>
       <Stack direction="row" alignItems="center" justifyContent="space-between"><Typography fontWeight={800}>Historial de cargas</Typography><IconButton size="small" aria-label={historyOpen ? 'Ocultar historial' : 'Mostrar historial'} aria-expanded={historyOpen} aria-controls="load-history" onClick={() => setHistoryOpen(open => !open)}>{historyOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}</IconButton></Stack>

@@ -6,7 +6,7 @@ Al guardar, el servidor vuelve a consultar Inventario PT, aplica los mismos filt
 
 ## Historial
 
-**Carga** comparte el permiso `inventario`. Los usuarios con ese permiso pueden ver las cargas, filtrar por fecha de creación desde/hasta (ambos días incluidos, hora de Honduras), consultar autor, referencia, seriales solicitados/asignados/faltantes y estado Completa/Con faltantes. El detalle conserva orden de compra, ítem, finca, laguna, fecha, color, código de producción, peso y seriales, con subtotales y total asignado. Los históricos no se recalculan con las existencias actuales. El peso se puede consultar en libras o kilos.
+**Carga** usa el permiso independiente `cargas`. Los usuarios con ese permiso pueden ver las cargas, filtrar por fecha de creación desde/hasta (ambos días incluidos, hora de Honduras), consultar autor, referencia, seriales solicitados/asignados/faltantes y estado Completa/Con faltantes. El detalle conserva orden de compra, ítem, finca, laguna, fecha, color, código de producción, peso y seriales, con subtotales y total asignado. Los históricos no se recalculan con las existencias actuales. El peso se puede consultar en libras o kilos.
 
 ## Persistencia y conexiones
 
@@ -64,3 +64,11 @@ Al rebajar una carga, los saldos parcialmente consumidos se identifican como par
 El botón **Actualizar precarga** del detalle consulta inventario actual y completa únicamente los faltantes hasta el objetivo guardado. Conserva asignaciones históricas, cliente, empaque y demás dimensiones del ítem; respeta **No completar** y la prioridad de códigos completos por antigüedad seguida de parciales. Puede tomar nuevas producciones y órdenes del mismo ítem, fuera de los filtros originales. Descuenta de cada existencia actual lo ya asignado en esa precarga para no duplicarlo al pulsar varias veces. Si no encuentra producto adicional, informa sin crear una revisión. Si agrega seriales, guarda la misma precarga con pesos/faltantes recalculados y una entrada en historial; valida la revisión para no sobrescribir cambios concurrentes.
 
 `POST /api/inventory/preloads/:id/refresh`: `{ revision }`, devuelve `{ added, revision }`. Solo escribe en gerencia y no modifica inventario de planta.
+
+## Permisos independientes
+
+Inventario PT requiere `inventario`; Cargas requiere `cargas`. El botón Solicitar carga solo aparece dentro de Inventario PT cuando también se tiene `cargas`. Los usuarios con solo Cargas acceden al historial y sus acciones sin acceso a Inventario PT. Todas las rutas `/api/inventory/preloads` exigen Cargas, incluidas creación, actualización, edición, eliminación y PDF. Las preferencias y consulta de inventario conservan el permiso Inventario PT. Ambos permisos se asignan por separado en Usuarios; no se otorga Cargas automáticamente a usuarios existentes con Inventario PT. Administradores conservan acceso completo.
+
+## Seguir correlativo anterior
+
+Código Embarque se captura en un campo compacto debajo del selector de cliente y antes de la tabla. El checkbox **Seguir correlativo anterior** consulta `GET /api/inventory/preloads/next-shipping-code?client=...` con permiso Cargas, usando la última carga no eliminada del cliente por fecha de creación e ID, sin filtros de inventario ni consultas a planta. Incrementa el último bloque numérico y conserva prefijos, sufijos y ceros iniciales (`EMB-0099` → `EMB-0100`). Es una sugerencia para el campo obligatorio, sin reserva de numeración. Si no hay código anterior o no contiene números, informa y habilita captura manual. Al desmarcar recupera el valor manual y al cambiar cliente limpia la selección; las búsquedas pendientes se cancelan para evitar códigos de otro cliente.

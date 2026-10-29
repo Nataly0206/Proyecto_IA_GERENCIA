@@ -277,14 +277,7 @@ export default function UsersPage({ currentUserId, onCurrentUserUpdated }: Users
               </Stack>
               <Typography variant="body2" sx={{ mt: 1, overflowWrap: 'anywhere' }}>{user.correo}</Typography>
               <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mt: 1.25 }}>
-                {user.esAdministrador ? (
-                  <Chip size="small" label="Administrador · acceso total" color="primary" variant="outlined" />
-                ) : user.permisos.length === 0 ? (
-                  <Chip size="small" label="Sin permisos" variant="outlined" />
-                ) : user.permisos.slice(0, 3).map((permiso) => (
-                  <Chip key={permiso} size="small" label={PERMISO_LABELS[permiso]} />
-                ))}
-                {!user.esAdministrador && user.permisos.length > 3 && <Chip size="small" label={`+${user.permisos.length - 3}`} variant="outlined" />}
+                <Chip size="small" label={`${user.esAdministrador ? PERMISOS.length : user.permisos.length} ${(user.esAdministrador ? PERMISOS.length : user.permisos.length) === 1 ? 'Permiso' : 'Permisos'}`} />
               </Stack>
               {!user.esAdministrador && (
                 <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mt: 1.25, pt: 1, borderTop: 1, borderColor: 'divider' }}>
@@ -317,17 +310,7 @@ export default function UsersPage({ currentUserId, onCurrentUserUpdated }: Users
                   <TableCell>{user.usuario}</TableCell>
                   <TableCell>{user.correo}</TableCell>
                   <TableCell>
-                    {user.esAdministrador ? (
-                      <Chip size="small" label="Administrador (acceso total)" color="primary" variant="outlined" />
-                    ) : user.permisos.length === 0 ? (
-                      <Typography variant="caption" color="text.secondary">Sin permisos</Typography>
-                    ) : (
-                      <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-                        {user.permisos.map((permiso) => (
-                          <Chip key={permiso} size="small" label={PERMISO_LABELS[permiso]} />
-                        ))}
-                      </Stack>
-                    )}
+                    <Chip size="small" label={`${user.esAdministrador ? PERMISOS.length : user.permisos.length} ${(user.esAdministrador ? PERMISOS.length : user.permisos.length) === 1 ? 'Permiso' : 'Permisos'}`} />
                   </TableCell>
                   <TableCell>
                     {!user.activo ? 'Inactivo' : user.debeCambiarPassword ? 'Contraseña temporal' : 'Activo'}

@@ -1,5 +1,5 @@
 export const PROCESS_NAMES = ['Descabezado', 'Clasificado', 'Pelado', 'IQF'] as const;
-export interface ProcessSample { day: string; pounds: number; hours: number }
+export interface ProcessSample { day: string; pounds: number; hours: number; machineId?: number }
 export function summaryPeriods(today: string) {
   const date = new Date(`${today}T12:00:00Z`);
   const monday = new Date(date);
@@ -18,4 +18,17 @@ export function summarizeSamples(samples: ProcessSample[], from: string, to: str
   const hours = valid.reduce((sum, row) => sum + row.hours, 0);
   const rate = averageRates ? valid.reduce((sum, row) => sum + row.pounds / row.hours, 0) / valid.length : pounds / hours;
   return { rate: Math.round(rate * 100) / 100, pounds, hours, groups: valid.length };
+}
+
+/** Sum each equipment rate, retaining the process calculation within each machine. */
+export function sumEquipmentRates(samples: ProcessSample[], from: string, to: string, averageRates = false) {
+  const equipment = [1, 2, 3].map(machineId => ({
+    machineId,
+    ...summarizeSamples(samples.filter(sample => sample.machineId === machineId), from, to, averageRates),
+  }));
+  const valid = equipment.filter(item => item.rate !== null);
+  return {
+    rate: valid.length ? Math.round(valid.reduce((sum, item) => sum + item.rate!, 0) * 100) / 100 : null,
+    equipment,
+  };
 }

@@ -14,6 +14,11 @@ const read=async(query,params)=>{
  const to=params.find(p=>p.name==='Fecha_Final').value;
  reads.push({from,to});
  const current=from===to;
+ if(query.includes('CL_LLENADO_RECIPIENTES')) return [
+  {Dia:to,Maquina:0,Libras:9000,Horas:1},
+  {Dia:to,Maquina:2,Libras:1000,Horas:2},
+  {Dia:to,Maquina:null,Libras:500,Horas:1},
+ ];
  return [{Dia:to,Libras:current?600:100,Horas:current?3:2,TotalLibras:current?600:100,TiempoHorasDecimales:current?3:2}];
 };
 stb.runStbQuery=read;plant.runQuery=read;
@@ -29,6 +34,14 @@ test('carga por proceso, comparte histórico y actualiza solo hoy sin alterar ac
  const all=await getProcessSummary(today);
  assert.equal(reads.length,8);
  assert.equal(all.rows.length,4);
+ // Only the annual Clasificado value excludes missing/unassigned machines.
+ const classified=all.rows.find(row=>row.process==='Clasificado');
+ assert.equal(classified.values.year.rate,500);
+ assert.equal(classified.values.year.pounds,2000);
+ assert.equal(classified.values.year.hours,4);
+ assert.equal(classified.values.today.rate,2625);
+ assert.equal(classified.values.week.rate,2625);
+ assert.equal(classified.values.month.rate,2625);
  assert.equal(all.rows[3].values.year.rate,125);
  await getProcessSummary(today);assert.equal(reads.length,8);
  // Simulate eviction of the shared Redis/local layer. Long history stays in memory.

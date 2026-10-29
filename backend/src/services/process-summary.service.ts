@@ -4,7 +4,7 @@ import { runQuery } from './sql.service';
 import { IQF_DAILY_RATE_QUERY } from './reports.queries';
 import { withTtlCache } from '../utils/ttlCache';
 import { pickNumber, pickString } from '../utils/rows';
-import { PROCESS_NAMES, ProcessSample, summaryPeriods, summarizeSamples } from '../utils/processSummary';
+import { PROCESS_NAMES, ProcessSample, summaryPeriods, summarizeSamples, sumEquipmentRates } from '../utils/processSummary';
 
 const DESCABEZADO = `SELECT CONVERT(varchar(10), h.FECHA, 23) AS Dia,
  SUM(d.LIBRAS) AS Libras,
@@ -13,7 +13,7 @@ const DESCABEZADO = `SELECT CONVERT(varchar(10), h.FECHA, 23) AS Dia,
  JOIN dbo.DES_ASIG_LBRS_EMPLEADOS_DET d ON d.ID_ASIG_LBRS_EMPLEADO = h.ID_ASIG_LBRS_EMPLEADO
  WHERE h.FECHA BETWEEN @Fecha_Inicial AND @Fecha_Final AND ISNULL(d.ANULADO, 0) = 0
  GROUP BY h.FECHA`;
-const CLASIFICADO = `SELECT CONVERT(varchar(10), h.FECHA, 23) AS Dia,
+const CLASIFICADO = `SELECT CONVERT(varchar(10), h.FECHA, 23) AS Dia, h.ID_TANQUE AS Maquina,
  SUM(d.LIBRAS_NETA) AS Libras,
  DATEDIFF(SECOND, MIN(d.HORA_INICIO), MAX(d.HORA_FINAL)) / 3600.0 AS Horas
  FROM dbo.CL_LLENADO_RECIPIENTES h
@@ -40,6 +40,8 @@ async function loadSamples(from: string, to: string, index: number): Promise<Pro
     day: pickString(row, 'Dia').slice(0, 10),
     pounds: pickNumber(row, index === 3 ? 'TotalLibras' : 'Libras'),
     hours: pickNumber(row, index === 3 ? 'TiempoHorasDecimales' : 'Horas'),
+    ...(index === 1 ? { machineId: pickNumber(row, 'Maquina') } : {}),
+    ...(index === 3 ? { machineId: Number(pickString(row, 'Linea').match(/\bIQF\s*[-#]?\s*(\d+)\b/i)?.[1] ?? 0) } : {}),
   }));
 }
 
@@ -68,20 +70,25 @@ export async function getProcessSummary(today: string, refresh = false, process?
   const rows = await Promise.all(PROCESS_NAMES.map(async (name, index) => {
     if (process && process !== name) return null;
     const [history, current] = await Promise.all([
-      from <= to ? loadHistory(`resumen-procesos:history-v3:${name}:${from}:${to}`,
+      from <= to ? loadHistory(`resumen-procesos:history-v5:${name}:${from}:${to}`,
         () => loadSamples(from, to, index)) : Promise.resolve([] as ProcessSample[]),
-      withTtlCache(`resumen-procesos:today-v3:${name}:${today}`, 5 * 60_000,
+      withTtlCache(`resumen-procesos:today-v5:${name}:${today}`, 5 * 60_000,
         () => loadSamples(today, today, index), refresh),
     ]);
     const samples = [...history, ...current];
     return { process: name, method: index === 3 ? 'average' : 'weighted',
-      values: Object.fromEntries(periods.map(period => [period.key, summarizeSamples(samples, period.from, period.to, index === 3)])) };
+      ...(index === 1 || index === 3 ? { sums: Object.fromEntries(periods.map(period => [
+        period.key, sumEquipmentRates(samples, period.from, period.to, index === 3),
+      ])) } : {}),
+      values: Object.fromEntries(periods.map(period => [period.key, summarizeSamples(
+        index === 1 && period.key === 'year' ? samples.filter(sample => (sample.machineId ?? 0) > 0) : samples,
+        period.from, period.to, index === 3)])) };
   }));
   return { today, updatedAt: new Date().toISOString(), periods, rows: rows.filter(row => row !== null) };
 }
 
 export function getCachedProcessSummary(today: string, refresh = false, process?: string) {
-  return withTtlCache(`resumen-procesos:v3:${today}:${process ?? 'all'}`, 5 * 60_000,
+  return withTtlCache(`resumen-procesos:v5:${today}:${process ?? 'all'}`, 5 * 60_000,
     () => getProcessSummary(today, refresh, process), refresh);
 }
 

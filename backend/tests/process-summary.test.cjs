@@ -1,6 +1,6 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {summaryPeriods,summarizeSamples}=require('../dist/utils/processSummary');
+const {summaryPeriods,summarizeSamples,sumEquipmentRates}=require('../dist/utils/processSummary');
 
 test('períodos calendario: semana de lunes y cruce de año',()=>{
  const periods=summaryPeriods('2026-01-01');
@@ -21,4 +21,19 @@ test('sin intervalo válido no se inventa rendimiento; cero real se conserva',()
  assert.equal(summarizeSamples(samples,'2026-10-29','2026-10-29').rate,null);
  assert.equal(summarizeSamples([{day:'2026-10-29',pounds:0,hours:2}],'2026-10-29','2026-10-29').rate,0);
  assert.equal(summarizeSamples([{day:'2026-10-29',pounds:100,hours:-1}],'2026-10-29','2026-10-29').rate,null);
+});
+
+test('sumatoria suma rendimientos por equipo sin incluir máquina cero ni mezclar horas entre equipos',()=>{
+ const samples=[
+  {day:'2026-10-29',machineId:0,pounds:9000,hours:1},
+  {day:'2026-10-29',machineId:1,pounds:100,hours:1},
+  {day:'2026-10-29',machineId:1,pounds:900,hours:3},
+  {day:'2026-10-29',machineId:2,pounds:1200,hours:2},
+  {day:'2026-10-29',machineId:3,pounds:100,hours:0},
+  {day:'2026-09-01',machineId:3,pounds:10000,hours:1},
+ ];
+ assert.equal(sumEquipmentRates(samples,'2026-10-01','2026-10-29').rate,850);
+ assert.equal(sumEquipmentRates(samples,'2026-10-01','2026-10-29',true).rate,800);
+ assert.equal(sumEquipmentRates([],'2026-10-01','2026-10-29').rate,null);
+ assert.equal(sumEquipmentRates([{day:'2026-10-29',machineId:1,pounds:0,hours:2}],'2026-10-01','2026-10-29').rate,0);
 });

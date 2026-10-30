@@ -41,16 +41,46 @@ export default function ProcessSummaryPage({ userId }: { userId: string }) {
     setRefreshError(results.some(result => result.status === 'rejected'));
     setRefreshing(false);
   };
-  return <Stack spacing={3} sx={{ py: 2, height: '100%', overflow: 'auto' }}>
-    <Stack direction="row" justifyContent="space-between" alignItems="center" gap={2} flexWrap="wrap">
-      <Stack direction="row" spacing={1.5} alignItems="center">
-        <Avatar variant="rounded" sx={{ bgcolor: 'primary.main', width: 46, height: 46 }}><InsightsOutlinedIcon /></Avatar>
-        <Box><Typography variant="h5" fontWeight={800}>Productividad</Typography><Typography variant="body2" color="text.secondary">Productividad de la planta · libras por hora</Typography></Box>
+  return <Stack spacing={{ xs: 1, sm: 3 }} sx={{ py: { xs: 0, sm: 2 }, height: '100%', minHeight: 0, overflow: 'auto' }}>
+    <Stack direction="row" justifyContent="space-between" alignItems="center" gap={1} flexWrap={{ xs: 'nowrap', sm: 'wrap' }}>
+      <Stack direction="row" spacing={{ xs: 0, sm: 1.5 }} alignItems="center">
+        <Avatar variant="rounded" sx={{ bgcolor: 'primary.main', display: { xs: 'none', sm: 'flex' }, width: 46, height: 46 }}><InsightsOutlinedIcon /></Avatar>
+        <Box><Typography variant="h5" fontWeight={800} sx={{ fontSize: { xs: 21, sm: 24 } }}>Productividad</Typography><Typography variant="body2" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>Productividad de la planta · libras por hora</Typography></Box>
       </Stack>
-      <Button variant="outlined" startIcon={<RefreshOutlinedIcon />} disabled={refreshing || fetching} onClick={() => void refresh()}>{refreshing || fetching ? 'Actualizando…' : 'Actualizar'}</Button>
+      <Button sx={{ flexShrink: 0, fontSize: { xs: 12, sm: 14 }, px: { xs: 1, sm: 2 } }} variant="outlined" startIcon={<RefreshOutlinedIcon />} disabled={refreshing || fetching} onClick={() => void refresh()}>{refreshing || fetching ? 'Actualizando…' : 'Actualizar'}</Button>
     </Stack>
     {(failed || refreshError) && <Alert severity="error">No se pudo actualizar el resumen. Intenta nuevamente con Actualizar.</Alert>}
-    <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden', flexShrink: 0 }}>
+    <Stack spacing={0.75} sx={{ display: { xs: 'flex', sm: 'none' } }}>
+      <Typography variant="caption" color="text.secondary">Rendimiento · lbs/h</Typography>
+      {processes.map((process, index) => {
+        const query = queries[index];
+        const row = query.data?.rows[0];
+        const sum = row?.sums?.today;
+        return <Paper key={process} variant="outlined" sx={{ px: 1.25, py: 1, borderRadius: 2 }}>
+          <Stack direction="row" justifyContent="space-between" alignItems="center" gap={0.5} mb={0.75}>
+            <Typography fontWeight={800} sx={{ fontSize: 13, color: colors[index] }}>{process}</Typography>
+            {(process === 'Clasificado' || process === 'IQF') && <Tooltip title={sum?.equipment.map(item => `${process === 'IQF' ? 'IQF' : 'Máquina'} ${item.machineId}: ${item.rate === null ? '—' : number(item.rate)} lbs/h`).join(' · ') ?? 'Suma de los rendimientos de los equipos 1, 2 y 3 de hoy'}>
+              <Typography variant="caption" sx={{ fontSize: 11 }}>Sumatoria hoy: <Box component="span" sx={{ fontWeight: 800 }}>{sum ? sum.rate === null ? '—' : number(sum.rate) : query.isError ? 'Error' : '…'}</Box></Typography>
+            </Tooltip>}
+          </Stack>
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 0.5 }}>
+            {['today', 'week', 'month', 'year'].map((key, column) => {
+              const value = row?.values[key];
+              const period = data?.periods.find(item => item.key === key);
+              return <Tooltip key={key} title={period ? `${period.from} – ${period.to}` : ''}>
+                <Box sx={{ minWidth: 0, textAlign: 'center', bgcolor: column === 0 ? 'rgba(0,127,187,.06)' : 'transparent', borderRadius: 1, py: 0.25 }}>
+                  <Typography color="text.secondary" sx={{ fontSize: 10 }}>{['Hoy', 'Semana', 'Mes', 'Anual'][column]}</Typography>
+                  {!value && !query.isError ? <Skeleton width="80%" sx={{ mx: 'auto' }} /> : <Typography sx={{ fontSize: 'clamp(11px, 3.5vw, 16px)', lineHeight: 1.5, fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: column === 0 ? 'primary.main' : 'text.primary' }}>{query.isError && !value ? 'Error' : value?.rate == null ? '—' : number(value.rate)}</Typography>}
+                </Box>
+              </Tooltip>;
+            })}
+          </Box>
+        </Paper>;
+      })}
+      {(fetching || refreshing) && <LinearProgress sx={{ height: 2 }} />}
+      <Typography color="text.secondary" sx={{ fontSize: 10 }}>{updatedAt ? `Actualizado ${new Date(updatedAt).toLocaleString('es-HN', { timeZone: 'America/Tegucigalpa' })}` : 'Esperando datos'}</Typography>
+    </Stack>
+    <Paper variant="outlined" sx={{ display: { xs: 'none', sm: 'block' }, borderRadius: 2, overflow: 'hidden', flexShrink: 0 }}>
       <Stack direction="row" justifyContent="space-between" gap={2} flexWrap="wrap" sx={{ p: 2.5, borderBottom: 1, borderColor: 'divider' }}>
         <Box><Typography fontWeight={800}>Rendimiento por proceso</Typography><Typography variant="body2" color="text.secondary">Una vista de hoy y del acumulado de cada período.</Typography></Box>
         <Chip size="small" label="lbs / hora" color="primary" variant="outlined" />

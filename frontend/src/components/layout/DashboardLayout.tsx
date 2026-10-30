@@ -1,9 +1,10 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import {
   AppBar,
   Box,
   Button,
   Container,
+  Collapse,
   Divider,
   Drawer,
   IconButton,
@@ -18,6 +19,8 @@ import {
   useMediaQuery,
   useTheme,
 } from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import MenuIcon from '@mui/icons-material/Menu';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import RefreshOutlinedIcon from '@mui/icons-material/RefreshOutlined';
@@ -47,7 +50,7 @@ import { Menu, MenuItem } from '@mui/material';
 import { AuthUser } from '../../types/auth';
 import AiAssistantPanel from '../ai/AiAssistantPanel';
 import { useRefreshDashboard } from '../../hooks/useDashboardData';
-import { tienePermiso } from '../../config/permissions';
+import { Permiso, tienePermiso } from '../../config/permissions';
 import PageHelpDialog from './PageHelpDialog';
 import PageDevDetailsDialog from './PageDevDetailsDialog';
 
@@ -77,7 +80,41 @@ interface DashboardLayoutProps {
   onViewChange: (view: DashboardView) => void;
 }
 
-const SIDEBAR_OPEN = 196;
+interface NavigationGroup {
+  id: string;
+  label: string;
+  icon: ReactNode;
+  items: { view: DashboardView; label: string; permission: Permiso; icon: ReactNode }[];
+}
+
+const NAVIGATION_GROUPS: NavigationGroup[] = [
+  { id: 'resumen', label: 'Resumen gerencial', icon: <BarChartOutlinedIcon fontSize="small" />, items: [
+    { view: 'resumen-procesos', label: 'Productividad', permission: 'resumen_procesos', icon: <TrendingUpOutlinedIcon fontSize="small" /> },
+    { view: 'rankings', label: 'Rankings', permission: 'rankings', icon: <EmojiEventsOutlinedIcon fontSize="small" /> },
+    { view: 'rendimientos', label: 'Rendimientos', permission: 'rendimientos', icon: <SpeedOutlinedIcon fontSize="small" /> },
+    { view: 'power-bi', label: 'Power BI', permission: 'power_bi', icon: <BarChartOutlinedIcon fontSize="small" /> },
+  ] },
+  { id: 'produccion', label: 'Producción', icon: <SetMealOutlinedIcon fontSize="small" />, items: [
+    { view: 'compra-materia-prima', label: 'Compra de materia prima', permission: 'compra_materia_prima', icon: <ShoppingCartOutlinedIcon fontSize="small" /> },
+    { view: 'recepcion', label: 'Recepción', permission: 'recepcion', icon: <MoveToInboxOutlinedIcon fontSize="small" /> },
+    { view: 'inventario-fresco', label: 'Inventario fresco', permission: 'inventario_fresco', icon: <KitchenOutlinedIcon fontSize="small" /> },
+    { view: 'descabezado', label: 'Descabezado', permission: 'descabezado', icon: <SetMealOutlinedIcon fontSize="small" /> },
+    { view: 'clasificado', label: 'Clasificado', permission: 'clasificado', icon: <SortOutlinedIcon fontSize="small" /> },
+    { view: 'pelado', label: 'Pelado', permission: 'pelado', icon: <ContentCutOutlinedIcon fontSize="small" /> },
+    { view: 'dashboard', label: 'IQF', permission: 'iqf', icon: <AcUnitOutlinedIcon fontSize="small" /> },
+  ] },
+  { id: 'inventario', label: 'Exportaciones', icon: <LocalShippingOutlinedIcon fontSize="small" />, items: [
+    { view: 'inventory', label: 'Inventario PT', permission: 'inventario', icon: <Inventory2OutlinedIcon fontSize="small" /> },
+    { view: 'carga', label: 'Carga', permission: 'cargas', icon: <AssignmentOutlinedIcon fontSize="small" /> },
+    { view: 'exportaciones', label: 'Exportaciones', permission: 'exportaciones', icon: <LocalShippingOutlinedIcon fontSize="small" /> },
+  ] },
+  { id: 'administracion', label: 'Administración', icon: <PeopleOutlineIcon fontSize="small" />, items: [
+    { view: 'prestamos', label: 'Préstamos', permission: 'prestamos', icon: <AccountBalanceOutlinedIcon fontSize="small" /> },
+    { view: 'users', label: 'Usuarios', permission: 'usuarios', icon: <PeopleOutlineIcon fontSize="small" /> },
+  ] },
+];
+
+const SIDEBAR_OPEN = 248;
 const SIDEBAR_CLOSED = 64;
 
 export default function DashboardLayout({
@@ -98,6 +135,29 @@ export default function DashboardLayout({
   const [devDetailsOpen, setDevDetailsOpen] = useState(false);
   const [mobileActionsAnchor, setMobileActionsAnchor] = useState<HTMLElement | null>(null);
   const refreshDashboard = useRefreshDashboard();
+  const visibleGroups = NAVIGATION_GROUPS.map(group => ({
+    ...group, items: group.items.filter(item => tienePermiso(user, item.permission)),
+  })).filter(group => group.items.length > 0);
+  const activeGroupId = visibleGroups.find(group => group.items.some(item => item.view === currentView))?.id;
+  const navigationStorageKey = `dashboard-navigation-group:${user.id}`;
+  const [openGroup, setOpenGroup] = useState<string | null>(activeGroupId ?? null);
+
+  useEffect(() => {
+    let remembered: string | null = null;
+    try { remembered = localStorage.getItem(navigationStorageKey); } catch { /* Storage may be unavailable. */ }
+    setOpenGroup(activeGroupId ?? remembered);
+  }, [activeGroupId, navigationStorageKey]);
+
+  const toggleGroup = (groupId: string, expanded: boolean) => {
+    const next = expanded && openGroup === groupId ? null : groupId;
+    setOpenGroup(next);
+    if (!isMobile) setSidebarOpen(true);
+    try {
+      if (next) localStorage.setItem(navigationStorageKey, next);
+      else localStorage.removeItem(navigationStorageKey);
+    } catch { /* Navigation works without storage. */ }
+  };
+
 
   const handleRefresh = async () => {
     if (isRefreshing) return;
@@ -128,223 +188,35 @@ export default function DashboardLayout({
           Navegación
         </Typography>
       </Box>
-      <List sx={{ px: 1, pt: 0, flex: 1, minHeight: 0, overflowY: 'auto' }}>
-        {tienePermiso(user, 'compra_materia_prima') && (
-          <Tooltip title={expanded ? '' : 'Compra de materia Prima'} placement="right">
-          <ListItemButton
-            selected={currentView === 'compra-materia-prima'}
-            onClick={() => navigate('compra-materia-prima')}
-            sx={{ minHeight: 42, px: 1.25, borderRadius: 1, mb: 0.5 }}
-          >
-            <ListItemIcon sx={{ minWidth: expanded ? 36 : 0, justifyContent: 'center' }}>
-              <ShoppingCartOutlinedIcon fontSize="small" />
-            </ListItemIcon>
-            {expanded && <ListItemText primary="Compra de materia Prima" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
-          </ListItemButton>
-          </Tooltip>
-        )}
-        {tienePermiso(user, 'recepcion') && (
-          <Tooltip title={expanded ? '' : 'Recepción'} placement="right">
-          <ListItemButton
-            selected={currentView === 'recepcion'}
-            onClick={() => navigate('recepcion')}
-            sx={{ minHeight: 42, px: 1.25, borderRadius: 1, mb: 0.5 }}
-          >
-            <ListItemIcon sx={{ minWidth: expanded ? 36 : 0, justifyContent: 'center' }}>
-              <MoveToInboxOutlinedIcon fontSize="small" />
-            </ListItemIcon>
-            {expanded && <ListItemText primary="Recepción" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
-          </ListItemButton>
-          </Tooltip>
-        )}
-        {tienePermiso(user, 'descabezado') && (
-          <Tooltip title={expanded ? '' : 'Descabezado'} placement="right">
-          <ListItemButton
-            selected={currentView === 'descabezado'}
-            onClick={() => navigate('descabezado')}
-            sx={{ minHeight: 42, px: 1.25, borderRadius: 1, mb: 0.5 }}
-          >
-            <ListItemIcon sx={{ minWidth: expanded ? 36 : 0, justifyContent: 'center' }}>
-              <SetMealOutlinedIcon fontSize="small" />
-            </ListItemIcon>
-            {expanded && <ListItemText primary="Descabezado" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
-          </ListItemButton>
-          </Tooltip>
-        )}
-        {tienePermiso(user, 'clasificado') && (
-          <Tooltip title={expanded ? '' : 'Clasificado'} placement="right">
-          <ListItemButton
-            selected={currentView === 'clasificado'}
-            onClick={() => navigate('clasificado')}
-            sx={{ minHeight: 42, px: 1.25, borderRadius: 1, mb: 0.5 }}
-          >
-            <ListItemIcon sx={{ minWidth: expanded ? 36 : 0, justifyContent: 'center' }}>
-              <SortOutlinedIcon fontSize="small" />
-            </ListItemIcon>
-            {expanded && <ListItemText primary="Clasificado" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
-          </ListItemButton>
-          </Tooltip>
-        )}
-        {tienePermiso(user, 'pelado') && (
-          <Tooltip title={expanded ? '' : 'Pelado'} placement="right">
-            <ListItemButton
-              selected={currentView === 'pelado'}
-              onClick={() => navigate('pelado')}
-              sx={{ minHeight: 42, px: 1.25, borderRadius: 1, mb: 0.5 }}
-            >
-              <ListItemIcon sx={{ minWidth: expanded ? 36 : 0, justifyContent: 'center' }}>
-                <ContentCutOutlinedIcon fontSize="small" />
-              </ListItemIcon>
-              {expanded && <ListItemText primary="Pelado" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
-            </ListItemButton>
-          </Tooltip>
-        )}
-        {tienePermiso(user, 'iqf') && (
-          <Tooltip title={expanded ? '' : 'IQF'} placement="right">
-            <ListItemButton
-              selected={currentView === 'dashboard'}
-              onClick={() => navigate('dashboard')}
-              sx={{ minHeight: 42, px: 1.25, borderRadius: 1, mb: 0.5 }}
-            >
-              <ListItemIcon sx={{ minWidth: expanded ? 36 : 0, justifyContent: 'center' }}>
-                <AcUnitOutlinedIcon fontSize="small" />
-              </ListItemIcon>
-              {expanded && <ListItemText primary="IQF" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
-            </ListItemButton>
-          </Tooltip>
-        )}
-        {tienePermiso(user, 'exportaciones') && (
-          <Tooltip title={expanded ? '' : 'Exportaciones'} placement="right">
-          <ListItemButton
-            selected={currentView === 'exportaciones'}
-            onClick={() => navigate('exportaciones')}
-            sx={{ minHeight: 42, px: 1.25, borderRadius: 1, mb: 0.5 }}
-          >
-            <ListItemIcon sx={{ minWidth: expanded ? 36 : 0, justifyContent: 'center' }}>
-              <LocalShippingOutlinedIcon fontSize="small" />
-            </ListItemIcon>
-            {expanded && <ListItemText primary="Exportaciones" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
-          </ListItemButton>
-          </Tooltip>
-        )}
-        {tienePermiso(user, 'inventario') && (
-          <Tooltip title={expanded ? '' : 'Inventario PT'} placement="right">
-            <ListItemButton
-              selected={currentView === 'inventory'}
-              onClick={() => navigate('inventory')}
-              sx={{ minHeight: 42, px: 1.25, borderRadius: 1, mb: 0.5 }}
-            >
-              <ListItemIcon sx={{ minWidth: expanded ? 36 : 0, justifyContent: 'center' }}>
-                <Inventory2OutlinedIcon fontSize="small" />
-              </ListItemIcon>
-              {expanded && <ListItemText primary="Inventario PT" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
-            </ListItemButton>
-          </Tooltip>
-        )}
-        {tienePermiso(user, 'cargas') && (
-          <Tooltip title={expanded ? '' : 'Carga'} placement="right">
-            <ListItemButton selected={currentView === 'carga'} onClick={() => navigate('carga')}
-              sx={{ minHeight: 42, px: 1.25, borderRadius: 1, mb: 0.5 }}>
-              <ListItemIcon sx={{ minWidth: expanded ? 36 : 0, justifyContent: 'center' }}><AssignmentOutlinedIcon fontSize="small" /></ListItemIcon>
-              {expanded && <ListItemText primary="Carga" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
-            </ListItemButton>
-          </Tooltip>
-        )}
-        {tienePermiso(user, 'inventario_fresco') && (
-          <Tooltip title={expanded ? '' : 'Inventario Fresco'} placement="right">
-            <ListItemButton selected={currentView === 'inventario-fresco'} onClick={() => navigate('inventario-fresco')}
-              sx={{ minHeight: 42, px: 1.25, borderRadius: 1, mb: 0.5 }}>
-              <ListItemIcon sx={{ minWidth: expanded ? 36 : 0, justifyContent: 'center' }}>
-                <KitchenOutlinedIcon fontSize="small" />
-              </ListItemIcon>
-              {expanded && <ListItemText primary="Inventario Fresco" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
-            </ListItemButton>
-          </Tooltip>
-        )}
-        {tienePermiso(user, 'prestamos') && (
-          <Tooltip title={expanded ? '' : 'Préstamos'} placement="right">
-            <ListItemButton
-              selected={currentView === 'prestamos'}
-              onClick={() => navigate('prestamos')}
-              sx={{ minHeight: 42, px: 1.25, borderRadius: 1, mb: 0.5 }}
-            >
-              <ListItemIcon sx={{ minWidth: expanded ? 36 : 0, justifyContent: 'center' }}>
-                <AccountBalanceOutlinedIcon fontSize="small" />
-              </ListItemIcon>
-              {expanded && <ListItemText primary="Préstamos" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
-            </ListItemButton>
-          </Tooltip>
-        )}
-        {tienePermiso(user, 'resumen_procesos') && (
-          <Tooltip title={expanded ? '' : 'Productividad'} placement="right">
-            <ListItemButton
-              selected={currentView === 'resumen-procesos'}
-              onClick={() => navigate('resumen-procesos')}
-              sx={{ minHeight: 42, px: 1.25, borderRadius: 1, mb: 0.5 }}
-            >
-              <ListItemIcon sx={{ minWidth: expanded ? 36 : 0, justifyContent: 'center' }}>
-                <TrendingUpOutlinedIcon fontSize="small" />
-              </ListItemIcon>
-              {expanded && <ListItemText primary="Productividad" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
-            </ListItemButton>
-          </Tooltip>
-        )}
-        {tienePermiso(user, 'rankings') && (
-          <Tooltip title={expanded ? '' : 'Rankings'} placement="right">
-            <ListItemButton
-              selected={currentView === 'rankings'}
-              onClick={() => navigate('rankings')}
-              sx={{ minHeight: 42, px: 1.25, borderRadius: 1, mb: 0.5 }}
-            >
-              <ListItemIcon sx={{ minWidth: expanded ? 36 : 0, justifyContent: 'center' }}>
-                <EmojiEventsOutlinedIcon fontSize="small" />
-              </ListItemIcon>
-              {expanded && <ListItemText primary="Rankings" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
-            </ListItemButton>
-          </Tooltip>
-        )}
-        {tienePermiso(user, 'rendimientos') && (
-          <Tooltip title={expanded ? '' : 'Rendimientos'} placement="right">
-            <ListItemButton
-              selected={currentView === 'rendimientos'}
-              onClick={() => navigate('rendimientos')}
-              sx={{ minHeight: 42, px: 1.25, borderRadius: 1, mb: 0.5 }}
-            >
-              <ListItemIcon sx={{ minWidth: expanded ? 36 : 0, justifyContent: 'center' }}>
-                <SpeedOutlinedIcon fontSize="small" />
-              </ListItemIcon>
-              {expanded && <ListItemText primary="Rendimientos" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
-            </ListItemButton>
-          </Tooltip>
-        )}
-        {tienePermiso(user, 'power_bi') && (
-          <Tooltip title={expanded ? '' : 'Power BI'} placement="right">
-            <ListItemButton
-              selected={currentView === 'power-bi'}
-              onClick={() => navigate('power-bi')}
-              sx={{ minHeight: 42, px: 1.25, borderRadius: 1, mb: 0.5 }}
-            >
-              <ListItemIcon sx={{ minWidth: expanded ? 36 : 0, justifyContent: 'center' }}>
-                <BarChartOutlinedIcon fontSize="small" />
-              </ListItemIcon>
-              {expanded && <ListItemText primary="Power BI" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
-            </ListItemButton>
-          </Tooltip>
-        )}
-        {tienePermiso(user, 'usuarios') && (
-          <Tooltip title={expanded ? '' : 'Usuarios'} placement="right">
-            <ListItemButton
-              selected={currentView === 'users'}
-              onClick={() => navigate('users')}
-              sx={{ minHeight: 42, px: 1.25, borderRadius: 1 }}
-            >
-              <ListItemIcon sx={{ minWidth: expanded ? 36 : 0, justifyContent: 'center' }}>
-                <PeopleOutlineIcon fontSize="small" />
-              </ListItemIcon>
-              {expanded && <ListItemText primary="Usuarios" primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }} />}
-            </ListItemButton>
-          </Tooltip>
-        )}
+      <List component="nav" aria-label="Menú principal" sx={{ px: 1, pt: 0, flex: 1, minHeight: 0, overflowY: 'auto' }}>
+        {visibleGroups.map(group => {
+          const active = group.id === activeGroupId;
+          const open = expanded && openGroup === group.id;
+          return <Box key={group.id} sx={{ mb: 0.5 }}>
+            <Tooltip title={expanded ? '' : group.label} placement="right">
+              <ListItemButton selected={active} onClick={() => toggleGroup(group.id, expanded)}
+                aria-label={group.label} aria-expanded={open} aria-controls={`navigation-${group.id}`}
+                sx={{ minHeight: 44, px: 1.25, borderRadius: 1.5, color: active ? 'primary.main' : 'text.primary' }}>
+                <ListItemIcon sx={{ minWidth: expanded ? 34 : 0, justifyContent: 'center', color: 'inherit' }}>{group.icon}</ListItemIcon>
+                {expanded && <>
+                  <ListItemText primary={group.label} primaryTypographyProps={{ fontWeight: 800, fontSize: 13 }} />
+                  {open ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                </>}
+              </ListItemButton>
+            </Tooltip>
+            <Collapse in={open} timeout="auto" unmountOnExit>
+              <List id={`navigation-${group.id}`} disablePadding aria-label={group.label}
+                sx={{ ml: 2.75, pl: 0.75, mt: 0.5, borderLeft: 1, borderColor: 'divider' }}>
+                {group.items.map(item => <ListItemButton key={item.view} selected={currentView === item.view}
+                  aria-current={currentView === item.view ? 'page' : undefined}
+                  onClick={() => navigate(item.view)} sx={{ minHeight: 40, px: 1, borderRadius: 1, mb: 0.25 }}>
+                  <ListItemIcon sx={{ minWidth: 28, color: currentView === item.view ? 'primary.main' : 'text.secondary' }}>{item.icon}</ListItemIcon>
+                  <ListItemText primary={item.label} primaryTypographyProps={{ fontSize: 12, fontWeight: currentView === item.view ? 800 : 600 }} />
+                </ListItemButton>)}
+              </List>
+            </Collapse>
+          </Box>;
+        })}
       </List>
       <Divider />
       <Stack spacing={0.25} sx={{ p: 1 }}>

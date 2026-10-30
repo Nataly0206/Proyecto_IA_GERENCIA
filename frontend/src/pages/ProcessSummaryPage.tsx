@@ -10,8 +10,7 @@ import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 
 interface SummaryValue { rate: number | null; pounds: number; hours: number; groups: number }
-interface EquipmentSum { rate: number | null; equipment: (SummaryValue & { machineId: number })[] }
-interface Summary { today: string; updatedAt: string; periods: { key: string; label: string; from: string; to: string }[]; rows: { process: string; method: string; values: Record<string, SummaryValue>; sums?: Record<string, EquipmentSum> }[] }
+interface Summary { today: string; updatedAt: string; periods: { key: string; label: string; from: string; to: string }[]; rows: { process: string; method: string; values: Record<string, SummaryValue> }[] }
 const processes = ['Descabezado', 'Clasificado', 'Pelado', 'IQF'];
 const colors = ['#c87822', '#008b83', '#5476bb', '#007fbb'];
 const icons = [<ContentCutOutlinedIcon />, <SortOutlinedIcon />, <SetMealOutlinedIcon />, <AcUnitOutlinedIcon />];
@@ -55,13 +54,10 @@ export default function ProcessSummaryPage({ userId }: { userId: string }) {
       {processes.map((process, index) => {
         const query = queries[index];
         const row = query.data?.rows[0];
-        const sum = row?.sums?.today;
         return <Paper key={process} variant="outlined" sx={{ px: 1.25, py: 1, borderRadius: 2 }}>
           <Stack direction="row" justifyContent="space-between" alignItems="center" gap={0.5} mb={0.75}>
             <Typography fontWeight={800} sx={{ fontSize: 13, color: colors[index] }}>{process}</Typography>
-            {(process === 'Clasificado' || process === 'IQF') && <Tooltip title={sum?.equipment.map(item => `${process === 'IQF' ? 'IQF' : 'Máquina'} ${item.machineId}: ${item.rate === null ? '—' : number(item.rate)} lbs/h`).join(' · ') ?? 'Suma de los rendimientos de los equipos 1, 2 y 3 de hoy'}>
-              <Typography variant="caption" sx={{ fontSize: 11 }}>Sumatoria hoy: <Box component="span" sx={{ fontWeight: 800 }}>{sum ? sum.rate === null ? '—' : number(sum.rate) : query.isError ? 'Error' : '…'}</Box></Typography>
-            </Tooltip>}
+
           </Stack>
           <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 0.5 }}>
             {['today', 'week', 'month', 'year'].map((key, column) => {
@@ -86,22 +82,18 @@ export default function ProcessSummaryPage({ userId }: { userId: string }) {
         <Chip size="small" label="lbs / hora" color="primary" variant="outlined" />
       </Stack>
       {(fetching || refreshing) && <LinearProgress sx={{ height: 2 }} />}
-      <TableContainer><Table aria-label="Resumen de libras por hora por proceso" sx={{ minWidth: 980, '& th, & td': { borderColor: 'divider' } }}>
+      <TableContainer><Table aria-label="Resumen de libras por hora por proceso" sx={{ minWidth: 760, '& th, & td': { borderColor: 'divider' } }}>
         <TableHead><TableRow sx={{ bgcolor: '#f5f8fc' }}>
           <TableCell sx={{ pl: 3, fontWeight: 800, width: '24%' }}>Proceso</TableCell>
           {(data?.periods ?? ['Hoy', 'Semana', 'Mes', 'Anual'].map(label => ({ key: label, label, from: '', to: '' }))).map((period, index) => <TableCell key={period.key} align="right" sx={{ py: 2.5, pr: 3, bgcolor: index === 0 ? 'rgba(0,127,187,.06)' : undefined }}>
             <Typography fontWeight={800} color={index === 0 ? 'primary.main' : 'text.primary'}>Lbs x hr {period.label.toLowerCase()}</Typography>
             <Typography variant="caption" color="text.secondary">{period.from ? period.from === period.to ? dateLabel(period.to) : `${dateLabel(period.from)} – ${dateLabel(period.to)}` : 'Cargando período…'}</Typography>
           </TableCell>)}
-          <TableCell align="right" sx={{ pr: 3, minWidth: 170 }}>
-            <Typography fontWeight={800}>Sumatoria</Typography>
-            <Typography variant="caption" color="text.secondary">Hoy · lbs/h</Typography>
-          </TableCell>
+
         </TableRow></TableHead>
         <TableBody>{processes.map((process, index) => {
           const query = queries[index];
           const row = query.data?.rows[0];
-          const sum = row?.sums?.today;
           return <TableRow key={process} hover sx={{ '&:last-child td, &:last-child th': { borderBottom: 0 } }}>
           <TableCell component="th" scope="row" sx={{ pl: 3, py: 3.5 }}><Stack direction="row" spacing={1.5} alignItems="center"><Avatar variant="rounded" sx={{ bgcolor: `${colors[index]}14`, color: colors[index], width: 38, height: 38 }}>{icons[index]}</Avatar><Typography fontWeight={800}>{process}</Typography></Stack></TableCell>
           {(data?.periods ?? ['today', 'week', 'month', 'year'].map(key => ({ key }))).map((period, column) => { const value = row?.values[period.key]; return <TableCell key={period.key} align="right" sx={{ pr: 3, bgcolor: column === 0 ? 'rgba(0,127,187,.025)' : undefined }}>
@@ -109,17 +101,10 @@ export default function ProcessSummaryPage({ userId }: { userId: string }) {
               <Typography component="span" sx={{ fontSize: { xs: 20, md: 26 }, fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: column === 0 ? 'primary.main' : 'text.primary' }}>{value.rate === null ? '—' : number(value.rate)}</Typography>
             </Tooltip>}
           </TableCell>; })}
-          <TableCell align="right" sx={{ pr: 3 }}>
-            {process !== 'Clasificado' && process !== 'IQF' ? <Typography color="text.secondary">—</Typography>
-              : !sum ? query.isError ? <Typography color="error.main" variant="caption">No disponible</Typography> : <Skeleton width={80} sx={{ ml: 'auto' }} />
-              : <Tooltip title={sum.equipment.map(item => `${process === 'IQF' ? 'IQF' : 'Máquina'} ${item.machineId}: ${item.rate === null ? 'sin intervalo válido' : `${number(item.rate)} lbs/h`}`).join(' · ')}>
-                <Typography component="span" sx={{ fontSize: { xs: 20, md: 26 }, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{sum.rate === null ? '—' : number(sum.rate)}</Typography>
-              </Tooltip>}
-          </TableCell>
+
         </TableRow>; })}</TableBody>
       </Table></TableContainer>
       <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="flex-end" gap={1} sx={{ px: 3, py: 2, bgcolor: '#f8fafc', borderTop: 1, borderColor: 'divider' }}>
-        <Typography variant="caption" color="text.secondary" sx={{ mr: 'auto' }}>Sumatoria: suma de lbs/h de los equipos 1, 2 y 3 con intervalo válido.</Typography>
         <Typography variant="caption" color="text.secondary">{updatedAt ? `Actualizado ${new Date(updatedAt).toLocaleString('es-HN', { timeZone: 'America/Tegucigalpa' })}` : 'Esperando datos'}</Typography>
       </Stack>
     </Paper>

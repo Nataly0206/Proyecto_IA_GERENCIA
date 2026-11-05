@@ -486,6 +486,19 @@ GROUP BY CASE WHEN tanque.ID_TANQUE IS NOT NULL
 // para las libras, porque existen exportaciones terrestres sin ese dato.
 const EXPORT_SHIP_FILTER = "e.TipoDestino = 1 AND LTRIM(RTRIM(e.ReferenciaEnvio)) LIKE 'EXPORT-%'";
 
+// El destino de la OP prevalece sobre el propietario del lote de origen.
+// Se conserva la agrupación por cliente principal usada por los filtros.
+const EXPORT_CLIENT_JOINS = `
+LEFT JOIN dbo.Empresas destino ON destino.IDEmpresa = NULLIF(op.fkClienteDestinoOP, 0)
+LEFT JOIN dbo.ClientesProduccion clienteDestino ON clienteDestino.IDCliente = destino.fkClienteProduccion`;
+
+function exportClientSql(lote: 'lr' | 'v'): string {
+  return `COALESCE(NULLIF(LTRIM(RTRIM(clienteDestino.NombreCliente)), ''),
+    NULLIF(LTRIM(RTRIM(destino.Empresa)), ''),
+    NULLIF(LTRIM(RTRIM(${lote}.NombreGrupo)), ''),
+    NULLIF(LTRIM(RTRIM(${lote}.Empresa)), ''), 'Sin cliente')`;
+}
+
 function exportacionesGroupsQuery(soloContenedores: boolean): string {
   return `
 WITH ItemAnillos AS (
@@ -501,7 +514,7 @@ SELECT
   e.NumeroContenedor AS Contenedor,
   e.ReferenciaEnvio AS Referencia,
   e.CodigoEmbarque AS CodigoEmbarque,
-  COALESCE(NULLIF(LTRIM(RTRIM(lr.NombreGrupo)), ''), NULLIF(LTRIM(RTRIM(lr.Empresa)), ''), 'Sin cliente') AS Cliente,
+  ${exportClientSql('lr')} AS Cliente,
   COALESCE(NULLIF(LTRIM(RTRIM(i.EstiloFinal)), ''), 'Sin estilo') AS Estilo,
   COUNT(DISTINCT m.CodigoMaster) AS Masteres,
   COUNT(DISTINCT m.CodigoMaster) * COALESCE(ia.AnillosPorMaster, 0) AS Anillos,
@@ -513,12 +526,13 @@ JOIN dbo.Seriales s ON s.FkMaster = m.IdMaster
 JOIN dbo.OrdenesProduccion op ON op.IdOrdenProduccion = s.FkOrdenProduccion
 JOIN dbo.AV_Items i ON i.IdItem = op.FkItem
 JOIN dbo.AV_LotesRemision lr ON lr.IdLoteRemision = op.FkLoteRemision
+${EXPORT_CLIENT_JOINS}
 LEFT JOIN ItemAnillos ia ON ia.fkItem = i.IdItem
 WHERE e.FechaCarga BETWEEN @Fecha_Inicial AND @Fecha_Final
   AND ${EXPORT_SHIP_FILTER}
   ${soloContenedores ? "AND NULLIF(LTRIM(RTRIM(e.NumeroContenedor)), '') IS NOT NULL" : ''}
 GROUP BY e.FechaCarga, e.NumeroContenedor, e.ReferenciaEnvio, e.CodigoEmbarque,
-  COALESCE(NULLIF(LTRIM(RTRIM(lr.NombreGrupo)), ''), NULLIF(LTRIM(RTRIM(lr.Empresa)), ''), 'Sin cliente'),
+  ${exportClientSql('lr')},
   COALESCE(NULLIF(LTRIM(RTRIM(i.EstiloFinal)), ''), 'Sin estilo'), i.IdItem, ia.AnillosPorMaster
 `;
 }
@@ -542,7 +556,7 @@ SELECT
   e.FechaCarga AS Dia,
   e.ReferenciaEnvio AS Referencia,
   e.CodigoEmbarque AS CodigoEmbarque,
-  COALESCE(NULLIF(LTRIM(RTRIM(lr.NombreGrupo)), ''), NULLIF(LTRIM(RTRIM(lr.Empresa)), ''), 'Sin cliente') AS Cliente,
+  ${exportClientSql('lr')} AS Cliente,
   COALESCE(NULLIF(LTRIM(RTRIM(op.NoOrdenCompra)), ''), 'Sin orden') AS OrdenCompra,
   COALESCE(NULLIF(LTRIM(RTRIM(i.Item)), ''), 'Sin ítem') AS Item,
   COALESCE(ia.AnillosPorMaster, 0) AS AnillosPorMaster,
@@ -555,13 +569,14 @@ JOIN dbo.Seriales s ON s.FkMaster = m.IdMaster
 JOIN dbo.OrdenesProduccion op ON op.IdOrdenProduccion = s.FkOrdenProduccion
 JOIN dbo.AV_Items i ON i.IdItem = op.FkItem
 JOIN dbo.AV_LotesRemision lr ON lr.IdLoteRemision = op.FkLoteRemision
+${EXPORT_CLIENT_JOINS}
 LEFT JOIN ItemAnillos ia ON ia.fkItem = i.IdItem
 WHERE e.FechaCarga = @Fecha
   AND ${EXPORT_SHIP_FILTER}
   AND e.NumeroContenedor = @Contenedor
   AND COALESCE(e.ReferenciaEnvio, '') = @Referencia
 GROUP BY e.FechaCarga, e.ReferenciaEnvio, e.CodigoEmbarque,
-  COALESCE(NULLIF(LTRIM(RTRIM(lr.NombreGrupo)), ''), NULLIF(LTRIM(RTRIM(lr.Empresa)), ''), 'Sin cliente'),
+  ${exportClientSql('lr')},
   COALESCE(NULLIF(LTRIM(RTRIM(op.NoOrdenCompra)), ''), 'Sin orden'),
   COALESCE(NULLIF(LTRIM(RTRIM(i.Item)), ''), 'Sin ítem'), i.IdItem, ia.AnillosPorMaster
 ORDER BY Cliente, CodigoEmbarque, OrdenCompra, Item
@@ -573,7 +588,7 @@ SELECT
   e.ReferenciaEnvio AS Shipment, e.NumeroContenedor AS Contenedor,
   MAX(e.CodigoEmbarque) AS CodigoEmbarque,
   NULLIF(LTRIM(RTRIM(op.NoOrdenCompra)), '') AS PO,
-  COALESCE(NULLIF(LTRIM(RTRIM(lr.NombreGrupo)), ''), NULLIF(LTRIM(RTRIM(lr.Empresa)), ''), '') AS Cliente,
+  ${exportClientSql('lr')} AS Cliente,
   i.Item AS Item, i.CodigoItem AS CodigoItem, lr.Finca AS Finca, lr.laguna AS Laguna,
   CAST(DATEADD(MINUTE, -359, s.Created) AS date) AS FechaProduccion,
   op.OrdenProduccion AS CodigoProduccion,
@@ -586,12 +601,13 @@ JOIN dbo.Seriales s ON s.FkMaster = m.IdMaster
 JOIN dbo.OrdenesProduccion op ON op.IdOrdenProduccion = s.FkOrdenProduccion
 JOIN dbo.AV_Items i ON i.IdItem = op.FkItem
 JOIN dbo.AV_LotesRemision lr ON lr.IdLoteRemision = op.FkLoteRemision
+${EXPORT_CLIENT_JOINS}
 LEFT JOIN dbo.Colores c ON c.PKcolor = op.fkColor
 WHERE e.FechaCarga = @Fecha AND e.NumeroContenedor = @Contenedor
   AND ${EXPORT_SHIP_FILTER}
   AND COALESCE(e.ReferenciaEnvio, '') = @Referencia
 GROUP BY e.ReferenciaEnvio, e.NumeroContenedor, op.NoOrdenCompra,
-  COALESCE(NULLIF(LTRIM(RTRIM(lr.NombreGrupo)), ''), NULLIF(LTRIM(RTRIM(lr.Empresa)), ''), ''),
+  ${exportClientSql('lr')},
   i.Item, i.CodigoItem, lr.Finca, lr.laguna, CAST(DATEADD(MINUTE, -359, s.Created) AS date),
   op.OrdenProduccion, c.NombreColor
 ORDER BY i.Item, lr.Finca, lr.laguna, FechaProduccion, op.OrdenProduccion
@@ -601,24 +617,25 @@ ORDER BY i.Item, lr.Finca, lr.laguna, FechaProduccion, op.OrdenProduccion
 export const EXPORTACIONES_CLIENTE_MES_QUERY = `
 SELECT
   CONVERT(varchar(7), e.FechaCarga, 23) AS Mes,
-  COALESCE(NULLIF(LTRIM(RTRIM(lr.NombreGrupo)), ''), NULLIF(LTRIM(RTRIM(lr.Empresa)), ''), 'Sin cliente') AS Cliente,
+  ${exportClientSql('lr')} AS Cliente,
   COUNT(DISTINCT e.NumeroContenedor) AS Contenedores
 FROM dbo.Envios e
 JOIN dbo.Masteres m ON m.FkEnvio = e.IdEnvio
 JOIN dbo.Seriales s ON s.FkMaster = m.IdMaster
 JOIN dbo.OrdenesProduccion op ON op.IdOrdenProduccion = s.FkOrdenProduccion
 JOIN dbo.AV_LotesRemision lr ON lr.IdLoteRemision = op.FkLoteRemision
+${EXPORT_CLIENT_JOINS}
 WHERE e.FechaCarga BETWEEN @Fecha_Inicial AND @Fecha_Final
   AND ${EXPORT_SHIP_FILTER}
   AND e.NumeroContenedor IS NOT NULL AND e.NumeroContenedor <> ''
 GROUP BY CONVERT(varchar(7), e.FechaCarga, 23),
-  COALESCE(NULLIF(LTRIM(RTRIM(lr.NombreGrupo)), ''), NULLIF(LTRIM(RTRIM(lr.Empresa)), ''), 'Sin cliente')
+  ${exportClientSql('lr')}
 `;
 
 /**
  * Resumen de la semana en curso (lunes-domingo): libras exportadas hacia
  * Francia, UK, AC Holding, terceros (todo lo que no cae en los tres
- * anteriores) y el total. Clasificado por `NombreGrupo` — "Terceros" es el
+ * anteriores) y el total. Clasificado por cliente destino (con respaldo al lote) — "Terceros" es el
  * resto, así que los 4 buckets siempre suman el total.
  *
  * IMPORTANTE: agregado en una sola pasada con `SUM(CASE...)`, sin CTE
@@ -636,8 +653,8 @@ DECLARE @Domingo date = DATEADD(DAY, 6, @Lunes);
 SELECT
   CONVERT(varchar(10), @Lunes, 23) AS SemanaInicio,
   CONVERT(varchar(10), @Domingo, 23) AS SemanaFin,
-  COALESCE(NULLIF(LTRIM(RTRIM(v.NombreGrupo)), ''), NULLIF(LTRIM(RTRIM(v.Empresa)), ''), 'Sin cliente') AS Cliente,
-  COALESCE(NULLIF(LTRIM(RTRIM(v.NombreGrupo)), ''), '') AS NombreGrupo,
+  ${exportClientSql('v')} AS Cliente,
+  ${exportClientSql('v')} AS NombreGrupo,
   ISNULL(SUM(i.PesoLibras), 0) AS Libras
 FROM dbo.Envios e
 JOIN dbo.Masteres m ON m.FkEnvio = e.IdEnvio
@@ -645,12 +662,11 @@ JOIN dbo.Seriales s ON s.FkMaster = m.IdMaster
 JOIN dbo.OrdenesProduccion op ON op.IdOrdenProduccion = s.FkOrdenProduccion
 JOIN dbo.AV_Items i ON i.IdItem = op.FkItem
 JOIN dbo.AV_LotesRemision v ON v.IdLoteRemision = op.FkLoteRemision
+${EXPORT_CLIENT_JOINS}
 WHERE e.FechaCarga BETWEEN @Lunes AND @Domingo
   AND ${EXPORT_SHIP_FILTER}
   AND e.NumeroContenedor IS NOT NULL AND e.NumeroContenedor <> ''
-GROUP BY
-  COALESCE(NULLIF(LTRIM(RTRIM(v.NombreGrupo)), ''), NULLIF(LTRIM(RTRIM(v.Empresa)), ''), 'Sin cliente'),
-  COALESCE(NULLIF(LTRIM(RTRIM(v.NombreGrupo)), ''), '')
+GROUP BY ${exportClientSql('v')}
 `;
 
 /* ================================================================== */

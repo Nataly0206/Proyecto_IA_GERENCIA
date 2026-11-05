@@ -12,3 +12,5 @@ export interface Preload {
   id: number; createdAt: string; createdBy?: string; notes: string; filters: Record<string, string[]>;
   items: { key: string; item: StockItem; requested: number; assigned: number; missing: number; pesoKilos: number; allocations: StockItem[] }[];
 }
+
+export const hasPurchaseOrder = (item: StockItem) => !!item.noOrdenCompra.trim() && !['sin orden', '0'].includes(item.noOrdenCompra.trim().toLowerCase());

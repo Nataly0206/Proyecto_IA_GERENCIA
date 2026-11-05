@@ -12,7 +12,7 @@ test('FIFO consume lotes antiguos primero y prorratea un lote parcial', () => {
 });
 test('filtros originales y disponibilidad delimitan el stock elegible', () => {
   const rows = [base, { ...base, disponibilidad: 'RETENIDO', cantidadSerial: 500 }, { ...base, noOrdenCompra: 'OTRA', cantidadSerial: 500 }];
-  const [planned] = planPreload(rows, { noOrdenCompra: ['10670'] }, [{ key, quantity: 11 }]);
+  const [planned] = planPreload(rows, { noOrdenCompra: ['10670'], disponibilidad: ['DISPONIBLE'] }, [{ key, quantity: 11 }]);
   assert.equal(planned.assigned, 10);
   assert.equal(planned.missing, 1);
 });
@@ -51,11 +51,18 @@ test('FIFO prioriza fecha sobre orden y conserva trazabilidad del lote', () => {
   assert.equal(planned.allocations[0].codigoProduccion, '3125174');
 });
 
-test('excluye existencias sin orden aunque sean más antiguas del mismo ítem', () => {
-  const noOrder = ['', 'Sin orden', '0', '  '].map(noOrdenCompra => ({ ...base, noOrdenCompra, fechaProduccion: '2020-01-01', cantidadSerial: 100 }));
-  const [planned] = planPreload([...noOrder, base], {}, [{ key, quantity: 12 }]);
-  assert.equal(planned.assigned, 10);
-  assert.equal(planned.missing, 2);
-  assert.equal(planned.allocations.length, 1);
-  assert.equal(planned.allocations[0].noOrdenCompra, base.noOrdenCompra);
+test('conserva todos los estados y excluye solo producciones sin orden', () => {
+  const rows = [base, {...base, disponibilidad:'PENDIENTE',cantidadSerial:79,pesoKilos:790}, {...base,noOrdenCompra:'Sin orden',cantidadSerial:14,pesoKilos:140}];
+  const [planned] = planPreload(rows, {}, [{key,quantity:103}]);
+  assert.equal(planned.assigned,89);
+  assert.equal(planned.missing,14);
+  assert.equal(planned.pesoKilos,890);
 });
+
+ test('excluye orden vacía, cero y Sin orden sin excluir estados con orden',()=>{
+ const rows=['','  ','0','Sin orden',' SIN ORDEN '].map(noOrdenCompra=>({...base,noOrdenCompra}));
+ rows.push({...base,disponibilidad:'RETENIDO'});
+ const result=planPreload(rows,{},[{key,quantity:20}])[0];
+ assert.equal(result.assigned,10);
+ assert.equal(result.allocations[0].disponibilidad,'RETENIDO');
+ });

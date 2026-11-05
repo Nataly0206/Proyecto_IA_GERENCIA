@@ -1,3 +1,4 @@
+import { hasPurchaseOrder } from '../utils/purchaseOrder';
 import { InventoryItem } from './inventory.service';
 import { PlannedItem, itemKey } from './preload-planner';
 import { ApiError } from '../middleware/errorHandler';
@@ -14,15 +15,17 @@ function grouped(items: InventoryItem[]) {
   return result;
 }
 export function editCandidates(saved: PlannedItem[], inventory: InventoryItem[]) {
-  const live = grouped(inventory.filter(item => item.disponibilidad === 'DISPONIBLE' && item.cantidadSerial > 0 && Number.isFinite(item.pesoKilos) && item.pesoKilos >= 0 && !!item.noOrdenCompra.trim() && !['sin orden', '0'].includes(item.noOrdenCompra.trim().toLowerCase())));
+  const live = grouped(inventory.filter(item => hasPurchaseOrder(item) && item.cantidadSerial > 0 && Number.isFinite(item.pesoKilos) && item.pesoKilos >= 0));
   return saved.map(group => {
-    const previous = grouped(group.allocations);
+    const stock = inventory.filter(item => hasPurchaseOrder(item) && itemKey(item) === group.key && item.cantidadSerial > 0);
+    const inventoryTotal = stock.reduce((sum, item) => sum + item.cantidadSerial, 0);
+    const previous = grouped(group.allocations.filter(hasPurchaseOrder));
     const keys = new Set([...previous.keys(), ...[...live].filter(([, item]) => itemKey(item) === group.key).map(([key]) => key)]);
     const lots: EditableLot[] = [...keys].map(key => {
       const current = live.get(key); const old = previous.get(key);
       return { key, item: current ?? old!, current: current?.cantidadSerial ?? 0, assigned: old?.cantidadSerial ?? 0, maximum: Math.max(current?.cantidadSerial ?? 0, old?.cantidadSerial ?? 0) };
     }).sort((a, b) => Number(!!a.item.parcial) - Number(!!b.item.parcial) || a.item.fechaProduccion.localeCompare(b.item.fechaProduccion) || a.item.noOrdenCompra.localeCompare(b.item.noOrdenCompra));
-    return { key: group.key, item: group.item, requested: group.requested, excludedLots: group.excludedLots ?? [], lots };
+    return { key: group.key, item: group.item, inventoryTotal, requested: group.requested, excludedLots: group.excludedLots ?? [], lots };
   });
 }
 export function applyLoadEdit(saved: PlannedItem[], inventory: InventoryItem[], lines: EditLine[]): PlannedItem[] {
@@ -34,7 +37,7 @@ export function applyLoadEdit(saved: PlannedItem[], inventory: InventoryItem[], 
     const excluded = line.excludedLots ?? [];
     if (!Array.isArray(excluded) || excluded.length > 5000 || excluded.some(key => typeof key !== 'string' || key.length > 10000)) throw new ApiError(400, 'Las producciones excluidas no son válidas.');
     const lots = new Map(candidates.find(entry => entry.key === group.key)!.lots.map(lot => [lot.key, lot]));
-    const previous = grouped(group.allocations);
+    const previous = grouped(group.allocations.filter(hasPurchaseOrder));
     const allocations: InventoryItem[] = [];
     for (const choice of line.allocations) {
       if (!choice || typeof choice.key !== 'string' || !Number.isSafeInteger(choice.quantity) || choice.quantity < 0) throw new ApiError(400, 'Las cantidades deben ser enteros positivos o cero.');

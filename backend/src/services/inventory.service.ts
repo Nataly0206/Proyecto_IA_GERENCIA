@@ -1,3 +1,4 @@
+import { hasPurchaseOrder } from '../utils/purchaseOrder';
 import { pickNumber, pickString } from '../utils/rows';
 import { runQuery } from './sql.service';
 
@@ -129,5 +130,5 @@ export async function getInventory(): Promise<InventoryItem[]> {
     codigoProduccion: pickString(row, 'CodigoProduccion'),
     pesoKilos: pickNumber(row, 'PesoKilos'),
     cantidadSerial: pickNumber(row, 'CantidadSerial'),
-  }));
+  })).filter(hasPurchaseOrder);
 }

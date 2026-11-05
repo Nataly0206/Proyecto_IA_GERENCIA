@@ -24,8 +24,8 @@ test('no permite aumentar una producción agotada ni exceder stock actual',()=>{
  assert.throws(()=>applyLoadEdit(saved,[],line([{key:lotKey(base),quantity:11}],11)),/existencia/);
  assert.throws(()=>applyLoadEdit(saved,[second],line([{key:lotKey(second),quantity:11}],11)),/existencia/);
 });
-test('no ofrece otro cliente, empaque, ni producciones sin orden o retenidas',()=>{
- const others=[{...second,nombreCliente:'Otro'},{...second,empaque:'Otro'},{...second,noOrdenCompra:'Sin orden'},{...second,disponibilidad:'RETENIDO'}];
+test('no ofrece otro cliente ni empaque',()=>{
+ const others=[{...second,nombreCliente:'Otro'},{...second,empaque:'Otro'}];
  assert.equal(editCandidates(saved,others)[0].lots.length,1);
  assert.throws(()=>applyLoadEdit(saved,others,line([{key:lotKey(others[0]),quantity:1}])),/existencia/);
 });
@@ -62,8 +62,8 @@ test('rebaja solo asignaciones del cliente y lote, sin duplicar descuentos ni ne
  assert.equal(exhausted[0].cantidadSerial,0);assert.equal(exhausted[0].pesoKilos,0);
  const next=planPreload(remaining,{},[{key,quantity:5}]);
  assert.equal(next[0].allocations[0].cantidadSerial,5);
- assert.equal(next[0].allocations[0].codigoProduccion,second.codigoProduccion);
- assert.equal(next[0].pesoKilos,100);
+ assert.equal(next[0].allocations[0].codigoProduccion,held.codigoProduccion);
+ assert.equal(next[0].pesoKilos,50);
 });
 
 test('toma todos los códigos completos por antigüedad antes de los parciales',()=>{
@@ -89,11 +89,36 @@ test('actualizar precarga conserva históricos, exclusiones y separación de ít
  const {completePreload}=require('../dist/services/load-edit');
  const initial=planPreload([{...base,cantidadSerial:4,pesoKilos:40}],{},[{key,quantity:10}]);
  initial[0].excludedLots=[lotKey(second)];
- const others=[second,{...second,nombreCliente:'Otro'},{...second,empaque:'Otro'},{...base,disponibilidad:'RETENIDO'}];
+ const others=[second,{...second,nombreCliente:'Otro'},{...second,empaque:'Otro'}];
  const unchanged=completePreload(initial,others);
  assert.equal(unchanged[0].assigned,4);assert.equal(unchanged[0].pesoKilos,40);
  initial[0].excludedLots=[];
  const filled=completePreload(initial,[{...second,cantidadSerial:3,pesoKilos:60}]);
  assert.equal(filled[0].assigned,7);assert.equal(filled[0].missing,3);assert.equal(filled[0].pesoKilos,100);
  assert.equal(filled[0].allocations.find(row=>row.codigoProduccion===base.codigoProduccion).cantidadSerial,4);
+});
+
+
+test('disponibles ahora usa el saldo actual aunque cambie respecto a la carga guardada',()=>{
+ const initial=planPreload([base],{},[{key,quantity:6}]);
+ for(const quantity of [3,18,0]) {
+  const inventory=quantity ? [{...base,cantidadSerial:quantity,pesoKilos:quantity*10}] : [];
+  const lot=editCandidates(initial,inventory)[0].lots.find(lot=>lot.key===lotKey(base));
+  assert.equal(lot.current,quantity);
+  assert.equal(lot.assigned,6);
+  assert.equal(lot.maximum,Math.max(quantity,6));
+ }
+ assert.equal(initial[0].initialStock[0].cantidadSerial,10);
+ assert.equal(initial[0].allocations[0].cantidadSerial,6);
+});
+
+
+test('excluye los 14 sin orden y conserva los 79 pendientes al editar',()=>{
+ const stock={...base,cantidadSerial:707,pesoKilos:7070};
+ const initial=planPreload([stock],{},[{key,quantity:700}]);
+ const inventory=[stock,{...base,disponibilidad:'PENDIENTE',cantidadSerial:79,pesoKilos:790},{...base,noOrdenCompra:'Sin orden',cantidadSerial:14,pesoKilos:140}];
+ const group=editCandidates(initial,inventory)[0];
+ assert.equal(group.inventoryTotal,786);
+ assert.equal(group.inventoryTotal-group.lots.reduce((s,x)=>s+x.assigned,0),86);
+ assert.equal(group.lots.reduce((s,x)=>s+Math.max(0,x.current-x.assigned),0),86);
 });

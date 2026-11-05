@@ -2,11 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Autocomplete, Button, Checkbox, Chip, FormControlLabel, Dialog, DialogActions, DialogContent, DialogTitle, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography } from '@mui/material';
 import { useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
-import { itemKey, StockItem } from '../types/preload';
+import { hasPurchaseOrder, itemKey, StockItem } from '../types/preload';
 import { requestedWeight } from '../utils/preloadWeight';
 import { convertKilograms, WeightUnit } from '../utils/weightUnits';
-
-const hasOrder = (item: StockItem) => !!item.noOrdenCompra.trim() && !['sin orden', '0'].includes(item.noOrdenCompra.trim().toLowerCase());
 
 export default function LoadRequestDialog({ items, filters, weightUnit, onClose, onCreated }: {
   items: StockItem[]; filters: Record<string, string[]>; weightUnit: WeightUnit; onClose: () => void; onCreated: () => void;
@@ -26,7 +24,7 @@ export default function LoadRequestDialog({ items, filters, weightUnit, onClose,
   const [deducting, setDeducting] = useState(false);
   const allGroups = useMemo(() => {
     const grouped = new Map<string, { key: string; item: StockItem; quantity: number; weight: number; lots: StockItem[] }>();
-    (adjustedItems ?? items).filter(item => hasOrder(item) && item.disponibilidad === 'DISPONIBLE' && item.cantidadSerial > 0 && Number.isFinite(item.pesoKilos) && item.pesoKilos >= 0).forEach(item => {
+    (adjustedItems ?? items).filter(item => hasPurchaseOrder(item) && item.cantidadSerial > 0 && Number.isFinite(item.pesoKilos) && item.pesoKilos >= 0).forEach(item => {
       const key = itemKey(item);
       const group = grouped.get(key) ?? { key, item, quantity: 0, weight: 0, lots: [] };
       group.quantity += item.cantidadSerial;
@@ -36,9 +34,9 @@ export default function LoadRequestDialog({ items, filters, weightUnit, onClose,
     });
     return [...grouped.values()].sort((a, b) => a.item.nombreCliente.localeCompare(b.item.nombreCliente) || a.item.nombreItem.localeCompare(b.item.nombreItem));
   }, [items, adjustedItems]);
-  const clients = useMemo(() => [...new Set(items.filter(item => hasOrder(item) && item.disponibilidad === 'DISPONIBLE' && item.cantidadSerial > 0).map(item => item.nombreCliente))].sort((a, b) => a.localeCompare(b)), [items]);
+  const clients = useMemo(() => [...new Set(items.filter(item => hasPurchaseOrder(item) && item.cantidadSerial > 0).map(item => item.nombreCliente))].sort((a, b) => a.localeCompare(b)), [items]);
   const [selectedClient, setSelectedClient] = useState<string | null>(() => {
-    const available = [...new Set(items.filter(item => hasOrder(item) && item.disponibilidad === 'DISPONIBLE' && item.cantidadSerial > 0).map(item => item.nombreCliente))];
+    const available = [...new Set(items.filter(item => hasPurchaseOrder(item) && item.cantidadSerial > 0).map(item => item.nombreCliente))];
     return available.length === 1 ? available[0] : null;
   });
   useEffect(() => {
@@ -98,7 +96,7 @@ export default function LoadRequestDialog({ items, filters, weightUnit, onClose,
       </Stack>
       {deduction && <Button disabled={saving} onClick={() => { setDeduction(null); setAdjustedItems(null); setQuantities({}); setError(''); }}>Restablecer inventario</Button>}
       {deduction && <Alert severity="success">Inventario mostrado descontando los seriales asignados de la carga #{deduction.id}. La rebaja también se aplica al calcular esta solicitud.</Alert>}
-      <Alert severity="info">Solo producto con estado DISPONIBLE. Si la cantidad no alcanza, se guarda la carga parcial con el faltante. No reserva ni descuenta inventario.</Alert>
+      <Alert severity="info">Se usan las mismas existencias y filtros de Inventario PT, incluyendo todos los estados y solo producciones con orden. Si la cantidad no alcanza, se guarda la carga parcial con el faltante. No reserva ni descuenta inventario.</Alert>
       {error && <Alert severity="error">{error}</Alert>}
       {!selectedClient ? <Alert severity="info">Selecciona un cliente para ver sus ítems disponibles.</Alert> : !groups.length ? <Alert severity="warning">No hay producto disponible para este cliente con los filtros seleccionados.</Alert> : <TableContainer sx={{ maxHeight: '50vh' }}><Table stickyHeader size="small"><TableHead><TableRow>
         {['Ítem', 'Orden de compra', 'Talla', 'Disponibles', `Peso ${weightUnit}`, 'Seriales a solicitar', 'Kg asignados'].map(label => <TableCell key={label}>{label}</TableCell>)}

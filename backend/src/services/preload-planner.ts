@@ -1,3 +1,4 @@
+import { hasPurchaseOrder } from '../utils/purchaseOrder';
 import { InventoryItem } from './inventory.service';
 
 export const ITEM_FIELDS = ['nombreClientePrincipal', 'nombreCliente', 'codigoItem', 'nombreItem', 'estiloFinal', 'marca', 'talla', 'empaque', 'tipoItem'] as const;
@@ -8,10 +9,7 @@ export interface PlannedItem {
 }
 
 export function planPreload(inventory: InventoryItem[], filters: Record<string, string[]>, lines: LoadLine[]): PlannedItem[] {
-  const eligible = inventory.filter(item => !!item.noOrdenCompra.trim()
-    && !['sin orden', '0'].includes(item.noOrdenCompra.trim().toLowerCase())
-    && item.disponibilidad === 'DISPONIBLE'
-    && item.cantidadSerial > 0 && Number.isFinite(item.pesoKilos) && item.pesoKilos >= 0
+  const eligible = inventory.filter(item => hasPurchaseOrder(item) && item.cantidadSerial > 0 && Number.isFinite(item.pesoKilos) && item.pesoKilos >= 0
     && Object.entries(filters).every(([field, values]) => !values.length || values.includes(String(item[field as keyof InventoryItem]))));
   return lines.map(line => {
     const candidates = eligible.filter(item => itemKey(item) === line.key).sort((a, b) => {

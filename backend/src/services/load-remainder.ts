@@ -11,7 +11,7 @@ export function subtractLoad(inventory: InventoryItem[], saved: PlannedItem[], c
     deductions.set(key, (deductions.get(key) ?? 0) + lot.cantidadSerial);
   }
   return inventory.map(item => {
-    if (item.nombreCliente !== client || item.disponibilidad !== 'DISPONIBLE' || item.cantidadSerial <= 0) return item;
+    if (item.nombreCliente !== client || item.cantidadSerial <= 0) return item;
     const key = lotKey(item);
     const take = Math.min(item.cantidadSerial, deductions.get(key) ?? 0);
     deductions.set(key, (deductions.get(key) ?? 0) - take);

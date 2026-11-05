@@ -2,7 +2,7 @@
 
 En Inventario PT, **Solicitar carga** abre los ítems que coinciden con todos los filtros activos. Agrupa por cliente principal, cliente, código, nombre, estilo, marca, talla, empaque y tipo. Permite solicitar seriales enteros incluso por encima de la existencia disponible; el resumen calcula kg asignados, solicitados, asignados y faltantes mientras se escribe.
 
-Al guardar, el servidor vuelve a consultar Inventario PT, aplica los mismos filtros y asigna exclusivamente producto DISPONIBLE por fecha de producción ascendente, entre distintas órdenes de compra. Desempata por orden de compra y código externo. Una asignación parcial calcula el peso proporcional a la cantidad de seriales de la fila de origen. Si el stock se agotó antes del envío, guarda todo como faltante y conserva la identidad del ítem.
+Al guardar, el servidor vuelve a consultar Inventario PT, aplica los mismos filtros y asigna las mismas existencias mostradas en Inventario PT, sin excluir estados y solo con orden de compra, por fecha de producción ascendente, entre distintas órdenes de compra. Desempata por orden de compra y código externo. Una asignación parcial calcula el peso proporcional a la cantidad de seriales de la fila de origen. Si el stock se agotó antes del envío, guarda todo como faltante y conserva la identidad del ítem.
 
 ## Historial
 
@@ -72,3 +72,11 @@ Inventario PT requiere `inventario`; Cargas requiere `cargas`. El botón Solicit
 ## Seguir correlativo anterior
 
 Código Embarque se captura en un campo compacto debajo del selector de cliente y antes de la tabla. El checkbox **Seguir correlativo anterior** consulta `GET /api/inventory/preloads/next-shipping-code?client=...` con permiso Cargas, usando la última carga no eliminada del cliente por fecha de creación e ID, sin filtros de inventario ni consultas a planta. Incrementa el último bloque numérico y conserva prefijos, sufijos y ceros iniciales (`EMB-0099` → `EMB-0100`). Es una sugerencia para el campo obligatorio, sin reserva de numeración. Si no hay código anterior o no contiene números, informa y habilita captura manual. Al desmarcar recupera el valor manual y al cambiar cliente limpia la selección; las búsquedas pendientes se cancelan para evitar códigos de otro cliente.
+
+## Existencias al editar
+
+Editar carga espera una consulta nueva del inventario al abrirse y vuelve a consultarlo cada 30 segundos y al regresar a la ventana. Actualizar existencias permite consultarlo manualmente. Las actualizaciones conservan los cambios en curso mientras la revisión guardada sea la misma. Si falla la consulta se indica que el saldo mostrado es anterior y se deshabilita Guardar hasta recuperar la consulta. Inventario actual refleja el saldo consultado. Disponibles por agregar muestra el saldo actual menos los seriales en carga por producción, con mínimo cero, y cambia al editar las cantidades. Por ejemplo, 800 en inventario y 700 en carga dejan 100 disponibles por agregar. El encabezado de cada ítem suma los disponibles de sus producciones. En carga conserva la asignación guardada, incluso si el producto ya salió del inventario.
+
+La edición usa las mismas existencias de Inventario PT, incluidos todos los estados y solo las producciones con orden. Muestra el inventario total del ítem y el saldo después de restar los seriales en carga. Crear cargas respeta los filtros seleccionados en Inventario PT; editar permite buscar otras producciones del mismo ítem y cliente.
+
+Inventario PT y Cargas excluyen los registros con orden vacía, cero o «Sin orden». Los demás estados se conservan.

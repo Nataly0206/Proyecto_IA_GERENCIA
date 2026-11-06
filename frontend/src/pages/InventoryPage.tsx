@@ -5,6 +5,7 @@ import {
   Tooltip, Typography, ToggleButton, ToggleButtonGroup,
 } from '@mui/material';
 import FilterListIcon from '@mui/icons-material/FilterList';
+import FilterAltOffOutlinedIcon from '@mui/icons-material/FilterAltOffOutlined';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import RefreshOutlinedIcon from '@mui/icons-material/RefreshOutlined';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
@@ -259,12 +260,19 @@ export default function InventoryPage({ userId, onPreload, canRequestLoad }: { c
       <Paper elevation={0} sx={{ border: 1, borderColor: 'divider', p: 1.25 }}>
         <Stack direction="row" alignItems="center" justifyContent="space-between">
           <Typography variant="subtitle2" fontWeight={800}>Filtros y agrupación</Typography>
+          <Stack direction="row" alignItems="center" spacing={1}>
+            <Button size="small" startIcon={<FilterAltOffOutlinedIcon />}
+              disabled={!Object.values(filters).some((values) => values?.length)}
+              onClick={() => { setFilters({}); setFilterAnchor(null); setFilterField(null); }}>
+              Limpiar filtros
+            </Button>
           <Tooltip title={filtersOpen ? 'Ocultar filtros' : 'Mostrar filtros'}>
             <IconButton size="small" onClick={() => setFiltersOpen((open) => !open)}
               aria-label={filtersOpen ? 'Ocultar filtros' : 'Mostrar filtros'} aria-expanded={filtersOpen}>
               {filtersOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
             </IconButton>
           </Tooltip>
+          </Stack>
         </Stack>
         <Collapse in={filtersOpen}>
         <Stack spacing={1} sx={{ pt: 1 }}>

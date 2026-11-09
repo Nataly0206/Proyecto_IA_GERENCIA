@@ -5,8 +5,8 @@ import { ApiError } from '../middleware/errorHandler';
 // Módulo de deuda propia: préstamos que la empresa RECIBE de bancos y otros
 // acreedores. Las cuotas son obligaciones por pagar, no cuentas por cobrar.
 
-import { calcularPlan, cuotaFija, money, PERIODOS_ANIO, PlanInput, CuotaCalculada, TipoAmortizacion, Frecuencia } from './amortizacion';
-export { calcularPlan, FRECUENCIAS, TIPOS_AMORTIZACION } from './amortizacion';
+import { calcularPlan, cuotaFija, infoFecha, money, PERIODOS_ANIO, PlanInput, CuotaCalculada, TipoAmortizacion, Frecuencia } from './amortizacion';
+export { calcularPlan, FRECUENCIAS, TIPOS_AMORTIZACION, BASES_CALCULO } from './amortizacion';
 export type { PlanInput } from './amortizacion';
 export type Moneda = 'HNL' | 'USD';
 export type ModoAbono = 'cuota' | 'plazo';
@@ -135,12 +135,13 @@ export async function guardarPrestamo(input: PrestamoInput, usuario: string, pla
       .input('capitalizado', sql.Decimal(18, 2), plan.interesCapitalizado)
       .input('usuario', sql.NVarChar(60), usuario)
       .input('origen', sql.NVarChar(20), origen)
+      .input('base', sql.NVarChar(12), input.baseCalculo ?? '30_360')
       .query(`INSERT INTO dbo.prestamos
         (acreedor_id, referencia, moneda, monto, tasa_anual, cantidad_cuotas, frecuencia, tipo_amortizacion,
-         fecha_desembolso, fecha_primera_cuota, cargo_cuota, notas, creado_por, opciones_plan, interes_capitalizado, origen)
+         fecha_desembolso, fecha_primera_cuota, cargo_cuota, notas, creado_por, opciones_plan, interes_capitalizado, origen, base_calculo)
         OUTPUT INSERTED.id
         VALUES (@acreedorId, @referencia, @moneda, @monto, @tasa, @cantidad, @frecuencia, @tipo,
-          @desembolso, @primera, @cargo, @notas, @usuario, @opciones, @capitalizado, @origen)`);
+          @desembolso, @primera, @cargo, @notas, @usuario, @opciones, @capitalizado, @origen, @base)`);
     const id = Number(inserted.recordset[0].id);
     await new sql.Request(tx).input('id', sql.BigInt, id)
       .query(`UPDATE dbo.prestamos SET numero = N'PRE-' + RIGHT(N'000000' + CONVERT(nvarchar(20), id), 6) WHERE id = @id`);
@@ -175,7 +176,7 @@ export async function listarPrestamos() {
   const result = await pool.request().query(`
     SELECT p.id, p.numero, p.referencia, p.acreedor_id AS acreedorId, a.nombre AS acreedor, p.moneda, p.monto,
       p.tasa_anual AS tasaAnual, p.cantidad_cuotas AS cantidadCuotas, p.frecuencia,
-      p.tipo_amortizacion AS tipoAmortizacion, CONVERT(varchar(10), p.fecha_desembolso, 23) AS fechaDesembolso,
+      p.tipo_amortizacion AS tipoAmortizacion, p.base_calculo AS baseCalculo, CONVERT(varchar(10), p.fecha_desembolso, 23) AS fechaDesembolso,
       p.estado, p.opciones_plan AS opcionesPlan, ISNULL(x.saldoCapital, 0) AS saldoCapital, ISNULL(x.totalPendiente, 0) AS totalPendiente,
       ISNULL(x.cuotasPendientes, 0) AS cuotasPendientes, ISNULL(x.cuotasVencidas, 0) AS cuotasVencidas,
       ISNULL(x.vencido, 0) AS vencido, ISNULL(x.capitalSinPagos, 0) AS capitalSinPagos,
@@ -195,7 +196,7 @@ export async function listarPrestamos() {
     WHERE p.eliminado_en IS NULL
     ORDER BY CASE WHEN p.estado = N'activo' THEN 0 ELSE 1 END, a.nombre, p.id DESC`);
   return result.recordset.map(row => ({ ...row,
-    permiteReducirPlazo: ['cuota_fija', 'capital_fijo'].includes(row.tipoAmortizacion) && !JSON.parse(row.opcionesPlan ?? '{}').gracia,
+    permiteReducirPlazo: ['cuota_fija', 'capital_fijo'].includes(row.tipoAmortizacion) && row.baseCalculo === '30_360' && !JSON.parse(row.opcionesPlan ?? '{}').gracia,
   }));
 }
 
@@ -204,7 +205,7 @@ export async function obtenerPrestamo(id: number) {
   const [loans, installments, payments, history] = await Promise.all([
     pool.request().input('id', sql.BigInt, id).query(`
       SELECT p.id, p.numero, p.referencia, a.nombre AS acreedor, p.moneda, p.monto, p.tasa_anual AS tasaAnual,
-        p.cantidad_cuotas AS cantidadCuotas, p.frecuencia, p.tipo_amortizacion AS tipoAmortizacion,
+        p.cantidad_cuotas AS cantidadCuotas, p.frecuencia, p.tipo_amortizacion AS tipoAmortizacion, p.base_calculo AS baseCalculo,
         CONVERT(varchar(10), p.fecha_desembolso, 23) AS fechaDesembolso, p.notas, p.estado, p.opciones_plan AS opcionesPlan, p.interes_capitalizado AS interesCapitalizado,
         p.creado_por AS creadoPor, p.creado_en AS creadoEn, p.origen
       FROM dbo.prestamos p JOIN dbo.prestamos_acreedores a ON a.id = p.acreedor_id WHERE p.id = @id AND p.eliminado_en IS NULL`),
@@ -233,7 +234,7 @@ export async function obtenerPrestamo(id: number) {
 
 async function prestamoActivo(tx: sql.Transaction, prestamoId: number) {
   const loan = await new sql.Request(tx).input('id', sql.BigInt, prestamoId).query(`
-    SELECT id, tasa_anual, frecuencia, tipo_amortizacion, estado, opciones_plan
+    SELECT id, tasa_anual, frecuencia, tipo_amortizacion, estado, opciones_plan, base_calculo
     FROM dbo.prestamos WITH (UPDLOCK, HOLDLOCK) WHERE id = @id AND eliminado_en IS NULL`);
   const row = loan.recordset[0];
   if (!row) throw new ApiError(404, 'Préstamo no encontrado.');
@@ -327,7 +328,8 @@ export async function registrarAbono(prestamoId: number, input: PagoInput, modo:
     }
     const tipo = loan.tipo_amortizacion as TipoAmortizacion;
     const opciones = JSON.parse(loan.opciones_plan ?? '{}');
-    const tradicional = ['cuota_fija', 'capital_fijo', 'solo_interes'].includes(tipo) && !opciones.gracia;
+    // Con base ACTUAL/360 el interés depende de los días reales: se conserva la forma del calendario.
+    const tradicional = ['cuota_fija', 'capital_fijo', 'solo_interes'].includes(tipo) && !opciones.gracia && loan.base_calculo !== 'ACTUAL_360';
     if (modo === 'plazo' && (!tradicional || tipo === 'solo_interes')) {
       throw new ApiError(400, 'Este plan conserva sus fechas y su estructura. Usa reducir cuota; para cambiar el plazo se requiere reprogramar el calendario.');
     }
@@ -472,4 +474,44 @@ export async function reporte(desde: string, hasta: string) {
     WHERE p.eliminado_en IS NULL AND pg.fecha_pago BETWEEN @desde AND @hasta
     ORDER BY pg.fecha_pago DESC, pg.id DESC`);
   return result.recordset;
+}
+
+/** Tabla de amortización vigente de un préstamo, con semana ISO, mes y año de cada cuota. */
+export async function tablaAmortizacion(id: number) {
+  const { prestamo, cuotas } = await obtenerPrestamo(id);
+  if (!prestamo) return null;
+  return {
+    prestamo: { id: prestamo.id, numero: prestamo.numero, referencia: prestamo.referencia, acreedor: prestamo.acreedor, moneda: prestamo.moneda,
+      monto: prestamo.monto, tasaAnual: prestamo.tasaAnual, plazoMeses: prestamo.cantidadCuotas, tipoAmortizacion: prestamo.tipoAmortizacion, baseCalculo: prestamo.baseCalculo },
+    cuotas: cuotas.map((q) => ({ ...q, ...infoFecha(q.fechaVencimiento), saldoCapital: null })),
+  };
+}
+
+/**
+ * Flujo de pagos por semana ISO, mes y banco (reporte tipo PAGOS WK). Usa el calendario vigente de
+ * préstamos activos; por defecto solo cuotas con saldo pendiente. Las monedas no se mezclan.
+ */
+export async function flujoSemanal(desde?: string, hasta?: string, incluirPagadas = false) {
+  const pool = await getAuthPool();
+  const result = await pool.request().input('desde', sql.Date, desde ?? null).input('hasta', sql.Date, hasta ?? null).query(`
+    SELECT a.nombre AS banco, p.moneda, CONVERT(varchar(10), q.fecha_vencimiento, 23) AS fecha,
+      q.capital, q.interes, q.cargos, q.monto, q.monto - q.pagado AS pendiente
+    FROM dbo.prestamos_cuotas q JOIN dbo.prestamos p ON p.id = q.prestamo_id
+    JOIN dbo.prestamos_acreedores a ON a.id = p.acreedor_id
+    WHERE q.eliminado_en IS NULL AND p.eliminado_en IS NULL AND p.estado = N'activo'
+      ${incluirPagadas ? '' : 'AND q.pagado < q.monto'}
+      AND (@desde IS NULL OR q.fecha_vencimiento >= @desde) AND (@hasta IS NULL OR q.fecha_vencimiento <= @hasta)
+    ORDER BY q.fecha_vencimiento, a.nombre`);
+  const groups = new Map<string, { anioIso: number; semanaIso: number; mesNombre: string; banco: string; moneda: Moneda; cuotas: number; capital: number; interes: number; cargos: number; total: number; pendiente: number; desde: string; hasta: string }>();
+  for (const row of result.recordset) {
+    const info = infoFecha(row.fecha);
+    const key = `${info.anioIso}-${info.semanaIso}-${info.mesNombre}-${row.banco}-${row.moneda}`;
+    const g = groups.get(key) ?? { anioIso: info.anioIso, semanaIso: info.semanaIso, mesNombre: info.mesNombre, banco: row.banco, moneda: row.moneda, cuotas: 0, capital: 0, interes: 0, cargos: 0, total: 0, pendiente: 0, desde: row.fecha, hasta: row.fecha };
+    g.cuotas += 1; g.capital = money(g.capital + Number(row.capital)); g.interes = money(g.interes + Number(row.interes));
+    g.cargos = money(g.cargos + Number(row.cargos)); g.total = money(g.total + Number(row.monto)); g.pendiente = money(g.pendiente + Number(row.pendiente));
+    if (row.fecha < g.desde) g.desde = row.fecha;
+    if (row.fecha > g.hasta) g.hasta = row.fecha;
+    groups.set(key, g);
+  }
+  return [...groups.values()];
 }

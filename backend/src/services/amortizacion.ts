@@ -1,9 +1,14 @@
 import { ApiError } from '../middleware/errorHandler';
 
 export type Frecuencia = 'semanal' | 'quincenal' | 'mensual' | 'trimestral' | 'semestral' | 'anual';
-export type TipoAmortizacion = 'cuota_fija' | 'capital_fijo' | 'solo_interes' | 'pago_unico' | 'balon' | 'creciente' | 'extraordinarias' | 'manual';
+/** Tipos soportados al crear préstamos: 'cuota_fija' = Francés, 'solo_interes' = Bullet, 'personalizado' = hitos de capital. */
+export type TipoAmortizacion = 'cuota_fija' | 'solo_interes' | 'personalizado'
+  // Legado: préstamos ya registrados (o importados por Telegram) con otros métodos. No se pueden crear nuevos.
+  | 'capital_fijo' | 'pago_unico' | 'balon' | 'creciente' | 'extraordinarias' | 'manual';
+export type BaseCalculo = '30_360' | 'ACTUAL_360';
+export const BASES_CALCULO: BaseCalculo[] = ['30_360', 'ACTUAL_360'];
 export const FRECUENCIAS: Frecuencia[] = ['semanal', 'quincenal', 'mensual', 'trimestral', 'semestral', 'anual'];
-export const TIPOS_AMORTIZACION: TipoAmortizacion[] = ['cuota_fija', 'capital_fijo', 'solo_interes', 'pago_unico', 'balon', 'creciente', 'extraordinarias', 'manual'];
+export const TIPOS_AMORTIZACION: TipoAmortizacion[] = ['cuota_fija', 'solo_interes', 'personalizado'];
 export const PERIODOS_ANIO: Record<Frecuencia, number> = { semanal: 52, quincenal: 24, mensual: 12, trimestral: 4, semestral: 2, anual: 1 };
 export const money = (value: number) => {
   const rounded = Math.round((value + Number.EPSILON) * 100) / 100;
@@ -11,20 +16,16 @@ export const money = (value: number) => {
 };
 
 export interface OpcionesPlan {
-  gracia?: { periodos: number; tipo: 'parcial' | 'capitalizar' | 'diferir'; cobroDiferido?: 'primera' | 'repartido' | 'ultima' };
-  interesPagoUnico?: 'simple' | 'compuesto';
-  balon?: { valor: number; unidad: 'monto' | 'porcentaje'; base: 'cuota_fija' | 'capital_fijo' };
-  crecimiento?: { modo: 'fijo' | 'variable'; porcentaje?: number; cadaPeriodos?: number; indice?: string; variaciones?: { periodo: number; porcentaje: number }[] };
-  baseExtraordinarias?: 'cuota_fija' | 'capital_fijo';
-  extraordinarias?: { periodo: number; monto: number }[];
-  calendario?: { fechaVencimiento: string; capital: number; interes: number; cargos: number }[];
+  /** Personalizado: un hito por cuota (fecha y capital). Interés y cargos solo vienen en calendarios legados/importados. */
+  calendario?: { fechaVencimiento: string; capital: number; interes?: number; cargos?: number }[];
 }
 export interface PlanInput {
   monto: number; tasaAnual: number; cantidadCuotas: number; frecuencia: Frecuencia;
   tipoAmortizacion: TipoAmortizacion; fechaPrimeraCuota: string; cargoCuota: number; opciones?: OpcionesPlan;
+  baseCalculo?: BaseCalculo; fechaDesembolso?: string;
 }
 export interface CuotaCalculada { capital: number; interes: number; cargos: number; monto: number; interesDiferido?: number }
-export interface CuotaPlan extends CuotaCalculada { numero: number; fechaVencimiento: string; saldo: number; concepto: string }
+export interface CuotaPlan extends CuotaCalculada { numero: number; fechaVencimiento: string; saldo: number; concepto: string; semanaIso?: number; anioIso?: number; mesNombre?: string; anio?: number }
 function fail(message: string): never { throw new ApiError(400, message); }
 export function validDate(value: unknown): value is string {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value) || value.startsWith('0000-')) return false;
@@ -39,69 +40,38 @@ const integer = (value: unknown, min: number, max: number, label: string) => {
   if (!Number.isInteger(value) || Number(value) < min || Number(value) > max) fail(`${label}: ingresa un entero entre ${min} y ${max}.`);
 };
 
-/** Valida también las opciones: simular y guardar usan exactamente estas reglas. */
+const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+/** Semana ISO 8601 (equivale a DATEPART(ISO_WEEK, fecha)), año ISO, nombre del mes y año calendario. */
+export function infoFecha(fecha: string) {
+  const d = new Date(`${fecha}T00:00:00Z`);
+  const mesNombre = MESES[d.getUTCMonth()], anio = d.getUTCFullYear();
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7)); // jueves de la misma semana ISO
+  const anioIso = d.getUTCFullYear();
+  const semanaIso = Math.ceil(((d.getTime() - Date.UTC(anioIso, 0, 1)) / 86400000 + 1) / 7);
+  return { semanaIso, anioIso, mesNombre, anio };
+}
+
+/** Valida el plan. Simular y guardar usan exactamente estas reglas. */
 export function validarPlan(input: PlanInput): void {
   amount(input.monto, 'Monto', 0.01); amount(input.cargoCuota, 'Cargos');
   if (!Number.isFinite(input.tasaAnual) || input.tasaAnual < 0 || input.tasaAnual > 200 || Math.abs(input.tasaAnual * 10000 - Math.round(input.tasaAnual * 10000)) > 1e-6) fail('La tasa anual debe estar entre 0 y 200%, con máximo cuatro decimales.');
-  integer(input.cantidadCuotas, 1, 1000, 'Cantidad de períodos');
-  if (!FRECUENCIAS.includes(input.frecuencia) || !TIPOS_AMORTIZACION.includes(input.tipoAmortizacion) || !validDate(input.fechaPrimeraCuota)) fail('Frecuencia, amortización o fecha no válidas.');
-  const o = input.opciones ?? {};
-  if (!o || typeof o !== 'object' || Array.isArray(o)) fail('Opciones de amortización no válidas.');
-  const n = input.cantidadCuotas, g = o.gracia?.periodos ?? 0;
-  if (o.gracia) {
-    if (n < 2) fail('La gracia requiere al menos un período adicional para amortizar el préstamo.');
-    integer(g, 1, n - 1, 'Períodos de gracia');
-    if (['manual', 'pago_unico'].includes(input.tipoAmortizacion)) fail('El calendario manual y el pago único no usan una gracia adicional.');
-    if (!['parcial', 'capitalizar', 'diferir'].includes(o.gracia.tipo)) fail('Tipo de gracia no válido.');
-    if (o.gracia.tipo === 'diferir' && !['primera', 'repartido', 'ultima'].includes(o.gracia.cobroDiferido ?? '')) fail('Elige cuándo cobrar los intereses diferidos.');
-  }
-  if (input.tipoAmortizacion === 'pago_unico' && !['simple', 'compuesto'].includes(o.interesPagoUnico ?? '')) fail('Elige interés simple o compuesto para el pago único.');
-  if (input.tipoAmortizacion === 'balon') {
-    if (!o.balon || !['monto', 'porcentaje'].includes(o.balon.unidad) || !['cuota_fija', 'capital_fijo'].includes(o.balon.base)) fail('Configura el capital balón y el método de las cuotas regulares.');
-    amount(o.balon.valor, 'Capital balón', 0.01);
-    if (n - g < 2 || (o.balon.unidad === 'porcentaje' && o.balon.valor >= 100) || (o.balon.unidad === 'monto' && o.balon.valor >= input.monto)) fail('El balón debe ser menor que el monto recibido y requiere al menos dos períodos después de la gracia.');
-    const residual = money(o.balon.unidad === 'porcentaje' ? input.monto * o.balon.valor / 100 : o.balon.valor);
-    if (residual <= 0 || residual >= input.monto) fail('El capital balón debe ser al menos 0.01 y menor que el monto recibido.');
-  }
-  if (input.tipoAmortizacion === 'creciente') {
-    const c = o.crecimiento;
-    if (!c || !['fijo', 'variable'].includes(c.modo)) fail('Configura el crecimiento de las cuotas.');
-    if (c.modo === 'fijo') {
-      if (!Number.isFinite(c.porcentaje) || c.porcentaje! < 0 || c.porcentaje! > 100) fail('El crecimiento fijo debe estar entre 0 y 100%.');
-      integer(c.cadaPeriodos, 1, n, 'Frecuencia del crecimiento');
-    } else {
-      if (typeof c.indice !== 'string' || !c.indice.trim() || c.indice.length > 100 || !Array.isArray(c.variaciones) || !c.variaciones.length || c.variaciones.length > n) fail('Ingresa el nombre del índice y sus variaciones por período.');
-      const seen = new Set<number>();
-      for (const row of c.variaciones) {
-        if (!row || typeof row !== 'object') fail('Variación no válida.');
-        integer(row.periodo, g + 2, n, 'Período de variación');
-        if (seen.has(row.periodo) || !Number.isFinite(row.porcentaje) || row.porcentaje <= -100 || row.porcentaje > 100) fail('Las variaciones deben ser únicas por período, mayores que -100% y hasta 100%.');
-        seen.add(row.periodo);
-      }
-    }
-  }
-  if (input.tipoAmortizacion === 'extraordinarias') {
-    if (!['cuota_fija', 'capital_fijo'].includes(o.baseExtraordinarias ?? '') || !Array.isArray(o.extraordinarias) || !o.extraordinarias.length || o.extraordinarias.length > n) fail('Elige el plan base y agrega al menos un abono extraordinario.');
-    const seen = new Set<number>();
-    for (const row of o.extraordinarias) {
-      if (!row || typeof row !== 'object') fail('Abono programado no válido.');
-      integer(row.periodo, g + 1, n, 'Período del abono extraordinario');
-      amount(row.monto, 'Abono extraordinario', 0.01);
-      if (seen.has(row.periodo)) fail('Solo se permite un abono extraordinario por período.');
-      seen.add(row.periodo);
-    }
-  }
-  if (input.tipoAmortizacion === 'manual') {
-    if (!Array.isArray(o.calendario) || o.calendario.length !== n) fail('El calendario manual debe tener una fila por cuota.');
+  integer(input.cantidadCuotas, 1, 600, 'Plazo en meses');
+  if (!TIPOS_AMORTIZACION.includes(input.tipoAmortizacion)) fail('Elige Cuota fija (Francés), Solo interés al vencimiento (Bullet) o Personalizada.');
+  if (!validDate(input.fechaPrimeraCuota)) fail('La fecha del primer pago no es válida.');
+  if (input.baseCalculo !== undefined && !BASES_CALCULO.includes(input.baseCalculo)) fail('Base de cálculo no válida.');
+  if (input.fechaDesembolso !== undefined && !validDate(input.fechaDesembolso)) fail('La fecha de desembolso no es válida.');
+  if (input.tipoAmortizacion === 'personalizado') {
+    const rows = input.opciones?.calendario;
+    if (!Array.isArray(rows) || rows.length !== input.cantidadCuotas) fail('La amortización personalizada debe tener un hito de capital por cuota.');
     let previous = '';
-    for (const row of o.calendario) {
-      if (!row || typeof row !== 'object' || !validDate(row.fechaVencimiento) || row.fechaVencimiento <= previous) fail('Las fechas del calendario deben ser válidas y estar en orden, sin repetirse.');
-      amount(row.capital, 'Capital'); amount(row.interes, 'Interés'); amount(row.cargos, 'Cargos');
-      if (money(row.capital + row.interes + row.cargos) <= 0) fail('Cada cuota manual debe tener un monto mayor que cero.');
+    for (const row of rows) {
+      if (!row || typeof row !== 'object' || !validDate(row.fechaVencimiento) || row.fechaVencimiento <= previous) fail('Las fechas de pago deben ser válidas y estar en orden, sin repetirse.');
+      amount(row.capital, 'Capital');
       previous = row.fechaVencimiento;
     }
-    if (o.calendario[0].fechaVencimiento !== input.fechaPrimeraCuota) fail('La primera fecha del calendario debe coincidir con la primera cuota.');
-    if (money(o.calendario.reduce((sum, row) => sum + row.capital, 0)) !== money(input.monto)) fail('El capital del calendario debe sumar exactamente el monto recibido.');
+    if (rows[0].fechaVencimiento !== input.fechaPrimeraCuota) fail('La primera fecha del calendario debe coincidir con la fecha del primer pago.');
+    const diff = money(rows.reduce((sum, row) => sum + row.capital, 0) - input.monto);
+    if (diff !== 0) fail(`Descuadre por ${Math.abs(diff).toFixed(2)}: la suma de abonos a capital debe ser igual al monto del desembolso.`);
   }
 }
 
@@ -118,83 +88,40 @@ export function fechaPeriodo(first: string, frequency: Frecuencia, index: number
 }
 
 export const cuotaFija = (principal: number, rate: number, n: number) => rate === 0 ? principal / n : principal * rate / -Math.expm1(-n * Math.log1p(rate));
+const diasEntre = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000);
 
+/**
+ * Motor de amortización (mensual) con tres modalidades:
+ *  - cuota_fija: Francés, C = P·i(1+i)^n / ((1+i)^n − 1), i = tasa anual / 12.
+ *  - solo_interes: Bullet, intereses mensuales y todo el capital en la última cuota.
+ *  - personalizado: el usuario define el capital de cada cuota; el interés se calcula sobre el saldo.
+ * Base 30/360: interés = saldo × tasa / 12. Base ACTUAL/360: saldo × tasa × días transcurridos / 360.
+ * En la última cuota el capital es exactamente el saldo remanente (saldo final 0.00).
+ */
 export function calcularPlan(input: PlanInput) {
   validarPlan(input);
-  const o = input.opciones ?? {}, n = input.cantidadCuotas, grace = o.gracia?.periodos ?? 0;
-  const rate = input.tasaAnual / 100 / PERIODOS_ANIO[input.frecuencia];
+  const n = input.cantidadCuotas, base = input.baseCalculo ?? '30_360', tasa = input.tasaAnual / 100, rate = tasa / 12;
+  const fechas = input.tipoAmortizacion === 'personalizado'
+    ? input.opciones!.calendario!.map(row => row.fechaVencimiento)
+    : Array.from({ length: n }, (_, i) => fechaPeriodo(input.fechaPrimeraCuota, 'mensual', i));
   const cuotas: CuotaPlan[] = [];
-  let balance = money(input.monto), interesCapitalizado = 0, diferido = 0;
-  const push = (numero: number, capital: number, interes: number, cargos: number, concepto: string, fecha?: string, interesDiferido = 0) => {
-    const row = { numero, fechaVencimiento: fecha ?? fechaPeriodo(input.fechaPrimeraCuota, input.frecuencia, numero - 1), capital: money(capital), interes: money(interes), cargos: money(cargos), monto: money(capital + interes + cargos), saldo: balance, concepto, interesDiferido };
+  let balance = money(input.monto), anterior = input.fechaDesembolso ?? fechaPeriodo(input.fechaPrimeraCuota, 'mensual', -1);
+  const cuota = input.tipoAmortizacion === 'cuota_fija' ? money(cuotaFija(input.monto, rate, n)) : 0;
+  for (let i = 0; i < n; i += 1) {
+    const fecha = fechas[i], last = i === n - 1;
+    const interes = money(base === 'ACTUAL_360' ? balance * tasa * Math.max(0, diasEntre(anterior, fecha)) / 360 : balance * rate);
+    let capital: number, concepto = 'Cuota';
+    if (last) { capital = balance; if (input.tipoAmortizacion === 'solo_interes') concepto = 'Cuota final · capital al vencimiento'; }
+    else if (input.tipoAmortizacion === 'cuota_fija') capital = Math.min(balance, Math.max(0, money(cuota - interes)));
+    else if (input.tipoAmortizacion === 'solo_interes') capital = 0;
+    else { capital = input.opciones!.calendario![i].capital; if (capital > 0) concepto = 'Abono a capital'; }
+    capital = money(capital); balance = money(balance - capital);
+    const row: CuotaPlan = { numero: i + 1, fechaVencimiento: fecha, capital, interes, cargos: input.cargoCuota, monto: money(capital + interes + input.cargoCuota), saldo: balance, concepto, interesDiferido: 0, ...infoFecha(fecha) };
     if (!validDate(row.fechaVencimiento)) fail('El plazo genera una fecha de vencimiento fuera del rango permitido.');
-    if (![row.capital, row.interes, row.cargos, row.monto, row.saldo].every(v => Number.isFinite(v) && v >= 0 && v <= 1e12)) fail('El plan excede los límites de cálculo. Revisa el monto, plazo y crecimiento.');
-    cuotas.push(row);
-  };
-  if (input.tipoAmortizacion === 'manual') {
-    o.calendario!.forEach((row, index) => { balance = money(balance - row.capital); push(index + 1, row.capital, row.interes, row.cargos, 'Calendario manual', row.fechaVencimiento); });
-  } else if (input.tipoAmortizacion === 'pago_unico') {
-    const interest = money(input.monto * (o.interesPagoUnico === 'compuesto' ? Math.expm1(n * Math.log1p(rate)) : rate * n));
-    balance = 0;
-    push(1, input.monto, interest, input.cargoCuota, `Pago único · ${n} períodos · interés ${o.interesPagoUnico}`, input.fechaPrimeraCuota);
-  } else {
-    for (let i = 1; i <= grace; i += 1) {
-      const interest = money(balance * rate);
-      if (o.gracia!.tipo === 'capitalizar') { balance = money(balance + interest); interesCapitalizado = money(interesCapitalizado + interest); }
-      if (o.gracia!.tipo === 'diferir') diferido = money(diferido + interest);
-      push(i, 0, o.gracia!.tipo === 'parcial' ? interest : 0, o.gracia!.tipo === 'parcial' ? input.cargoCuota : 0,
-        o.gracia!.tipo === 'capitalizar' ? `Gracia total · capitaliza ${interest.toFixed(2)}` : o.gracia!.tipo === 'diferir' ? `Gracia total · difiere ${interest.toFixed(2)}` : 'Gracia parcial · solo intereses');
-    }
-    const principal = balance, count = n - grace;
-    const tipo = input.tipoAmortizacion === 'extraordinarias' ? o.baseExtraordinarias! : input.tipoAmortizacion;
-    const balon = input.tipoAmortizacion === 'balon' ? money(o.balon!.unidad === 'porcentaje' ? input.monto * o.balon!.valor / 100 : o.balon!.valor) : 0;
-    const regularCount = input.tipoAmortizacion === 'balon' ? count - 1 : count;
-    const fixed = input.tipoAmortizacion === 'balon'
-      ? cuotaFija(principal - balon / (1 + rate) ** regularCount, rate, regularCount)
-      : cuotaFija(principal, rate, count);
-    const fixedCapital = (principal - balon) / regularCount;
-    const weights: number[] = [];
-    let weight = 1;
-    for (let j = 0; j < count; j += 1) {
-      if (input.tipoAmortizacion === 'creciente' && j > 0) {
-        const c = o.crecimiento!;
-        const growth = c.modo === 'fijo' ? (j % c.cadaPeriodos! === 0 ? c.porcentaje! : 0) : c.variaciones!.find(row => row.periodo === grace + j + 1)?.porcentaje ?? 0;
-        weight *= 1 + growth / 100;
-      }
-      weights.push(weight);
-    }
-    const firstGrowing = principal / weights.reduce((sum, w, j) => sum + w / (1 + rate) ** (j + 1), 0);
-    let deferredLeft = diferido;
-    for (let j = 0; j < count && balance > 0; j += 1) {
-      const numero = grace + j + 1, last = j === count - 1;
-      let interest = money(balance * rate), capital = 0;
-      if (last) capital = balance;
-      else if (tipo === 'capital_fijo' || (tipo === 'balon' && o.balon!.base === 'capital_fijo')) capital = Math.min(balance, money(fixedCapital));
-      else if (tipo !== 'solo_interes') {
-        const target = tipo === 'creciente' ? money(firstGrowing * weights[j]) : money(fixed);
-        if (target < interest) fail('La cuota calculada no cubre el interés. Reduce el crecimiento o el plazo para evitar amortización negativa.');
-        capital = Math.min(balance, money(target - interest));
-      }
-      // Ajusta el último pago regular por centavos para dejar exactamente el balón pactado.
-      if (tipo === 'balon' && j === count - 2) capital = money(balance - balon);
-      const extra = input.tipoAmortizacion === 'extraordinarias' ? o.extraordinarias!.find(row => row.periodo === numero)?.monto ?? 0 : 0;
-      if (extra > (last ? balance : money(balance - capital))) fail(`El abono extraordinario del período ${numero} excede el capital disponible después de la cuota regular.`);
-      capital = money(capital + (last ? 0 : extra));
-      balance = money(balance - capital);
-      let deferredCharge = 0;
-      if (deferredLeft > 0) {
-        deferredCharge = balance === 0 || last || o.gracia?.cobroDiferido === 'primera' ? deferredLeft
-          : o.gracia?.cobroDiferido === 'repartido' ? Math.min(deferredLeft, money(diferido / count)) : 0;
-        interest = money(interest + deferredCharge); deferredLeft = money(deferredLeft - deferredCharge);
-      }
-      push(numero, capital, interest, input.cargoCuota, extra > 0 ? `Cuota + abono programado ${extra.toFixed(2)}` : last && tipo === 'balon' ? 'Cuota balón' : 'Cuota', undefined, deferredCharge);
-    }
-    if (input.tipoAmortizacion === 'extraordinarias' && o.extraordinarias!.some(row => row.periodo > cuotas[cuotas.length - 1].numero)) fail('Hay abonos programados después de que el préstamo queda liquidado. Ajusta el calendario.');
+    if (![row.capital, row.interes, row.cargos, row.monto, row.saldo].every(v => Number.isFinite(v) && v >= 0 && v <= 1e12)) fail('El plan excede los límites de cálculo. Revisa el monto, plazo y tasa.');
+    cuotas.push(row); anterior = fecha;
   }
-  const sum = (key: 'capital' | 'interes' | 'cargos' | 'monto') => {
-    const total = money(cuotas.reduce((acc, row) => acc + row[key], 0));
-    if (!Number.isFinite(total) || total > 1e12) fail('El total del plan excede el límite permitido. Reduce los importes o el plazo.');
-    return total;
-  };
-  return { cuotas, interesCapitalizado, capitalFinanciado: money(input.monto + interesCapitalizado), totalInteres: money(sum('interes') + interesCapitalizado), totalCargos: sum('cargos'), totalPagar: sum('monto'), primeraCuota: cuotas.find(row => row.monto > 0)?.monto ?? 0, ultimaCuota: cuotas[cuotas.length - 1]?.monto ?? 0 };
+  if (cuotas[n - 1].saldo !== 0) fail('El plan no cuadra: el saldo final debe ser 0.00.');
+  const sum = (key: 'capital' | 'interes' | 'cargos' | 'monto') => money(cuotas.reduce((acc, row) => acc + row[key], 0));
+  return { cuotas, interesCapitalizado: 0, capitalFinanciado: money(input.monto), totalInteres: sum('interes'), totalCargos: sum('cargos'), totalPagar: sum('monto'), primeraCuota: cuotas[0].monto, ultimaCuota: cuotas[n - 1].monto };
 }

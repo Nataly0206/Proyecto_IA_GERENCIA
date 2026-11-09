@@ -558,6 +558,23 @@ async function migrate(): Promise<void> {
       END;
     `);
 
+    await pool.request().query(`
+      SET XACT_ABORT ON;
+      IF NOT EXISTS (SELECT 1 FROM dbo.dashboard_migraciones WHERE version = 20)
+      BEGIN
+        BEGIN TRANSACTION;
+        ALTER TABLE dbo.prestamos ADD base_calculo NVARCHAR(12) NOT NULL
+          CONSTRAINT DF_prestamos_base_calculo DEFAULT N'30_360';
+        EXEC(N'ALTER TABLE dbo.prestamos ADD CONSTRAINT CK_prestamos_base_calculo CHECK (base_calculo IN (N''30_360'',N''ACTUAL_360''))');
+        ALTER TABLE dbo.prestamos DROP CONSTRAINT CK_prestamos_tipo;
+        ALTER TABLE dbo.prestamos ADD CONSTRAINT CK_prestamos_tipo CHECK
+          (tipo_amortizacion IN (N'cuota_fija',N'capital_fijo',N'solo_interes',N'pago_unico',N'balon',N'creciente',N'extraordinarias',N'manual',N'personalizado'));
+        INSERT INTO dbo.dashboard_migraciones (version, nombre)
+        VALUES (20, N'préstamos: base de cálculo de interés y amortización personalizada');
+        COMMIT TRANSACTION;
+      END;
+    `);
+
     console.log(`[migrate] Base [${databaseName}] lista y actualizada.`);
   } finally {
     await pool.close();

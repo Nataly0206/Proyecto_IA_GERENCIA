@@ -23,14 +23,19 @@ function parsePlan(body: Request['body']): service.PlanInput {
   if (!Number.isFinite(monto) || monto <= 0 || !Number.isFinite(tasaAnual) || tasaAnual < 0 || tasaAnual > 200
     || !Number.isInteger(cantidadCuotas) || cantidadCuotas < 1 || cantidadCuotas > 1000
     || !Number.isFinite(cargoCuota) || cargoCuota < 0
-    || !service.FRECUENCIAS.includes(body?.frecuencia) || !service.TIPOS_AMORTIZACION.includes(body?.tipoAmortizacion)
+    || !service.TIPOS_AMORTIZACION.includes(body?.tipoAmortizacion)
     || !validDate(body?.fechaPrimeraCuota)) {
     throw new ApiError(400, 'Revisa el monto, la tasa, las cuotas y las fechas del préstamo.');
   }
+  const baseCalculo = body?.baseCalculo ?? '30_360';
+  if (!service.BASES_CALCULO.includes(baseCalculo)) throw new ApiError(400, 'Base de cálculo no válida.');
   const input: service.PlanInput = {
-    monto, tasaAnual, cantidadCuotas, cargoCuota, frecuencia: body.frecuencia,
+    monto, tasaAnual, cantidadCuotas, cargoCuota, frecuencia: 'mensual', baseCalculo,
     tipoAmortizacion: body.tipoAmortizacion, fechaPrimeraCuota: body.fechaPrimeraCuota,
-    opciones: body.opciones,
+    fechaDesembolso: validDate(body?.fechaDesembolso) ? body.fechaDesembolso : undefined,
+    opciones: body.tipoAmortizacion === 'personalizado'
+      ? { calendario: Array.isArray(body.opciones?.calendario) ? body.opciones.calendario.map((r: { fechaVencimiento: string; capital: number }) => ({ fechaVencimiento: r?.fechaVencimiento, capital: number(r?.capital) })) : [] }
+      : {},
   };
   validarPlan(input);
   return input;
@@ -86,6 +91,19 @@ router.get('/reporte', asyncHandler(async (req, res) => {
 // Vista previa del calendario antes de guardar el préstamo.
 router.post('/simular', asyncHandler(async (req, res) => res.json(service.calcularPlan(parsePlan(req.body)))));
 
+// Pagos programados agrupados por semana ISO, mes y banco (reporte tipo PAGOS WK). Debe ir antes de '/:id'.
+router.get('/flujo-semanal', asyncHandler(async (req, res) => {
+  const desde = req.query.desde ? String(req.query.desde) : undefined, hasta = req.query.hasta ? String(req.query.hasta) : undefined;
+  if ((desde && !validDate(desde)) || (hasta && !validDate(hasta)) || (desde && hasta && desde > hasta)) throw new ApiError(400, 'El rango de fechas no es válido.');
+  res.json(await service.flujoSemanal(desde, hasta, req.query.incluirPagadas === '1'));
+}));
+
+router.get('/:id/tabla', asyncHandler(async (req, res) => {
+  const result = await service.tablaAmortizacion(idParam(req.params.id, 'Préstamo'));
+  if (!result) throw new ApiError(404, 'Préstamo no encontrado.');
+  res.json(result);
+}));
+
 router.get('/:id/documento-original', asyncHandler(async (req, res) => {
   const id = idParam(req.params.id, 'Préstamo');
   const result = await (await getAuthPool()).request().input('id', sql.BigInt, id)
@@ -110,6 +128,7 @@ router.post('/', asyncHandler(async (req, res) => {
   }
   const prestamo = await service.crearPrestamo({
     ...plan, acreedorId, moneda: req.body.moneda, fechaDesembolso: req.body.fechaDesembolso,
+    baseCalculo: plan.baseCalculo,
     referencia: text(req.body?.referencia, 60), notas: text(req.body?.notas, 1000),
   }, usuario(res));
   res.status(201).json({ message: 'Préstamo registrado.', prestamo });

@@ -77,7 +77,7 @@ export async function editarAcreedor(id: number, input: AcreedorInput, usuario: 
     if (!result.rowsAffected[0]) throw new ApiError(404, 'Acreedor no encontrado.');
   } catch (error) {
     const code = (error as { number?: number }).number;
-    if (code === 2601 || code === 2627) throw new ApiError(409, 'Ya existe un acreedor con ese nombre, incluso entre los eliminados.');
+    if (code === 2601 || code === 2627) throw new ApiError(409, 'Ya existe un acreedor con ese nombre.');
     throw error;
   }
 }
@@ -514,4 +514,49 @@ export async function flujoSemanal(desde?: string, hasta?: string, incluirPagada
     groups.set(key, g);
   }
   return [...groups.values()];
+}
+
+const isoLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+/**
+ * Cuotas por pagar en la semana ISO actual (lunes a domingo), con el total por acreedor.
+ * Incluye aparte lo vencido de semanas anteriores que sigue pendiente, para no perderlo de vista.
+ */
+export async function semanaActual() {
+  const hoy = new Date(), lunes = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() - ((hoy.getDay() + 6) % 7));
+  const domingo = new Date(lunes.getFullYear(), lunes.getMonth(), lunes.getDate() + 6);
+  const desde = isoLocal(lunes), hasta = isoLocal(domingo);
+  const pool = await getAuthPool();
+  const [cuotas, deuda] = await Promise.all([
+    pool.request().input('hasta', sql.Date, hasta).query(`
+      SELECT q.id AS cuotaId, p.id AS prestamoId, p.numero, p.referencia, a.id AS acreedorId, a.nombre AS acreedor, p.moneda,
+        q.numero AS cuota, p.cantidad_cuotas AS totalCuotas, CONVERT(varchar(10), q.fecha_vencimiento, 23) AS fechaVencimiento,
+        q.capital, q.interes, q.cargos, q.monto, q.monto - q.pagado AS pendiente
+      FROM dbo.prestamos_cuotas q JOIN dbo.prestamos p ON p.id = q.prestamo_id
+      JOIN dbo.prestamos_acreedores a ON a.id = p.acreedor_id
+      WHERE q.eliminado_en IS NULL AND p.eliminado_en IS NULL AND p.estado = N'activo'
+        AND q.pagado < q.monto AND q.fecha_vencimiento <= @hasta
+      ORDER BY q.fecha_vencimiento, a.nombre, p.id`),
+    pool.request().query(`
+      SELECT a.id AS acreedorId, p.moneda, SUM(${CAPITAL_PENDIENTE}) AS saldoCapital
+      FROM dbo.prestamos_cuotas q JOIN dbo.prestamos p ON p.id = q.prestamo_id
+      JOIN dbo.prestamos_acreedores a ON a.id = p.acreedor_id
+      WHERE q.eliminado_en IS NULL AND p.eliminado_en IS NULL AND p.estado = N'activo' AND q.pagado < q.monto
+      GROUP BY a.id, p.moneda`),
+  ]);
+  const rows = cuotas.recordset.map((q) => ({ ...q, vencida: q.fechaVencimiento < desde, ...infoFecha(q.fechaVencimiento) }));
+  type Grupo = { acreedorId: number; acreedor: string; moneda: Moneda; cuotas: number; semana: number; vencido: number; saldoCapital: number };
+  const grupos = new Map<string, Grupo>(), totales = new Map<Moneda, { moneda: Moneda; cuotas: number; semana: number; vencido: number }>();
+  for (const q of rows) {
+    const key = `${q.acreedorId}-${q.moneda}`;
+    const g = grupos.get(key) ?? { acreedorId: Number(q.acreedorId), acreedor: q.acreedor, moneda: q.moneda, cuotas: 0, semana: 0, vencido: 0,
+      saldoCapital: Number(deuda.recordset.find((d) => Number(d.acreedorId) === Number(q.acreedorId) && d.moneda === q.moneda)?.saldoCapital ?? 0) };
+    const t = totales.get(q.moneda) ?? { moneda: q.moneda as Moneda, cuotas: 0, semana: 0, vencido: 0 };
+    g.cuotas += 1; t.cuotas += 1;
+    if (q.vencida) { g.vencido = money(g.vencido + Number(q.pendiente)); t.vencido = money(t.vencido + Number(q.pendiente)); }
+    else { g.semana = money(g.semana + Number(q.pendiente)); t.semana = money(t.semana + Number(q.pendiente)); }
+    grupos.set(key, g); totales.set(q.moneda, t);
+  }
+  const info = infoFecha(hasta);
+  return { semanaIso: infoFecha(desde).semanaIso, anioIso: infoFecha(desde).anioIso, mesNombre: info.mesNombre, desde, hasta, hoy: isoLocal(hoy), cuotas: rows, porAcreedor: [...grupos.values()], totales: [...totales.values()] };
 }

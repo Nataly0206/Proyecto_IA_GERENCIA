@@ -30,11 +30,16 @@ function parsePlan(body: Request['body']): service.PlanInput {
   const baseCalculo = body?.baseCalculo ?? '30_360';
   if (!service.BASES_CALCULO.includes(baseCalculo)) throw new ApiError(400, 'Base de cálculo no válida.');
   const input: service.PlanInput = {
-    monto, tasaAnual, cantidadCuotas, cargoCuota, frecuencia: 'mensual', baseCalculo,
+    monto, tasaAnual, cantidadCuotas, cargoCuota, frecuencia: body.frecuencia ?? 'mensual', baseCalculo,
     tipoAmortizacion: body.tipoAmortizacion, fechaPrimeraCuota: body.fechaPrimeraCuota,
     fechaDesembolso: validDate(body?.fechaDesembolso) ? body.fechaDesembolso : undefined,
-    opciones: body.tipoAmortizacion === 'personalizado'
-      ? { calendario: Array.isArray(body.opciones?.calendario) ? body.opciones.calendario.map((r: { fechaVencimiento: string; capital: number }) => ({ fechaVencimiento: r?.fechaVencimiento, capital: number(r?.capital) })) : [] }
+    opciones: body.tipoAmortizacion === 'personalizado' || body.tipoAmortizacion === 'manual'
+      ? { calendario: Array.isArray(body.opciones?.calendario) ? body.opciones.calendario.map((r: { fechaVencimiento: string; capital: number; interes?: number | null; cargos?: number | null }) => ({
+        fechaVencimiento: r?.fechaVencimiento, capital: number(r?.capital),
+        ...(r?.interes === undefined || r?.interes === null ? {} : { interes: number(r.interes) }),
+        // Los cargos por cuota solo existen en el método Manual (en los demás se usa el cargo general).
+        ...(body.tipoAmortizacion === 'manual' && r?.cargos !== undefined && r?.cargos !== null ? { cargos: number(r.cargos) } : {}),
+      })) : [] }
       : {},
   };
   validarPlan(input);
@@ -92,6 +97,9 @@ router.get('/reporte', asyncHandler(async (req, res) => {
 router.post('/simular', asyncHandler(async (req, res) => res.json(service.calcularPlan(parsePlan(req.body)))));
 
 // Pagos programados agrupados por semana ISO, mes y banco (reporte tipo PAGOS WK). Debe ir antes de '/:id'.
+// Cuotas de la semana ISO actual por acreedor. Debe ir antes de '/:id'.
+router.get('/semana-actual', asyncHandler(async (_req, res) => res.json(await service.semanaActual())));
+
 router.get('/flujo-semanal', asyncHandler(async (req, res) => {
   const desde = req.query.desde ? String(req.query.desde) : undefined, hasta = req.query.hasta ? String(req.query.hasta) : undefined;
   if ((desde && !validDate(desde)) || (hasta && !validDate(hasta)) || (desde && hasta && desde > hasta)) throw new ApiError(400, 'El rango de fechas no es válido.');

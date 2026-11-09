@@ -575,6 +575,19 @@ async function migrate(): Promise<void> {
       END;
     `);
 
+    await pool.request().query(`
+      SET XACT_ABORT ON;
+      IF NOT EXISTS (SELECT 1 FROM dbo.dashboard_migraciones WHERE version = 21)
+      BEGIN
+        BEGIN TRANSACTION;
+        ALTER TABLE dbo.prestamos_acreedores DROP CONSTRAINT UQ_prestamos_acreedores_nombre;
+        EXEC(N'CREATE UNIQUE INDEX UX_prestamos_acreedores_nombre_vigente ON dbo.prestamos_acreedores(nombre) WHERE eliminado_en IS NULL');
+        INSERT INTO dbo.dashboard_migraciones (version, nombre)
+        VALUES (21, N'acreedores: nombre único solo entre vigentes');
+        COMMIT TRANSACTION;
+      END;
+    `);
+
     console.log(`[migrate] Base [${databaseName}] lista y actualizada.`);
   } finally {
     await pool.close();

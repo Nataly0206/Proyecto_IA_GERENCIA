@@ -15,7 +15,7 @@ import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import { apiClient } from '../api/client';
 import GroupedNumberField from '../components/prestamos/GroupedNumberField';
 import TelegramLoansDialog from '../components/prestamos/TelegramLoansDialog';
-import AmortizacionOptions, { OpcionesPlan, TIPO_LABEL, TIPOS_NUEVOS, BASE_LABEL, opcionesIniciales, descripcionOpciones, descuadreCapital } from '../components/prestamos/AmortizacionOptions';
+import AmortizacionOptions, { OpcionesPlan, TIPO_LABEL, TIPOS_NUEVOS, BASE_LABEL, FRECUENCIA_LABEL, opcionesIniciales, descripcionOpciones, descuadreCapital } from '../components/prestamos/AmortizacionOptions';
 
 // Control de deuda propia: préstamos que la empresa recibe de bancos y otros acreedores.
 
@@ -41,6 +41,12 @@ interface Detalle {
 }
 interface ReporteRow { id: number; numero: string; tipo: string; fecha: string; acreedor: string; prestamo: string; referencia?: string; moneda: Moneda; monto: number; capital: number; interes: number; cargos: number; metodo: string; comprobante?: string; creadoPor: string }
 interface Plan { totalInteres: number; interesCapitalizado: number; capitalFinanciado: number; totalCargos: number; totalPagar: number; primeraCuota: number; ultimaCuota: number; cuotas: (Cuota & { saldo: number; concepto: string; semanaIso?: number })[] }
+interface SemanaCuota { cuotaId: number; prestamoId: number; numero: string; referencia?: string; acreedor: string; moneda: Moneda; cuota: number; totalCuotas: number; fechaVencimiento: string; capital: number; interes: number; cargos: number; pendiente: number; vencida: boolean }
+interface SemanaActual {
+  semanaIso: number; anioIso: number; desde: string; hasta: string; hoy: string; cuotas: SemanaCuota[];
+  porAcreedor: { acreedorId: number; acreedor: string; moneda: Moneda; cuotas: number; semana: number; vencido: number; saldoCapital: number }[];
+  totales: { moneda: Moneda; cuotas: number; semana: number; vencido: number }[];
+}
 interface FlujoRow { anioIso: number; semanaIso: number; mesNombre: string; banco: string; moneda: Moneda; cuotas: number; capital: number; interes: number; cargos: number; total: number; pendiente: number; desde: string; hasta: string }
 
 const HEAD = { fontWeight: 800, bgcolor: '#f1f5f9', whiteSpace: 'nowrap' } as const;
@@ -89,6 +95,7 @@ export default function PrestamosPage() {
   const [acreedores, setAcreedores] = useState<Acreedor[]>([]);
   const [prestamos, setPrestamos] = useState<Prestamo[]>([]);
   const [resumen, setResumen] = useState<Resumen | null>(null);
+  const [semana, setSemana] = useState<SemanaActual | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -102,12 +109,13 @@ export default function PrestamosPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [a, p, r] = await Promise.all([
+      const [a, p, r, w] = await Promise.all([
         apiClient.get<Acreedor[]>('/prestamos/acreedores'),
         apiClient.get<Prestamo[]>('/prestamos'),
         apiClient.get<Resumen>('/prestamos/resumen'),
+        apiClient.get<SemanaActual>('/prestamos/semana-actual'),
       ]);
-      setAcreedores(a.data); setPrestamos(p.data); setResumen(r.data); setError('');
+      setAcreedores(a.data); setPrestamos(p.data); setResumen(r.data); setSemana(w.data); setError('');
     } catch (e) { setError(apiError(e)); } finally { setLoading(false); }
   }, []);
   useEffect(() => { void load(); }, [load]);
@@ -140,7 +148,7 @@ export default function PrestamosPage() {
           <Tab value="reportes" label="Pagos realizados" />
         </Tabs>
       </Paper>
-      {tab === 'resumen' && <Summary data={resumen} pay={payById} />}
+      {tab === 'resumen' && <><WeekPayments data={semana} pay={payById} /><Summary data={resumen} pay={payById} /></>}
       {tab === 'acreedores' && <Creditors rows={acreedores} search={search} setSearch={setSearch} edit={(a) => { setEditingCreditor(a); setCreditorOpen(true); }} done={done} />}
       {tab === 'prestamos' && <Loans rows={prestamos} search={search} setSearch={setSearch} pay={setPayment} detail={setDetailId} done={done} />}
       {tab === 'flujo' && <WeeklyFlow onError={setError} />}
@@ -152,6 +160,85 @@ export default function PrestamosPage() {
       <DetailDialog id={detailId} close={() => setDetailId(null)} changed={() => void load()} />
       <Snackbar open={Boolean(notice)} autoHideDuration={4000} onClose={() => setNotice('')} message={notice} />
     </Stack>
+  );
+}
+
+/** Cuotas por pagar en la semana ISO actual y cuánto se debe a cada acreedor. */
+function WeekPayments({ data, pay }: { data: SemanaActual | null; pay: (prestamoId: number) => void }) {
+  if (!data) return null;
+  const cuotasSemana = data.cuotas.filter((q) => !q.vencida), vencidas = data.cuotas.filter((q) => q.vencida);
+  const hoyEnSemana = (fecha: string) => fecha === data.hoy;
+  return (
+    <Paper variant="outlined" sx={{ p: 1.4, borderLeft: '4px solid #164a8b' }}>
+      <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} spacing={0.5} mb={1}>
+        <Box>
+          <Typography fontWeight={900}>Pagos de esta semana · Semana {data.semanaIso} de {data.anioIso}</Typography>
+          <Typography variant="caption" color="text.secondary">Del {formatDate(data.desde)} al {formatDate(data.hasta)} (lunes a domingo)</Typography>
+        </Box>
+      </Stack>
+      {!data.cuotas.length ? <Empty>No hay cuotas por pagar esta semana ni cuotas vencidas pendientes.</Empty> : (
+        <Stack spacing={1.4}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2,1fr)', lg: 'repeat(4,1fr)' }, gap: 1 }}>
+            {data.totales.map((t) => (
+              <Box key={t.moneda} sx={{ display: 'contents' }}>
+                <Metric label={`A pagar esta semana · ${t.moneda}`} value={money(t.semana, t.moneda)} color="#164a8b" />
+                {t.vencido > 0 && <Metric label={`Vencido de semanas anteriores · ${t.moneda}`} value={money(t.vencido, t.moneda)} color="#b45309" />}
+              </Box>
+            ))}
+          </Box>
+          <TableContainer>
+            <Table size="small">
+              <TableHead><TableRow>
+                <TableCell sx={HEAD}>Acreedor</TableCell>
+                <TableCell sx={HEAD} align="right">Cuotas</TableCell>
+                <TableCell sx={HEAD} align="right">A pagar esta semana</TableCell>
+                <TableCell sx={HEAD} align="right">Vencido anterior</TableCell>
+                <TableCell sx={HEAD} align="right">Total a pagar ahora</TableCell>
+                <TableCell sx={HEAD} align="right">Deuda de capital</TableCell>
+              </TableRow></TableHead>
+              <TableBody>
+                {data.porAcreedor.map((g) => (
+                  <TableRow key={`${g.acreedorId}-${g.moneda}`} hover>
+                    <TableCell sx={{ fontWeight: 700 }}>{g.acreedor}</TableCell>
+                    <TableCell align="right">{g.cuotas}</TableCell>
+                    <TableCell align="right">{money(g.semana, g.moneda)}</TableCell>
+                    <TableCell align="right" sx={{ color: g.vencido > 0 ? 'warning.main' : undefined }}>{money(g.vencido, g.moneda)}</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 800 }}>{money(g.semana + g.vencido, g.moneda)}</TableCell>
+                    <TableCell align="right">{money(g.saldoCapital, g.moneda)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          <Typography fontWeight={800} fontSize={13}>Detalle de cuotas · {cuotasSemana.length} de esta semana{vencidas.length ? ` y ${vencidas.length} vencida${vencidas.length === 1 ? '' : 's'}` : ''}</Typography>
+          <TableContainer sx={{ maxHeight: 320 }}>
+            <Table size="small" stickyHeader>
+              <TableHead><TableRow>
+                {['Vence', 'Acreedor', 'Préstamo', 'Cuota', 'Capital', 'Interés', 'Cargos', 'Pendiente', 'Estado', ''].map((x) => (
+                  <TableCell key={x} sx={HEAD} align={['Capital', 'Interés', 'Cargos', 'Pendiente'].includes(x) ? 'right' : 'left'}>{x}</TableCell>
+                ))}
+              </TableRow></TableHead>
+              <TableBody>
+                {[...vencidas, ...cuotasSemana].map((q) => (
+                  <TableRow key={q.cuotaId} hover>
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDate(q.fechaVencimiento)}</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>{q.acreedor}</TableCell>
+                    <TableCell>{q.numero}{q.referencia ? <Typography variant="caption" display="block">Ref. {q.referencia}</Typography> : null}</TableCell>
+                    <TableCell>{q.cuota} / {q.totalCuotas}</TableCell>
+                    <TableCell align="right">{money(q.capital, q.moneda)}</TableCell>
+                    <TableCell align="right">{money(q.interes, q.moneda)}</TableCell>
+                    <TableCell align="right">{money(q.cargos, q.moneda)}</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 800 }}>{money(q.pendiente, q.moneda)}</TableCell>
+                    <TableCell>{q.vencida ? <Chip size="small" color="warning" label="Vencida" /> : hoyEnSemana(q.fechaVencimiento) ? <Chip size="small" color="error" label="Vence hoy" /> : q.fechaVencimiento < data.hoy ? <Chip size="small" color="warning" label="Ya venció" /> : <Chip size="small" variant="outlined" label="Esta semana" />}</TableCell>
+                    <TableCell align="right"><Button size="small" onClick={() => pay(q.prestamoId)}>Pagar</Button></TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Stack>
+      )}
+    </Paper>
   );
 }
 
@@ -403,7 +490,7 @@ function CreditorDialog({ open, creditor, close, done }: { open: boolean; credit
 
 function LoanDialog({ open, close, creditors, done }: { open: boolean; close: () => void; creditors: Acreedor[]; done: (m: string) => void }) {
   const emptyForm = () => ({
-    acreedorId: '', referencia: '', moneda: 'HNL' as Moneda, monto: '', tasaAnual: '', cantidadCuotas: '12',
+    acreedorId: '', referencia: '', moneda: 'HNL' as Moneda, monto: '', tasaAnual: '', cantidadCuotas: '12', frecuencia: 'mensual',
     tipoAmortizacion: 'cuota_fija', baseCalculo: '30_360', fechaDesembolso: today(), fechaPrimeraCuota: today(), cargoCuota: '0', notas: '',
   });
   const [form, setForm] = useState(emptyForm);
@@ -416,12 +503,16 @@ function LoanDialog({ open, close, creditors, done }: { open: boolean; close: ()
   const set = (key: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [key]: e.target.value });
   const payload = useMemo(() => ({
     ...form, acreedorId: Number(form.acreedorId), monto: Number(form.monto), tasaAnual: Number(form.tasaAnual),
-    cantidadCuotas: Number(form.cantidadCuotas), cargoCuota: Number(form.cargoCuota),
-    // En la amortización personalizada la primera fecha siempre es la del primer pago.
+    cantidadCuotas: Number(form.cantidadCuotas),
+    // En Manual las cuotas traen sus propios cargos y no se calcula interés: no aplican el seguro general ni la base.
+    cargoCuota: form.tipoAmortizacion === 'manual' ? 0 : Number(form.cargoCuota),
+    baseCalculo: form.tipoAmortizacion === 'manual' ? '30_360' : form.baseCalculo,
+    // Personalizada: la primera fecha siempre es la del primer pago. Manual: se guardan las fechas pegadas tal cual.
     opciones: form.tipoAmortizacion === 'personalizado'
-      ? { calendario: (opciones.calendario ?? []).map((r, i) => i === 0 ? { ...r, fechaVencimiento: form.fechaPrimeraCuota } : r) } : {},
+      ? { calendario: (opciones.calendario ?? []).map((r, i) => i === 0 ? { ...r, fechaVencimiento: form.fechaPrimeraCuota } : r) }
+      : form.tipoAmortizacion === 'manual' ? { calendario: opciones.calendario ?? [] } : {},
   }), [form, opciones]);
-  const descuadre = form.tipoAmortizacion === 'personalizado' ? descuadreCapital(payload.opciones.calendario, payload.monto) : 0;
+  const descuadre = ['personalizado', 'manual'].includes(form.tipoAmortizacion) ? descuadreCapital(payload.opciones.calendario, payload.monto) : 0;
   const cuadra = Math.abs(descuadre) < 0.005;
 
   // La simulación la calcula el backend con la misma función que genera el calendario real.
@@ -474,19 +565,28 @@ function LoanDialog({ open, close, creditors, done }: { open: boolean; close: ()
                 </TextField>
                 <GroupedNumberField required label="Monto desembolso" min={0.01} value={form.monto} onChange={(monto) => setForm({ ...form, monto })} />
                 <TextField size="small" required type="number" label="Tasa interés anual (%)" inputProps={{ min: 0, max: 200, step: 0.0001 }} value={form.tasaAnual} onChange={set('tasaAnual')} />
-                <GroupedNumberField required label="Plazo (meses)" decimals={0} min={1} max={600} value={form.cantidadCuotas} onChange={(cantidadCuotas) => setForm({ ...form, cantidadCuotas })} />
-                <GroupedNumberField label="Seguro y comisiones por cuota" value={form.cargoCuota} onChange={(cargoCuota) => setForm({ ...form, cargoCuota })} />
+                <TextField size="small" select label="Frecuencia de pago" value={form.frecuencia} onChange={set('frecuencia')}>
+                  {Object.entries(FRECUENCIA_LABEL).map(([value, label]) => <MenuItem key={value} value={value}>{label}</MenuItem>)}
+                </TextField>
+                <GroupedNumberField required label="Plazo (número de cuotas)" decimals={0} min={1} max={600} value={form.cantidadCuotas} onChange={(cantidadCuotas) => setForm({ ...form, cantidadCuotas })} />
+                {form.tipoAmortizacion !== 'manual' && <GroupedNumberField label="Seguro y comisiones por cuota" value={form.cargoCuota} onChange={(cargoCuota) => setForm({ ...form, cargoCuota })} />}
                 <TextField size="small" type="date" label="Fecha desembolso" InputLabelProps={{ shrink: true }} value={form.fechaDesembolso} onChange={set('fechaDesembolso')} />
                 <TextField size="small" type="date" label="Fecha primer pago" InputLabelProps={{ shrink: true }} value={form.fechaPrimeraCuota} onChange={set('fechaPrimeraCuota')} />
                 <TextField size="small" select label="Tipo de amortización" value={form.tipoAmortizacion} onChange={(e) => { setForm({ ...form, tipoAmortizacion: e.target.value }); setOpciones(opcionesIniciales(e.target.value)); }}>
                   {TIPOS_NUEVOS.map((value) => <MenuItem key={value} value={value}>{TIPO_LABEL[value]}</MenuItem>)}
                 </TextField>
-                <TextField size="small" select label="Base de cálculo" value={form.baseCalculo} onChange={set('baseCalculo')}>
+                {form.tipoAmortizacion !== 'manual' && <TextField size="small" select label="Base de cálculo" value={form.baseCalculo} onChange={set('baseCalculo')}>
                   {Object.entries(BASE_LABEL).map(([value, label]) => <MenuItem key={value} value={value}>{label}</MenuItem>)}
-                </TextField>
+                </TextField>}
               </Box>
               <AmortizacionOptions tipo={form.tipoAmortizacion} opciones={opciones} onChange={setOpciones}
-                cantidad={payload.cantidadCuotas} monto={payload.monto} fecha={form.fechaPrimeraCuota} moneda={form.moneda} />
+                onImport={(rows) => {
+                  // Una fila por cuota: ajusta plazo y primer pago; si el monto está vacío lo toma de la suma del capital.
+                  const total = rows.reduce((s, r) => s + Math.round(r.capital * 100), 0) / 100;
+                  setForm((f) => ({ ...f, cantidadCuotas: String(rows.length), fechaPrimeraCuota: rows[0].fechaVencimiento, monto: f.monto || String(total) }));
+                  setOpciones({ calendario: rows });
+                }}
+                cantidad={payload.cantidadCuotas} monto={payload.monto} fecha={form.fechaPrimeraCuota} frecuencia={form.frecuencia} moneda={form.moneda} />
               <TextField size="small" label="Notas o garantía" value={form.notas} onChange={set('notas')} />
             </Stack>
             <Paper variant="outlined" sx={{ p: 1.5, bgcolor: '#f6f8f7', alignSelf: 'start' }}>
@@ -495,7 +595,7 @@ function LoanDialog({ open, close, creditors, done }: { open: boolean; close: ()
               {!plan ? <Typography variant="body2" color="text.secondary" mt={1}>{simulating ? 'Calculando…' : 'Completa los datos para ver el plan.'}</Typography>
                 : lines.map(([a, b]) => <Stack key={a} direction="row" justifyContent="space-between" mt={1}><Typography variant="body2">{a}</Typography><b>{b}</b></Stack>)}
               <Alert severity="info" sx={{ mt: 1.5, fontSize: 11 }}>
-                Base 30/360: interés = saldo × tasa anual / 12. Días reales / 360: saldo × tasa anual × días transcurridos / 360. La última cuota cancela el saldo exacto (0.00).
+                Base 30/360: interés = saldo × tasa anual / períodos por año (52, 12 o 4). Días reales / 360: saldo × tasa anual × días transcurridos / 360. La última cuota cancela el saldo exacto (0.00).
               </Alert>
             </Paper>
           </Box>

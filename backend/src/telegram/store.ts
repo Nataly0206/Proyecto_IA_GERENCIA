@@ -134,8 +134,7 @@ export async function confirmDraft(user: AuthUser, id: string, revision: number)
     let acreedorId = draft.acreedorId;
     if (!acreedorId) {
       const creditors = await new sql.Request(tx).input('name', sql.NVarChar(180), draft.acreedor)
-        .query('SELECT id,eliminado_en FROM dbo.prestamos_acreedores WITH(UPDLOCK,HOLDLOCK) WHERE nombre=@name');
-      if (creditors.recordset[0]?.eliminado_en) throw new ApiError(409, 'El acreedor del documento está eliminado. Selecciona un acreedor activo en el borrador.');
+        .query('SELECT id FROM dbo.prestamos_acreedores WITH(UPDLOCK,HOLDLOCK) WHERE nombre=@name AND eliminado_en IS NULL');
       acreedorId = creditors.recordset[0] ? Number(creditors.recordset[0].id) : null;
       if (!acreedorId) {
         const created = await new sql.Request(tx).input('name', sql.NVarChar(180), draft.acreedor)

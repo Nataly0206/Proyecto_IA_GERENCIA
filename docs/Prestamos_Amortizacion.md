@@ -1,7 +1,7 @@
 # Amortizaciones de préstamos recibidos
 
 En **Préstamos → Nuevo préstamo** se registra el crédito con: banco (acreedor), n.º de préstamo,
-moneda, monto desembolsado, tasa anual (%), plazo en meses, fecha de desembolso, fecha del primer
+moneda, monto desembolsado, tasa anual (%), frecuencia de pago, plazo en cuotas, fecha de desembolso, fecha del primer
 pago, tipo de amortización y base de cálculo. La simulación usa el mismo motor que el registro
 (`backend/src/services/amortizacion.ts`) y muestra fecha, semana ISO, capital, interés, pago y saldo,
 con totales de capital, intereses y costo total del crédito. No permite guardar un plan que no cuadre.
@@ -17,9 +17,15 @@ con totales de capital, intereses y costo total del crédito. No permite guardar
 En la personalizada, un indicador muestra **Capital cuadrado 100%** (verde) o **Descuadre por X**
 (rojo). Mientras no cuadre, el botón de guardar queda deshabilitado y el servidor rechaza el plan.
 
+## Frecuencia de pago
+
+Semanal (cada 7 días), mensual o trimestral (cada 3 meses, ajustando fin de mes). El plazo se
+ingresa como **número de cuotas** de esa frecuencia. En base 30/360 la tasa por período es la tasa
+anual dividida entre 52, 12 o 4 según la frecuencia.
+
 ## Base de cálculo
 
-- **30 / 360:** interés = saldo × tasa anual / 12.
+- **30 / 360:** interés = saldo × tasa anual / períodos por año (52, 12 o 4).
 - **Días reales / 360:** interés = saldo × tasa anual × días transcurridos / 360, contando desde la
   cuota anterior (la primera, desde el desembolso).
 

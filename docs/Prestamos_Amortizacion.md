@@ -1,78 +1,55 @@
 # Amortizaciones de préstamos recibidos
 
-En **Préstamos → Nuevo préstamo**, selecciona el método y completa sus condiciones.
-La simulación usa el mismo cálculo que el registro y muestra fechas, capital,
-intereses, cargos, pago y saldo. No permite guardar un calendario inválido.
+En **Préstamos → Nuevo préstamo** se registra el crédito con: banco (acreedor), n.º de préstamo,
+moneda, monto desembolsado, tasa anual (%), plazo en meses, fecha de desembolso, fecha del primer
+pago, tipo de amortización y base de cálculo. La simulación usa el mismo motor que el registro
+(`backend/src/services/amortizacion.ts`) y muestra fecha, semana ISO, capital, interés, pago y saldo,
+con totales de capital, intereses y costo total del crédito. No permite guardar un plan que no cuadre.
 
 ## Métodos
 
-| Método | Configuración y comportamiento |
+| Método | Comportamiento |
 | --- | --- |
-| Francés | Capital + interés constantes, con ajuste de centavos en el último pago. |
-| Alemán | Capital constante; intereses sobre el saldo y cuotas decrecientes. |
-| Americano | Intereses periódicos y capital completo en el último pago. |
-| Pago único / Bullet | Una fecha de vencimiento; plazo contractual en períodos e interés simple o compuesto. Cargos cobrados una sola vez. |
-| Balón | Capital final en monto o porcentaje del desembolso. Cuotas anteriores francesas o alemanas; la última paga el capital balón más su interés. |
-| Creciente | Incremento fijo cada N períodos, o variaciones porcentuales acumulativas ingresadas para períodos específicos. |
-| Extraordinarias | Plan francés o alemán con abonos adicionales de capital programados por número de período. Mantiene las cuotas base y puede terminar antes. |
-| Manual / pagarés escalonados | Fechas e importes pactados libremente; capital total igual al desembolso, fechas únicas y ordenadas. La tasa anual es informativa. |
+| Cuota fija (Francés) | `C = P·i(1+i)ⁿ / ((1+i)ⁿ − 1)`, `i = tasa anual / 12`. Interés = saldo × i; capital = cuota − interés. |
+| Solo interés al vencimiento (Bullet) | Cuotas 1 a n−1: capital 0 e interés sobre el saldo. Cuota n: todo el capital más su interés. |
+| Personalizada (irregular) | El usuario define el capital de cada cuota (y su fecha). El interés se calcula sobre el saldo. |
 
-La tasa es anual nominal, dividida entre 52, 24, 12, 4, 2 o 1 períodos según
-la frecuencia. Los cálculos usan períodos completos, sin prorrateo por días.
-Para el Bullet se ingresa directamente el vencimiento y el número de períodos
-contractuales utilizado para calcular los intereses.
+En la personalizada, un indicador muestra **Capital cuadrado 100%** (verde) o **Descuadre por X**
+(rojo). Mientras no cuadre, el botón de guardar queda deshabilitado y el servidor rechaza el plan.
 
-El índice variable **modifica las cuotas, no la tasa de interés**. Se ingresa
-el nombre de la referencia y la variación porcentual de cada período de cambio.
-No existe consulta automática de inflación; para modificar valores futuros
-pactados después del registro hay que ajustar las cuotas antes de que tengan pagos.
-No se admiten planes con cuotas que no cubran el interés generado.
+## Base de cálculo
 
-## Gracia
+- **30 / 360:** interés = saldo × tasa anual / 12.
+- **Días reales / 360:** interés = saldo × tasa anual × días transcurridos / 360, contando desde la
+  cuota anterior (la primera, desde el desembolso).
 
-Se configura como condición adicional de los métodos periódicos. Está incluida
-en el plazo total y debe dejar al menos un período de amortización.
+## Regla de cuadre
 
-- Parcial: solo interés y cargos durante los períodos iniciales.
-- Total con capitalización: no hay pagos ni cargos durante la gracia; el interés
-  se suma al capital y genera interés posterior.
-- Total con diferimiento: no hay pagos ni cargos durante la gracia; los intereses
-  no se capitalizan. Se cobran en la primera cuota posterior, repartidos entre las
-  cuotas restantes o en la última.
+Todo se redondea a 2 decimales. En la última cuota el capital es exactamente el saldo restante, por lo
+que el saldo final siempre es 0.00.
 
-El capital financiado del calendario incluye la capitalización pactada de toda
-la gracia. Se identifica por separado del desembolso. Los intereses totales de
-la simulación incluyen ese importe, sin duplicarlo en el total a pagar. Cuando
-se paga capital financiado, se registra como capital en los reportes.
+## Endpoints
 
-## Abonos y conservación del historial
+- `POST /api/prestamos/simular`: calcula el plan sin guardar.
+- `POST /api/prestamos`: valida y guarda encabezado y cuotas en una sola transacción SQL.
+- `GET /api/prestamos`: préstamos con saldos y totales calculados.
+- `GET /api/prestamos/:id/tabla`: tabla de amortización con semana ISO, mes y año por cuota.
+- `GET /api/prestamos/flujo-semanal?desde=&hasta=&incluirPagadas=1`: pagos agrupados por semana ISO,
+  mes y banco (reporte tipo PAGOS WK). Por defecto solo cuotas pendientes de préstamos activos;
+  las monedas no se mezclan.
 
-Los abonos se aplican al capital de cuotas sin pagos. Las cuotas parcialmente
-pagadas y las aplicaciones de sus pagos se conservan intactas.
+## Pagos, abonos e historial
 
-- Francés y Alemán sin gracia permiten reducir cuota o plazo, recalculando con
-  la tasa del préstamo. Americano conserva el plazo.
-- Los planes estructurados y con gracia conservan fechas y forma del calendario:
-  distribuyen la reducción de capital proporcionalmente y reducen los intereses
-  futuros en la misma proporción, conservando los intereses diferidos ya pactados. No hacen una liquidación por días.
-- El calendario manual conserva los intereses y cargos pactados: solo distribuye
-  la reducción de capital. Incluso al abonar todo el capital, quedan pendientes
-  esos importes contractuales hasta registrar su pago.
-- Reducir el plazo automáticamente se limita a Francés y Alemán sin gracia;
-  los otros calendarios requieren ajustes explícitos para conservar sus condiciones.
+Los pagos, abonos a capital, ajustes de cuota e historial de cuotas reemplazadas no cambiaron. Con base
+días reales / 360 y en la personalizada, un abono conserva fechas y forma del calendario y reduce capital
+e intereses futuros proporcionalmente. Reducir el plazo solo aplica a Francés con base 30/360.
 
-Un ajuste manual o un recálculo por abono marca las cuotas anteriores como
-reemplazadas, conservando usuario, fecha y motivo. Las nuevas cuotas reutilizan
-el número del período mediante un índice único que solo incluye cuotas vigentes.
-El detalle permite consultar el historial; saldos, agenda y pagos solo usan el
-calendario vigente. Eliminar préstamos o acreedores sigue siendo borrado lógico.
+Los préstamos creados antes con otros métodos (Alemán, balón, creciente, etc.) y los importados por
+Telegram se siguen consultando y pagando, pero ya no se pueden crear nuevos con esos métodos.
 
-## Instalación y verificación
+## Instalación
 
-Las migraciones 12 y 13 amplían los métodos, guardan las opciones, identifican los intereses diferidos y agregan el historial de
-cuotas. Conservan los préstamos existentes y sus calendarios.
-
-Desde `backend`:
+La migración 20 agrega `base_calculo` y el tipo `personalizado`. Desde `backend`:
 
 ```sh
 npm run migrate

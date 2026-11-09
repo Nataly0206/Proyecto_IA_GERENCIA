@@ -403,7 +403,7 @@ export async function resumen() {
       WHERE q.eliminado_en IS NULL AND p.estado = N'activo' AND p.eliminado_en IS NULL AND q.pagado < q.monto
       GROUP BY p.moneda`),
     pool.request().query(`
-      SELECT p.moneda,
+      SELECT p.moneda, SUM(pg.monto) AS totalPagado,
         SUM(CASE WHEN pg.tipo = N'abono_capital' THEN pg.monto ELSE ISNULL(a.capital, 0) END) AS capitalPagado,
         SUM(ISNULL(a.interes, 0)) AS interesPagado, SUM(ISNULL(a.cargos, 0)) AS cargosPagados
       FROM dbo.prestamos_pagos pg JOIN dbo.prestamos p ON p.id = pg.prestamo_id
@@ -412,7 +412,8 @@ export async function resumen() {
       WHERE p.eliminado_en IS NULL
       GROUP BY p.moneda`),
     pool.request().query(`
-      SELECT a.id AS acreedorId, a.nombre AS acreedor, p.moneda, COUNT(*) AS prestamos, SUM(p.monto) AS montoOriginal,
+      SELECT a.id AS acreedorId, a.nombre AS acreedor, p.moneda, SUM(CASE WHEN p.estado = N'activo' THEN 1 ELSE 0 END) AS prestamos, SUM(p.monto) AS montoOriginal,
+        SUM(ISNULL(pg.pagado, 0)) AS pagado,
         SUM(ISNULL(x.saldoCapital, 0)) AS saldoCapital, SUM(ISNULL(x.totalPendiente, 0)) AS totalPendiente,
         SUM(ISNULL(x.vencido, 0)) AS vencido, CONVERT(varchar(10), MIN(x.proximaFecha), 23) AS proximaFecha
       FROM dbo.prestamos p JOIN dbo.prestamos_acreedores a ON a.id = p.acreedor_id
@@ -421,7 +422,8 @@ export async function resumen() {
           SUM(CASE WHEN q.fecha_vencimiento < ${HOY} THEN q.monto - q.pagado ELSE 0 END) vencido,
           MIN(q.fecha_vencimiento) proximaFecha
         FROM dbo.prestamos_cuotas q WHERE q.eliminado_en IS NULL AND q.prestamo_id = p.id AND q.pagado < q.monto) x
-      WHERE p.estado = N'activo' AND p.eliminado_en IS NULL
+      OUTER APPLY (SELECT SUM(monto) AS pagado FROM dbo.prestamos_pagos WHERE prestamo_id = p.id) pg
+      WHERE p.estado IN (N'activo', N'pagado') AND p.eliminado_en IS NULL
       GROUP BY a.id, a.nombre, p.moneda
       ORDER BY p.moneda, saldoCapital DESC`),
     pool.request().query(`
@@ -450,11 +452,12 @@ export async function resumen() {
       totalPendiente: Number(d?.totalPendiente ?? 0),
       vencido: Number(d?.vencido ?? 0),
       proximos30: Number(d?.proximos30 ?? 0),
+      totalPagado: Number(g?.totalPagado ?? 0),
       capitalPagado: Number(g?.capitalPagado ?? 0),
       interesPagado: Number(g?.interesPagado ?? 0),
       cargosPagados: Number(g?.cargosPagados ?? 0),
     };
-  }).filter((row) => row.prestamos > 0 || row.capitalPagado > 0 || row.interesPagado > 0);
+  }).filter((row) => row.prestamos > 0 || row.totalPagado > 0);
   return { monedas, porAcreedor: acreedores.recordset, agenda: agenda.recordset, pagosRecientes: recientes.recordset };
 }
 

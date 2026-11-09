@@ -9,6 +9,7 @@
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "migrate": "tsx src/database/migrate.ts",
+    "seed:prestamos": "tsx src/scripts/seed-prestamos-demo.ts",
     "migrate:prod": "node dist/database/migrate.js",
     "telegram:dev": "tsx src/telegram/main.ts",
     "telegram:start": "node dist/telegram/main.js",

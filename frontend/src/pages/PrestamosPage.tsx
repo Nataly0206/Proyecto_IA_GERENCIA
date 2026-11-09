@@ -29,8 +29,8 @@ interface Prestamo {
   saldoCapital: number; totalPendiente: number; cuotasPendientes: number; cuotasVencidas: number; vencido: number;
   capitalSinPagos: number; permiteReducirPlazo: boolean; pagado: number; proximaFecha?: string; proximaCuota?: number;
 }
-interface ResumenMoneda { moneda: Moneda; prestamos: number; saldoCapital: number; totalPendiente: number; vencido: number; proximos30: number; capitalPagado: number; interesPagado: number; cargosPagados: number }
-interface DeudaAcreedor { acreedorId: number; acreedor: string; moneda: Moneda; prestamos: number; montoOriginal: number; saldoCapital: number; totalPendiente: number; vencido: number; proximaFecha?: string }
+interface ResumenMoneda { moneda: Moneda; prestamos: number; saldoCapital: number; totalPendiente: number; vencido: number; proximos30: number; totalPagado: number; capitalPagado: number; interesPagado: number; cargosPagados: number }
+interface DeudaAcreedor { acreedorId: number; acreedor: string; moneda: Moneda; prestamos: number; montoOriginal: number; pagado: number; saldoCapital: number; totalPendiente: number; vencido: number; proximaFecha?: string }
 interface AgendaRow { cuotaId: number; prestamoId: number; numero: string; acreedor: string; moneda: Moneda; cuota: number; fechaVencimiento: string; pendiente: number; diasAtraso: number }
 interface Resumen { monedas: ResumenMoneda[]; porAcreedor: DeudaAcreedor[]; agenda: AgendaRow[] }
 interface Cuota { id: number; numero: number; fechaVencimiento: string; capital: number; interes: number; cargos: number; monto: number; pagado: number; estado: string; concepto?: string; interesDiferido?: number }
@@ -163,142 +163,142 @@ export default function PrestamosPage() {
   );
 }
 
-/** Cuotas por pagar en la semana ISO actual y cuánto se debe a cada acreedor. */
+/** Agenda semanal compacta: qué toca pagar esta semana y lo atrasado de semanas anteriores. */
 function WeekPayments({ data, pay }: { data: SemanaActual | null; pay: (prestamoId: number) => void }) {
-  if (!data) return null;
-  const cuotasSemana = data.cuotas.filter((q) => !q.vencida), vencidas = data.cuotas.filter((q) => q.vencida);
-  const hoyEnSemana = (fecha: string) => fecha === data.hoy;
+  const [verAtrasadas, setVerAtrasadas] = useState(() => { try { return localStorage.getItem('prestamos.verAtrasadas') !== '0'; } catch { return true; } });
+  useEffect(() => { try { localStorage.setItem('prestamos.verAtrasadas', verAtrasadas ? '1' : '0'); } catch { /* sin almacenamiento */ } }, [verAtrasadas]);
+  if (!data) return <Alert severity="warning">No se pudo cargar la agenda semanal.</Alert>;
+  const actuales = data.cuotas.filter((q) => !q.vencida);
+  const anteriores = data.cuotas.filter((q) => q.vencida);
+  const renderCuotas = (cuotas: SemanaCuota[], color: string) => (
+    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(4, minmax(0, 1fr))', xl: 'repeat(6, minmax(0, 1fr))' }, gap: 1 }}>
+      {cuotas.map((q) => (
+        <Tooltip key={q.cuotaId} title={`Vence el ${formatDate(q.fechaVencimiento)} · clic para registrar el pago`}>
+          <Paper variant="outlined" onClick={() => pay(q.prestamoId)}
+            sx={{ px: 1.2, py: 0.8, borderLeft: `3px solid ${q.fechaVencimiento === data.hoy ? '#c62828' : color}`, cursor: 'pointer', '&:hover': { bgcolor: '#f8fafc' } }}>
+            <Typography variant="body2" fontWeight={800} noWrap>{q.acreedor}</Typography>
+            <Typography variant="caption" color="text.secondary" noWrap component="div">{q.numero}</Typography>
+            <Typography fontWeight={900} fontSize={15}>{money(q.pendiente, q.moneda)}</Typography>
+          </Paper>
+        </Tooltip>
+      ))}
+    </Box>
+  );
+  const vencido = data.totales.filter((t) => t.vencido > 0).map((t) => money(t.vencido, t.moneda)).join(' · ');
   return (
-    <Paper variant="outlined" sx={{ p: 1.4, borderLeft: '4px solid #164a8b' }}>
-      <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} spacing={0.5} mb={1}>
-        <Box>
-          <Typography fontWeight={900}>Pagos de esta semana · Semana {data.semanaIso} de {data.anioIso}</Typography>
-          <Typography variant="caption" color="text.secondary">Del {formatDate(data.desde)} al {formatDate(data.hasta)} (lunes a domingo)</Typography>
-        </Box>
-      </Stack>
-      {!data.cuotas.length ? <Empty>No hay cuotas por pagar esta semana ni cuotas vencidas pendientes.</Empty> : (
-        <Stack spacing={1.4}>
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2,1fr)', lg: 'repeat(4,1fr)' }, gap: 1 }}>
+    <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+      <Stack spacing={1.2}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={1}>
+          <Box>
+            <Typography fontWeight={900}>Semana {data.semanaIso} · toca pagar {actuales.length} cuota{actuales.length === 1 ? '' : 's'}</Typography>
+            <Typography variant="caption" color="text.secondary">Del {formatDate(data.desde)} al {formatDate(data.hasta)}</Typography>
+          </Box>
+          <Stack direction="row" spacing={2}>
             {data.totales.map((t) => (
-              <Box key={t.moneda} sx={{ display: 'contents' }}>
-                <Metric label={`A pagar esta semana · ${t.moneda}`} value={money(t.semana, t.moneda)} color="#164a8b" />
-                {t.vencido > 0 && <Metric label={`Vencido de semanas anteriores · ${t.moneda}`} value={money(t.vencido, t.moneda)} color="#b45309" />}
+              <Box key={t.moneda} textAlign={{ sm: 'right' }}>
+                <Typography variant="caption" color="text.secondary" fontWeight={700}>{MONEDA_LABEL[t.moneda]}</Typography>
+                <Typography fontWeight={900} color="#164a8b">{money(t.semana, t.moneda)}</Typography>
               </Box>
             ))}
-          </Box>
-          <TableContainer>
-            <Table size="small">
-              <TableHead><TableRow>
-                <TableCell sx={HEAD}>Acreedor</TableCell>
-                <TableCell sx={HEAD} align="right">Cuotas</TableCell>
-                <TableCell sx={HEAD} align="right">A pagar esta semana</TableCell>
-                <TableCell sx={HEAD} align="right">Vencido anterior</TableCell>
-                <TableCell sx={HEAD} align="right">Total a pagar ahora</TableCell>
-                <TableCell sx={HEAD} align="right">Deuda de capital</TableCell>
-              </TableRow></TableHead>
-              <TableBody>
-                {data.porAcreedor.map((g) => (
-                  <TableRow key={`${g.acreedorId}-${g.moneda}`} hover>
-                    <TableCell sx={{ fontWeight: 700 }}>{g.acreedor}</TableCell>
-                    <TableCell align="right">{g.cuotas}</TableCell>
-                    <TableCell align="right">{money(g.semana, g.moneda)}</TableCell>
-                    <TableCell align="right" sx={{ color: g.vencido > 0 ? 'warning.main' : undefined }}>{money(g.vencido, g.moneda)}</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 800 }}>{money(g.semana + g.vencido, g.moneda)}</TableCell>
-                    <TableCell align="right">{money(g.saldoCapital, g.moneda)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-          <Typography fontWeight={800} fontSize={13}>Detalle de cuotas · {cuotasSemana.length} de esta semana{vencidas.length ? ` y ${vencidas.length} vencida${vencidas.length === 1 ? '' : 's'}` : ''}</Typography>
-          <TableContainer sx={{ maxHeight: 320 }}>
-            <Table size="small" stickyHeader>
-              <TableHead><TableRow>
-                {['Vence', 'Acreedor', 'Préstamo', 'Cuota', 'Capital', 'Interés', 'Cargos', 'Pendiente', 'Estado', ''].map((x) => (
-                  <TableCell key={x} sx={HEAD} align={['Capital', 'Interés', 'Cargos', 'Pendiente'].includes(x) ? 'right' : 'left'}>{x}</TableCell>
-                ))}
-              </TableRow></TableHead>
-              <TableBody>
-                {[...vencidas, ...cuotasSemana].map((q) => (
-                  <TableRow key={q.cuotaId} hover>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDate(q.fechaVencimiento)}</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>{q.acreedor}</TableCell>
-                    <TableCell>{q.numero}{q.referencia ? <Typography variant="caption" display="block">Ref. {q.referencia}</Typography> : null}</TableCell>
-                    <TableCell>{q.cuota} / {q.totalCuotas}</TableCell>
-                    <TableCell align="right">{money(q.capital, q.moneda)}</TableCell>
-                    <TableCell align="right">{money(q.interes, q.moneda)}</TableCell>
-                    <TableCell align="right">{money(q.cargos, q.moneda)}</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 800 }}>{money(q.pendiente, q.moneda)}</TableCell>
-                    <TableCell>{q.vencida ? <Chip size="small" color="warning" label="Vencida" /> : hoyEnSemana(q.fechaVencimiento) ? <Chip size="small" color="error" label="Vence hoy" /> : q.fechaVencimiento < data.hoy ? <Chip size="small" color="warning" label="Ya venció" /> : <Chip size="small" variant="outlined" label="Esta semana" />}</TableCell>
-                    <TableCell align="right"><Button size="small" onClick={() => pay(q.prestamoId)}>Pagar</Button></TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+          </Stack>
         </Stack>
-      )}
+        {actuales.length ? renderCuotas(actuales, '#164a8b') : <Empty>No hay cuotas pendientes esta semana.</Empty>}
+        {anteriores.length > 0 && <>
+          <Stack direction="row" alignItems="center" spacing={1}>
+            <Typography variant="body2" fontWeight={800} color="warning.dark">
+              Atrasadas de semanas anteriores · {anteriores.length} cuota{anteriores.length === 1 ? '' : 's'}{vencido && ` · ${vencido}`}
+            </Typography>
+            <Button size="small" onClick={() => setVerAtrasadas((v) => !v)} sx={{ minWidth: 0, py: 0 }}>
+              {verAtrasadas ? 'Ocultar' : 'Mostrar'}
+            </Button>
+          </Stack>
+          {verAtrasadas && renderCuotas(anteriores, '#d97706')}
+        </>}
+      </Stack>
     </Paper>
   );
 }
 
 function Summary({ data, pay }: { data: Resumen | null; pay: (prestamoId: number) => void }) {
+  const [banco, setBanco] = useState('');
+  const bancos = useMemo(() => Array.from(new Set((data?.porAcreedor ?? []).map((r) => r.acreedor))).sort(), [data]);
   if (!data) return <Alert severity="warning">No se pudo cargar el resumen de préstamos. Reintenta la carga para consultar los saldos.</Alert>;
   if (!data.monedas.length) return <Empty>No hay saldos ni pagos para mostrar. Puedes consultar los préstamos registrados en la pestaña Préstamos.</Empty>;
+  const filas = banco ? data.porAcreedor.filter((r) => r.acreedor === banco) : data.porAcreedor;
+  const agenda = banco ? data.agenda.filter((r) => r.acreedor === banco) : data.agenda;
+  // Con un banco seleccionado, los totales salen de sus filas; sin filtro, del resumen general.
+  const totales = banco
+    ? MONEDAS.map((moneda) => {
+      const rs = filas.filter((r) => r.moneda === moneda);
+      const sum = (k: 'totalPendiente' | 'pagado' | 'saldoCapital' | 'vencido') => rs.reduce((acc, r) => acc + Number(r[k]), 0);
+      return rs.length ? { moneda, prestamos: rs.reduce((a, r) => a + r.prestamos, 0), totalPendiente: sum('totalPendiente'), totalPagado: sum('pagado'), saldoCapital: sum('saldoCapital'), vencido: sum('vencido') } : null;
+    }).filter((t) => t !== null)
+    : data.monedas;
   return (
-    <Stack spacing={1.4}>
-      {data.monedas.map((m) => (
-        <Box key={m.moneda}>
-          <Typography variant="caption" fontWeight={800} color="text.secondary">
-            {MONEDA_LABEL[m.moneda].toUpperCase()} · {m.prestamos} préstamo{m.prestamos === 1 ? '' : 's'} activo{m.prestamos === 1 ? '' : 's'}
-          </Typography>
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2,1fr)', lg: 'repeat(6,1fr)' }, gap: 1, mt: 0.5 }}>
-            <Metric label="Deuda de capital" value={money(m.saldoCapital, m.moneda)} color="#164a8b" />
-            <Metric label="Total por pagar" value={money(m.totalPendiente, m.moneda)} color="#164a8b" />
-            <Metric label="Próximos 30 días" value={money(m.proximos30, m.moneda)} />
-            <Metric label="Vencido" value={money(m.vencido, m.moneda)} color={m.vencido > 0 ? '#b45309' : '#176247'} />
-            <Metric label="Capital pagado" value={money(m.capitalPagado, m.moneda)} />
-            <Metric label="Intereses pagados" value={money(m.interesPagado, m.moneda)} />
+    <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+      <Stack spacing={1.5}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} spacing={1}>
+          <Box>
+            <Typography fontWeight={900}>Cuánto debemos</Typography>
+            <Typography variant="caption" color="text.secondary">Total por pagar = capital + intereses + cargos pendientes</Typography>
           </Box>
-        </Box>
-      ))}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 1.4 }}>
-        <Paper variant="outlined" sx={{ p: 1.4 }}>
-          <Typography fontWeight={800} mb={1}>Deuda por acreedor</Typography>
+          <TextField select size="small" label="Banco / acreedor" value={banco} onChange={(e) => setBanco(e.target.value)} sx={{ minWidth: 260 }}>
+            <MenuItem value="">Todos</MenuItem>
+            {bancos.map((b) => <MenuItem key={b} value={b}>{b}</MenuItem>)}
+          </TextField>
+        </Stack>
+        {totales.map((m) => (
+          <Box key={m.moneda}>
+            <Typography variant="caption" fontWeight={800} color="text.secondary">
+              {MONEDA_LABEL[m.moneda].toUpperCase()} · {m.prestamos} préstamo{m.prestamos === 1 ? '' : 's'} activo{m.prestamos === 1 ? '' : 's'}
+            </Typography>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2,1fr)', lg: 'repeat(4,minmax(0,1fr))' }, gap: 1, mt: 0.5 }}>
+              <Metric label="Total por pagar" value={money(m.totalPendiente, m.moneda)} color="#164a8b" />
+              <Metric label="Deuda de capital" value={money(m.saldoCapital, m.moneda)} color="#164a8b" />
+              <Metric label="Vencido" value={money(m.vencido, m.moneda)} color={m.vencido > 0 ? '#b45309' : '#176247'} />
+              <Metric label="Total pagado" value={money(m.totalPagado, m.moneda)} />
+            </Box>
+          </Box>
+        ))}
+        {!banco && (
           <TableContainer sx={{ maxHeight: 340 }}>
             <Table size="small" stickyHeader>
               <TableHead><TableRow>
                 <TableCell sx={HEAD}>Acreedor</TableCell>
-                <TableCell sx={HEAD} align="right">Préstamos</TableCell>
-                <TableCell sx={HEAD} align="right">Deuda de capital</TableCell>
+                <TableCell sx={HEAD} align="right">Activos</TableCell>
+                <TableCell sx={HEAD}>Moneda</TableCell>
                 <TableCell sx={HEAD} align="right">Total por pagar</TableCell>
+                <TableCell sx={HEAD} align="right">Deuda de capital</TableCell>
+                <TableCell sx={HEAD} align="right">Total pagado</TableCell>
                 <TableCell sx={HEAD}>Próxima cuota</TableCell>
               </TableRow></TableHead>
               <TableBody>
-                {data.porAcreedor.map((r) => (
-                  <TableRow key={`${r.acreedorId}-${r.moneda}`} hover>
+                {filas.map((r) => (
+                  <TableRow key={`${r.acreedorId}-${r.moneda}`} hover onClick={() => setBanco(r.acreedor)} sx={{ cursor: 'pointer' }}>
                     <TableCell sx={{ fontWeight: 700 }}>{r.acreedor}</TableCell>
                     <TableCell align="right">{r.prestamos}</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 800 }}>{money(r.saldoCapital, r.moneda)}</TableCell>
-                    <TableCell align="right">{money(r.totalPendiente, r.moneda)}</TableCell>
+                    <TableCell>{r.moneda}</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 800 }}>{money(r.totalPendiente, r.moneda)}</TableCell>
+                    <TableCell align="right">{money(r.saldoCapital, r.moneda)}</TableCell>
+                    <TableCell align="right" sx={{ color: 'success.main' }}>{money(r.pagado, r.moneda)}</TableCell>
                     <TableCell>{formatDate(r.proximaFecha)}{r.vencido > 0 && <Chip size="small" color="warning" label="Vencida" sx={{ ml: 0.5 }} />}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </TableContainer>
-        </Paper>
-        <Paper variant="outlined" sx={{ p: 1.4 }}>
-          <Typography fontWeight={800} mb={1}>Cuotas vencidas y de los próximos 30 días</Typography>
-          {!data.agenda.length ? <Empty>No hay cuotas vencidas ni por vencer en 30 días.</Empty> : (
-            <TableContainer sx={{ maxHeight: 340 }}>
+        )}
+        <Box>
+          <Typography variant="body2" fontWeight={800} mb={0.5}>Cuotas vencidas y de los próximos 30 días{banco && ` · ${banco}`}</Typography>
+          {!agenda.length ? <Empty>No hay cuotas vencidas ni por vencer en 30 días.</Empty> : (
+            <TableContainer sx={{ maxHeight: 300 }}>
               <Table size="small">
                 <TableBody>
-                  {data.agenda.map((r) => (
-                    <TableRow key={r.cuotaId}>
+                  {agenda.map((r) => (
+                    <TableRow key={r.cuotaId} hover>
                       <TableCell>
                         <Typography fontWeight={700} fontSize={13}>{r.acreedor}</Typography>
-                        <Typography variant="caption">{r.numero} · cuota {r.cuota}</Typography>
+                        <Typography variant="caption" color="text.secondary">{r.numero} · cuota {r.cuota}</Typography>
                       </TableCell>
                       <TableCell>
                         <Typography fontSize={13}>{formatDate(r.fechaVencimiento)}</Typography>
@@ -312,9 +312,9 @@ function Summary({ data, pay }: { data: Resumen | null; pay: (prestamoId: number
               </Table>
             </TableContainer>
           )}
-        </Paper>
-      </Box>
-    </Stack>
+        </Box>
+      </Stack>
+    </Paper>
   );
 }
 

@@ -40,7 +40,7 @@ interface Detalle {
   cuotas: Cuota[]; historialCuotas: (Cuota & { reemplazadaEn: string; reemplazadaPor: string; motivo: string })[]; pagos: PagoRow[]; diferenciaCapital: number;
 }
 interface ReporteRow { id: number; numero: string; tipo: string; fecha: string; acreedor: string; prestamo: string; referencia?: string; moneda: Moneda; monto: number; capital: number; interes: number; cargos: number; metodo: string; comprobante?: string; creadoPor: string }
-interface Plan { totalInteres: number; interesCapitalizado: number; capitalFinanciado: number; totalCargos: number; totalPagar: number; primeraCuota: number; ultimaCuota: number; cuotas: (Cuota & { saldo: number; concepto: string; semanaIso?: number })[] }
+interface Plan { totalInteres: number; interesCapitalizado: number; capitalFinanciado: number; totalCargos: number; totalPagar: number; primeraCuota: number; ultimaCuota: number; cuotas: (Cuota & { saldo: number; concepto: string; dias?: number; tasaAnualAplicada?: number; semanaIso?: number })[] }
 interface SemanaCuota { cuotaId: number; prestamoId: number; numero: string; referencia?: string; acreedor: string; moneda: Moneda; cuota: number; totalCuotas: number; fechaVencimiento: string; capital: number; interes: number; cargos: number; pendiente: number; vencida: boolean }
 interface SemanaActual {
   semanaIso: number; anioIso: number; desde: string; hasta: string; hoy: string; cuotas: SemanaCuota[];
@@ -506,11 +506,11 @@ function LoanDialog({ open, close, creditors, done }: { open: boolean; close: ()
     cantidadCuotas: Number(form.cantidadCuotas),
     // En Manual las cuotas traen sus propios cargos y no se calcula interés: no aplican el seguro general ni la base.
     cargoCuota: form.tipoAmortizacion === 'manual' ? 0 : Number(form.cargoCuota),
-    baseCalculo: form.tipoAmortizacion === 'manual' ? '30_360' : form.baseCalculo,
+    baseCalculo: '30_360',
     // Personalizada: la primera fecha siempre es la del primer pago. Manual: se guardan las fechas pegadas tal cual.
     opciones: form.tipoAmortizacion === 'personalizado'
-      ? { calendario: (opciones.calendario ?? []).map((r, i) => i === 0 ? { ...r, fechaVencimiento: form.fechaPrimeraCuota } : r) }
-      : form.tipoAmortizacion === 'manual' ? { calendario: opciones.calendario ?? [] } : {},
+      ? { redondeoInteres: form.frecuencia === 'semanal' ? 'periodo' as const : 'diario' as const, calendario: (opciones.calendario ?? []).map((r, i) => i === 0 ? { ...r, fechaVencimiento: form.fechaPrimeraCuota } : r) }
+      : form.tipoAmortizacion === 'manual' ? { calendario: opciones.calendario ?? [] } : form.tipoAmortizacion === 'cuota_fija' ? { redondeoInteres: form.frecuencia === 'semanal' ? 'periodo' as const : 'diario' as const } : {} as OpcionesPlan,
   }), [form, opciones]);
   const descuadre = ['personalizado', 'manual'].includes(form.tipoAmortizacion) ? descuadreCapital(payload.opciones.calendario, payload.monto) : 0;
   const cuadra = Math.abs(descuadre) < 0.005;
@@ -550,71 +550,83 @@ function LoanDialog({ open, close, creditors, done }: { open: boolean; close: ()
   return (
     <Dialog open={open} onClose={close} maxWidth="lg" fullWidth>
       <Box component="form" onSubmit={submit}>
-        <DialogTitle>Registrar préstamo recibido</DialogTitle>
+        <DialogTitle>Registrar préstamo recibido<Typography variant="body2" color="text.secondary" mt={0.5}>Completa las condiciones, revisa el calendario y guarda el préstamo.</Typography></DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1.5fr .8fr' }, gap: 2, pt: 0.5 }}>
-            <Stack spacing={1.1}>
+            <Stack spacing={2}>
               {error && <Alert severity="error">{error}</Alert>}
-              <TextField size="small" required select label="Banco o acreedor" value={form.acreedorId} onChange={set('acreedorId')}>
+<Box sx={{ borderBottom: '1px solid', borderColor: 'divider', pb: 2 }}>
+<Typography fontWeight={800} mb={0.4}>1 · Datos del préstamo</Typography>
+<Typography variant="body2" color="text.secondary" mb={1.5}>Identifica el crédito e indica cuánto recibió la empresa.</Typography>
+<Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.5 }}>
+<TextField size="small" required select label="Banco o acreedor" value={form.acreedorId} onChange={set('acreedorId')}>
                 {creditors.map((c) => <MenuItem key={c.id} value={c.id}>{c.nombre}</MenuItem>)}
               </TextField>
-              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
-                <TextField size="small" required label="N.º de préstamo" value={form.referencia} onChange={set('referencia')} />
-                <TextField size="small" select label="Moneda" value={form.moneda} onChange={set('moneda')}>
+<TextField size="small" required label="N.º de préstamo" value={form.referencia} onChange={set('referencia')} />
+<TextField size="small" select label="Moneda" value={form.moneda} onChange={set('moneda')}>
                   {MONEDAS.map((x) => <MenuItem key={x} value={x}>{MONEDA_LABEL[x]}</MenuItem>)}
                 </TextField>
-                <GroupedNumberField required label="Monto desembolso" min={0.01} value={form.monto} onChange={(monto) => setForm({ ...form, monto })} />
-                <TextField size="small" required type="number" label="Tasa interés anual (%)" inputProps={{ min: 0, max: 200, step: 0.0001 }} value={form.tasaAnual} onChange={set('tasaAnual')} />
-                <TextField size="small" select label="Frecuencia de pago" value={form.frecuencia} onChange={set('frecuencia')}>
+<GroupedNumberField required label="Monto recibido" min={0.01} value={form.monto} onChange={(monto) => setForm({ ...form, monto })} />
+</Box></Box>
+<Box sx={{ borderBottom: '1px solid', borderColor: 'divider', pb: 2 }}>
+<Typography fontWeight={800} mb={0.4}>2 · Fechas y número de pagos</Typography>
+<Typography variant="body2" color="text.secondary" mb={1.5}>El número de cuotas indica cuántos pagos habrá, según la frecuencia seleccionada.</Typography>
+<Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.5 }}>
+<TextField size="small" type="date" label="Fecha desembolso" InputLabelProps={{ shrink: true }} value={form.fechaDesembolso} onChange={set('fechaDesembolso')} />
+<TextField size="small" type="date" label="Fecha primer pago" InputLabelProps={{ shrink: true }} value={form.fechaPrimeraCuota} onChange={set('fechaPrimeraCuota')} />
+<TextField size="small" select label="Frecuencia de pago" value={form.frecuencia} onChange={set('frecuencia')}>
                   {Object.entries(FRECUENCIA_LABEL).map(([value, label]) => <MenuItem key={value} value={value}>{label}</MenuItem>)}
                 </TextField>
-                <GroupedNumberField required label="Plazo (número de cuotas)" decimals={0} min={1} max={600} value={form.cantidadCuotas} onChange={(cantidadCuotas) => setForm({ ...form, cantidadCuotas })} />
-                {form.tipoAmortizacion !== 'manual' && <GroupedNumberField label="Seguro y comisiones por cuota" value={form.cargoCuota} onChange={(cargoCuota) => setForm({ ...form, cargoCuota })} />}
-                <TextField size="small" type="date" label="Fecha desembolso" InputLabelProps={{ shrink: true }} value={form.fechaDesembolso} onChange={set('fechaDesembolso')} />
-                <TextField size="small" type="date" label="Fecha primer pago" InputLabelProps={{ shrink: true }} value={form.fechaPrimeraCuota} onChange={set('fechaPrimeraCuota')} />
-                <TextField size="small" select label="Tipo de amortización" value={form.tipoAmortizacion} onChange={(e) => { setForm({ ...form, tipoAmortizacion: e.target.value }); setOpciones(opcionesIniciales(e.target.value)); }}>
+<GroupedNumberField required label="Número de cuotas" decimals={0} min={1} max={600} value={form.cantidadCuotas} onChange={(cantidadCuotas) => setForm({ ...form, cantidadCuotas })} />
+</Box></Box>
+<Box sx={{ borderBottom: '1px solid', borderColor: 'divider', pb: 2 }}>
+<Typography fontWeight={800} mb={0.4}>3 · Forma de pago e intereses</Typography>
+<Typography variant="body2" color="text.secondary" mb={1.5}>Elige cómo se devuelve el capital y utiliza las condiciones del documento del banco.</Typography>
+<Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.5 }}>
+<TextField size="small" select label="¿Cómo se pagará el préstamo?" sx={{ gridColumn: '1 / -1' }} value={form.tipoAmortizacion} onChange={(e) => { setForm({ ...form, tipoAmortizacion: e.target.value, baseCalculo: '30_360' }); setOpciones(opcionesIniciales(e.target.value)); }}>
                   {TIPOS_NUEVOS.map((value) => <MenuItem key={value} value={value}>{TIPO_LABEL[value]}</MenuItem>)}
                 </TextField>
-                {form.tipoAmortizacion !== 'manual' && <TextField size="small" select label="Base de cálculo" value={form.baseCalculo} onChange={set('baseCalculo')}>
-                  {Object.entries(BASE_LABEL).map(([value, label]) => <MenuItem key={value} value={value}>{label}</MenuItem>)}
-                </TextField>}
-              </Box>
+<TextField size="small" required type="number" label="Tasa anual inicial (%)" inputProps={{ min: 0, max: 200, step: 0.0001 }} value={form.tasaAnual} onChange={set('tasaAnual')} />
+{form.tipoAmortizacion !== 'manual' && <Typography variant="body2" color="text.secondary" sx={{ gridColumn: '1 / -1' }}>Base de cálculo fija: 30/360. Días por período: mensual 30, trimestral 90, semestral 180 y anual 360.</Typography>}
+{form.tipoAmortizacion !== 'manual' && <GroupedNumberField label="Seguro y comisiones por cuota" value={form.cargoCuota} onChange={(cargoCuota) => setForm({ ...form, cargoCuota })} />}
+</Box></Box>
               <AmortizacionOptions tipo={form.tipoAmortizacion} opciones={opciones} onChange={setOpciones}
                 onImport={(rows) => {
                   // Una fila por cuota: ajusta plazo y primer pago; si el monto está vacío lo toma de la suma del capital.
                   const total = rows.reduce((s, r) => s + Math.round(r.capital * 100), 0) / 100;
                   setForm((f) => ({ ...f, cantidadCuotas: String(rows.length), fechaPrimeraCuota: rows[0].fechaVencimiento, monto: f.monto || String(total) }));
-                  setOpciones({ calendario: rows });
+                  setOpciones((actual) => ({ ...actual, calendario: rows }));
                 }}
                 cantidad={payload.cantidadCuotas} monto={payload.monto} fecha={form.fechaPrimeraCuota} frecuencia={form.frecuencia} moneda={form.moneda} />
               <TextField size="small" label="Notas o garantía" value={form.notas} onChange={set('notas')} />
             </Stack>
-            <Paper variant="outlined" sx={{ p: 1.5, bgcolor: '#f6f8f7', alignSelf: 'start' }}>
-              <Typography fontWeight={900}>Simulación</Typography>
+            <Paper variant="outlined" sx={{ p: 1.5, bgcolor: '#f6f8f7', alignSelf: 'start', position: { md: 'sticky' }, top: 0 }}>
+              <Typography fontWeight={900}>4 · Revisa antes de guardar</Typography>
+              <Typography variant="body2" color="text.secondary" mt={0.5}>Los resultados se actualizan al cambiar las condiciones.</Typography>
               {simulationError && <Alert severity="warning" sx={{ mt: 1 }}>{simulationError}</Alert>}
-              {!plan ? <Typography variant="body2" color="text.secondary" mt={1}>{simulating ? 'Calculando…' : 'Completa los datos para ver el plan.'}</Typography>
+              {!plan ? <Typography variant="body2" color="text.secondary" mt={1}>{simulating ? 'Calculando…' : 'Ingresa monto, tasa, fechas y número de cuotas para calcular el plan.'}</Typography>
                 : lines.map(([a, b]) => <Stack key={a} direction="row" justifyContent="space-between" mt={1}><Typography variant="body2">{a}</Typography><b>{b}</b></Stack>)}
-              <Alert severity="info" sx={{ mt: 1.5, fontSize: 11 }}>
-                Base 30/360: interés = saldo × tasa anual / períodos por año (52, 12 o 4). Días reales / 360: saldo × tasa anual × días transcurridos / 360. La última cuota cancela el saldo exacto (0.00).
-              </Alert>
+              {plan && <Alert severity="success" sx={{ mt: 1.5 }}>Calendario calculado · saldo final {money(plan.cuotas[plan.cuotas.length - 1].saldo, form.moneda)}</Alert>}
+              <Typography variant="caption" display="block" mt={1.5}>Revisa el detalle de capital, intereses y saldo en el calendario de abajo. La última cuota cancela el saldo restante.</Typography>
             </Paper>
           </Box>
           {plan && <Box mt={2}>
             <Typography fontWeight={800} mb={1}>Calendario de pagos · {plan.cuotas.length} filas</Typography>
             <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 300 }}>
               <Table size="small" stickyHeader>
-                <TableHead><TableRow>{['#', 'Fecha', 'Sem. ISO', 'Concepto', 'Capital', 'Interés', 'Cargos', 'Pago', 'Saldo'].map(label => <TableCell key={label} sx={HEAD}>{label}</TableCell>)}</TableRow></TableHead>
+                <TableHead><TableRow>{['#', 'Fecha', 'Días', 'Tasa anual %', 'Sem. ISO', 'Concepto', 'Capital', 'Interés', 'Cargos', 'Pago', 'Saldo'].map(label => <TableCell key={label} sx={HEAD}>{label}</TableCell>)}</TableRow></TableHead>
                 <TableBody>{plan.cuotas.map(q => <TableRow key={q.numero}>
-                  <TableCell>{q.numero}</TableCell><TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDate(q.fechaVencimiento)}</TableCell><TableCell>{q.semanaIso ?? '—'}</TableCell><TableCell>{q.concepto}</TableCell>
+                  <TableCell>{q.numero}</TableCell><TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDate(q.fechaVencimiento)}</TableCell><TableCell>{q.dias ?? '—'}</TableCell><TableCell>{q.tasaAnualAplicada ?? '—'}</TableCell><TableCell>{q.semanaIso ?? '—'}</TableCell><TableCell>{q.concepto}</TableCell>
                   {[q.capital, q.interes, q.cargos, q.monto, q.saldo].map((v, i) => <TableCell key={i} align="right" sx={{ whiteSpace: 'nowrap' }}>{money(v, form.moneda)}</TableCell>)}
                 </TableRow>)}</TableBody>
               </Table>
             </TableContainer>
           </Box>}
         </DialogContent>
-        <DialogActions>
-          <Button onClick={close}>Cancelar</Button>
-          <Button type="submit" variant="contained" disabled={busy || simulating || !plan || !cuadra}>{busy ? 'Guardando…' : 'Registrar préstamo'}</Button>
+        <DialogActions sx={{ borderTop: '1px solid', borderColor: 'divider', px: 3, flexWrap: 'wrap', gap: 1 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ flex: 1 }} role="status">{busy ? 'Guardando préstamo…' : simulating ? 'Actualizando cálculo…' : simulationError ? 'Revisa las condiciones indicadas en la simulación.' : !cuadra ? 'La suma del capital debe coincidir con el monto recibido.' : !plan ? 'Completa las condiciones para habilitar el registro.' : !form.acreedorId || !form.referencia.trim() ? 'Completa el acreedor y el número de préstamo.' : 'Calendario listo para registrar.'}</Typography>
+          <Button onClick={close} disabled={busy}>Cancelar</Button>
+          <Button type="submit" variant="contained" disabled={busy || simulating || !plan || !cuadra || !form.acreedorId || !form.referencia.trim()}>{busy ? 'Guardando…' : 'Registrar préstamo'}</Button>
         </DialogActions>
       </Box>
     </Dialog>
@@ -694,6 +706,7 @@ function DetailDialog({ id, close, changed }: { id: number | null; close: () => 
   const [error, setError] = useState('');
   const [editing, setEditing] = useState<Cuota | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [rateOpen, setRateOpen] = useState(false);
   const fetchDetail = useCallback(async () => {
     if (id === null) { setData(null); setShowHistory(false); return; }
     try { setData((await apiClient.get<Detalle>(`/prestamos/${id}`)).data); setError(''); } catch (e) { setError(apiError(e)); }
@@ -723,6 +736,8 @@ function DetailDialog({ id, close, changed }: { id: number | null; close: () => 
             </Stack>}
             {loan.interesCapitalizado > 0 && <Alert severity="info">El capital financiado incluye {money(loan.interesCapitalizado, m)} de intereses capitalizados durante la gracia. Los pagos de ese importe se contabilizan como capital.</Alert>}
             <Typography variant="body2" color="text.secondary">{descripcionOpciones(loan.opciones)}</Typography>
+            {editable && <Button variant="outlined" sx={{ alignSelf: 'start' }} onClick={() => setRateOpen(true)}>Cambiar tasa desde una cuota</Button>}
+            {(loan.opciones.historialTasas ?? []).map((c, i) => <Typography key={i} variant="body2">Tasa acordada: {c.tasaAnual}% anual desde la cuota {c.desdeCuota} · registrada el {formatDate(c.fecha)}</Typography>)}
             {Math.abs(data.diferenciaCapital) > 0.01 && (
               <Alert severity="warning" sx={{ py: 0.4 }}>
                 El capital del calendario más los abonos difiere del capital financiado (monto recibido + interés capitalizado) en {money(data.diferenciaCapital, m)}. Revisa las cuotas editadas.
@@ -798,9 +813,49 @@ function DetailDialog({ id, close, changed }: { id: number | null; close: () => 
         <Button onClick={() => window.print()}>Imprimir</Button>
         <Button onClick={close}>Cerrar</Button>
       </DialogActions>
+      {loan && data && <RateChangeDialog key={loan.id} open={rateOpen} loan={loan} cuotas={data.cuotas} close={() => setRateOpen(false)} done={() => { setRateOpen(false); void fetchDetail(); changed(); }} />}
       {loan && <InstallmentDialog loanId={loan.id} cuota={editing} close={() => setEditing(null)} done={() => { setEditing(null); void fetchDetail(); changed(); }} />}
     </Dialog>
   );
+}
+
+function RateChangeDialog({ open, loan, cuotas, close, done }: { open: boolean; loan: Detalle['prestamo']; cuotas: Cuota[]; close: () => void; done: () => void }) {
+  const elegibles = cuotas.filter(q => !cuotas.some(r => r.numero >= q.numero && Number(r.pagado) > 0));
+  const [desde, setDesde] = useState('');
+  const [tasa, setTasa] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  type Preview = { totalAnterior: number; totalNuevo: number; cuotas: { numero: number; fecha: string; capital: number; interes: number; cargos: number; monto: number; saldo: number }[] };
+  const [preview, setPreview] = useState<Preview | null>(null);
+  useEffect(() => { if (open) { setDesde(String(elegibles[0]?.numero ?? '')); setTasa(''); setPreview(null); setError(''); } }, [open]);
+  const request = async (simular: boolean) => {
+    setBusy(true); setError('');
+    try {
+      const r = await apiClient.post<Preview>(`/prestamos/${loan.id}/cambio-tasa`, { desdeCuota: Number(desde), tasaAnual: Number(tasa), simular });
+      if (simular) setPreview(r.data); else done();
+    } catch (e) { setError(apiError(e)); } finally { setBusy(false); }
+  };
+  return <Dialog open={open} onClose={busy ? undefined : close} maxWidth="md" fullWidth>
+    <DialogTitle>Cambiar tasa del préstamo</DialogTitle>
+    <DialogContent><Stack spacing={2} pt={1}>
+      <Typography>Si ya pagaste 17 cuotas, selecciona la cuota 18 e indica la nueva tasa acordada con el banco. Solo se reemplazan cuotas sin pagos; el calendario anterior queda en el historial.</Typography>
+      {error && <Alert severity="error">{error}</Alert>}
+      <TextField size="small" select label="Aplicar desde la cuota" value={desde} disabled={busy} onChange={e => { setDesde(e.target.value); setPreview(null); }}>
+        {elegibles.map(q => <MenuItem key={q.id} value={q.numero}>Cuota {q.numero} · {formatDate(q.fechaVencimiento)}</MenuItem>)}
+      </TextField>
+      <TextField size="small" type="number" label="Nueva tasa anual (%)" value={tasa} disabled={busy} inputProps={{ min: 0, max: 200, step: 0.0001 }} onChange={e => { setTasa(e.target.value); setPreview(null); }} />
+      <Alert severity="info">{loan.tipoAmortizacion === 'cuota_fija' ? 'Se conserva el número de pagos y se calcula una nueva cuota con el capital pendiente y la nueva tasa.' : 'Se conservan las fechas y los abonos a capital; se recalculan los intereses con la nueva tasa.'} Los seguros, comisiones e intereses diferidos se conservan.</Alert>
+      <Button variant="outlined" disabled={busy || !desde || tasa === ''} onClick={() => void request(true)}>Calcular y revisar cambio</Button>
+      {preview && <>
+        <Typography>Total de cuotas afectadas: {money(preview.totalAnterior, loan.moneda)} → {money(preview.totalNuevo, loan.moneda)}</Typography>
+        <TableContainer sx={{ maxHeight: 280 }}><Table size="small" stickyHeader>
+          <TableHead><TableRow>{['Cuota', 'Fecha', 'Capital', 'Interés', 'Total', 'Saldo'].map(x => <TableCell key={x}>{x}</TableCell>)}</TableRow></TableHead>
+          <TableBody>{preview.cuotas.map(q => <TableRow key={q.numero}><TableCell>{q.numero}</TableCell><TableCell>{formatDate(q.fecha)}</TableCell>{[q.capital,q.interes,q.monto,q.saldo].map((v,i) => <TableCell key={i}>{money(v,loan.moneda)}</TableCell>)}</TableRow>)}</TableBody>
+        </Table></TableContainer>
+      </>}
+    </Stack></DialogContent>
+    <DialogActions><Button disabled={busy} onClick={close}>Cancelar</Button><Button variant="contained" disabled={busy || !preview} onClick={() => void request(false)}>{busy ? 'Procesando…' : 'Aplicar nueva tasa'}</Button></DialogActions>
+  </Dialog>;
 }
 
 function InstallmentDialog({ loanId, cuota, close, done }: { loanId: number; cuota: Cuota | null; close: () => void; done: () => void }) {

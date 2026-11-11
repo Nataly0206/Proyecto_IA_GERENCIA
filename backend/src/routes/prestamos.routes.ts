@@ -27,20 +27,20 @@ function parsePlan(body: Request['body']): service.PlanInput {
     || !validDate(body?.fechaPrimeraCuota)) {
     throw new ApiError(400, 'Revisa el monto, la tasa, las cuotas y las fechas del préstamo.');
   }
-  const baseCalculo = body?.baseCalculo ?? '30_360';
-  if (!service.BASES_CALCULO.includes(baseCalculo)) throw new ApiError(400, 'Base de cálculo no válida.');
+  const baseCalculo = '30_360' as const;
+  if (body?.baseCalculo !== undefined && body.baseCalculo !== baseCalculo) throw new ApiError(400, 'Todos los préstamos usan base 30/360.');
   const input: service.PlanInput = {
     monto, tasaAnual, cantidadCuotas, cargoCuota, frecuencia: body.frecuencia ?? 'mensual', baseCalculo,
     tipoAmortizacion: body.tipoAmortizacion, fechaPrimeraCuota: body.fechaPrimeraCuota,
     fechaDesembolso: validDate(body?.fechaDesembolso) ? body.fechaDesembolso : undefined,
     opciones: body.tipoAmortizacion === 'personalizado' || body.tipoAmortizacion === 'manual'
-      ? { calendario: Array.isArray(body.opciones?.calendario) ? body.opciones.calendario.map((r: { fechaVencimiento: string; capital: number; interes?: number | null; cargos?: number | null }) => ({
+      ? { cambiosTasa: body.opciones?.cambiosTasa ?? [], redondeoInteres: body.opciones?.redondeoInteres, calendario: Array.isArray(body.opciones?.calendario) ? body.opciones.calendario.map((r: { fechaVencimiento: string; capital: number; interes?: number | null; cargos?: number | null }) => ({
         fechaVencimiento: r?.fechaVencimiento, capital: number(r?.capital),
         ...(r?.interes === undefined || r?.interes === null ? {} : { interes: number(r.interes) }),
         // Los cargos por cuota solo existen en el método Manual (en los demás se usa el cargo general).
         ...(body.tipoAmortizacion === 'manual' && r?.cargos !== undefined && r?.cargos !== null ? { cargos: number(r.cargos) } : {}),
       })) : [] }
-      : {},
+      : { redondeoInteres: body.opciones?.redondeoInteres, ...(body.opciones?.cuotaPactada === undefined ? {} : { cuotaPactada: number(body.opciones.cuotaPactada) }) },
   };
   validarPlan(input);
   return input;
@@ -140,6 +140,11 @@ router.post('/', asyncHandler(async (req, res) => {
     referencia: text(req.body?.referencia, 60), notas: text(req.body?.notas, 1000),
   }, usuario(res));
   res.status(201).json({ message: 'Préstamo registrado.', prestamo });
+}));
+
+router.post('/:id/cambio-tasa', asyncHandler(async (req, res) => {
+  const plan = await service.cambiarTasa(idParam(req.params.id, 'Préstamo'), number(req.body?.desdeCuota), number(req.body?.tasaAnual), usuario(res), req.body?.simular === true);
+  res.json({ message: req.body?.simular === true ? 'Vista previa del cambio de tasa.' : 'Tasa actualizada. Las cuotas anteriores se conservaron.', ...plan });
 }));
 
 router.delete('/:id', asyncHandler(async (req, res) => {

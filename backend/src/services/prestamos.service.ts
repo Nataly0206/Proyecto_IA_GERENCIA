@@ -1,3 +1,4 @@
+import { recalcularTasa, CuotaCambio } from './cambio-tasa';
 import sql from 'mssql';
 import { getAuthPool } from '../config/authDb';
 import { ApiError } from '../middleware/errorHandler';
@@ -20,14 +21,14 @@ const CAPITAL_PENDIENTE = `CASE WHEN q.pagado <= q.cargos + q.interes THEN q.cap
 const HOY = `CAST(GETDATE() AS date)`;
 
 function generarCuotas(
-  principal: number, rate: number, n: number, tipo: TipoAmortizacion, cargo: number, objetivo?: number,
+  principal: number, rate: number, n: number, tipo: TipoAmortizacion, cargo: number, objetivo?: number, diasPeriodo?: number,
 ): CuotaCalculada[] {
   const rows: CuotaCalculada[] = [];
   const nivelada = objetivo ?? (rate === 0 ? principal / n : cuotaFija(principal, rate, n));
   const capitalFijo = objetivo ?? principal / n;
   let balance = money(principal);
   for (let i = 1; i <= n && balance > 0; i += 1) {
-    const interes = money(balance * rate);
+    const interes = diasPeriodo ? money(money(balance * rate / diasPeriodo) * diasPeriodo) : money(balance * rate);
     let capital = 0;
     if (i === n) capital = balance;
     else if (tipo === 'cuota_fija') capital = Math.min(balance, Math.max(0, money(nivelada - interes)));
@@ -341,7 +342,7 @@ export async function registrarAbono(prestamoId: number, input: PagoInput, modo:
     if (modo === 'plazo' && tipo === 'capital_fijo') objetivo = Number(cuotas[0].capital);
     let acumulado = 0, asignado = 0;
     const nuevas: CuotaCalculada[] = nuevoCapital <= 0 && tipo !== 'manual' && !cuotas.some(q => Number(q.interesDiferido) > 0) ? [] : tradicional
-      ? generarCuotas(nuevoCapital, rate, cuotas.length, tipo, 0, objetivo)
+      ? generarCuotas(nuevoCapital, rate, cuotas.length, tipo, 0, objetivo, opciones.redondeoInteres === 'diario' ? 360 / PERIODOS_ANIO[loan.frecuencia as Frecuencia] : undefined)
       : cuotas.map(q => {
         // Preserva fechas y forma del plan (balón, índice, extras o manual).
         // Redondeo acumulado para que el capital cuadre exactamente al centavo.
@@ -562,4 +563,32 @@ export async function semanaActual() {
   }
   const info = infoFecha(hasta);
   return { semanaIso: infoFecha(desde).semanaIso, anioIso: infoFecha(desde).anioIso, mesNombre: info.mesNombre, desde, hasta, hoy: isoLocal(hoy), cuotas: rows, porAcreedor: [...grupos.values()], totales: [...totales.values()] };
+}
+
+/** Reemplaza únicamente cuotas sin pagos y conserva el calendario anterior para auditoría. */
+export async function cambiarTasa(prestamoId: number, desdeCuota: number, tasaAnual: number, usuario: string, simular = false) {
+  const tx = new sql.Transaction(await getAuthPool());
+  await tx.begin(sql.ISOLATION_LEVEL.SERIALIZABLE);
+  try {
+    const loan = await prestamoActivo(tx, prestamoId);
+    const result = await new sql.Request(tx).input('id', sql.BigInt, prestamoId).query(`
+      SELECT numero, CONVERT(varchar(10), fecha_vencimiento, 23) fecha, capital, interes, cargos, pagado,
+        interes_diferido AS interesDiferido FROM dbo.prestamos_cuotas WITH (UPDLOCK, HOLDLOCK)
+      WHERE prestamo_id = @id AND eliminado_en IS NULL ORDER BY numero`);
+    const cuotas = result.recordset.map(q => Object.fromEntries(Object.entries(q).map(([k,v]) => [k, k === 'fecha' ? v : Number(v)]))) as unknown as CuotaCambio[];
+    const plan = recalcularTasa(cuotas, desdeCuota, tasaAnual, loan.tipo_amortizacion, loan.frecuencia);
+    if (simular) { await tx.rollback(); return plan; }
+    const motivo = `Cambio de tasa a ${tasaAnual}% desde cuota ${desdeCuota}`;
+    await new sql.Request(tx).input('id', sql.BigInt, prestamoId).input('desde', sql.Int, desdeCuota)
+      .input('usuario', sql.NVarChar(60), usuario).input('motivo', sql.NVarChar(200), motivo)
+      .query(`UPDATE dbo.prestamos_cuotas SET eliminado_en = SYSUTCDATETIME(), eliminado_por = @usuario, motivo_reemplazo = @motivo
+        WHERE prestamo_id = @id AND eliminado_en IS NULL AND numero >= @desde AND pagado = 0`);
+    for (const q of plan.cuotas) await insertarCuota(tx, prestamoId, q.numero, q.fecha, { ...q, concepto: motivo });
+    const opciones = JSON.parse(loan.opciones_plan ?? '{}');
+    opciones.historialTasas = [...(opciones.historialTasas ?? []), { desdeCuota, tasaAnterior: Number(loan.tasa_anual), tasaAnual, usuario, fecha: new Date().toISOString() }];
+    await new sql.Request(tx).input('id', sql.BigInt, prestamoId).input('tasa', sql.Decimal(9,4), tasaAnual)
+      .input('opciones', sql.NVarChar(sql.MAX), JSON.stringify(opciones))
+      .query(`UPDATE dbo.prestamos SET tasa_anual = @tasa, opciones_plan = @opciones, actualizado_en = SYSUTCDATETIME() WHERE id = @id`);
+    await tx.commit(); return plan;
+  } catch (error) { await tx.rollback(); throw error; }
 }

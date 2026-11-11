@@ -72,7 +72,7 @@ const escenarios: Escenario[] = [
     acreedor: 'atlantida',
     prestamo: {
       moneda: 'USD', monto: 500_000, tasaAnual: 8, cantidadCuotas: 8, frecuencia: 'trimestral', tipoAmortizacion: 'solo_interes',
-      cargoCuota: 0, fechaDesembolso: mesesAtras(10, 1), fechaPrimeraCuota: mesesAtras(7, 1), baseCalculo: 'ACTUAL_360',
+      cargoCuota: 0, fechaDesembolso: mesesAtras(10, 1), fechaPrimeraCuota: mesesAtras(7, 1), baseCalculo: '30_360',
       referencia: 'ATL-BUL-2026-004', notas: 'Línea de exportación. Capital al vencimiento.',
     },
     pagarHasta: HOY,

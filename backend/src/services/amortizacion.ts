@@ -11,7 +11,7 @@ export const FRECUENCIAS: Frecuencia[] = ['semanal', 'quincenal', 'mensual', 'tr
 /** 'manual': las cuotas (fecha, capital, interés y cargos) se guardan exactamente como se ingresan, sin calcular nada. */
 export const TIPOS_AMORTIZACION: TipoAmortizacion[] = ['cuota_fija', 'solo_interes', 'personalizado', 'manual'];
 /** Frecuencias disponibles al crear préstamos (las demás solo existen en préstamos anteriores). */
-export const FRECUENCIAS_NUEVAS: Frecuencia[] = ['semanal', 'mensual', 'trimestral'];
+export const FRECUENCIAS_NUEVAS: Frecuencia[] = ['semanal', 'mensual', 'trimestral', 'semestral', 'anual'];
 export const PERIODOS_ANIO: Record<Frecuencia, number> = { semanal: 52, quincenal: 24, mensual: 12, trimestral: 4, semestral: 2, anual: 1 };
 export const money = (value: number) => {
   const rounded = Math.round((value + Number.EPSILON) * 100) / 100;
@@ -19,6 +19,9 @@ export const money = (value: number) => {
 };
 
 export interface OpcionesPlan {
+  cambiosTasa?: { desde: string; tasaAnual: number }[];
+  redondeoInteres?: 'periodo' | 'diario';
+  cuotaPactada?: number;
   /** Personalizado: un hito por cuota (fecha y capital). Interés y cargos solo vienen en calendarios legados/importados. */
   calendario?: { fechaVencimiento: string; capital: number; interes?: number; cargos?: number }[];
 }
@@ -28,7 +31,7 @@ export interface PlanInput {
   baseCalculo?: BaseCalculo; fechaDesembolso?: string;
 }
 export interface CuotaCalculada { capital: number; interes: number; cargos: number; monto: number; interesDiferido?: number }
-export interface CuotaPlan extends CuotaCalculada { numero: number; fechaVencimiento: string; saldo: number; concepto: string; semanaIso?: number; anioIso?: number; mesNombre?: string; anio?: number }
+export interface CuotaPlan extends CuotaCalculada { numero: number; fechaVencimiento: string; saldo: number; concepto: string; dias?: number; tasaAnualAplicada?: number; semanaIso?: number; anioIso?: number; mesNombre?: string; anio?: number }
 function fail(message: string): never { throw new ApiError(400, message); }
 export function validDate(value: unknown): value is string {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value) || value.startsWith('0000-')) return false;
@@ -59,11 +62,30 @@ export function validarPlan(input: PlanInput): void {
   amount(input.monto, 'Monto', 0.01); amount(input.cargoCuota, 'Cargos');
   if (!Number.isFinite(input.tasaAnual) || input.tasaAnual < 0 || input.tasaAnual > 200 || Math.abs(input.tasaAnual * 10000 - Math.round(input.tasaAnual * 10000)) > 1e-6) fail('La tasa anual debe estar entre 0 y 200%, con máximo cuatro decimales.');
   integer(input.cantidadCuotas, 1, 600, 'Número de cuotas');
-  if (!FRECUENCIAS_NUEVAS.includes(input.frecuencia)) fail('Elige frecuencia semanal, mensual o trimestral.');
+  if (!FRECUENCIAS_NUEVAS.includes(input.frecuencia)) fail('Elige frecuencia semanal, mensual, trimestral, semestral o anual.');
   if (!TIPOS_AMORTIZACION.includes(input.tipoAmortizacion)) fail('Elige Cuota fija (Francés), Solo interés al vencimiento (Bullet), Personalizada o Manual.');
   if (!validDate(input.fechaPrimeraCuota)) fail('La fecha del primer pago no es válida.');
   if (input.baseCalculo !== undefined && !BASES_CALCULO.includes(input.baseCalculo)) fail('Base de cálculo no válida.');
   if (input.fechaDesembolso !== undefined && !validDate(input.fechaDesembolso)) fail('La fecha de desembolso no es válida.');
+  if (input.fechaDesembolso && input.fechaPrimeraCuota < input.fechaDesembolso) fail('La primera cuota no puede ser anterior al desembolso.');
+  if (input.baseCalculo === 'ACTUAL_360' && !input.fechaDesembolso) fail('Indica la fecha de desembolso para calcular los días reales.');
+  const cambios = input.opciones?.cambiosTasa ?? [];
+  if (!Array.isArray(cambios) || cambios.length > 600) fail('Cambios de tasa no válidos.');
+  if (cambios.length && input.tipoAmortizacion !== 'personalizado') fail('Los cambios de tasa se configuran en pagos irregulares.');
+  if (input.opciones?.redondeoInteres !== undefined && !['periodo', 'diario'].includes(input.opciones.redondeoInteres)) fail('Redondeo de interés no válido.');
+  if (input.opciones?.redondeoInteres === 'diario' && input.baseCalculo !== 'ACTUAL_360' && !['mensual', 'trimestral', 'semestral', 'anual'].includes(input.frecuencia)) fail('El redondeo diario con base 30/360 requiere frecuencia mensual, trimestral, semestral o anual.');
+  if (input.opciones?.cuotaPactada !== undefined) {
+    if (input.tipoAmortizacion !== 'cuota_fija') fail('La cuota pactada solo aplica a cuota fija.');
+    amount(input.opciones.cuotaPactada, 'Cuota pactada', 0.01);
+  }
+  let desdeAnterior = '';
+  for (const cambio of cambios) {
+    if (!cambio || !validDate(cambio.desde) || cambio.desde <= desdeAnterior
+      || !Number.isFinite(cambio.tasaAnual) || cambio.tasaAnual < 0 || cambio.tasaAnual > 200
+      || Math.abs(cambio.tasaAnual * 10000 - Math.round(cambio.tasaAnual * 10000)) > 1e-6)
+      fail('Ordena los cambios por fecha, sin repetir, e indica tasas entre 0 y 200% con máximo cuatro decimales.');
+    desdeAnterior = cambio.desde;
+  }
   if (input.tipoAmortizacion === 'personalizado' || input.tipoAmortizacion === 'manual') {
     const manual = input.tipoAmortizacion === 'manual';
     const rows = input.opciones?.calendario;
@@ -114,20 +136,29 @@ export function calcularPlan(input: PlanInput) {
     : Array.from({ length: n }, (_, i) => fechaPeriodo(input.fechaPrimeraCuota, input.frecuencia, i));
   const cuotas: CuotaPlan[] = [];
   let balance = money(input.monto), anterior = input.fechaDesembolso ?? fechaPeriodo(input.fechaPrimeraCuota, input.frecuencia, -1);
-  const cuota = input.tipoAmortizacion === 'cuota_fija' ? money(cuotaFija(input.monto, rate, n)) : 0;
+  const cuota = input.tipoAmortizacion === 'cuota_fija' ? (input.opciones?.cuotaPactada ?? money(cuotaFija(input.monto, rate, n))) : 0;
   for (let i = 0; i < n; i += 1) {
     const fecha = fechas[i], last = i === n - 1;
     // Personalizada: si el hito trae interés (p. ej. tasa variable del banco) se respeta tal cual; si no, se calcula.
     const fijo = input.tipoAmortizacion === 'personalizado' || manual ? input.opciones!.calendario![i].interes : undefined;
     const cargos = manual ? money(input.opciones!.calendario![i].cargos ?? 0) : input.cargoCuota;
-    const interes = fijo !== undefined ? money(fijo) : money(base === 'ACTUAL_360' ? balance * tasa * Math.max(0, diasEntre(anterior, fecha)) / 360 : balance * rate);
+    // El cambio aplica al período completo de la cuota que vence desde esa fecha.
+    const tasaAnualAplicada = (input.opciones?.cambiosTasa ?? []).reduce((actual, cambio) => cambio.desde <= fecha ? cambio.tasaAnual : actual, input.tasaAnual);
+    const tasaAplicada = tasaAnualAplicada / 100;
+    const diario = balance * tasaAplicada / 360;
+    const calculado = base === 'ACTUAL_360'
+      ? (input.opciones?.redondeoInteres === 'diario' ? money(diario) : diario) * Math.max(0, diasEntre(anterior, fecha))
+      : input.opciones?.redondeoInteres === 'diario'
+        ? money(diario) * (360 / PERIODOS_ANIO[input.frecuencia])
+        : balance * tasaAplicada / PERIODOS_ANIO[input.frecuencia];
+    const interes = fijo !== undefined ? money(fijo) : money(calculado);
     let capital: number, concepto = 'Cuota';
     if (last) { capital = balance; if (input.tipoAmortizacion === 'solo_interes') concepto = 'Cuota final · capital al vencimiento'; }
     else if (input.tipoAmortizacion === 'cuota_fija') capital = Math.min(balance, Math.max(0, money(cuota - interes)));
     else if (input.tipoAmortizacion === 'solo_interes') capital = 0;
     else { capital = input.opciones!.calendario![i].capital; if (capital > 0) concepto = 'Abono a capital'; }
     capital = money(capital); balance = money(balance - capital);
-    const row: CuotaPlan = { numero: i + 1, fechaVencimiento: fecha, capital, interes, cargos, monto: money(capital + interes + cargos), saldo: balance, concepto, interesDiferido: 0, ...infoFecha(fecha) };
+    const row: CuotaPlan = { numero: i + 1, fechaVencimiento: fecha, dias: base === 'ACTUAL_360' ? diasEntre(anterior, fecha) : 360 / PERIODOS_ANIO[input.frecuencia], tasaAnualAplicada, capital, interes, cargos, monto: money(capital + interes + cargos), saldo: balance, concepto, interesDiferido: 0, ...infoFecha(fecha) };
     if (!validDate(row.fechaVencimiento)) fail('El plazo genera una fecha de vencimiento fuera del rango permitido.');
     if (![row.capital, row.interes, row.cargos, row.monto, row.saldo].every(v => Number.isFinite(v) && v >= 0 && v <= 1e12)) fail('El plan excede los límites de cálculo. Revisa el monto, plazo y tasa.');
     cuotas.push(row); anterior = fecha;

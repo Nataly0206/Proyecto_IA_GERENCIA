@@ -4,6 +4,10 @@ import GroupedNumberField from './GroupedNumberField';
 
 export interface HitoCapital { fechaVencimiento: string; capital: number; interes?: number; cargos?: number }
 export interface OpcionesPlan {
+  historialTasas?: { desdeCuota: number; tasaAnterior: number; tasaAnual: number; fecha: string; usuario: string }[];
+  cambiosTasa?: { desde: string; tasaAnual: number }[];
+  redondeoInteres?: 'periodo' | 'diario';
+  cuotaPactada?: number;
   /** Personalizada: un hito de capital por cuota. */
   calendario?: HitoCapital[];
   // Legado: préstamos anteriores con otros métodos conservan estas opciones solo para consulta.
@@ -18,8 +22,8 @@ export interface OpcionesPlan {
 export const TIPOS_NUEVOS = ['cuota_fija', 'solo_interes', 'personalizado', 'manual'] as const;
 export const TIPO_LABEL: Record<string, string> = {
   cuota_fija: 'Cuota fija (Francés)',
-  solo_interes: 'Solo interés al vencimiento (Bullet)',
-  personalizado: 'Personalizada (amortización irregular)',
+  solo_interes: 'Solo intereses y capital al final (Bullet)',
+  personalizado: 'Pagos irregulares de capital e intereses',
   // Legado
   capital_fijo: 'Alemán · capital fijo (anterior)', pago_unico: 'Pago único (anterior)', balon: 'Cuota balón (anterior)',
   creciente: 'Cuota creciente (anterior)', extraordinarias: 'Cuotas extraordinarias (anterior)', manual: 'Manual (cuotas tal cual, pegadas de Excel)',
@@ -42,13 +46,13 @@ const cents = (v: number) => Math.round((Number(v) + Number.EPSILON) * 100);
 export const descuadreCapital = (calendario: HitoCapital[] | undefined, monto: number) =>
   ((calendario ?? []).reduce((s, r) => s + cents(r.capital || 0), 0) - cents(monto || 0)) / 100;
 
-export const FRECUENCIA_LABEL: Record<string, string> = { semanal: 'Semanal', mensual: 'Mensual', trimestral: 'Trimestral' };
+export const FRECUENCIA_LABEL: Record<string, string> = { semanal: 'Semanal', mensual: 'Mensual', trimestral: 'Trimestral', semestral: 'Semestral (cada 6 meses)', anual: 'Anual (cada 12 meses)' };
 
 /** Fecha de la cuota `index` según la frecuencia: cada 7 días, 1 mes o 3 meses (ajustando fin de mes). */
 function addPeriods(first: string, index: number, frecuencia: string) {
   const d = new Date(`${first}T00:00:00Z`);
   if (frecuencia === 'semanal') { d.setUTCDate(d.getUTCDate() + 7 * index); return d.toISOString().slice(0, 10); }
-  const next = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + (frecuencia === 'trimestral' ? 3 : 1) * index, 1));
+  const next = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + ({ mensual: 1, trimestral: 3, semestral: 6, anual: 12 }[frecuencia] ?? 1) * index, 1));
   next.setUTCDate(Math.min(d.getUTCDate(), new Date(Date.UTC(next.getUTCFullYear(), next.getUTCMonth() + 1, 0)).getUTCDate()));
   return next.toISOString().slice(0, 10);
 }
@@ -75,7 +79,9 @@ export function parsearTablaExcel(text: string): { rows: HitoCapital[]; error?: 
     const cells = (line.includes('\t') ? line.split('\t') : line.trim().split(/\s+/)).map(c => c.trim()).filter(Boolean);
     const at = cells.findIndex(c => parseDate(c) !== null);
     if (at < 0) { if (/\d/.test(line)) ignoradas += 1; continue; }
-    const nums = cells.slice(at + 1).map(parseNumber).filter(n => !Number.isNaN(n));
+    let nums = cells.slice(at + 1).map(parseNumber).filter(n => !Number.isNaN(n));
+    // Fecha, Días, Capital, Intereses, Total cuota, Saldo.
+    if (nums.length === 5 && Number.isInteger(nums[0]) && nums[0] >= 0 && nums[0] <= 366) nums = nums.slice(1);
     if (!nums.length || nums[0] < 0 || (nums[1] ?? 0) < 0) return { rows: [], error: `La fila "${line.trim().slice(0, 60)}" no tiene capital e interés válidos después de la fecha.` };
     // Con columnas Total cuota y Saldo (4 números), la diferencia entre el total y capital + interés son los cargos.
     const cargos = nums.length >= 4 ? Math.round((nums[2] - nums[0] - nums[1]) * 100) / 100 : 0;
@@ -95,6 +101,20 @@ export function generarHitos(cantidad: number, monto: number, fecha: string, fre
   return Array.from({ length: cantidad }, (_, i) => ({ fechaVencimiento: addPeriods(fecha, i, frecuencia), capital: (i === cantidad - 1 ? total - part * i : part) / 100 }));
 }
 
+/** Genera gracia de capital, abonos regulares y capital final sin perder centavos. */
+export function generarIrregular(cantidad: number, monto: number, fecha: string, frecuencia: string, gracia: number, regular: number | undefined, final: number): HitoCapital[] {
+  const rows = generarHitos(cantidad, monto, fecha, frecuencia);
+  if (!rows.length || !Number.isInteger(gracia) || gracia < 0 || gracia > cantidad - 2
+    || !Number.isFinite(final) || final < 0 || final > monto
+    || (regular !== undefined && (!Number.isFinite(regular) || regular < 0)))
+    throw new Error('Revisa el plazo, las cuotas sin capital y los montos de capital.');
+  const total = cents(monto), ultimo = cents(final), periodos = cantidad - gracia - 1;
+  const abono = regular === undefined ? Math.floor((total - ultimo) / periodos) : cents(regular);
+  const ajuste = total - ultimo - abono * (periodos - 1);
+  if (ajuste < 0) throw new Error('Los abonos regulares más el capital final exceden el desembolso.');
+  return rows.map((r, i) => ({ ...r, capital: (i < gracia ? 0 : i === cantidad - 1 ? ultimo : i === cantidad - 2 ? ajuste : abono) / 100 }));
+}
+
 /** Campo numérico con borrador de texto. `undefined` = vacío (solo útil si el campo es opcional). */
 function Monto({ label, value, onChange }: { label: string; value: number | undefined; onChange: (value: number | undefined) => void }) {
   const text = (v: number | undefined) => v === undefined ? '' : String(v);
@@ -108,6 +128,10 @@ export default function AmortizacionOptions({ tipo, opciones: o, onChange, onImp
   cantidad: number; monto: number; fecha: string; frecuencia: string; moneda: string;
 }) {
   const rows = o.calendario ?? [];
+  const [gracia, setGracia] = useState('0');
+  const [capitalRegular, setCapitalRegular] = useState('');
+  const [capitalFinal, setCapitalFinal] = useState('0');
+  const [generationError, setGenerationError] = useState('');
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasted, setPasted] = useState('');
   const parsed = pasted.trim() ? parsearTablaExcel(pasted) : null;
@@ -123,7 +147,7 @@ export default function AmortizacionOptions({ tipo, opciones: o, onChange, onImp
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [frecuencia]);
 
-  if (tipo === 'cuota_fija') return <Alert severity="info">Cuota fija: C = P × i(1+i)ⁿ / ((1+i)ⁿ − 1), con i = tasa anual / períodos por año (52 semanal, 12 mensual, 4 trimestral). La última cuota cancela el saldo exacto.</Alert>;
+  if (tipo === 'cuota_fija') return <Alert severity="info">El sistema calcula la cuota con el monto, la tasa y el número de pagos. Si posteriormente acuerdas otra tasa con el banco, podrás aplicarla desde una cuota sin pagos en el detalle del préstamo.</Alert>;
   if (tipo === 'solo_interes') return <Alert severity="info">Cuotas 1 a n−1 solo de interés sobre el saldo; la cuota n paga todo el capital más su interés.</Alert>;
   if (tipo !== 'personalizado' && tipo !== 'manual') return null;
 
@@ -136,7 +160,7 @@ export default function AmortizacionOptions({ tipo, opciones: o, onChange, onImp
       <DialogTitle>Pegar tabla desde Excel</DialogTitle>
       <DialogContent>
         <Stack spacing={1.2} pt={0.5}>
-          <Alert severity="info">Copia en Excel las columnas <b>Fecha, Principal e Intereses</b> (en ese orden; pueden venir seguidas de Total cuota y Saldo) y pégalas aquí. Las fechas se leen como día/mes/año. Reemplaza las filas actuales y ajusta el plazo y la fecha del primer pago.</Alert>
+          <Alert severity="info">Copia en Excel las columnas <b>Fecha, Principal e Intereses</b> (en ese orden; pueden incluir Días después de Fecha y Total cuota y Saldo al final) y pégalas aquí. Las fechas se leen como día/mes/año. Reemplaza las filas actuales y ajusta el plazo y la fecha del primer pago.</Alert>
           <TextField multiline minRows={8} maxRows={14} autoFocus placeholder={'13/4/2022\t56,875.00\t51,187.50\n13/7/2022\t56,875.00\t49,907.81'} value={pasted} onChange={e => setPasted(e.target.value)} />
           {parsed?.rows.length ? <Alert severity={parsed.error ? 'warning' : 'success'}>{parsed.rows.length} cuotas leídas · capital {new Intl.NumberFormat('es-HN', { minimumFractionDigits: 2 }).format(parsed.rows.reduce((s, r) => s + cents(r.capital), 0) / 100)}{parsed.error ? ` · ${parsed.error}` : ''}</Alert> : parsed?.error ? <Alert severity="error">{parsed.error}</Alert> : null}
         </Stack>
@@ -181,14 +205,30 @@ export default function AmortizacionOptions({ tipo, opciones: o, onChange, onImp
     <Paper variant="outlined" sx={{ p: 1.5 }}>
       <Stack spacing={1.2}>
         <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" useFlexGap spacing={1}>
-          <Typography fontWeight={800}>Abonos a capital por cuota</Typography>
+          <Typography fontWeight={800}>Pagos irregulares de capital e intereses</Typography>
           {badge}
         </Stack>
-        <Typography variant="caption">Define el capital de cada pago; el interés se calcula sobre el saldo con la tasa indicada. Si tu banco usa tasa variable o cobra un interés distinto, escríbelo en la columna Interés de esa cuota y se respetará tal cual. La suma del capital debe ser igual al monto desembolsado para poder guardar.</Typography>
+        <Typography variant="caption">Genera primero los abonos a capital o pega el calendario del banco. Después puedes ajustar cada fila. La suma del capital debe coincidir con el monto recibido.</Typography>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+          <GroupedNumberField label="Cuotas iniciales sin capital" decimals={0} value={gracia} onChange={setGracia} />
+          <GroupedNumberField label="Capital por cuota regular" value={capitalRegular} onChange={setCapitalRegular} />
+          <GroupedNumberField label="Capital en última cuota" value={capitalFinal} onChange={setCapitalFinal} />
+        </Stack>
+        <Typography variant="caption">La última cuota paga el capital final indicado. La penúltima absorbe la diferencia de centavos. El interés se cobra también durante las cuotas sin capital. Deja el capital regular vacío para distribuirlo automáticamente.</Typography>
+        <Button size="small" variant="outlined" onClick={() => {
+          try {
+            const calendario = generarIrregular(cantidad, monto, fecha, frecuencia, Number(gracia), capitalRegular === '' ? undefined : Number(capitalRegular), Number(capitalFinal));
+            onChange({ ...o, calendario }); setGenerationError('');
+          } catch (e) { setGenerationError((e as Error).message); }
+        }}>Generar pagos irregulares</Button>
+        {generationError && <Alert severity="error">{generationError}</Alert>}
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
           <Button size="small" variant="outlined" onClick={() => { setPasted(''); setPasteOpen(true); }}>Pegar tabla desde Excel</Button>
           <Button size="small" onClick={() => onChange({ ...o, calendario: generarHitos(cantidad, monto, fecha, frecuencia) })}>Repartir capital en partes iguales</Button>
         </Stack>
+        <Typography fontWeight={700}>Revisa el capital de cada cuota</Typography>
+        <Typography variant="caption" color="text.secondary">Interés vacío = cálculo automático. Un importe escrito reemplaza el cálculo de esa cuota, incluso si cambia la tasa.</Typography>
+        {rows.some(r => r.interes !== undefined) && <Button size="small" onClick={() => onChange({ ...o, calendario: rows.map(({ interes: _interes, ...r }) => r) })}>Volver a calcular todos los intereses automáticamente</Button>}
         {pasteDialog}
         <TableContainer sx={{ maxHeight: 320 }}>
           <Table size="small" stickyHeader>

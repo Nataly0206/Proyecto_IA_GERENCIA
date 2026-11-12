@@ -8,7 +8,7 @@ import PeladoLibrasHoyCards from '../components/live/PeladoLibrasHoyCards';
 import PeladoPorSalaTable from '../components/live/PeladoPorSalaTable';
 import PeladoEstiloWidget from '../components/charts/PeladoEstiloWidget';
 
-export default function PeladoPage({ userId }: { userId: string }) {
+export default function PeladoPage({ userId, canEditGoal }: { userId: string; canEditGoal: boolean }) {
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   return (
@@ -74,7 +74,7 @@ export default function PeladoPage({ userId }: { userId: string }) {
         </Collapse>
       </Paper>
 
-      <PeladoLibrasHoyCards />
+      <PeladoLibrasHoyCards canEditGoal={canEditGoal} />
       <PeladoEstiloWidget />
       <PeladoPorSalaTable userId={userId} />
     </Stack>

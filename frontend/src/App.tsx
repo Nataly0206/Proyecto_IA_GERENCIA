@@ -197,7 +197,7 @@ export default function App() {
             }}
           />
         ) : view === 'pelado' ? (
-          <PeladoPage userId={user.id} />
+          <PeladoPage userId={user.id} canEditGoal={tienePermiso(user, 'definir_meta_pelado')} />
         ) : view === 'dashboard' ? (
           <DashboardPage userId={user.id} />
         ) : (

@@ -11,6 +11,7 @@ export const PERMISOS = [
   'clasificado',
   'ordenar_tallas_clasificado',
   'pelado',
+  'definir_meta_pelado',
   'iqf',
   'exportaciones',
   'inventario',

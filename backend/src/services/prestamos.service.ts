@@ -585,7 +585,7 @@ export async function cambiarTasa(prestamoId: number, desdeCuota: number, tasaAn
         WHERE prestamo_id = @id AND eliminado_en IS NULL AND numero >= @desde AND pagado = 0`);
     for (const q of plan.cuotas) await insertarCuota(tx, prestamoId, q.numero, q.fecha, { ...q, concepto: motivo });
     const opciones = JSON.parse(loan.opciones_plan ?? '{}');
-    opciones.historialTasas = [...(opciones.historialTasas ?? []), { desdeCuota, tasaAnterior: Number(loan.tasa_anual), tasaAnual, usuario, fecha: new Date().toISOString() }];
+    opciones.historialTasas = [...(opciones.historialTasas ?? []), { desdeCuota, fechaVencimientoDesde: plan.cuotas[0].fecha, tasaAnterior: Number(loan.tasa_anual), tasaAnual, usuario, fecha: new Date().toISOString() }];
     await new sql.Request(tx).input('id', sql.BigInt, prestamoId).input('tasa', sql.Decimal(9,4), tasaAnual)
       .input('opciones', sql.NVarChar(sql.MAX), JSON.stringify(opciones))
       .query(`UPDATE dbo.prestamos SET tasa_anual = @tasa, opciones_plan = @opciones, actualizado_en = SYSUTCDATETIME() WHERE id = @id`);

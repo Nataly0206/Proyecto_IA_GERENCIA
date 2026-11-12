@@ -6,7 +6,7 @@ import * as procesos from '../controllers/procesos.controller';
 import { asyncHandler } from '../middleware/errorHandler';
 import { requirePermission } from '../middleware/sessionAuth';
 import { getUserPreference, saveUserPreference } from '../services/user-preferences.service';
-import { getClassifiedSizeOrder, getClassifiedSizes, saveClassifiedSizeOrder } from '../services/shared-config.service';
+import { getPeelingDailyGoal, savePeelingDailyGoal, getClassifiedSizeOrder, getClassifiedSizes, saveClassifiedSizeOrder } from '../services/shared-config.service';
 
 import { getCachedProcessSummary } from '../services/process-summary.service';
 
@@ -88,6 +88,18 @@ router.get('/pelado-orden-tallas', pelado, asyncHandler(async (_req, res) => {
   res.json({ order, sizes });
 }));
 router.get('/pelado-tiempo-real', pelado, asyncHandler(controller.getPeladoTiempoReal));
+router.get('/pelado-meta-diaria', pelado, asyncHandler(async (_req, res) => {
+  res.json({ goal: await getPeelingDailyGoal() });
+}));
+router.put('/pelado-meta-diaria', pelado, requirePermission('definir_meta_pelado'), asyncHandler(async (req, res) => {
+  const goal: unknown = req.body?.goal;
+  if (typeof goal !== 'number' || !Number.isFinite(goal) || goal <= 0 || goal > 1_000_000_000) {
+    res.status(400).json({ error: 'La meta debe ser mayor que cero y no superar 1,000,000,000 lbs.' });
+    return;
+  }
+  await savePeelingDailyGoal(goal);
+  res.json({ goal });
+}));
 router.get('/pelado-libras-hoy', pelado, asyncHandler(controller.getPeladoLibrasHoy));
 router.get('/pelado-libras-hoy-talla', pelado, asyncHandler(controller.getPeladoLibrasHoyTalla));
 router.get('/pelado-por-sala', pelado, asyncHandler(controller.getPeladoPorSala));

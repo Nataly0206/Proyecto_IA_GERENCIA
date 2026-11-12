@@ -8,6 +8,7 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
+import PeladoMetaDiaria from './PeladoMetaDiaria';
 import ContentCutOutlinedIcon from '@mui/icons-material/ContentCutOutlined';
 import { usePeladoLibrasHoy, usePeladoLibrasHoyTalla, usePeladoPorSala } from '../../hooks/useDashboardData';
 import { formatPeriodo, formatValue } from '../../utils/format';
@@ -146,7 +147,7 @@ function EstiloCard({
   );
 }
 
-export default function PeladoLibrasHoyCards() {
+export default function PeladoLibrasHoyCards({ canEditGoal }: { canEditGoal: boolean }) {
   const { data, isLoading, isError, error, dataUpdatedAt } = usePeladoLibrasHoy();
   const { data: actividad, isError: actividadError } = usePeladoPorSala();
   const { data: produccionTallas, isError: tallasError } = usePeladoLibrasHoyTalla(true);
@@ -212,6 +213,7 @@ export default function PeladoLibrasHoyCards() {
           <EstiloCard badge="Total del día" tallaDominante={tallaDominante} tallaSiguiente={tallaSiguiente} librasPorPersona={librasPorPersona} estilo={{ estilo: 'Total', libras: data.total, librasPorHora: data.librasPorHoraPromedio }} />
         </Box>
       )}
+      <PeladoMetaDiaria canEdit={canEditGoal} total={data?.total ?? 0} loading={isLoading} unavailable={isError || !data} />
     </Box>
   );
 }

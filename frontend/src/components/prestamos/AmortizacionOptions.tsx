@@ -4,7 +4,7 @@ import GroupedNumberField from './GroupedNumberField';
 
 export interface HitoCapital { fechaVencimiento: string; capital: number; interes?: number; cargos?: number }
 export interface OpcionesPlan {
-  historialTasas?: { desdeCuota: number; tasaAnterior: number; tasaAnual: number; fecha: string; usuario: string }[];
+  historialTasas?: { desdeCuota: number; fechaVencimientoDesde?: string; tasaAnterior: number; tasaAnual: number; fecha: string; usuario: string }[];
   cambiosTasa?: { desde: string; tasaAnual: number }[];
   redondeoInteres?: 'periodo' | 'diario';
   cuotaPactada?: number;

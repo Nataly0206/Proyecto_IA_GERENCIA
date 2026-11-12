@@ -737,7 +737,23 @@ function DetailDialog({ id, close, changed }: { id: number | null; close: () => 
             {loan.interesCapitalizado > 0 && <Alert severity="info">El capital financiado incluye {money(loan.interesCapitalizado, m)} de intereses capitalizados durante la gracia. Los pagos de ese importe se contabilizan como capital.</Alert>}
             <Typography variant="body2" color="text.secondary">{descripcionOpciones(loan.opciones)}</Typography>
             {editable && <Button variant="outlined" sx={{ alignSelf: 'start' }} onClick={() => setRateOpen(true)}>Cambiar tasa desde una cuota</Button>}
-            {(loan.opciones.historialTasas ?? []).map((c, i) => <Typography key={i} variant="body2">Tasa acordada: {c.tasaAnual}% anual desde la cuota {c.desdeCuota} · registrada el {formatDate(c.fecha)}</Typography>)}
+            <Box>
+              <Typography fontWeight={800} mb={0.5}>Historial de cambios de tasa</Typography>
+              {!loan.opciones.historialTasas?.length ? <Typography variant="body2" color="text.secondary">No se han registrado cambios de tasa.</Typography> : <>
+                <Typography variant="caption" color="text.secondary">Cada cambio confirmado conserva la tasa anterior y el calendario reemplazado. Los cambios más recientes aparecen primero.</Typography>
+                <TableContainer sx={{ maxHeight: 240 }}><Table size="small" stickyHeader>
+                  <TableHead><TableRow>{['Fecha y hora del registro', 'Tasa anterior', 'Nueva tasa', 'Desde cuota', 'Vencimiento', 'Registrado por'].map(x => <TableCell key={x} sx={HEAD}>{x}</TableCell>)}</TableRow></TableHead>
+                  <TableBody>{[...loan.opciones.historialTasas].reverse().map((c, i) => <TableRow key={i}>
+                    <TableCell>{new Date(c.fecha).toLocaleString('es-HN', { timeZone: 'America/Tegucigalpa', dateStyle: 'short', timeStyle: 'short' })}</TableCell>
+                    <TableCell>{Number(c.tasaAnterior).toLocaleString('es-HN', { maximumFractionDigits: 4 })}%</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>{Number(c.tasaAnual).toLocaleString('es-HN', { maximumFractionDigits: 4 })}%</TableCell>
+                    <TableCell>{c.desdeCuota}</TableCell>
+                    <TableCell>{formatDate(c.fechaVencimientoDesde ?? data.cuotas.find(q => q.numero === c.desdeCuota)?.fechaVencimiento)}</TableCell>
+                    <TableCell>{c.usuario}</TableCell>
+                  </TableRow>)}</TableBody>
+                </Table></TableContainer>
+              </>}
+            </Box>
             {Math.abs(data.diferenciaCapital) > 0.01 && (
               <Alert severity="warning" sx={{ py: 0.4 }}>
                 El capital del calendario más los abonos difiere del capital financiado (monto recibido + interés capitalizado) en {money(data.diferenciaCapital, m)}. Revisa las cuotas editadas.

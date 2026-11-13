@@ -1,6 +1,6 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {summaryPeriods,summarizeSamples,sumEquipmentRates}=require('../dist/utils/processSummary');
+const {monthlySummaryPeriods,summaryPeriods,summarizeSamples,sumEquipmentRates}=require('../dist/utils/processSummary');
 
 test('períodos calendario: semana de lunes y cruce de año',()=>{
  const periods=summaryPeriods('2026-01-01');
@@ -36,4 +36,16 @@ test('sumatoria suma rendimientos por equipo sin incluir máquina cero ni mezcla
  assert.equal(sumEquipmentRates(samples,'2026-10-01','2026-10-29',true).rate,800);
  assert.equal(sumEquipmentRates([],'2026-10-01','2026-10-29').rate,null);
  assert.equal(sumEquipmentRates([{day:'2026-10-29',machineId:1,pounds:0,hours:2}],'2026-10-01','2026-10-29').rate,0);
+});
+
+test('mensual incluye enero a noviembre con corte hasta hoy y febrero bisiesto',()=>{
+ const periods=monthlySummaryPeriods('2026-11-13');
+ assert.equal(periods.length,11);
+ assert.deepEqual(periods[0],{key:'month-1',label:'Enero',from:'2026-01-01',to:'2026-01-31'});
+ assert.equal(periods[1].to,'2026-02-28');
+ assert.equal(periods[10].to,'2026-11-13');
+ assert.equal(monthlySummaryPeriods('2024-11-13')[1].to,'2024-02-29');
+ const samples=[{day:'2026-01-31',pounds:100,hours:2},{day:'2026-02-01',pounds:900,hours:3}];
+ assert.equal(summarizeSamples(samples,periods[0].from,periods[0].to).rate,50);
+ assert.equal(summarizeSamples(samples,periods[1].from,periods[1].to).rate,300);
 });

@@ -4,7 +4,7 @@ import { runQuery } from './sql.service';
 import { IQF_DAILY_RATE_QUERY } from './reports.queries';
 import { withTtlCache } from '../utils/ttlCache';
 import { pickNumber, pickString } from '../utils/rows';
-import { PROCESS_NAMES, ProcessSample, summaryPeriods, summarizeSamples, sumEquipmentRates } from '../utils/processSummary';
+import { PROCESS_NAMES, ProcessSample, monthlySummaryPeriods, summaryPeriods, summarizeSamples, sumEquipmentRates } from '../utils/processSummary';
 
 const DESCABEZADO = `SELECT CONVERT(varchar(10), h.FECHA, 23) AS Dia,
  SUM(d.LIBRAS) AS Libras,
@@ -63,6 +63,7 @@ function loadHistory(key: string, loader: () => Promise<ProcessSample[]>) {
 
 export async function getProcessSummary(today: string, refresh = false, process?: string) {
   const periods = summaryPeriods(today);
+  const monthlyPeriods = monthlySummaryPeriods(today);
   const from = periods.map(period => period.from).sort()[0];
   const yesterday = new Date(`${today}T12:00:00Z`);
   yesterday.setUTCDate(yesterday.getUTCDate() - 1);
@@ -76,7 +77,9 @@ export async function getProcessSummary(today: string, refresh = false, process?
         () => loadSamples(today, today, index), refresh),
     ]);
     const samples = [...history, ...current];
-    return { process: name, method: index === 3 ? 'average' : 'weighted',
+    return { process: name, monthlyValues: Object.fromEntries(monthlyPeriods.map(period => [period.key,
+      summarizeSamples(samples, period.from, period.to, index === 3),
+    ])), method: index === 3 ? 'average' : 'weighted',
       ...(index === 1 || index === 3 ? { sums: Object.fromEntries(periods.map(period => [
         period.key, sumEquipmentRates(samples, period.from, period.to, index === 3),
       ])) } : {}),
@@ -84,11 +87,11 @@ export async function getProcessSummary(today: string, refresh = false, process?
         index === 1 && period.key === 'year' ? samples.filter(sample => (sample.machineId ?? 0) > 0) : samples,
         period.from, period.to, index === 3)])) };
   }));
-  return { today, updatedAt: new Date().toISOString(), periods, rows: rows.filter(row => row !== null) };
+  return { today, updatedAt: new Date().toISOString(), periods, monthlyPeriods, rows: rows.filter(row => row !== null) };
 }
 
 export function getCachedProcessSummary(today: string, refresh = false, process?: string) {
-  return withTtlCache(`resumen-procesos:v5:${today}:${process ?? 'all'}`, 5 * 60_000,
+  return withTtlCache(`resumen-procesos:v6:${today}:${process ?? 'all'}`, 5 * 60_000,
     () => getProcessSummary(today, refresh, process), refresh);
 }
 

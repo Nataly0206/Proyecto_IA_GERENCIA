@@ -29,6 +29,10 @@ test('carga por proceso, comparte histórico y actualiza solo hoy sin alterar ac
  const first=await getProcessSummary(today,false,'Descabezado');
  assert.equal(reads.length,2);
  assert.equal(first.rows.length,1);
+ assert.equal(first.monthlyPeriods.length,11);
+ assert.equal(first.rows[0].monthlyValues['month-10'].rate,140);
+ assert.equal(first.rows[0].monthlyValues['month-1'].rate,null);
+ assert.equal(first.rows[0].monthlyValues['month-11'].rate,null);
  assert.equal(first.rows[0].values.year.rate,140);
  assert.equal(first.rows[0].values.today.rate,200);
  const all=await getProcessSummary(today);

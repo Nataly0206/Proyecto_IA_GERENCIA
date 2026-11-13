@@ -11,6 +11,15 @@ export function summaryPeriods(today: string) {
     { key: 'year', label: 'Anual', from: `${today.slice(0, 4)}-01-01`, to: today },
   ];
 }
+export function monthlySummaryPeriods(today: string) {
+  const year = Number(today.slice(0, 4));
+  const labels = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre'];
+  return labels.map((label, index) => {
+    const from = `${year}-${String(index + 1).padStart(2, '0')}-01`;
+    const end = new Date(Date.UTC(year, index + 1, 0)).toISOString().slice(0, 10);
+    return { key: `month-${index + 1}`, label, from, to: end < today ? end : today };
+  });
+}
 export function summarizeSamples(samples: ProcessSample[], from: string, to: string, averageRates = false) {
   const valid = samples.filter(row => row.day >= from && row.day <= to && Number.isFinite(row.hours) && row.hours > 0 && Number.isFinite(row.pounds) && row.pounds >= 0);
   if (!valid.length) return { rate: null, pounds: 0, hours: 0, groups: 0 };

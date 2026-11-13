@@ -82,7 +82,7 @@ export function useWidgetData(endpoint: DashboardEndpoint, extraParams?: Record<
     : endpoint === 'recepcion-remisiones'
       ? `${endpoint}:balance-laguna-v2`
     : endpoint === 'exportaciones-por-estilo'
-      ? `${endpoint}:ships-exportacion-v5`
+      ? `${endpoint}:ships-exportacion-v6`
     : endpoint === 'exportaciones-por-cliente-mes'
       ? `${endpoint}:ships-exportacion-v2`
     : endpoint === 'exportaciones-contenedores'

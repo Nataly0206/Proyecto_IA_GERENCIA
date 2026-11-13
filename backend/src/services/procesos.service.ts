@@ -494,13 +494,16 @@ export async function getExportacionesPorEstilo(
     return aggregateTotal(groups.map((g) => ({ valor: g.estilo, libras: g.libras })))
       .map(({ valor, libras, porcentaje }) => ({ estilo: valor, libras, porcentaje }));
   }
-  const cells = new Map<string, { periodo: string; estilo: string; cliente: string; libras: number }>();
+  const cells = new Map<string, { periodo: string; estilo: string; cliente: string; libras: number; ships: Set<string> }>();
   for (const group of groups) {
     const period = periodo === 'total' ? 'Total' : reportPeriodOf(group.dia, periodo);
     const key = JSON.stringify([period, group.estilo, group.cliente]);
     const cell = cells.get(key);
-    if (cell) cell.libras += group.libras;
-    else cells.set(key, { periodo: period, estilo: group.estilo, cliente: group.cliente, libras: group.libras });
+    if (cell) {
+      cell.libras += group.libras;
+      if (group.referencia.trim()) cell.ships.add(group.referencia.trim());
+    } else cells.set(key, { periodo: period, estilo: group.estilo, cliente: group.cliente, libras: group.libras,
+      ships: new Set(group.referencia.trim() ? [group.referencia.trim()] : []) });
   }
   if (periodo === 'mes') {
     const pairs = new Map(groups.map(group => [JSON.stringify([group.estilo, group.cliente]), group]));
@@ -510,11 +513,11 @@ export async function getExportacionesPorEstilo(
       const month = date.toISOString().slice(0, 7);
       for (const { estilo, cliente } of pairs.values()) {
         const key = JSON.stringify([month, estilo, cliente]);
-        if (!cells.has(key)) cells.set(key, { periodo: month, estilo, cliente, libras: 0 });
+        if (!cells.has(key)) cells.set(key, { periodo: month, estilo, cliente, libras: 0, ships: new Set<string>() });
       }
     }
   }
-  return [...cells.values()].sort((a, b) => a.periodo.localeCompare(b.periodo)
+  return [...cells.values()].map(({ ships, ...cell }) => ({ ...cell, __exportShips: JSON.stringify([...ships]) })).sort((a, b) => a.periodo.localeCompare(b.periodo)
     || a.estilo.localeCompare(b.estilo) || a.cliente.localeCompare(b.cliente));
 }
 

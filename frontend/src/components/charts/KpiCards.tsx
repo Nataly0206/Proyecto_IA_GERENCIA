@@ -39,6 +39,11 @@ export default function KpiCards({ config, data, compact = false, hiddenLabels }
       __isTotalCard: true,
     };
 
+    if (sortedRows.length > 0 && sortedRows.every(row => row.__exportShips !== undefined)) {
+      totalRow.__exportShips = JSON.stringify([...new Set(sortedRows.flatMap(row =>
+        JSON.parse(String(row.__exportShips ?? '[]')) as string[]))]);
+    }
+
     if (rateField) {
       if (config.rateWeightField) {
         const totalWeight = sortedRows.reduce((sum, row) => sum + Number(row[config.rateWeightField!] ?? 0), 0);
@@ -79,6 +84,7 @@ export default function KpiCards({ config, data, compact = false, hiddenLabels }
         const value = Number(row[yField] ?? 0);
         const porcentaje = typeof row.porcentaje === 'number' ? (row.porcentaje as number) : null;
         const isTotal = row.__isTotalCard === true;
+        const containerCount = row.__exportShips === undefined ? null : (JSON.parse(String(row.__exportShips)) as string[]).length;
         const color = isTotal ? '#164a8b' : config.colorByLabel ? categoryColor(label, colors) : colors[index % colors.length];
         const rateValue = rateField ? Number(row[rateField] ?? 0) : null;
 
@@ -154,6 +160,10 @@ export default function KpiCards({ config, data, compact = false, hiddenLabels }
               <>
                 <Typography
                   sx={{
+                    display: 'flex',
+                    alignItems: 'baseline',
+                    justifyContent: 'space-between',
+                    gap: 1,
                     fontSize: { xs: '1.15rem', xl: '1.3rem' },
                     fontWeight: 800,
                     color: 'text.primary',
@@ -161,6 +171,9 @@ export default function KpiCards({ config, data, compact = false, hiddenLabels }
                   }}
                 >
                   {formatValue(value, format)}
+                  {containerCount !== null && <Typography component="span" variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
+                    {containerCount} Cont.
+                  </Typography>}
                 </Typography>
                 <Typography
                   variant="caption"

@@ -94,7 +94,7 @@ export default function ProcessSummaryPage({ userId }: { userId: string }) {
         <Chip size="small" label="lbs / hora" color="primary" variant="outlined" />
       </Stack>
       {(fetching || refreshing) && <LinearProgress sx={{ height: 2 }} />}
-      {monthly ? <TableContainer><Table aria-label="Productividad mensual por proceso" sx={{ width: '100%', tableLayout: { xs: 'fixed', sm: 'auto' }, '& th, & td': { borderColor: 'divider', px: { xs: 0.5, sm: 2 }, py: { xs: 0.9, sm: 2 } }, '& th:first-of-type': { width: { xs: '22%', sm: 'auto' } } }}>
+      {monthly ? <TableContainer sx={{ maxHeight: '65vh', overflow: 'auto' }}><Table stickyHeader aria-label="Productividad mensual por proceso" sx={{ width: '100%', tableLayout: { xs: 'fixed', sm: 'auto' }, '& th, & td': { borderColor: 'divider', px: { xs: 0.5, sm: 2 }, py: { xs: 0.9, sm: 2 } }, '& th:first-of-type': { width: { xs: '22%', sm: 'auto' } }, '& thead th': { bgcolor: '#f5f8fc', zIndex: 2 } }}>
         <TableHead><TableRow sx={{ bgcolor: '#f5f8fc' }}>
           <TableCell component="th" scope="col" sx={{ fontWeight: 800 }}>Mes</TableCell>
           {processes.map((process, index) => <TableCell key={process} component="th" scope="col" align="right">
@@ -116,7 +116,22 @@ export default function ProcessSummaryPage({ userId }: { userId: string }) {
               </Tooltip>}
             </TableCell>;
           })}
-        </TableRow>)}</TableBody>
+        </TableRow>)}
+        <TableRow sx={{ bgcolor: '#e8eef7', '& th, & td': { borderTop: '2px solid #b8c7d9', fontWeight: 800, fontSize: { xs: 10, sm: 16 } } }}>
+          <TableCell component="th" scope="row">Promedio</TableCell>
+          {processes.map((process, index) => {
+            const query = queries[index];
+            const row = query.data?.rows[0];
+            const rates = visiblePeriods.map(period => row?.monthlyValues?.[period.key]?.rate)
+              .filter((rate): rate is number => typeof rate === 'number' && Number.isFinite(rate));
+            return <TableCell key={process} align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+              {!row ? query.isError ? 'No disponible' : <Skeleton width={80} sx={{ ml: 'auto', maxWidth: '100%' }} /> :
+                <Tooltip title="Promedio de los meses con productividad disponible; excluye meses sin datos.">
+                  <span>{rates.length ? number(rates.reduce((sum, rate) => sum + rate, 0) / rates.length) : '—'}</span>
+                </Tooltip>}
+            </TableCell>;
+          })}
+        </TableRow></TableBody>
       </Table></TableContainer> : <TableContainer><Table aria-label="Resumen de libras por hora por proceso" sx={{ minWidth: 760, '& th, & td': { borderColor: 'divider' } }}>
         <TableHead><TableRow sx={{ bgcolor: '#f5f8fc' }}>
           <TableCell sx={{ pl: 3, fontWeight: 800, width: '24%' }}>Proceso</TableCell>

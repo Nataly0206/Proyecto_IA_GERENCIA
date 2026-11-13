@@ -149,6 +149,7 @@ export default function ResumenCards({
                   >
                     {m.label}
                   </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 1 }}>
                   <Typography variant="h6" fontWeight={800} sx={{ color, lineHeight: 1.1 }}>
                     {m.display ?? formatValue(m.value, m.format ?? 'number')}
                     {m.unit && (
@@ -157,7 +158,8 @@ export default function ResumenCards({
                       </Typography>
                     )}
                   </Typography>
-                  {m.detail && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>{m.detail}</Typography>}
+                  {m.detail && <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>{m.detail}</Typography>}
+                  </Box>
                 </CardContent>
               </Card>
             );

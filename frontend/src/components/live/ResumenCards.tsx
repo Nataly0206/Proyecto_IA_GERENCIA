@@ -14,6 +14,7 @@ export interface ResumenMetric {
   display?: string;
   /** Texto bajo el valor (ej. "lbs", "contenedores"). */
   unit?: string;
+  detail?: string;
   /** Color de acento: neutro, alerta (naranja) o positivo (verde). */
   tone?: 'default' | 'warn' | 'good';
 }
@@ -156,6 +157,7 @@ export default function ResumenCards({
                       </Typography>
                     )}
                   </Typography>
+                  {m.detail && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>{m.detail}</Typography>}
                 </CardContent>
               </Card>
             );

@@ -269,6 +269,8 @@ export interface ExportacionesResumen {
   semanaFin: string;
   actualizado: string;
   librasFrancia: number;
+  contenedoresFrancia: number;
+  contenedoresUK: number;
   librasUK: number;
   librasACHolding: number;
   librasTerceros: number;

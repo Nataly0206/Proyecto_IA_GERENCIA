@@ -653,6 +653,7 @@ DECLARE @Domingo date = DATEADD(DAY, 6, @Lunes);
 SELECT
   CONVERT(varchar(10), @Lunes, 23) AS SemanaInicio,
   CONVERT(varchar(10), @Domingo, 23) AS SemanaFin,
+  LTRIM(RTRIM(e.ReferenciaEnvio)) AS Ship,
   ${exportClientSql('v')} AS Cliente,
   ${exportClientSql('v')} AS NombreGrupo,
   ISNULL(SUM(i.PesoLibras), 0) AS Libras
@@ -666,7 +667,7 @@ ${EXPORT_CLIENT_JOINS}
 WHERE e.FechaCarga BETWEEN @Lunes AND @Domingo
   AND ${EXPORT_SHIP_FILTER}
   AND e.NumeroContenedor IS NOT NULL AND e.NumeroContenedor <> ''
-GROUP BY ${exportClientSql('v')}
+GROUP BY ${exportClientSql('v')}, LTRIM(RTRIM(e.ReferenciaEnvio))
 `;
 
 /* ================================================================== */

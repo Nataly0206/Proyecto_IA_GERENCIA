@@ -95,7 +95,7 @@ export const getClasificadoPorTallaMes = monthlyReport('clasificado-por-talla-me
 export const getExportacionesResumen = async (req: Request, res: Response): Promise<void> => {
   const excludedClients = parseExcludedClients(req);
   res.json(await withTtlCache(
-    JSON.stringify(['exportaciones-resumen:ships-exportacion-v2', excludedClients]),
+    JSON.stringify(['exportaciones-resumen:ships-exportacion-v3', excludedClients]),
     EXPORT_CACHE_MS,
     () => procesos.getExportacionesResumen(excludedClients),
     req.query.refresh === 'true',

@@ -425,12 +425,18 @@ export async function getExportacionesResumen(excludedClients: string[] = []): P
   const isFrance = (group: string) => group.includes('FRANCIA');
   const isUk = (group: string) => group.includes('LFF') || group.includes('UK');
   const isAcHolding = (group: string) => group.includes('AC HOLDING');
+  const containers = (matcher: (group: string) => boolean) => new Set(visible
+    .filter(row => matcher(pickString(row, 'NombreGrupo').toUpperCase()))
+    .map(row => pickString(row, 'Ship').trim())
+    .filter(Boolean)).size;
   const r = rows[0] ?? {};
   return {
     semanaInicio: pickString(r, 'SemanaInicio'),
     semanaFin: pickString(r, 'SemanaFin'),
     actualizado: new Date().toISOString(),
     librasFrancia: pounds(isFrance),
+    contenedoresFrancia: containers(isFrance),
+    contenedoresUK: containers(isUk),
     librasUK: pounds(isUk),
     librasACHolding: pounds(isAcHolding),
     librasTerceros: pounds((group) => !isFrance(group) && !isUk(group) && !isAcHolding(group)),

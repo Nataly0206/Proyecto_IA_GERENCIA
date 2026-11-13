@@ -170,8 +170,8 @@ export default function ExportacionesPage({ userId }: { userId: string }) {
         updatedAt={dataUpdatedAt}
         emptyText="Sin contenedores exportados esta semana."
         metrics={[
-          { label: `${weightUnit === 'kg' ? 'Kg' : 'Libras'} a Francia`, value: convertPounds(data?.librasFrancia ?? 0, weightUnit), unit: weightUnit, format: 'number' },
-          { label: `${weightUnit === 'kg' ? 'Kg' : 'Libras'} a UK`, value: convertPounds(data?.librasUK ?? 0, weightUnit), unit: weightUnit, format: 'number' },
+          { label: `${weightUnit === 'kg' ? 'Kg' : 'Libras'} a Francia`, value: convertPounds(data?.librasFrancia ?? 0, weightUnit), detail: data?.contenedoresFrancia == null ? undefined : `${data.contenedoresFrancia} ${data.contenedoresFrancia === 1 ? 'contenedor' : 'contenedores'}`, unit: weightUnit, format: 'number' },
+          { label: `${weightUnit === 'kg' ? 'Kg' : 'Libras'} a UK`, value: convertPounds(data?.librasUK ?? 0, weightUnit), detail: data?.contenedoresUK == null ? undefined : `${data.contenedoresUK} ${data.contenedoresUK === 1 ? 'contenedor' : 'contenedores'}`, unit: weightUnit, format: 'number' },
           { label: `${weightUnit === 'kg' ? 'Kg' : 'Libras'} a AC Holding`, value: convertPounds(data?.librasACHolding ?? 0, weightUnit), unit: weightUnit, format: 'number' },
           { label: `${weightUnit === 'kg' ? 'Kg' : 'Libras'} a terceros`, value: convertPounds(data?.librasTerceros ?? 0, weightUnit), unit: weightUnit, format: 'number' },
           { label: 'Total exportado', value: convertPounds(data?.librasTotal ?? 0, weightUnit), unit: weightUnit, tone: 'good', format: 'number' },

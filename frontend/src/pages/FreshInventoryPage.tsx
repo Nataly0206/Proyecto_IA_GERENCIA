@@ -24,6 +24,16 @@ const stages: { id: Stage; title: string; endpoint: DashboardEndpoint; label: st
   { id: 'clasificado', title: 'Cola clasificada', endpoint: 'inventario-fresco-clasificado', label: 'Talla', color: '#0f766e', icon: <CategoryOutlinedIcon /> },
   { id: 'pelado', title: 'Inventario Pelado', endpoint: 'inventario-fresco-pelado', label: 'Estilo', color: '#2e7d32', icon: <ContentCutOutlinedIcon /> },
 ];
+function daysUnfrozen(date: string): number | null {
+  const todayParts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Tegucigalpa', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date());
+  const part = (type: string) => todayParts.find(value => value.type === type)?.value;
+  const today = Date.parse(`${part('year')}-${part('month')}-${part('day')}T00:00:00Z`);
+  const recorded = /^\d{4}-\d{2}-\d{2}$/.test(date) ? Date.parse(`${date}T00:00:00Z`) : NaN;
+  return Number.isFinite(recorded) ? Math.max(0, Math.floor((today - recorded) / 86_400_000)) : null;
+}
+
 const formatTime = (at: number) => new Date(at).toLocaleTimeString('es-HN', { hour: '2-digit', minute: '2-digit' });
 const totals: WidgetColumn[] = [
   { key: 'bins', label: 'Bins', format: 'number', align: 'right', total: 'sum' },
@@ -74,7 +84,8 @@ function InventoryPanel({ stage, query }: { stage: typeof stages[number]; query:
   }, [query.data, stage.id, view]);
   const showDestination = stage.id === 'clasificado' && view !== 'destino';
   const showAge = stage.id === 'recepcion' && view === 'resumen';
-  const count = 3 + Number(showDestination) + Number(showAge);
+  const showUnfrozenDays = stage.id === 'pelado' && view === 'fecha';
+  const count = 3 + Number(showDestination) + Number(showAge) + Number(showUnfrozenDays);
   const label = view === 'fecha' ? 'Fecha' : view === 'destino' ? 'Destino' : stage.label;
   const detailColumns = view === 'fecha' ? [date, ...(showDestination ? [{ key: 'destino', label: 'Destino' }] : []), ...totals, ...details.filter(c => c.key !== 'fecha')]
     : view === 'destino' ? [{ key: 'destino', label: 'Destino' }, ...totals, { key: 'estilo', label: 'Estilo', optional: true }, ...details]
@@ -119,6 +130,7 @@ function InventoryPanel({ stage, query }: { stage: typeof stages[number]; query:
       }}>
         <TableHead><TableRow>
           <TableCell>{label}</TableCell>
+          {showUnfrozenDays && <TableCell align="right">Días sin congelar</TableCell>}
           {showDestination && <TableCell>Destino</TableCell>}
           {showAge && <TableCell>Tiempo pendiente</TableCell>}
           <TableCell align="right">Bins</TableCell><TableCell align="right">Libras</TableCell>
@@ -130,6 +142,7 @@ function InventoryPanel({ stage, query }: { stage: typeof stages[number]; query:
             </TableCell></TableRow>
               : summary.rows.map((row, i) => <TableRow key={row.key} hover sx={{ bgcolor: i % 2 ? '#f8fafc' : 'background.paper' }}>
                 <TableCell component="th" scope="row" sx={{ fontWeight: 600 }}>{view === 'fecha' ? formatPeriodo(row.label) : row.label}</TableCell>
+                {showUnfrozenDays && <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{daysUnfrozen(row.label) ?? '—'}</TableCell>}
                 {showDestination && <TableCell><Chip label={row.destino} size="small" variant="outlined" sx={{ height: 'auto', minHeight: 22, borderColor: 'divider', color: 'text.secondary', fontSize: 11, '& .MuiChip-label': { whiteSpace: 'normal', py: 0.2 } }} /></TableCell>}
                 {showAge && <TableCell sx={{ color: 'text.secondary' }}>{row.tiempo}</TableCell>}
                 <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums', color: 'text.secondary' }}>{formatValue(row.bins, 'number')}</TableCell>

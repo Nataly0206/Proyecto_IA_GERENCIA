@@ -32,7 +32,7 @@ export default function PeladoDiasTrabajados() {
     <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={0.75} mb={0.75} useFlexGap flexWrap="wrap">
       <Box>
         <Tooltip title="Cada fecha con producción cuenta una vez, entre todos los turnos y estilos, incluidos feriados y domingos trabajados.">
-          <Typography variant="subtitle2" fontWeight={800} sx={{ fontSize: 13 }}>Días trabajados en pelado</Typography>
+          <Typography variant="subtitle2" fontWeight={800} sx={{ fontSize: 13 }}>Dias trabajados</Typography>
         </Tooltip>
       </Box>
       <Stack direction="row" alignItems="center" spacing={1}>

@@ -27,6 +27,12 @@ export default function PeladoMetaDiaria({ total, loading, unavailable, canEdit,
   const goal = data?.goal;
   const percent = goal ? Math.max(0, total / goal * 100) : 0;
   const reached = percent >= 100;
+  const dateParts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Tegucigalpa', year: 'numeric', month: 'numeric', day: 'numeric',
+  }).formatToParts(new Date());
+  const datePart = (type: Intl.DateTimeFormatPartTypes) => Number(dateParts.find((part) => part.type === type)?.value);
+  const remainingDays = new Date(Date.UTC(datePart('year'), datePart('month'), 0)).getUTCDate() - datePart('day') + 1;
+  const requiredPerDay = goal ? Math.ceil(Math.max(0, goal - total) / remainingDays) : 0;
   const progress = Math.min(100, Math.max(0, percent));
   const valid = draft.trim() !== '' && Number.isFinite(Number(draft)) && Number(draft) > 0 && Number(draft) <= 1_000_000_000;
   const [whole, fraction] = draft.split('.');
@@ -45,6 +51,12 @@ export default function PeladoMetaDiaria({ total, loading, unavailable, canEdit,
             </Typography>
           </Stack>
           <LinearProgress variant="determinate" value={goal && !loading && !unavailable ? Math.min(percent, 100) : 0} color={reached && !unavailable ? 'success' : 'primary'} aria-label={`Avance de la meta ${period} de pelado`} sx={{ mt: 0.5, height: 6, borderRadius: 4, bgcolor: 'action.hover', '& .MuiLinearProgress-bar': { borderRadius: 4, backgroundImage: 'linear-gradient(90deg, #dc2626 0%, #facc15 50%, #16a34a 100%)', backgroundSize: '100% 100%', clipPath: `inset(0 ${100 - (goal && !loading && !unavailable ? progress : 0)}% 0 0 round 4px)`, transform: 'none !important', transition: 'clip-path 0.4s ease' }, '@media (prefers-reduced-motion: reduce)': { '& .MuiLinearProgress-bar': { transition: 'none' } } }} />
+          {period === 'mensual' && <Stack direction="row" justifyContent="space-between" useFlexGap flexWrap="wrap" gap={0.5} sx={{ mt: 0.75 }}>
+            <Typography variant="caption" color="text.secondary">{remainingDays} {remainingDays === 1 ? 'día restante' : 'días restantes'} del mes (incluye hoy)</Typography>
+            {!isLoading && !isError && !!goal && !loading && !unavailable && <Typography variant="caption" fontWeight={700} color={reached ? 'success.main' : 'text.primary'}>
+              {formatValue(requiredPerDay)} lbs por día para llegar a la meta
+            </Typography>}
+          </Stack>}
         </Box>
         {canEdit && <Tooltip title={goal ? `Editar meta ${period}` : `Definir meta ${period}`}>
           <IconButton size="small" onClick={edit} disabled={isLoading || isError} aria-label={`Configurar meta ${period}`}><EditOutlinedIcon sx={{ fontSize: 17 }} /></IconButton>

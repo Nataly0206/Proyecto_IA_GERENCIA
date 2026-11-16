@@ -6,6 +6,7 @@ import TuneOutlinedIcon from '@mui/icons-material/TuneOutlined';
 import GlobalFilters from '../components/filters/GlobalFilters';
 import PeladoLibrasHoyCards from '../components/live/PeladoLibrasHoyCards';
 import PeladoPorSalaTable from '../components/live/PeladoPorSalaTable';
+import PeladoDiasTrabajados from '../components/live/PeladoDiasTrabajados';
 import PeladoEstiloWidget from '../components/charts/PeladoEstiloWidget';
 
 export default function PeladoPage({ userId, canEditGoal }: { userId: string; canEditGoal: boolean }) {
@@ -75,6 +76,7 @@ export default function PeladoPage({ userId, canEditGoal }: { userId: string; ca
       </Paper>
 
       <PeladoLibrasHoyCards canEditGoal={canEditGoal} />
+      <PeladoDiasTrabajados />
       <PeladoEstiloWidget />
       <PeladoPorSalaTable userId={userId} />
     </Stack>

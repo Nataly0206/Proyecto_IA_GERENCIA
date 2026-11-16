@@ -37,10 +37,19 @@ export async function saveClassifiedSizeOrder(order: string[]): Promise<void> {
 }
 
 const PEELING_DAILY_GOAL = 'pelado.meta-diaria';
+const PEELING_MONTHLY_GOAL = 'pelado.meta-mensual';
 
 export async function getPeelingDailyGoal(): Promise<number | null> {
+  return getPeelingGoal(PEELING_DAILY_GOAL);
+}
+
+export async function getPeelingMonthlyGoal(): Promise<number | null> {
+  return getPeelingGoal(PEELING_MONTHLY_GOAL);
+}
+
+async function getPeelingGoal(key: string): Promise<number | null> {
   const result = await (await getAuthPool()).request()
-    .input('key', sql.NVarChar(80), PEELING_DAILY_GOAL)
+    .input('key', sql.NVarChar(80), key)
     .query<{ valor: string }>('SELECT valor FROM dbo.dashboard_configuracion_compartida WHERE clave = @key');
   const value: unknown = result.recordset[0]?.valor ? JSON.parse(result.recordset[0].valor) : null;
   const goal = value !== null && typeof value === 'object' && 'goal' in value ? value.goal : value;
@@ -48,8 +57,16 @@ export async function getPeelingDailyGoal(): Promise<number | null> {
 }
 
 export async function savePeelingDailyGoal(goal: number): Promise<void> {
+  return savePeelingGoal(PEELING_DAILY_GOAL, goal);
+}
+
+export async function savePeelingMonthlyGoal(goal: number): Promise<void> {
+  return savePeelingGoal(PEELING_MONTHLY_GOAL, goal);
+}
+
+async function savePeelingGoal(key: string, goal: number): Promise<void> {
   await (await getAuthPool()).request()
-    .input('key', sql.NVarChar(80), PEELING_DAILY_GOAL)
+    .input('key', sql.NVarChar(80), key)
     .input('value', sql.NVarChar(sql.MAX), JSON.stringify({ goal }))
     .query(`
       MERGE dbo.dashboard_configuracion_compartida WITH (HOLDLOCK) AS target

@@ -6,7 +6,9 @@ import * as procesos from '../controllers/procesos.controller';
 import { asyncHandler } from '../middleware/errorHandler';
 import { requirePermission } from '../middleware/sessionAuth';
 import { getUserPreference, saveUserPreference } from '../services/user-preferences.service';
-import { getPeelingDailyGoal, savePeelingDailyGoal, getClassifiedSizeOrder, getClassifiedSizes, saveClassifiedSizeOrder } from '../services/shared-config.service';
+import { getPeelingMonthlyGoal, savePeelingMonthlyGoal, getPeelingDailyGoal, savePeelingDailyGoal, getClassifiedSizeOrder, getClassifiedSizes, saveClassifiedSizeOrder } from '../services/shared-config.service';
+
+import { getPeladoWorkdays, getPeladoPorEstilo } from '../services/dashboard.service';
 
 import { getCachedProcessSummary } from '../services/process-summary.service';
 
@@ -99,6 +101,35 @@ router.put('/pelado-meta-diaria', pelado, requirePermission('definir_meta_pelado
   }
   await savePeelingDailyGoal(goal);
   res.json({ goal });
+}));
+router.get('/pelado-meta-mensual', pelado, asyncHandler(async (_req, res) => {
+  res.json({ goal: await getPeelingMonthlyGoal() });
+}));
+router.put('/pelado-meta-mensual', pelado, requirePermission('definir_meta_pelado'), asyncHandler(async (req, res) => {
+  const goal: unknown = req.body?.goal;
+  if (typeof goal !== 'number' || !Number.isFinite(goal) || goal <= 0 || goal > 1_000_000_000) {
+    res.status(400).json({ error: 'La meta debe ser mayor que cero y no superar 1,000,000,000 lbs.' });
+    return;
+  }
+  await savePeelingMonthlyGoal(goal);
+  res.json({ goal });
+}));
+router.get('/pelado-dias-trabajados', pelado, asyncHandler(async (req, res) => {
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Tegucigalpa', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  const year = req.query.year === undefined ? Number(today.slice(0, 4)) : Number(req.query.year);
+  if (!Number.isInteger(year) || year < 2000 || year > Number(today.slice(0, 4))) {
+    res.status(400).json({ error: 'Selecciona un año válido entre 2000 y el año actual.' });
+    return;
+  }
+  res.json(await withTtlCache(`pelado-dias-trabajados:${year}:${today}`, 5 * 60_000,
+    () => getPeladoWorkdays(year, today), req.query.refresh === 'true'));
+}));
+router.get('/pelado-libras-mes', pelado, asyncHandler(async (req, res) => {
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Tegucigalpa', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  res.json(await withTtlCache(`pelado-libras-mes:${today}`, 60_000, async () => {
+    const rows = await getPeladoPorEstilo({ fechaInicial: `${today.slice(0, 7)}-01`, fechaFinal: today });
+    return { mes: today.slice(0, 7), total: rows.reduce((total, row) => total + row.libras, 0) };
+  }, req.query.refresh === 'true'));
 }));
 router.get('/pelado-libras-hoy', pelado, asyncHandler(controller.getPeladoLibrasHoy));
 router.get('/pelado-libras-hoy-talla', pelado, asyncHandler(controller.getPeladoLibrasHoyTalla));

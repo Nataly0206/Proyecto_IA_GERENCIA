@@ -36,7 +36,7 @@ export const PERMISO_LABELS: Record<Permiso, string> = {
   clasificado: 'Clasificado',
   ordenar_tallas_clasificado: 'Ordenar tallas de clasificado',
   pelado: 'Pelado',
-  definir_meta_pelado: 'Definir meta diaria de pelado',
+  definir_meta_pelado: 'Definir metas diaria y mensual de pelado',
   iqf: 'IQF',
   exportaciones: 'Exportaciones',
   inventario: 'Inventario PT',

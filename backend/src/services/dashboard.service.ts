@@ -1,3 +1,4 @@
+import { summarizePeelingWorkdays } from '../utils/peelingWorkdays';
 import { ReportPeriod, reportPeriodOf } from '../utils/reportPeriod';
 import sql from 'mssql';
 import { runQuery } from './sql.service';
@@ -937,4 +938,10 @@ export async function getIqfTurnosSemana(filters: DashboardFilters) {
     return { dia, turnos: buildIqfShiftComparison(groups.filter((g) => g.dia === dia), rows.filter((row) => pickString(row, 'Dia') === dia), turno) };
   });
   return { fechaInicial: inicio, fechaFinal: fin, dias };
+}
+
+export async function getPeladoWorkdays(year: number, today: string) {
+  const end = Number(today.slice(0, 4)) === year ? today : `${year}-12-31`;
+  const groups = await fetchPeladoDimensionDailyGroups(`${year}-01-01`, end);
+  return summarizePeelingWorkdays(groups, year, today);
 }

@@ -8,6 +8,7 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
+import PeladoMetaMensual from './PeladoMetaMensual';
 import PeladoMetaDiaria from './PeladoMetaDiaria';
 import ContentCutOutlinedIcon from '@mui/icons-material/ContentCutOutlined';
 import { usePeladoLibrasHoy, usePeladoLibrasHoyTalla, usePeladoPorSala } from '../../hooks/useDashboardData';
@@ -162,6 +163,10 @@ export default function PeladoLibrasHoyCards({ canEditGoal }: { canEditGoal: boo
 
   return (
     <Box>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'repeat(2, minmax(0, 1fr))' }, gap: 1, mb: 1.5 }}>
+        <PeladoMetaMensual canEdit={canEditGoal} />
+        <PeladoMetaDiaria canEdit={canEditGoal} total={data?.total ?? 0} loading={isLoading} unavailable={isError || !data} />
+      </Box>
       <Stack direction="row" alignItems="center" spacing={0.75} mb={0.9} flexWrap="wrap" useFlexGap>
         <ContentCutOutlinedIcon color="primary" sx={{ fontSize: 16 }} />
         <Typography variant="subtitle2" fontWeight={800} sx={{ fontSize: 13 }}>
@@ -213,7 +218,6 @@ export default function PeladoLibrasHoyCards({ canEditGoal }: { canEditGoal: boo
           <EstiloCard badge="Total del día" tallaDominante={tallaDominante} tallaSiguiente={tallaSiguiente} librasPorPersona={librasPorPersona} estilo={{ estilo: 'Total', libras: data.total, librasPorHora: data.librasPorHoraPromedio }} />
         </Box>
       )}
-      <PeladoMetaDiaria canEdit={canEditGoal} total={data?.total ?? 0} loading={isLoading} unavailable={isError || !data} />
     </Box>
   );
 }

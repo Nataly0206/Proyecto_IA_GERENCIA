@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Alert,
@@ -25,6 +25,7 @@ import {
   ToggleButton,
   ToggleButtonGroup,
   Typography,
+  Tooltip,
 } from '@mui/material';
 import MeetingRoomOutlinedIcon from '@mui/icons-material/MeetingRoomOutlined';
 import StraightenOutlinedIcon from '@mui/icons-material/StraightenOutlined';
@@ -33,6 +34,7 @@ import FilterAltOutlinedIcon from '@mui/icons-material/FilterAltOutlined';
 import { apiClient } from '../../api/client';
 import { useFilters } from '../../context/FiltersContext';
 import { usePeladoLibrasHoyTalla, usePeladoPorSala } from '../../hooks/useDashboardData';
+import { PeladoSalaRow } from '../../types';
 import { formatPeriodo, formatValue } from '../../utils/format';
 
 const NUM_SX = { fontVariantNumeric: 'tabular-nums' } as const;
@@ -80,6 +82,23 @@ function HeadCell({ label, unit, align = 'right' }: { label: string; unit?: stri
   );
 }
 
+const rendimiento = (sala: PeladoSalaRow) => sala.personasActivas > 0 ? sala.librasPorHora / sala.personasActivas : 0;
+const CAR_COLORS = ['#2563eb', '#dc2626', '#16a34a', '#9333ea', '#ea580c', '#0891b2'];
+
+function RaceCar({ color }: { color: string }) {
+  return <Box component="svg" viewBox="0 0 48 28" aria-hidden="true" sx={{ width: 38, height: 24, display: 'block', color }}>
+    <rect x="8" y="1" width="9" height="7" rx="2" fill="#1e293b" />
+    <rect x="8" y="20" width="9" height="7" rx="2" fill="#1e293b" />
+    <rect x="31" y="2" width="8" height="6" rx="2" fill="#1e293b" />
+    <rect x="31" y="20" width="8" height="6" rx="2" fill="#1e293b" />
+    <path d="M7 8H27L43 12V16L27 20H7Z" fill="currentColor" />
+    <rect x="4" y="5" width="5" height="18" rx="1" fill="currentColor" />
+    <rect x="39" y="7" width="4" height="14" rx="1" fill="currentColor" />
+    <rect x="18" y="10" width="10" height="8" rx="4" fill="#0f172a" />
+    <path d="M30 14H38" stroke="white" strokeWidth="2" />
+  </Box>;
+}
+
 const salaNum = (nombre: string) => Number(nombre.replace(/\D/g, '')) || 0;
 const HOURS_STORAGE_KEY = 'pelado-salas-horas-minimas:v1';
 const TALLAS_GRANDES = new Set(['16/20', '21/25', '26/30', '31/35', '36/40', '41/50']);
@@ -102,6 +121,8 @@ function readStoredHours(userId: string): string {
 
 export default function PeladoPorSalaTable({ userId }: { userId: string }) {
   const { filters } = useFilters();
+  const rowRefs = useRef(new Map<string, HTMLTableRowElement>());
+  const previousPositions = useRef(new Map<string, number>());
   const { data, isLoading, isError, error, dataUpdatedAt } = usePeladoPorSala();
   const [tallaOpen, setTallaOpen] = useState(false);
   const [vista, setVista] = useState<'salas' | 'dia' | 'semana' | 'mes'>('salas');
@@ -165,7 +186,23 @@ export default function PeladoPorSalaTable({ userId }: { userId: string }) {
   }, [minHours, preferencesUserId, userId, validHours]);
   const salas = [...(data?.salas ?? [])]
     .filter((sala) => hoursThreshold === null || sala.horasTrabajadas > hoursThreshold)
-    .sort((a, b) => salaNum(a.sala) - salaNum(b.sala));
+    .sort((a, b) => rendimiento(b) - rendimiento(a) || salaNum(a.sala) - salaNum(b.sala) || a.sala.localeCompare(b.sala));
+  const rankingKey = JSON.stringify(salas.map((sala) => sala.sala));
+  useLayoutEffect(() => {
+    const nextPositions = new Map<string, number>();
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    rowRefs.current.forEach((row, name) => {
+      const top = row.offsetTop;
+      nextPositions.set(name, top);
+      const previousTop = previousPositions.current.get(name);
+      if (!reducedMotion && previousTop !== undefined && previousTop !== top) {
+        row.getAnimations().forEach((animation) => animation.cancel());
+        row.animate([{ transform: `translateY(${previousTop - top}px)` }, { transform: 'translateY(0)' }], { duration: 700, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' });
+      }
+    });
+    previousPositions.current = nextPositions;
+  }, [rankingKey, vista, isLoading, isError]);
+  const maxRendimiento = Math.max(0, ...salas.map(rendimiento));
   const maxLibrasHoy = salas.reduce((m, s) => Math.max(m, s.librasPeladasHoy), 0);
   const totales = salas.reduce(
     (acc, s) => ({
@@ -181,6 +218,18 @@ export default function PeladoPorSalaTable({ userId }: { userId: string }) {
       librasPorHora: 0,
     },
   );
+
+  const librasPorTalla = new Map<string, number>();
+  for (const sala of salas) {
+    for (const { talla, libras } of sala.tallasHoy ?? []) {
+      const nombre = talla.trim().replace(/(\d)\s*[-–—/]\s*(?=\d)/g, '$1/');
+      if (!nombre || /^sin\s*talla$/i.test(nombre) || !Number.isFinite(libras) || libras <= 0) continue;
+      librasPorTalla.set(nombre, (librasPorTalla.get(nombre) ?? 0) + libras);
+    }
+  }
+  const maxLibrasTalla = Math.max(0, ...librasPorTalla.values());
+  const tallaMasPelada = [...librasPorTalla].filter(([, libras]) => libras === maxLibrasTalla)
+    .map(([talla]) => talla).sort((a, b) => a.localeCompare(b, 'es', { numeric: true })).join(' · ');
 
   const dailyRows = [...(dailyQuery.data ?? [])];
   if (vista === 'mes' && dailyRows.length > 0) {
@@ -299,6 +348,10 @@ export default function PeladoPorSalaTable({ userId }: { userId: string }) {
         {!validHours && <Alert severity="warning" sx={{ mb: 1 }}>Ingresa un valor entre 0 y 24 horas.</Alert>}
         {preferenceError && <Alert severity="error" onClose={() => setPreferenceError('')} sx={{ mb: 1 }}>{preferenceError}</Alert>}
 
+        {vista === 'salas' && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+          🏁 Carrera de salas · Mayor a menor lbs/hora/persona · Posiciones actualizadas con cada refresco.
+        </Typography>}
+
         {vista === 'salas' && isLoading && <Skeleton variant="rounded" height={240} />}
 
         {vista === 'salas' && isError && (
@@ -330,20 +383,22 @@ export default function PeladoPorSalaTable({ userId }: { userId: string }) {
               WebkitOverflowScrolling: 'touch',
             }}
           >
-            <Table size="small" stickyHeader sx={{ minWidth: 620 }}>
+            <Table size="small" stickyHeader sx={{ minWidth: 870 }}>
               <TableHead>
                 <TableRow>
-                  <HeadCell label="Sala" align="left" />
+                  <HeadCell label="Posición / Sala" align="left" />
                   <HeadCell label="Personas activas" unit="pelando hoy" />
                   <HeadCell label="Libras 30 min" unit="lbs · en vivo" />
                   <HeadCell label="Libras hoy" unit="lbs · acumulado" />
-                  <HeadCell label="Libras / hora" unit="lbs · promedio" />
+                  <HeadCell label="Lbs / hora / persona ↓" unit="rendimiento · orden de carrera" />
+                  <HeadCell label="Lbs / persona / día" unit="lbs · acumulado hoy" />
+                  <HeadCell label="Talla más pelada" unit="rango con más lbs hoy" />
                   <HeadCell label="Horas trabajadas" unit="h · primer a último registro" />
                 </TableRow>
               </TableHead>
               <TableBody>
-                {salas.map((sala) => (
-                  <TableRow key={sala.sala} sx={ROW_SX}>
+                {salas.map((sala, index) => (
+                  <TableRow key={sala.sala} ref={(row: HTMLTableRowElement | null) => { if (row) rowRefs.current.set(sala.sala, row); else rowRefs.current.delete(sala.sala); }} sx={ROW_SX}>
                     <TableCell sx={{ py: 0.9, borderColor: '#eef2f7' }}>
                       <Stack direction="row" alignItems="center" spacing={1}>
                         <Box
@@ -359,11 +414,18 @@ export default function PeladoPorSalaTable({ userId }: { userId: string }) {
                             fontWeight: 800,
                           }}
                         >
-                          {salaNum(sala.sala) || '·'}
+                          {index + 1}°
                         </Box>
-                        <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: '#0f172a' }}>
-                          {sala.sala}
-                        </Typography>
+                        <Box sx={{ minWidth: 132 }}>
+                          <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: '#0f172a' }}>
+                            {sala.sala}{index === 0 && maxRendimiento > 0 ? ' 🏆' : ''}
+                          </Typography>
+                          <Box sx={{ position: 'relative', height: 26, width: 132, borderBottom: '2px dashed #cbd5e1' }}>
+                            <Box sx={{ position: 'absolute', left: `${maxRendimiento > 0 ? rendimiento(sala) / maxRendimiento * 88 : 0}px`, transition: 'left 700ms ease', '@media (prefers-reduced-motion: reduce)': { transition: 'none' } }}>
+                              <RaceCar color={CAR_COLORS[salaNum(sala.sala) % CAR_COLORS.length]} />
+                            </Box>
+                          </Box>
+                        </Box>
                       </Stack>
                     </TableCell>
 
@@ -413,7 +475,18 @@ export default function PeladoPorSalaTable({ userId }: { userId: string }) {
                     </TableCell>
 
                     <TableCell align="right" sx={{ ...BODY_NUM_SX, fontWeight: 700, color: 'primary.main' }}>
-                      {formatValue(sala.librasPorHora)}
+                      <Tooltip title="Libras por hora de la sala ÷ personas registradas hoy. Las horas transcurridas del día son comunes a todas las salas.">
+                        <span>{sala.personasActivas > 0 ? formatValue(rendimiento(sala), 'decimal') : '—'}</span>
+                      </Tooltip>
+                    </TableCell>
+
+                    <TableCell align="right" sx={BODY_NUM_SX}>
+                      {sala.personasActivas > 0 ? formatValue(sala.librasPeladasHoy / sala.personasActivas, 'decimal') : '—'}
+                    </TableCell>
+                    <TableCell align="right" sx={BODY_NUM_SX}>
+                      <Tooltip title="Talla con más libras peladas hoy en esta sala. Si hay empate, se muestran ambas tallas.">
+                        <span>{sala.tallaMasPelada?.replace(/(\d)\s*[-–—/]\s*(?=\d)/g, '$1/') || '—'}</span>
+                      </Tooltip>
                     </TableCell>
 
                     <TableCell align="right" sx={BODY_NUM_SX}>
@@ -431,8 +504,10 @@ export default function PeladoPorSalaTable({ userId }: { userId: string }) {
                   <TableCell align="right" sx={FOOT_CELL_SX}>{formatValue(totales.librasUltimos30Min)}</TableCell>
                   <TableCell align="right" sx={FOOT_CELL_SX}>{formatValue(totales.librasPeladasHoy)}</TableCell>
                   <TableCell align="right" sx={{ ...FOOT_CELL_SX, color: 'primary.main' }}>
-                    {formatValue(totales.librasPorHora)}
+                    {totales.personasActivas > 0 ? formatValue(totales.librasPorHora / totales.personasActivas, 'decimal') : '—'}
                   </TableCell>
+                  <TableCell align="right" sx={FOOT_CELL_SX}>{totales.personasActivas > 0 ? formatValue(totales.librasPeladasHoy / totales.personasActivas, 'decimal') : '—'}</TableCell>
+                  <TableCell align="right" sx={FOOT_CELL_SX}>{tallaMasPelada || '—'}</TableCell>
                   <TableCell align="right" sx={FOOT_CELL_SX}>{formatValue(data?.horasTranscurridas ?? 0, 'decimal')}</TableCell>
                 </TableRow>
               </TableFooter>

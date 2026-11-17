@@ -235,7 +235,7 @@ export function usePeladoPorSala() {
   const queryKey = ['dashboard', 'pelado-por-sala'] as const;
   const cacheKey = browserCacheKey(['pelado-por-sala', 'current']);
   const cached = readBrowserCache<PeladoPorSalaResponse>(cacheKey, LIVE_REFRESH_INTERVAL_MS);
-  const currentCache = cached?.data.salas.every((sala) => typeof sala.horasTrabajadas === 'number') ? cached : null;
+  const currentCache = cached?.data.salas.every((sala) => typeof sala.horasTrabajadas === 'number' && Array.isArray(sala.tallasHoy)) ? cached : null;
 
   const query = useQuery<PeladoPorSalaResponse>({
     queryKey,

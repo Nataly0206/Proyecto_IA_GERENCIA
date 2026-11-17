@@ -1,3 +1,4 @@
+import { normalizarTalla, tallaMasPelada } from '../utils/peladoTallas';
 import { summarizePeelingWorkdays } from '../utils/peelingWorkdays';
 import { ReportPeriod, reportPeriodOf } from '../utils/reportPeriod';
 import sql from 'mssql';
@@ -28,6 +29,7 @@ import {
   PELADO_PERSONAL_DAILY_QUERY,
   PELADO_POR_SALA_ACTIVOS_QUERY,
   PELADO_POR_SALA_HOY_QUERY,
+  PELADO_TALLAS_POR_SALA_HOY_QUERY,
   PELADO_POR_SALA_DIARIO_QUERY,
   PELADO_POR_SALA_MENSUAL_QUERY,
   PELADO_HORAS_TRABAJADAS_DIA_QUERY,
@@ -674,11 +676,20 @@ export async function getPeladoLibrasHoyTalla(): Promise<PeladoLibrasHoyTallaRes
 /* ------------------------------------------------------------------ */
 
 export async function getPeladoPorSala(): Promise<PeladoPorSalaResponse> {
-  const [hoyRows, activosRows, transcurridoRows] = await Promise.all([
+  const [hoyRows, activosRows, transcurridoRows, tallaRows] = await Promise.all([
     runStbQuery(PELADO_POR_SALA_HOY_QUERY, []),
     runStbQuery(PELADO_POR_SALA_ACTIVOS_QUERY, []),
     runStbQuery(PELADO_MINUTOS_TRANSCURRIDOS_HOY_QUERY, []),
+    runStbQuery(PELADO_TALLAS_POR_SALA_HOY_QUERY, []),
   ]);
+
+  const tallasPorSala = new Map<string, { talla: string; libras: number }[]>();
+  for (const row of tallaRows) {
+    const sala = pickString(row, 'NOMBRE_SALA');
+    const tallas = tallasPorSala.get(sala) ?? [];
+    tallas.push({ talla: normalizarTalla(pickString(row, 'Talla')), libras: pickNumber(row, 'Libras') });
+    tallasPorSala.set(sala, tallas);
+  }
 
   const activosPorSala = new Map(
     activosRows.map((row) => [pickString(row, 'NOMBRE_SALA'), row] as const),
@@ -693,6 +704,7 @@ export async function getPeladoPorSala(): Promise<PeladoPorSalaResponse> {
     .map((row) => {
       const sala = pickString(row, 'NOMBRE_SALA');
       const activos = activosPorSala.get(sala);
+      const tallas = tallasPorSala.get(sala) ?? [];
       // `personasActivas` se aproxima con los empleados distintos que
       // tienen pago de destajo de pelado hoy en la sala (individual +
       // grupal), no con una ventana de 30 min: es un estimado de cuánta
@@ -702,6 +714,8 @@ export async function getPeladoPorSala(): Promise<PeladoPorSalaResponse> {
       return {
         sala,
         personasActivas: empleadosHoy,
+        tallaMasPelada: tallaMasPelada(tallas),
+        tallasHoy: tallas,
         librasUltimos30Min: activos ? round2(pickNumber(activos, 'LibrasUltimos30Min')) : 0,
         librasPeladasHoy,
         librasPorHora: horasTranscurridas > 0 ? round2(librasPeladasHoy / horasTranscurridas) : 0,

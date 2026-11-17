@@ -212,6 +212,9 @@ export interface PeladoLibrasHoyTallaResponse {
  */
 export interface PeladoSalaRow {
   sala: string;
+  /** Rango de talla con más libras hoy; incluye empates. */
+  tallaMasPelada: string | null;
+  tallasHoy: { talla: string; libras: number }[];
   personasActivas: number;
   librasUltimos30Min: number;
   librasPeladasHoy: number;

@@ -209,6 +209,20 @@ WHERE h.FECHA = CAST(GETDATE() AS DATE)
 GROUP BY COALESCE(s.NOMBRE_SALA, 'Sin sala')
 `;
 
+/** Distribución de tallas por sala, con la misma fuente y fecha que la actividad. */
+export const PELADO_TALLAS_POR_SALA_HOY_QUERY = `
+SELECT COALESCE(s.NOMBRE_SALA, 'Sin sala') AS NOMBRE_SALA,
+  t.NOMBRE_TALLA AS Talla, SUM(d.LIBRAS) AS Libras
+FROM dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS h
+JOIN dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS_DET d
+  ON h.ID_ASIGNACION_LIBRAS_EMPLEADO = d.ID_ASIGNACION_LIBRAS_EMPLEADO
+LEFT JOIN dbo.DCP_LINEAS l ON l.ID_LINEA = d.ID_LINEA_ACTUAL
+LEFT JOIN dbo.PES_SALAS s ON s.ID_SALA = l.ID_SALA
+LEFT JOIN dbo.DCP_TALLAS t ON t.ID_TALLA = d.ID_TALLA
+WHERE h.FECHA = CAST(GETDATE() AS DATE)
+GROUP BY COALESCE(s.NOMBRE_SALA, 'Sin sala'), t.NOMBRE_TALLA
+`;
+
 /**
  * Horas trabajadas en planta por día (desde el primer hasta el último
  * registro de pelado de ese día), dentro del rango de fechas filtrado.

@@ -1,6 +1,7 @@
-/** Unifica el separador de los rangos sin modificar el catálogo de la BD. */
+/** Unifica separadores y agrupa 61/70 Alto, Normal y Bajo sin modificar la BD. */
 export function normalizarTalla(talla: string): string {
-  return talla.trim().replace(/(\d)\s*[-–—/]\s*(?=\d)/g, '$1/');
+  const nombre = talla.trim().replace(/(\d)\s*[-–—/]\s*(?=\d)/g, '$1/');
+  return /^61\/70(?:\s+(?:ALTO|NORMAL|BAJO))?$/i.test(nombre) ? '61/70' : nombre;
 }
 
 /** Tallas con más libras; conserva todos los rangos empatados. */

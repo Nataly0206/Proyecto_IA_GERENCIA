@@ -225,7 +225,8 @@ export default function PeladoPorSalaTable({ userId }: { userId: string }) {
   const librasPorTalla = new Map<string, number>();
   for (const sala of salas) {
     for (const { talla, libras } of sala.tallasHoy ?? []) {
-      const nombre = talla.trim().replace(/(\d)\s*[-–—/]\s*(?=\d)/g, '$1/');
+      const rango = talla.trim().replace(/(\d)\s*[-–—/]\s*(?=\d)/g, '$1/');
+      const nombre = /^61\/70(?:\s+(?:ALTO|NORMAL|BAJO))?$/i.test(rango) ? '61/70' : rango;
       if (!nombre || /^sin\s*talla$/i.test(nombre) || !Number.isFinite(libras) || libras <= 0) continue;
       librasPorTalla.set(nombre, (librasPorTalla.get(nombre) ?? 0) + libras);
     }

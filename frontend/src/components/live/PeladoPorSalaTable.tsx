@@ -370,6 +370,9 @@ export default function PeladoPorSalaTable({ userId }: { userId: string }) {
           <Alert severity="info" sx={{ py: 0.5 }}>Ninguna sala supera el límite de horas indicado.</Alert>
         )}
 
+        {vista === 'salas' && !isLoading && !isError && data && salas.length > 0 && <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'block', sm: 'none' }, mb: 0.75 }}>
+          Desliza para ver más columnas ↔ · La sala queda fija.
+        </Typography>}
         {vista === 'salas' && !isLoading && !isError && data && salas.length > 0 && (
           <TableContainer
             sx={{
@@ -383,15 +386,33 @@ export default function PeladoPorSalaTable({ userId }: { userId: string }) {
               WebkitOverflowScrolling: 'touch',
             }}
           >
-            <Table size="small" stickyHeader sx={{ minWidth: 870 }}>
+            <Table size="small" stickyHeader sx={{
+              tableLayout: 'fixed', width: { xs: 878, sm: 1140 }, minWidth: '100%',
+              '& th, & td': { px: { xs: 0.5, sm: 1.5 }, overflowWrap: 'anywhere' },
+              '& th': { fontSize: { xs: 9, sm: 10.5 } },
+              '& td': { fontSize: { xs: 11, sm: 12.5 } },
+              '& th:first-of-type, & td:first-of-type': {
+                position: 'sticky', left: 0, zIndex: 2, bgcolor: '#fff',
+                boxShadow: '2px 0 4px rgba(15, 23, 42, 0.10)',
+              },
+              '& thead th:first-of-type': { zIndex: 4 },
+              '& tfoot td:first-of-type': { bgcolor: '#f8fafc' },
+              '& tbody tr:nth-of-type(even) td:first-of-type': { bgcolor: '#fbfcfe' },
+              '& tbody tr:hover td:first-of-type': { bgcolor: '#eef4fb' },
+            }}>
+              <colgroup>
+                {[{ xs: 108, sm: 220 }, { xs: 78, sm: 130 }, { xs: 82, sm: 130 },
+                  { xs: 90, sm: 100 }, { xs: 100, sm: 110 }, { xs: 100, sm: 110 },
+                  { xs: 110, sm: 120 }, { xs: 110, sm: 120 }].map((width, index) => <Box component="col" key={index} sx={{ width }} />)}
+              </colgroup>
               <TableHead>
                 <TableRow>
                   <HeadCell label="Posición / Sala" align="left" />
+                  <HeadCell label="Lbs / hora / persona ↓" unit="rendimiento · orden de carrera" />
+                  <HeadCell label="Lbs / persona / día" unit="lbs · acumulado hoy" />
                   <HeadCell label="Personas activas" unit="pelando hoy" />
                   <HeadCell label="Libras 30 min" unit="lbs · en vivo" />
                   <HeadCell label="Libras hoy" unit="lbs · acumulado" />
-                  <HeadCell label="Lbs / hora / persona ↓" unit="rendimiento · orden de carrera" />
-                  <HeadCell label="Lbs / persona / día" unit="lbs · acumulado hoy" />
                   <HeadCell label="Talla más pelada" unit="rango con más lbs hoy" />
                   <HeadCell label="Horas trabajadas" unit="h · primer a último registro" />
                 </TableRow>
@@ -400,11 +421,11 @@ export default function PeladoPorSalaTable({ userId }: { userId: string }) {
                 {salas.map((sala, index) => (
                   <TableRow key={sala.sala} ref={(row: HTMLTableRowElement | null) => { if (row) rowRefs.current.set(sala.sala, row); else rowRefs.current.delete(sala.sala); }} sx={ROW_SX}>
                     <TableCell sx={{ py: 0.9, borderColor: '#eef2f7' }}>
-                      <Stack direction="row" alignItems="center" spacing={1}>
+                      <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={{ xs: 0.25, sm: 1 }}>
                         <Box
                           sx={{
-                            width: 24,
-                            height: 24,
+                            width: { xs: 22, sm: 24 },
+                            height: { xs: 19, sm: 24 },
                             borderRadius: 1,
                             display: 'grid',
                             placeItems: 'center',
@@ -416,20 +437,27 @@ export default function PeladoPorSalaTable({ userId }: { userId: string }) {
                         >
                           {index + 1}°
                         </Box>
-                        <Box sx={{ minWidth: 132 }}>
-                          <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: '#0f172a' }}>
+                        <Box sx={{ minWidth: 0, width: { xs: 96, sm: 132 } }}>
+                          <Typography sx={{ fontSize: { xs: 11, sm: 12.5 }, fontWeight: 700, color: '#0f172a' }}>
                             {sala.sala}{index === 0 && maxRendimiento > 0 ? ' 🏆' : ''}
                           </Typography>
-                          <Box sx={{ position: 'relative', height: 26, width: 132, borderBottom: '2px dashed #cbd5e1' }}>
-                            <Box sx={{ position: 'absolute', left: `${maxRendimiento > 0 ? rendimiento(sala) / maxRendimiento * 88 : 0}px`, transition: 'left 700ms ease', '@media (prefers-reduced-motion: reduce)': { transition: 'none' } }}>
+                          <Box sx={{ position: 'relative', height: 26, width: '100%', borderBottom: '2px dashed #cbd5e1' }}>
+                            <Box sx={{ position: 'absolute', left: `calc((100% - 40px) * ${maxRendimiento > 0 ? rendimiento(sala) / maxRendimiento : 0})`, transition: 'left 700ms ease', '@media (prefers-reduced-motion: reduce)': { transition: 'none' } }}>
                               <RaceCar color={CAR_COLORS[salaNum(sala.sala) % CAR_COLORS.length]} />
                             </Box>
                           </Box>
                         </Box>
                       </Stack>
                     </TableCell>
-
-                    <TableCell align="right" sx={BODY_NUM_SX}>
+                  <TableCell align="right" sx={{ ...BODY_NUM_SX, fontWeight: 700, color: 'primary.main' }}>
+                      <Tooltip title="Libras por hora de la sala ÷ personas registradas hoy. Las horas transcurridas del día son comunes a todas las salas.">
+                        <span>{sala.personasActivas > 0 ? formatValue(rendimiento(sala), 'decimal') : '—'}</span>
+                      </Tooltip>
+                    </TableCell>
+                  <TableCell align="right" sx={BODY_NUM_SX}>
+                      {sala.personasActivas > 0 ? formatValue(sala.librasPeladasHoy / sala.personasActivas, 'decimal') : '—'}
+                    </TableCell>
+                  <TableCell align="right" sx={BODY_NUM_SX}>
                       {sala.personasActivas > 0 ? (
                         <Box
                           component="span"
@@ -453,12 +481,10 @@ export default function PeladoPorSalaTable({ userId }: { userId: string }) {
                         </Box>
                       )}
                     </TableCell>
-
-                    <TableCell align="right" sx={BODY_NUM_SX}>
+                  <TableCell align="right" sx={BODY_NUM_SX}>
                       {formatValue(sala.librasUltimos30Min)}
                     </TableCell>
-
-                    <TableCell align="right" sx={BODY_NUM_SX}>
+                  <TableCell align="right" sx={BODY_NUM_SX}>
                       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5 }}>
                         <span>{formatValue(sala.librasPeladasHoy)}</span>
                         <Box sx={{ width: 72, height: 3, borderRadius: 2, bgcolor: '#e9eef5', overflow: 'hidden' }}>
@@ -473,23 +499,12 @@ export default function PeladoPorSalaTable({ userId }: { userId: string }) {
                         </Box>
                       </Box>
                     </TableCell>
-
-                    <TableCell align="right" sx={{ ...BODY_NUM_SX, fontWeight: 700, color: 'primary.main' }}>
-                      <Tooltip title="Libras por hora de la sala ÷ personas registradas hoy. Las horas transcurridas del día son comunes a todas las salas.">
-                        <span>{sala.personasActivas > 0 ? formatValue(rendimiento(sala), 'decimal') : '—'}</span>
-                      </Tooltip>
-                    </TableCell>
-
-                    <TableCell align="right" sx={BODY_NUM_SX}>
-                      {sala.personasActivas > 0 ? formatValue(sala.librasPeladasHoy / sala.personasActivas, 'decimal') : '—'}
-                    </TableCell>
-                    <TableCell align="right" sx={BODY_NUM_SX}>
+                  <TableCell align="right" sx={BODY_NUM_SX}>
                       <Tooltip title="Talla con más libras peladas hoy en esta sala. Si hay empate, se muestran ambas tallas.">
                         <span>{sala.tallaMasPelada?.replace(/(\d)\s*[-–—/]\s*(?=\d)/g, '$1/') || '—'}</span>
                       </Tooltip>
                     </TableCell>
-
-                    <TableCell align="right" sx={BODY_NUM_SX}>
+                  <TableCell align="right" sx={BODY_NUM_SX}>
                       {formatValue(sala.horasTrabajadas, 'decimal')}
                     </TableCell>
                   </TableRow>
@@ -500,13 +515,13 @@ export default function PeladoPorSalaTable({ userId }: { userId: string }) {
                   <TableCell sx={{ ...FOOT_CELL_SX, fontSize: 11, letterSpacing: 0.4, textTransform: 'uppercase', color: '#64748b' }}>
                     {hoursThreshold === null ? 'Total planta' : 'Total visible'}
                   </TableCell>
-                  <TableCell align="right" sx={FOOT_CELL_SX}>{formatValue(totales.personasActivas)}</TableCell>
-                  <TableCell align="right" sx={FOOT_CELL_SX}>{formatValue(totales.librasUltimos30Min)}</TableCell>
-                  <TableCell align="right" sx={FOOT_CELL_SX}>{formatValue(totales.librasPeladasHoy)}</TableCell>
                   <TableCell align="right" sx={{ ...FOOT_CELL_SX, color: 'primary.main' }}>
                     {totales.personasActivas > 0 ? formatValue(totales.librasPorHora / totales.personasActivas, 'decimal') : '—'}
                   </TableCell>
                   <TableCell align="right" sx={FOOT_CELL_SX}>{totales.personasActivas > 0 ? formatValue(totales.librasPeladasHoy / totales.personasActivas, 'decimal') : '—'}</TableCell>
+                  <TableCell align="right" sx={FOOT_CELL_SX}>{formatValue(totales.personasActivas)}</TableCell>
+                  <TableCell align="right" sx={FOOT_CELL_SX}>{formatValue(totales.librasUltimos30Min)}</TableCell>
+                  <TableCell align="right" sx={FOOT_CELL_SX}>{formatValue(totales.librasPeladasHoy)}</TableCell>
                   <TableCell align="right" sx={FOOT_CELL_SX}>{tallaMasPelada || '—'}</TableCell>
                   <TableCell align="right" sx={FOOT_CELL_SX}>{formatValue(data?.horasTranscurridas ?? 0, 'decimal')}</TableCell>
                 </TableRow>

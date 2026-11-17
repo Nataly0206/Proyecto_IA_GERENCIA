@@ -47,8 +47,11 @@ const HEAD_CELL_SX = {
   color: '#64748b',
   bgcolor: '#fff',
   borderBottom: '2px solid #e2e8f0',
-  lineHeight: 1.3,
-  py: 1,
+  lineHeight: 1.4,
+  whiteSpace: 'normal',
+  overflowWrap: 'break-word',
+  verticalAlign: 'middle',
+  py: 1.25,
 } as const;
 
 const BODY_NUM_SX = { fontSize: 12.5, color: '#1e293b', borderColor: '#eef2f7', ...NUM_SX } as const;
@@ -72,9 +75,9 @@ const ROW_SX = {
 function HeadCell({ label, unit, align = 'right' }: { label: string; unit?: string; align?: 'left' | 'right' }) {
   return (
     <TableCell align={align} sx={HEAD_CELL_SX}>
-      <Box>{label}</Box>
+      <Box sx={{ whiteSpace: 'pre-line' }}>{label}</Box>
       {unit && (
-        <Box sx={{ fontSize: 9, fontWeight: 600, letterSpacing: 0, color: '#94a3b8', textTransform: 'none' }}>
+        <Box sx={{ fontSize: 9, fontWeight: 600, letterSpacing: 0, color: '#64748b', textTransform: 'none', whiteSpace: 'normal', mt: 0.4 }}>
           {unit}
         </Box>
       )}
@@ -376,7 +379,6 @@ export default function PeladoPorSalaTable({ userId }: { userId: string }) {
         {vista === 'salas' && !isLoading && !isError && data && salas.length > 0 && (
           <TableContainer
             sx={{
-              maxHeight: 360,
               borderRadius: 1.5,
               border: '1px solid #e6ebf2',
               // En pantallas angostas la tabla desborda su ancho y se
@@ -389,31 +391,31 @@ export default function PeladoPorSalaTable({ userId }: { userId: string }) {
             <Table size="small" stickyHeader sx={{
               tableLayout: 'fixed', width: { xs: 878, sm: 1140 }, minWidth: '100%',
               '& th, & td': { px: { xs: 0.5, sm: 1.5 }, overflowWrap: 'anywhere' },
-              '& th': { fontSize: { xs: 9, sm: 10.5 } },
+              '& th': { fontSize: { xs: 10, sm: 11 }, letterSpacing: 0, textTransform: 'none', color: '#334155', bgcolor: '#f1f5f9' },
               '& td': { fontSize: { xs: 11, sm: 12.5 } },
               '& th:first-of-type, & td:first-of-type': {
                 position: 'sticky', left: 0, zIndex: 2, bgcolor: '#fff',
                 boxShadow: '2px 0 4px rgba(15, 23, 42, 0.10)',
               },
-              '& thead th:first-of-type': { zIndex: 4 },
-              '& tfoot td:first-of-type': { bgcolor: '#f8fafc' },
+              '& thead th:first-of-type': { zIndex: 4, bgcolor: '#f1f5f9' },
+              '& tfoot td:first-of-type': { bgcolor: '#f8fafc', whiteSpace: 'normal' },
               '& tbody tr:nth-of-type(even) td:first-of-type': { bgcolor: '#fbfcfe' },
               '& tbody tr:hover td:first-of-type': { bgcolor: '#eef4fb' },
             }}>
               <colgroup>
                 {[{ xs: 108, sm: 220 }, { xs: 78, sm: 130 }, { xs: 82, sm: 130 },
-                  { xs: 90, sm: 100 }, { xs: 100, sm: 110 }, { xs: 100, sm: 110 },
-                  { xs: 110, sm: 120 }, { xs: 110, sm: 120 }].map((width, index) => <Box component="col" key={index} sx={{ width }} />)}
+                  { xs: 110, sm: 120 }, { xs: 90, sm: 100 }, { xs: 100, sm: 110 },
+                  { xs: 100, sm: 110 }, { xs: 110, sm: 120 }].map((width, index) => <Box component="col" key={index} sx={{ width }} />)}
               </colgroup>
               <TableHead>
                 <TableRow>
-                  <HeadCell label="Posición / Sala" align="left" />
-                  <HeadCell label="Lbs / hora / persona ↓" unit="rendimiento · orden de carrera" />
-                  <HeadCell label="Lbs / persona / día" unit="lbs · acumulado hoy" />
-                  <HeadCell label="Personas activas" unit="pelando hoy" />
+                  <HeadCell label={'Posición /\nSala'} align="left" />
+                  <HeadCell label={'Lbs / hora\npor persona ↓'} unit="Rendimiento" />
+                  <HeadCell label={'Lbs / persona\npor día'} unit="Acumulado hoy" />
+                  <HeadCell label="Talla más pelada" unit="rango con más lbs hoy" />
+                  <HeadCell label={'Personas\nactivas'} unit="Pelando hoy" />
                   <HeadCell label="Libras 30 min" unit="lbs · en vivo" />
                   <HeadCell label="Libras hoy" unit="lbs · acumulado" />
-                  <HeadCell label="Talla más pelada" unit="rango con más lbs hoy" />
                   <HeadCell label="Horas trabajadas" unit="h · primer a último registro" />
                 </TableRow>
               </TableHead>
@@ -458,6 +460,11 @@ export default function PeladoPorSalaTable({ userId }: { userId: string }) {
                       {sala.personasActivas > 0 ? formatValue(sala.librasPeladasHoy / sala.personasActivas, 'decimal') : '—'}
                     </TableCell>
                   <TableCell align="right" sx={BODY_NUM_SX}>
+                      <Tooltip title="Talla con más libras peladas hoy en esta sala. Si hay empate, se muestran ambas tallas.">
+                        <span>{sala.tallaMasPelada?.replace(/(\d)\s*[-–—/]\s*(?=\d)/g, '$1/') || '—'}</span>
+                      </Tooltip>
+                    </TableCell>
+                  <TableCell align="right" sx={BODY_NUM_SX}>
                       {sala.personasActivas > 0 ? (
                         <Box
                           component="span"
@@ -500,11 +507,6 @@ export default function PeladoPorSalaTable({ userId }: { userId: string }) {
                       </Box>
                     </TableCell>
                   <TableCell align="right" sx={BODY_NUM_SX}>
-                      <Tooltip title="Talla con más libras peladas hoy en esta sala. Si hay empate, se muestran ambas tallas.">
-                        <span>{sala.tallaMasPelada?.replace(/(\d)\s*[-–—/]\s*(?=\d)/g, '$1/') || '—'}</span>
-                      </Tooltip>
-                    </TableCell>
-                  <TableCell align="right" sx={BODY_NUM_SX}>
                       {formatValue(sala.horasTrabajadas, 'decimal')}
                     </TableCell>
                   </TableRow>
@@ -519,10 +521,10 @@ export default function PeladoPorSalaTable({ userId }: { userId: string }) {
                     {totales.personasActivas > 0 ? formatValue(totales.librasPorHora / totales.personasActivas, 'decimal') : '—'}
                   </TableCell>
                   <TableCell align="right" sx={FOOT_CELL_SX}>{totales.personasActivas > 0 ? formatValue(totales.librasPeladasHoy / totales.personasActivas, 'decimal') : '—'}</TableCell>
+                  <TableCell align="right" sx={FOOT_CELL_SX}>{tallaMasPelada || '—'}</TableCell>
                   <TableCell align="right" sx={FOOT_CELL_SX}>{formatValue(totales.personasActivas)}</TableCell>
                   <TableCell align="right" sx={FOOT_CELL_SX}>{formatValue(totales.librasUltimos30Min)}</TableCell>
                   <TableCell align="right" sx={FOOT_CELL_SX}>{formatValue(totales.librasPeladasHoy)}</TableCell>
-                  <TableCell align="right" sx={FOOT_CELL_SX}>{tallaMasPelada || '—'}</TableCell>
                   <TableCell align="right" sx={FOOT_CELL_SX}>{formatValue(data?.horasTranscurridas ?? 0, 'decimal')}</TableCell>
                 </TableRow>
               </TableFooter>

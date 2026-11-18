@@ -47,7 +47,7 @@ export default function ProcessSummaryPage({ userId }: { userId: string }) {
     setRefreshing(false);
   };
   return <Stack spacing={{ xs: 1, sm: 3 }} sx={{ py: { xs: 0, sm: 2 }, height: '100%', minHeight: 0, overflow: 'auto' }}>
-    <Stack direction="row" justifyContent="space-between" alignItems="center" gap={1} flexWrap={{ xs: 'nowrap', sm: 'wrap' }}>
+    <Stack direction="row" justifyContent="space-between" alignItems="center" gap={1} flexWrap="wrap">
       <Stack direction="row" spacing={{ xs: 0, sm: 1.5 }} alignItems="center">
         <Avatar variant="rounded" sx={{ bgcolor: 'primary.main', display: { xs: 'none', sm: 'flex' }, width: 46, height: 46 }}><InsightsOutlinedIcon /></Avatar>
         <Box><Typography variant="h5" fontWeight={800} sx={{ fontSize: { xs: 18, sm: 24 } }}>Productividad</Typography><Typography variant="body2" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>Productividad de la planta · libras por hora</Typography></Box>

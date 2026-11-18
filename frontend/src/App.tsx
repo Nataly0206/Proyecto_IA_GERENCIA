@@ -19,6 +19,7 @@ import PowerBIPage from './pages/PowerBIPage';
 import PrestamosPage from './pages/PrestamosPage';
 import RankingsPage from './pages/RankingsPage';
 import ProcessSummaryPage from './pages/ProcessSummaryPage';
+import ProductionStaffPage from './pages/ProductionStaffPage';
 import RendimientosPage from './pages/RendimientosPage';
 import { FiltersProvider } from './context/FiltersContext';
 import { apiClient } from './api/client';
@@ -40,6 +41,8 @@ const PERMISO_POR_VISTA: Record<DashboardView, Permiso> = {
   prestamos: 'prestamos',
   rendimientos: 'rendimientos',
   'resumen-procesos': 'resumen_procesos',
+  // Conserva el acceso a Personal que ya tenían los usuarios de Productividad.
+  personal: 'personal',
   rankings: 'rankings',
   'power-bi': 'power_bi',
 };
@@ -58,6 +61,7 @@ const VIEW_ORDER: DashboardView[] = [
   'prestamos',
   'rendimientos',
   'resumen-procesos',
+  'personal',
   'rankings',
   'power-bi',
   'users',
@@ -184,6 +188,8 @@ export default function App() {
           <RankingsPage userId={user.id} />
         ) : view === 'resumen-procesos' ? (
           <ProcessSummaryPage userId={user.id} />
+        ) : view === 'personal' ? (
+          <ProductionStaffPage userId={user.id} />
         ) : view === 'rendimientos' ? (
           <RendimientosPage userId={user.id} />
         ) : view === 'power-bi' ? (

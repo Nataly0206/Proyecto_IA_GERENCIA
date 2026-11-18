@@ -1,3 +1,5 @@
+import { env } from '../config/env';
+import { getProductionStaff, getProductionStaffHistory, staffToday, validStaffDate } from '../services/production-staff.service';
 import { Router } from 'express';
 import { getFreshInventory, FreshInventoryStage } from '../services/fresh-inventory.service';
 import { withTtlCache } from '../utils/ttlCache';
@@ -32,6 +34,18 @@ router.get('/resumen-procesos', requirePermission('resumen_procesos'), asyncHand
   }
   res.json(await getCachedProcessSummary(today, req.query.refresh === 'true', process as string | undefined));
 }));
+
+for (const history of [false, true]) {
+  router.get(history ? '/personal-produccion/historico' : '/personal-produccion', requirePermission('personal'), asyncHandler(async (req, res) => {
+    const day = req.query.fecha ?? staffToday();
+    if (!validStaffDate(day, staffToday())) {
+      res.status(400).json({ error: 'Selecciona una fecha válida, hasta hoy.' }); return;
+    }
+    res.json(await (history
+      ? withTtlCache(`personal-produccion:reporte-ax-v4:${env.PAYROLL_ATTENDANCE_DAY_START}:historico:${day}`, 5 * 60_000, () => getProductionStaffHistory(day, req.query.refresh === 'true'), req.query.refresh === 'true')
+      : withTtlCache(`personal-produccion:reporte-ax-v4:${env.PAYROLL_ATTENDANCE_DAY_START}:dia:${day}`, 60_000, () => getProductionStaff(day), req.query.refresh === 'true')));
+  }));
+}
 
 const iqf = requirePermission('iqf');
 const pelado = requirePermission('pelado');

@@ -19,6 +19,12 @@ function booleanFromEnv(name: string, fallback: boolean): boolean {
   throw new Error(`${name} debe ser true o false.`);
 }
 
+function clockFromEnv(name: string, fallback: string): string {
+  const value = process.env[name] || fallback;
+  if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value)) throw new Error(`${name} debe tener formato HH:mm.`);
+  return value;
+}
+
 export const env = {
   NODE_ENV: process.env.NODE_ENV ?? 'development',
   PORT: numberFromEnv('PORT', 3002, 1, 65535),
@@ -68,6 +74,18 @@ export const env = {
     (process.env.STB_DB_TRUST_SERVER_CERTIFICATE
       ?? process.env.DB_TRUST_SERVER_CERTIFICATE
       ?? 'true') === 'true',
+  // STBPayroll tiene credenciales independientes; no hereda las de STB_data.
+  PAYROLL_DB_SERVER: process.env.PAYROLL_DB_SERVER ?? '',
+  PAYROLL_DB_PORT: numberFromEnv('PAYROLL_DB_PORT', 1433, 1, 65535),
+  PAYROLL_DB_DATABASE: process.env.PAYROLL_DB_DATABASE || 'STBPayroll',
+  PAYROLL_DB_USER: process.env.PAYROLL_DB_USER ?? '',
+  PAYROLL_DB_PASSWORD: process.env.PAYROLL_DB_PASSWORD ?? '',
+  PAYROLL_DB_ENCRYPT: booleanFromEnv('PAYROLL_DB_ENCRYPT', false),
+  PAYROLL_DB_TRUST_SERVER_CERTIFICATE: booleanFromEnv('PAYROLL_DB_TRUST_SERVER_CERTIFICATE', true),
+  PAYROLL_ATTENDANCE_LINKED_SERVER: process.env.PAYROLL_ATTENDANCE_LINKED_SERVER || '172.16.50.215',
+  PAYROLL_ATTENDANCE_DATABASE: process.env.PAYROLL_ATTENDANCE_DATABASE || 'Marcador_Biometrico',
+  PAYROLL_ATTENDANCE_DAY_START: clockFromEnv('PAYROLL_ATTENDANCE_DAY_START', '04:00'),
+  PAYROLL_ATTENDANCE_DAY_START_CONFIRMED: booleanFromEnv('PAYROLL_ATTENDANCE_DAY_START_CONFIRMED', false),
   ADMIN_USER: process.env.ADMIN_USER ?? 'admin',
   ADMIN_NAME: process.env.ADMIN_NAME ?? 'Administrador',
   ADMIN_EMAIL: process.env.ADMIN_EMAIL ?? process.env.MAIL_FROM_ADDRESS ?? 'admin@localhost',

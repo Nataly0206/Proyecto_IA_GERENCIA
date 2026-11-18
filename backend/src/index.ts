@@ -17,6 +17,7 @@ import { changedPasswordAuth, requirePermission, sessionAuth } from './middlewar
 import { assertAuthDatabaseReady } from './services/auth.service';
 import { closeAuthPool } from './config/authDb';
 import { closeStbPool } from './config/stbDb';
+import { closePayrollPool } from './config/payrollDb';
 import { closeRedis, getRedisClient, redisStatus } from './config/redis';
 import { warmProcessSummary } from './services/process-summary.service';
 import { cacheMetrics } from './utils/ttlCache';
@@ -127,6 +128,7 @@ const shutdown = async (): Promise<void> => {
   await closePool();
   await closeAuthPool();
   await closeStbPool();
+  await closePayrollPool();
   await closeRedis();
   process.exit(0);
 };

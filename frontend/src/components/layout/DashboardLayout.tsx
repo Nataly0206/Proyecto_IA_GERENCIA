@@ -1,3 +1,4 @@
+import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined';
 import { ReactNode, useEffect, useState } from 'react';
 import {
   AppBar,
@@ -68,6 +69,7 @@ export type DashboardView =
   | 'prestamos'
   | 'rendimientos'
   | 'resumen-procesos'
+  | 'personal'
   | 'rankings'
   | 'power-bi'
   | 'users';
@@ -90,6 +92,7 @@ interface NavigationGroup {
 const NAVIGATION_GROUPS: NavigationGroup[] = [
   { id: 'resumen', label: 'Resumen gerencial', icon: <BarChartOutlinedIcon fontSize="small" />, items: [
     { view: 'resumen-procesos', label: 'Productividad', permission: 'resumen_procesos', icon: <TrendingUpOutlinedIcon fontSize="small" /> },
+    { view: 'personal', label: 'Personal', permission: 'personal', icon: <GroupsOutlinedIcon fontSize="small" /> },
     { view: 'rankings', label: 'Rankings', permission: 'rankings', icon: <EmojiEventsOutlinedIcon fontSize="small" /> },
     { view: 'rendimientos', label: 'Rendimientos', permission: 'rendimientos', icon: <SpeedOutlinedIcon fontSize="small" /> },
     { view: 'power-bi', label: 'Power BI', permission: 'power_bi', icon: <BarChartOutlinedIcon fontSize="small" /> },
@@ -264,7 +267,7 @@ export default function DashboardLayout({
               ESF Seafood
             </Typography>
           </Stack>
-          {currentView !== null && currentView !== 'users' && currentView !== 'inventory' && currentView !== 'carga' && currentView !== 'inventario-fresco' && currentView !== 'prestamos' && currentView !== 'rankings' && currentView !== 'resumen-procesos' && currentView !== 'rendimientos' && currentView !== 'power-bi' && (
+          {currentView !== null && currentView !== 'users' && currentView !== 'inventory' && currentView !== 'carga' && currentView !== 'inventario-fresco' && currentView !== 'prestamos' && currentView !== 'rankings' && currentView !== 'resumen-procesos' && currentView !== 'personal' && currentView !== 'rendimientos' && currentView !== 'power-bi' && (
             <Button
               size="small"
               variant="outlined"
@@ -369,7 +372,7 @@ export default function DashboardLayout({
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
       >
-        {currentView !== 'users' && currentView !== 'inventory' && currentView !== 'carga' && currentView !== 'inventario-fresco' && currentView !== 'prestamos' && currentView !== 'rankings' && currentView !== 'resumen-procesos' && currentView !== 'rendimientos' && currentView !== 'power-bi' && (
+        {currentView !== 'users' && currentView !== 'inventory' && currentView !== 'carga' && currentView !== 'inventario-fresco' && currentView !== 'prestamos' && currentView !== 'rankings' && currentView !== 'resumen-procesos' && currentView !== 'personal' && currentView !== 'rendimientos' && currentView !== 'power-bi' && (
           <MenuItem onClick={() => { setMobileActionsAnchor(null); void handleRefresh(); }} disabled={isRefreshing}>
             <RefreshOutlinedIcon fontSize="small" sx={{ mr: 1.25 }} />
             {isRefreshing ? 'Actualizando…' : 'Actualizar datos'}

@@ -65,14 +65,14 @@ function warningsFor(pending: number, conflict: number) {
   if (conflict) warnings.push(`${conflict} personas tienen estados A/X contradictorios; requieren revisión.`);
   return warnings;
 }
-export async function getProductionStaff(day: string) {
+export async function getProductionStaff(day: string, forceRefresh = false) {
   const { rows, lastAttendance } = await loadPayroll(day, day);
   const payrollEmployees = buildStaffEmployees(rows, day);
   const locationWarnings: string[] = [];
   let locationAvailable = true;
   let employees = payrollEmployees;
   try {
-    const locations = await getStaffLocations(payrollEmployees.map(person => person.id), day, staffToday());
+    const locations = await getStaffLocations(payrollEmployees.map(person => person.id), day, staffToday(), forceRefresh);
     const enriched = attachStaffLocations(payrollEmployees, locations, day, staffToday());
     employees = enriched.employees;
     if (enriched.unverified) locationWarnings.push(`${enriched.unverified} personas sin coincidencia verificable con la asignación. Se conservan en el conteo de Payroll, sin asignarlas automáticamente a una sala.`);

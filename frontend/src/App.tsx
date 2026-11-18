@@ -41,7 +41,6 @@ const PERMISO_POR_VISTA: Record<DashboardView, Permiso> = {
   prestamos: 'prestamos',
   rendimientos: 'rendimientos',
   'resumen-procesos': 'resumen_procesos',
-  // Conserva el acceso a Personal que ya tenían los usuarios de Productividad.
   personal: 'personal',
   rankings: 'rankings',
   'power-bi': 'power_bi',

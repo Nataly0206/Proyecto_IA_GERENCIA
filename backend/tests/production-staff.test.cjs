@@ -1,3 +1,4 @@
+process.env.CACHE_ENABLED = 'false';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { buildStaffEmployees, summarizeStaff, staffAreaRows, buildStaffHistory, staffKind, payrollTime } = require('../dist/services/production-staff.model');

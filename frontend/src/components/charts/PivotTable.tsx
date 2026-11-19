@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import {
   Box,
@@ -67,6 +67,7 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
   const trailingColumns = config.trailingTextColumns ?? [];
   const additionalTextColumns = Math.max(0, trailingColumns.length - 1);
   const summaryValueColumns = 3 + (config.teamHourlyColumn ? 1 : 0);
+  const trailingSummaryColumns = summaryValueColumns - (config.hourlyPerPersonColumn ? 1 : 0);
   const summaryWidth = Math.max(0, containerWidth);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const valueField = Array.isArray(config.yField) ? config.yField[0] : config.yField;
@@ -265,17 +266,19 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
           `& tr > :nth-child(${index + 2})`,
           { width: { xs: 110, sm: 'auto' } },
         ])),
-        ...Object.fromEntries(Array.from({ length: summaryValueColumns }, (_, i) => i + 1).map((index) => [
+        ...Object.fromEntries(Array.from({ length: trailingSummaryColumns }, (_, i) => i + 1).map((index) => [
           `& tr > :nth-last-child(${index + additionalTextColumns})`,
           { width: { xs: summaryWidth * 0.69 / summaryValueColumns, sm: 'auto' } },
         ])),
+        ...(config.hourlyPerPersonColumn ? { [`& tr > :nth-child(${extraColumns.findIndex(column => column.field === config.hourlyPerPersonColumn?.hoursField) + 3})`]: { width: { xs: summaryWidth * 0.69 / summaryValueColumns, sm: 'auto' } } } : {}),
         ...(additionalTextColumns ? { '& tr > :last-child': { width: { xs: 110, sm: 'auto' } } } : {}),
       } : undefined}>
         <TableHead>
           <TableRow>
             <TableCell sx={{ ...HEADER_SX, ...firstColumnSx, zIndex: { xs: 4, sm: 2 } }}>{config.xLabel ?? 'Período'}</TableCell>
             {extraColumns.map((extraCol) => (
-              <TableCell key={extraCol.field} align="right" sx={HEADER_SX}>
+              <Fragment key={extraCol.field}>
+                <TableCell align="right" sx={HEADER_SX}>
                 {extraCol.label}
                 {extraCol.unit && (
                   <Box component="span" sx={{ display: 'block', fontSize: 9, fontWeight: 600, color: '#64748b' }}>
@@ -283,6 +286,12 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
                   </Box>
                 )}
               </TableCell>
+                {config.hourlyPerPersonColumn && extraCol.field === config.hourlyPerPersonColumn.hoursField && (
+              <TableCell align="right" sx={{ ...HEADER_SX, whiteSpace: 'nowrap' }}>
+                lbs/pers/h
+              </TableCell>
+            )}
+              </Fragment>
             ))}
             {columnas.map((col) => (
               <TableCell key={col} align="right" draggable={Boolean(onColumnReorder)}
@@ -312,11 +321,6 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
             <TableCell align="right" sx={HEADER_SX}>
               Grand Total
             </TableCell>
-            {config.hourlyPerPersonColumn && (
-              <TableCell align="right" sx={{ ...HEADER_SX, whiteSpace: 'nowrap' }}>
-                lbs/pers/h
-              </TableCell>
-            )}
             {config.teamHourlyColumn && (
               <TableCell align="right" sx={HEADER_SX} title="Libras del día / horas de la jornada. Hoy usa el ritmo en curso de la card Total.">
                 Lbs/h
@@ -341,9 +345,16 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
             <TableRow key={periodo} hover>
               <TableCell sx={{ fontWeight: 600, bgcolor: 'background.paper', ...firstColumnSx }}>{formatPeriodo(periodo)}</TableCell>
               {extraColumns.map((extraCol) => (
-                <TableCell key={extraCol.field} align="right">
+                <Fragment key={extraCol.field}>
+                <TableCell align="right">
                   {renderValue(extraByPeriodo.get(extraCol.field)?.get(periodo) ?? null, extraCol.format)}
                 </TableCell>
+                {config.hourlyPerPersonColumn && extraCol.field === config.hourlyPerPersonColumn.hoursField && (
+                <TableCell align="right" sx={{ fontWeight: 600, color: 'primary.main' }}>
+                  {renderValue(hourlyPerPerson(periodo), 'decimal')}
+                </TableCell>
+              )}
+              </Fragment>
               ))}
               {columnas.map((col) => (
                 <TableCell key={col} align="right">
@@ -353,11 +364,6 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
               <TableCell align="right" sx={{ fontWeight: 600 }}>
                 {renderValue(aggregate(rowCells(periodo)))}
               </TableCell>
-              {config.hourlyPerPersonColumn && (
-                <TableCell align="right" sx={{ fontWeight: 600, color: 'primary.main' }}>
-                  {renderValue(hourlyPerPerson(periodo), 'decimal')}
-                </TableCell>
-              )}
               {config.teamHourlyColumn && (
                 <TableCell align="right" sx={{ fontWeight: 700, color: 'primary.main' }}>
                   {renderValue(teamHourly(periodo), 'number')}
@@ -380,11 +386,14 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
           <TableRow>
             <TableCell sx={{ ...TOTAL_SX, ...firstColumnSx }}>Grand Total</TableCell>
             {extraColumns.map((extraCol) => (
-              <TableCell key={extraCol.field} align="right" sx={TOTAL_SX}>
+              <Fragment key={extraCol.field}>
+                <TableCell align="right" sx={TOTAL_SX}>
                 {renderValue(sumExtra(
                   periodos.map((p) => extraByPeriodo.get(extraCol.field)?.get(p)).filter((v): v is number => v !== undefined),
                 ), extraCol.format)}
               </TableCell>
+                {config.hourlyPerPersonColumn && extraCol.field === config.hourlyPerPersonColumn.hoursField && <TableCell align="right" sx={TOTAL_SX}>—</TableCell>}
+              </Fragment>
             ))}
             {columnas.map((col) => (
               <TableCell key={col} align="right" sx={TOTAL_SX}>
@@ -394,7 +403,6 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
             <TableCell align="right" sx={TOTAL_SX}>
               {renderValue(grandTotal)}
             </TableCell>
-            {config.hourlyPerPersonColumn && <TableCell align="right" sx={TOTAL_SX}>—</TableCell>}
             {config.teamHourlyColumn && <TableCell align="right" sx={TOTAL_SX}>—</TableCell>}
             {config.dailyAverageColumn && (
               <TableCell align="right" sx={TOTAL_SX}>
@@ -407,7 +415,10 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
             <TableRow>
               <TableCell sx={{ ...SHARE_SX, ...firstColumnSx }}>% del total</TableCell>
               {extraColumns.map((extraCol) => (
-                <TableCell key={extraCol.field} align="right" sx={SHARE_SX}>—</TableCell>
+                <Fragment key={extraCol.field}>
+                <TableCell align="right" sx={SHARE_SX}>—</TableCell>
+                {config.hourlyPerPersonColumn && extraCol.field === config.hourlyPerPersonColumn.hoursField && <TableCell align="right" sx={SHARE_SX}>—</TableCell>}
+              </Fragment>
               ))}
               {columnas.map((col) => (
                 <TableCell key={col} align="right" sx={SHARE_SX}>
@@ -417,7 +428,6 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
               <TableCell align="right" sx={SHARE_SX}>
                 {formatValue(grandTotal && grandTotal > 0 ? 100 : 0, 'percent')}
               </TableCell>
-              {config.hourlyPerPersonColumn && <TableCell align="right" sx={SHARE_SX}>—</TableCell>}
               {config.teamHourlyColumn && <TableCell align="right" sx={SHARE_SX}>—</TableCell>}
               {config.dailyAverageColumn && <TableCell align="right" sx={SHARE_SX}>—</TableCell>}
               {trailingColumns.map((column) => <TableCell key={column.field} align="right" sx={SHARE_SX}>—</TableCell>)}
@@ -427,11 +437,21 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
             <TableRow>
               <TableCell sx={{ ...AVERAGE_SX, ...firstColumnSx }}>{config.averageLabel ?? 'Promedio'}</TableCell>
               {extraColumns.map((extraCol) => (
-                <TableCell key={extraCol.field} align="right" sx={AVERAGE_SX}>
+                <Fragment key={extraCol.field}>
+                <TableCell align="right" sx={AVERAGE_SX}>
                   {renderValue(avgExtra(
                     periodos.map((p) => extraByPeriodo.get(extraCol.field)?.get(p)).filter((v): v is number => v !== undefined),
                   ), extraCol.format)}
                 </TableCell>
+                {config.hourlyPerPersonColumn && extraCol.field === config.hourlyPerPersonColumn.hoursField && (
+                <TableCell align="right" sx={AVERAGE_SX}>
+                  {renderValue((() => {
+                    const values = periodos.map(hourlyPerPerson).filter((value): value is number => value !== null && Number.isFinite(value));
+                    return values.length > 0 ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+                  })(), 'decimal')}
+                </TableCell>
+              )}
+              </Fragment>
               ))}
               {columnas.map((col) => (
                 <TableCell key={col} align="right" sx={AVERAGE_SX}>
@@ -441,14 +461,6 @@ export default function PivotTable({ config, data, columnOrder, onColumnReorder,
               <TableCell align="right" sx={AVERAGE_SX}>
                 {renderValue(simpleAverage(periodos.flatMap((periodo) => rowCells(periodo))))}
               </TableCell>
-              {config.hourlyPerPersonColumn && (
-                <TableCell align="right" sx={AVERAGE_SX}>
-                  {renderValue((() => {
-                    const values = periodos.map(hourlyPerPerson).filter((value): value is number => value !== null && Number.isFinite(value));
-                    return values.length > 0 ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
-                  })(), 'decimal')}
-                </TableCell>
-              )}
               {config.teamHourlyColumn && (
                 <TableCell align="right" sx={AVERAGE_SX} title="Promedio de los ritmos diarios del equipo con horas disponibles; no es una suma de tasas.">
                   {renderValue((() => {

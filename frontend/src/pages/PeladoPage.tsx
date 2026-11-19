@@ -10,6 +10,7 @@ import PeladoDiasTrabajados from '../components/live/PeladoDiasTrabajados';
 import PeladoEstiloWidget from '../components/charts/PeladoEstiloWidget';
 
 export default function PeladoPage({ userId, canEditGoal }: { userId: string; canEditGoal: boolean }) {
+  const [roomMinHours, setRoomMinHours] = useState<number | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   return (
@@ -77,8 +78,8 @@ export default function PeladoPage({ userId, canEditGoal }: { userId: string; ca
 
       <PeladoLibrasHoyCards canEditGoal={canEditGoal} />
       <PeladoDiasTrabajados />
-      <PeladoEstiloWidget />
-      <PeladoPorSalaTable userId={userId} />
+      <PeladoEstiloWidget minHours={roomMinHours} />
+      <PeladoPorSalaTable userId={userId} onMinHoursChange={setRoomMinHours} />
     </Stack>
   );
 }

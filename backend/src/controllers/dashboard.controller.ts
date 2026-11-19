@@ -145,7 +145,7 @@ export async function getPeladoPorEstilo(req: Request, res: Response): Promise<v
   const forceRefresh = req.query.refresh === 'true';
   res.json(
     await withTtlCache(
-      JSON.stringify(['pelado-por-estilo', filters]),
+      JSON.stringify(['pelado-por-estilo:scope-v1', filters]),
       REPORT_CACHE_MS,
       () => dashboardService.getPeladoPorEstilo(filters),
       forceRefresh,
@@ -159,7 +159,7 @@ export async function getPeladoPorEstiloDia(req: Request, res: Response): Promis
   const forceRefresh = req.query.refresh === 'true';
   res.json(
     await withTtlCache(
-      JSON.stringify(['pelado-por-estilo-dia:talla-dominante-v3', period, filters]),
+      JSON.stringify(['pelado-por-estilo-dia:rendimiento-jornadas-v5', period, filters]),
       REPORT_CACHE_MS,
       () => dashboardService.getPeladoPorEstiloDia(filters, period),
       forceRefresh,
@@ -173,7 +173,7 @@ export async function getPeladoPorEstiloMes(req: Request, res: Response): Promis
   const forceRefresh = req.query.refresh === 'true';
   res.json(
     await withTtlCache(
-      JSON.stringify(['pelado-por-estilo-mes', filters.turno ?? '', meses]),
+      JSON.stringify(['pelado-por-estilo-mes:scope-v1', filters.turno ?? '', meses]),
       REPORT_CACHE_MS,
       () => dashboardService.getPeladoPorEstiloMes(filters, meses),
       forceRefresh,
@@ -183,12 +183,14 @@ export async function getPeladoPorEstiloMes(req: Request, res: Response): Promis
 
 export async function getPeladoPorTalla(req: Request, res: Response): Promise<void> {
   const filters = parseFilters(req);
+  const minHours = req.query.minHours === undefined || req.query.minHours === '' ? null : Number(req.query.minHours);
+  if (minHours !== null && (!Number.isFinite(minHours) || minHours < 0 || minHours > 24)) throw new ApiError(400, 'minHours debe estar entre 0 y 24');
   const forceRefresh = req.query.refresh === 'true';
   res.json(
     await withTtlCache(
-      JSON.stringify(['pelado-por-talla', filters]),
+      JSON.stringify(['pelado-por-talla:scope-pbi-v7', filters, minHours]),
       REPORT_CACHE_MS,
-      () => dashboardService.getPeladoPorTalla(filters),
+      () => dashboardService.getPeladoPorTalla(filters, minHours),
       forceRefresh,
     ),
   );
@@ -199,7 +201,7 @@ export async function getPeladoPorTallaDia(req: Request, res: Response): Promise
   const forceRefresh = req.query.refresh === 'true';
   res.json(
     await withTtlCache(
-      JSON.stringify(['pelado-por-talla-dia', filters]),
+      JSON.stringify(['pelado-por-talla-dia:scope-v1', filters]),
       REPORT_CACHE_MS,
       () => dashboardService.getPeladoPorTallaDia(filters),
       forceRefresh,
@@ -213,7 +215,7 @@ export async function getPeladoPorTallaMes(req: Request, res: Response): Promise
   const forceRefresh = req.query.refresh === 'true';
   res.json(
     await withTtlCache(
-      JSON.stringify(['pelado-por-talla-mes', filters.turno ?? '', meses]),
+      JSON.stringify(['pelado-por-talla-mes:scope-v1', filters.turno ?? '', meses]),
       REPORT_CACHE_MS,
       () => dashboardService.getPeladoPorTallaMes(filters, meses),
       forceRefresh,
@@ -225,7 +227,7 @@ export async function getPeladoTiempoReal(req: Request, res: Response): Promise<
   const forceRefresh = req.query.refresh === 'true';
   res.json(
     await withTtlCache(
-      'pelado-tiempo-real:current',
+      'pelado-tiempo-real:scope-v1',
       LIVE_CACHE_MS,
       () => dashboardService.getPeladoTiempoReal(),
       forceRefresh,
@@ -237,7 +239,7 @@ export async function getPeladoLibrasHoy(req: Request, res: Response): Promise<v
   const forceRefresh = req.query.refresh === 'true';
   res.json(
     await withTtlCache(
-      'pelado-libras-hoy:ritmo-60m-v1',
+      'pelado-libras-hoy:scope-v1',
       LIVE_CACHE_MS,
       () => dashboardService.getPeladoLibrasHoy(),
       forceRefresh,
@@ -249,7 +251,7 @@ export async function getPeladoLibrasHoyTalla(req: Request, res: Response): Prom
   const forceRefresh = req.query.refresh === 'true';
   res.json(
     await withTtlCache(
-      'pelado-libras-hoy-talla:current',
+      'pelado-libras-hoy-talla:scope-v1',
       LIVE_CACHE_MS,
       () => dashboardService.getPeladoLibrasHoyTalla(),
       forceRefresh,
@@ -258,15 +260,14 @@ export async function getPeladoLibrasHoyTalla(req: Request, res: Response): Prom
 }
 
 export async function getPeladoPorSala(req: Request, res: Response): Promise<void> {
-  const forceRefresh = req.query.refresh === 'true';
-  res.json(
-    await withTtlCache(
-      'pelado-por-sala:current',
-      LIVE_CACHE_MS,
-      () => dashboardService.getPeladoPorSala(),
-      forceRefresh,
-    ),
-  );
+  const minHours = req.query.minHours === undefined || req.query.minHours === '' ? null : Number(req.query.minHours);
+  if (minHours !== null && (!Number.isFinite(minHours) || minHours < 0 || minHours > 24)) throw new ApiError(400, 'minHours debe estar entre 0 y 24');
+  const turno = req.query.turno ? String(req.query.turno) : undefined;
+  if (turno && !TURN_REGEX.test(turno)) throw new ApiError(400, 'turno debe ser A, B, Turno A o Turno B');
+  res.json(await withTtlCache(
+    JSON.stringify(['pelado-por-sala:snapshot-v3', minHours, turno ?? '']), LIVE_CACHE_MS,
+    () => dashboardService.getPeladoPorSala(minHours, turno), req.query.refresh === 'true',
+  ));
 }
 
 export async function getPeladoPorSalaDiario(req: Request, res: Response): Promise<void> {
@@ -278,7 +279,7 @@ export async function getPeladoPorSalaDiario(req: Request, res: Response): Promi
     throw new ApiError(400, 'minHours debe estar entre 0 y 24');
   }
   res.json(await withTtlCache(
-    JSON.stringify([period === 'mes' ? 'pelado-por-sala-diario:mensual-v2' : 'pelado-por-sala-diario:periodos-v1', period, filters, minHours]),
+    JSON.stringify([period === 'mes' ? 'pelado-por-sala-diario:mensual-scope-v3' : 'pelado-por-sala-diario:periodos-scope-v2', period, filters, minHours]),
     REPORT_CACHE_MS,
     () => dashboardService.getPeladoPorSalaDiario(filters, minHours, period),
     req.query.refresh === 'true',

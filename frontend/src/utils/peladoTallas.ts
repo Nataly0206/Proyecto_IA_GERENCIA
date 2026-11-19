@@ -1,7 +1,8 @@
 import type { DataRow } from '../types';
 
 export function normalizePeladoDetailSize(talla: string): string {
-  return /^61\s*[-/]\s*70(?:\s+(?:ALTO|NORMAL|BAJO))?$/i.test(talla.trim()) ? '61-70' : talla;
+  const normalized = talla.trim().replace(/(\d)\s*[-–—/]\s*(?=\d)/g, '$1/');
+  return /^61\/70(?:\s+(?:ALTO|NORMAL|BAJO))?$/i.test(normalized) ? '61/70' : normalized;
 }
 
 const PT_BY_SIZE: Record<string, string> = {
@@ -36,7 +37,14 @@ export function mergePeladoDetailSizes(rows: DataRow[]): DataRow[] {
   for (const row of rows) {
     const talla = normalizePeladoDetailSize(String(row.talla ?? 'Sin talla'));
     const current = grouped.get(talla);
-    grouped.set(talla, { ...row, talla, libras: Number(current?.libras ?? 0) + Number(row.libras ?? 0) });
+    const merged: DataRow = { ...row, talla, libras: Number(current?.libras ?? 0) + Number(row.libras ?? 0) };
+    // lbs/hora/persona no se promedia: se recalcula con la suma de sus insumos.
+    if (row.horasPersona !== undefined || current?.horasPersona !== undefined) {
+      const librasConHoras = Number(current?.librasConHoras ?? 0) + Number(row.librasConHoras ?? 0);
+      const horasPersona = Number(current?.horasPersona ?? 0) + Number(row.horasPersona ?? 0);
+      Object.assign(merged, { librasConHoras, horasPersona, librasHoraPersona: horasPersona > 0 ? librasConHoras / horasPersona : null });
+    }
+    grouped.set(talla, merged);
   }
   return Array.from(grouped.values());
 }
@@ -55,4 +63,13 @@ export function getPeladoSizeLeaders(rows: { talla: string; libras: number }[]) 
     ? `${row[0]} (${(row[1] / total * 100).toFixed(2)}%)`
     : null;
   return { principal: label(ranked[0]), siguiente: label(ranked[1]) };
+}
+
+/** Selección del Excel: mejores personas por L/HP; promedio simple de sus tasas individuales. */
+export function getTopPeelingPerformance(profiles: unknown, percentage: number) {
+  if (!Array.isArray(profiles) || !Number.isFinite(percentage) || percentage <= 0 || percentage > 100) return null;
+  const rates = profiles.map(profile => Number(profile?.rendimiento)).filter(rate => Number.isFinite(rate) && rate > 0).sort((a, b) => b - a);
+  if (!rates.length) return null;
+  const count = Math.ceil(rates.length * percentage / 100);
+  return { count, total: rates.length, rate: rates.slice(0, count).reduce((sum, rate) => sum + rate, 0) / count };
 }

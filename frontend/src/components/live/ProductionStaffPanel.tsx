@@ -1,19 +1,48 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { isAxiosError } from 'axios';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Alert, Box, Button, Checkbox, Chip, Collapse, FormControlLabel, IconButton, LinearProgress, MenuItem, Paper, Popover, Skeleton,
+  Alert, Box, Button, Checkbox, Chip, Collapse, Dialog, DialogContent, DialogTitle, FormControlLabel, IconButton, LinearProgress, MenuItem, Paper, Popover, Skeleton,
   Stack, Table, TableBody, TableCell, TableContainer, TableFooter, TableHead, TableRow,
   TextField, ToggleButton, ToggleButtonGroup, Typography,
 } from '@mui/material';
 import RefreshOutlinedIcon from '@mui/icons-material/RefreshOutlined';
 import FilterAltOutlinedIcon from '@mui/icons-material/FilterAltOutlined';
+import CloseIcon from '@mui/icons-material/Close';
 import { apiClient } from '../../api/client';
-import type { StaffEmployee, StaffHistoryResponse, StaffKind, StaffResponse, StaffStatus } from '../../types/productionStaff';
+import type { StaffEmployee, StaffHistoryDay, StaffHistoryResponse, StaffKind, StaffResponse, StaffStatus } from '../../types/productionStaff';
 import { formatPeriodo, formatValue } from '../../utils/format';
 
 const todayInHonduras = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Tegucigalpa', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 const weekdayLabels = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+const NO_ACTIVITY = 'Sin actividad registrada';
+/** Debe coincidir con ACTIVITY_PROCESS_SUFFIX del backend: grupos de personas sin actividad del catálogo. */
+const ACTIVITY_PROCESS_SUFFIX = ' · sin actividad específica';
+const activityRank = (group: string) => group === NO_ACTIVITY ? 2 : group.endsWith(ACTIVITY_PROCESS_SUFFIX) ? 1 : 0;
+type GroupBy = 'area' | 'activity' | 'department';
+/** Lista oficial de departamentos de planta; debe coincidir con PLANT_DEPARTMENTS del backend (production-staff-department.ts). */
+const PLANT_DEPARTMENT_SECTIONS = [
+  { code: '1', label: 'Mano de obra directa', items: ['1.1 Descabezado', '1.2 Clasificado', '1.3 Pelado Programada', '1.4 Pelado Tercero', '1.5 Pelado Anillo', '1.6 IQF', '1.7 Salmuera', '1.8 Recepción', '1.9 Cocinado', '1.10 Langosta', '1.11 Decoración Anillos', '1.12 Reempaque WSO'] },
+  { code: '2', label: 'Mano de obra de apoyo', items: ['2.1 Bodega, empaque, código', '2.2 Calidad, lavandería y POES', '2.3 RRHH, gestión ambiental y mantenimiento'] },
+];
+const NO_DEPARTMENT = 'Sin departamento asignado';
+type StaffGroupSelection = { label: string; rows: StaffEmployee[] } | null;
+const staffStatusLabels: Record<StaffStatus, string> = {
+  present: 'A · Asistió',
+  absent: 'X · Falta',
+  excused: 'Permiso / incapacidad',
+  off: 'Descanso / vacaciones',
+  noProduction: 'Sin producción',
+  pending: 'Sin registro',
+  conflict: 'Revisar',
+};
+const GROUP_STORAGE_KEY = 'personal:agrupar-por';
+function storedGroupBy(): GroupBy {
+  try {
+    const stored = localStorage.getItem(GROUP_STORAGE_KEY);
+    return stored === 'activity' || stored === 'department' ? stored : 'area';
+  } catch { return 'area'; }
+}
 const kindLabels: Record<StaffKind, string> = { production: 'Obra', auxiliary: 'Auxiliar / apoyo', unknown: 'Sin clasificar' };
 function countPeople(people: StaffEmployee[]) {
   const count = (status: StaffStatus) => people.filter(person => person.status === status).length;
@@ -36,12 +65,18 @@ function message(error: unknown) {
 export default function ProductionStaffPanel({ userId }: { userId: string }) {
   const today = todayInHonduras();
   const [date, setDate] = useState(today);
-  const [tab, setTab] = useState<'day' | 'history'>('day');
+  const [tab, setTab] = useState<'day' | 'week' | 'history'>('day');
   const [division, setDivision] = useState('');
   const [shift, setShift] = useState('');
   const [job, setJob] = useState('');
   const [kind, setKind] = useState<StaffKind | ''>('');
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [groupBy, setGroupBy] = useState<GroupBy>(storedGroupBy);
+  const [staffGroupSelection, setStaffGroupSelection] = useState<StaffGroupSelection>(null);
+  const changeGroupBy = (value: GroupBy) => {
+    setGroupBy(value);
+    try { localStorage.setItem(GROUP_STORAGE_KEY, value); } catch { /* preferencia opcional */ }
+  };
   const [methodOpen, setMethodOpen] = useState(false);
   const [includedWeekdays, setIncludedWeekdays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
   const [refreshing, setRefreshing] = useState(false);
@@ -49,7 +84,7 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
   const client = useQueryClient();
   const parsed = new Date(`${date}T12:00:00Z`);
   const validDate = /^\d{4}-\d{2}-\d{2}$/.test(date) && date >= '2000-01-01' && date <= today && Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date;
-  const queryKey = ['personal-produccion-reporte-ax-v4', userId, date] as const;
+  const queryKey = ['personal-produccion-reporte-ax-v6', userId, date] as const;
   const historyKey = ['personal-produccion-reporte-ax-historico-v4', userId, date] as const;
   const query = useQuery({
     queryKey, queryFn: async ({ signal }) => (await apiClient.get<StaffResponse>('/dashboard/personal-produccion', { params: { fecha: date }, signal })).data,
@@ -57,7 +92,7 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
   });
   const history = useQuery({
     queryKey: historyKey, queryFn: async ({ signal }) => (await apiClient.get<StaffHistoryResponse>('/dashboard/personal-produccion/historico', { params: { fecha: date }, signal })).data,
-    enabled: validDate && tab === 'history', staleTime: 5 * 60_000,
+    enabled: validDate && tab !== 'day', staleTime: 5 * 60_000,
   });
   const active = tab === 'day' ? query : history;
   const refresh = async () => {
@@ -78,10 +113,25 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
   const people = (query.data?.employees ?? []).filter(person => (!division || person.division === division) && (!shift || person.shift === shift) && (!job || person.job === job) && (!kind || person.kind === kind));
   const counts = countPeople(people);
   const mainAreas = [...[1, 2, 3, 4].map(number => `Pelado · Sala ${number}`), 'Descabezado', 'Clasificado'];
-  const areas = [...mainAreas, ...[...new Set(people.map(person => person.area))].filter(value => !mainAreas.includes(value)).sort((a, b) => a.localeCompare(b, 'es', { numeric: true }))];
+  const groupOf = (person: StaffEmployee) => groupBy === 'area'
+    ? person.area
+    : groupBy === 'department'
+      ? person.plantDepartment ?? NO_DEPARTMENT
+      : person.activity ?? NO_ACTIVITY;
+  const presentIn = (group: string) => people.filter(person => groupOf(person) === group && person.status === 'present').length;
+  const groups = groupBy === 'area'
+    ? [...mainAreas, ...[...new Set(people.map(person => person.area))].filter(value => !mainAreas.includes(value)).sort((a, b) => a.localeCompare(b, 'es', { numeric: true }))]
+    : groupBy === 'department'
+      // La lista completa aunque tenga cero personas; lo que quede fuera de ella va al final.
+      ? [...PLANT_DEPARTMENT_SECTIONS.flatMap(section => section.items), ...[...new Set(people.map(groupOf))].filter(value => !PLANT_DEPARTMENT_SECTIONS.some(section => section.items.includes(value))).sort((a, b) => Number(a === NO_DEPARTMENT) - Number(b === NO_DEPARTMENT) || a.localeCompare(b, 'es'))]
+    // Por actividad: primero las del catálogo, luego los procesos sin actividad específica y al final quienes no registran nada;
+    // dentro de cada bloque, de mayor a menor asistencia.
+    : [...new Set(people.map(groupOf))].sort((a, b) => activityRank(a) - activityRank(b) || presentIn(b) - presentIn(a) || a.localeCompare(b, 'es', { numeric: true }));
+  const emptyGroup = groupBy === 'area' ? 'Sin sala/área asignada' : groupBy === 'department' ? NO_DEPARTMENT : NO_ACTIVITY;
   const activeFilters = [division, shift, job, kind].filter(Boolean).length;
   const cell = (rows: StaffEmployee[], area: string, status?: StaffStatus, category?: StaffKind) => {
-    const unavailable = !query.data?.employees.length || (query.data.locationAvailable === false && !!area && area !== 'Sin sala/área asignada');
+    const unavailable = !query.data?.employees.length
+      || (query.data.locationAvailable === false && !!area && area !== emptyGroup);
     const value = rows.filter(person => (!status || person.status === status) && (!category || person.kind === category)).length;
     return <TableCell align="right" sx={{ fontWeight: status === 'present' || status === 'absent' ? 800 : 600, color: status === 'absent' ? 'error.main' : status === 'present' ? 'success.main' : 'text.primary' }}>{unavailable ? '—' : formatValue(value)}</TableCell>;
   };
@@ -94,10 +144,10 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
         <IconButton size="small" aria-label="Actualizar asistencia" disabled={refreshing || active.isFetching || !validDate} onClick={() => void refresh()}><RefreshOutlinedIcon fontSize="small" /></IconButton>
       </Stack>
       <Stack direction="row" gap={0.75} useFlexGap flexWrap="wrap" alignItems="center" sx={{ mt: 1 }}>
-        <ToggleButtonGroup exclusive size="small" value={tab} onChange={(_, value) => value && setTab(value)} sx={{ '& button': { textTransform: 'none', px: 1.1, py: 0.5, fontSize: 12 } }} aria-label="Vista de asistencia"><ToggleButton value="day">Por sala</ToggleButton><ToggleButton value="history">Inasistencias</ToggleButton></ToggleButtonGroup>
+        <ToggleButtonGroup exclusive size="small" value={tab} onChange={(_, value) => value && setTab(value)} sx={{ '& button': { textTransform: 'none', px: 1.1, py: 0.5, fontSize: 12 } }} aria-label="Vista de asistencia"><ToggleButton value="day">Por sala</ToggleButton><ToggleButton value="week">Por semana</ToggleButton><ToggleButton value="history">Inasistencias</ToggleButton></ToggleButtonGroup>
         <TextField size="small" type="date" label={tab === 'day' ? 'Fecha' : 'Hasta la fecha'} value={date} onChange={event => { setDate(event.target.value); clearFilters(); }} error={!validDate} InputLabelProps={{ shrink: true }} inputProps={{ min: '2000-01-01', max: today }} sx={{ width: 155, '& input': { py: 0.75, fontSize: 12 } }} />
         <Button size="small" onClick={() => { setDate(today); clearFilters(); }}>Hoy</Button>
-        {tab === 'history' && <WeekdaySelector includedWeekdays={includedWeekdays} onWeekdaysChange={setIncludedWeekdays} />}
+        {tab !== 'day' && <WeekdaySelector includedWeekdays={includedWeekdays} onWeekdaysChange={setIncludedWeekdays} />}
         {tab === 'day' && <Button size="small" startIcon={<FilterAltOutlinedIcon fontSize="small" />} onClick={() => setFiltersOpen(value => !value)} aria-expanded={filtersOpen} aria-controls="staff-filters">Filtros{activeFilters ? ` (${activeFilters})` : ''}</Button>}
       </Stack>
       <Collapse in={filtersOpen && tab === 'day'}><Box id="staff-filters" sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(4, minmax(0, 1fr))' }, gap: 1, mt: 1.5 }}>
@@ -128,31 +178,60 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
           </Box>)}
         </Box>
       </Paper>
-      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 1 }}>
-        {([
-          { kind: 'production', label: 'Personal de obra', color: '#1e40af', background: '#eff6ff' },
-          { kind: 'auxiliary', label: 'Auxiliares', color: '#166534', background: '#f0fdf4' },
-        ] as const).map(category => {
-          const group = countPeople(members(category.kind));
-          return <Paper key={category.kind} variant="outlined" aria-label={category.label} sx={{ p: 1.25, borderRadius: 2, bgcolor: category.background, minWidth: 0 }}>
-            <Typography fontSize={12} fontWeight={800} color={category.color}>{category.label}</Typography>
-            <Stack direction="row" alignItems="baseline" gap={0.75} useFlexGap flexWrap="wrap">
-              <Typography fontSize={26} fontWeight={800} color={category.color} sx={{ lineHeight: 1.3, fontVariantNumeric: 'tabular-nums' }}>{counts.total ? formatValue(group.present) : '—'}</Typography>
-              <Typography variant="caption" color="text.secondary" fontSize={11}>asistieron</Typography>
-            </Stack>
-            <Stack direction="row" gap={1} useFlexGap flexWrap="wrap" sx={{ mt: 0.25 }}>
-              <Typography variant="caption" color="error.main" fontSize={11}>Faltaron: {counts.total ? formatValue(group.absent) : '—'}</Typography>
-              <Typography variant="caption" color="text.secondary" fontSize={11}>En registro: {counts.total ? formatValue(group.total) : '—'}</Typography>
-            </Stack>
-          </Paper>;
-        })}
-      </Box>
+      {(() => {
+        // Composición de quienes asistieron: las tres tarjetas suman 100%.
+        const presentOf = (category: StaffKind) => countPeople(members(category)).present;
+        const presentTotal = presentOf('production') + presentOf('auxiliary') + presentOf('unknown');
+        const share = (value: number) => presentTotal ? `${formatValue(value / presentTotal * 100, 'decimal')}%` : '—';
+        return <>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(3, minmax(0, 1fr))' }, gap: 1 }}>
+            {([
+              { kind: 'production', label: 'Personal de obra', color: '#1e40af', background: '#eff6ff' },
+              { kind: 'auxiliary', label: 'Personal catalogado como auxiliar', color: '#166534', background: '#f0fdf4' },
+              { kind: 'unknown', label: 'Puesto sin clasificar', color: '#475569', background: '#f8fafc' },
+            ] as const).map(category => {
+              const group = countPeople(members(category.kind));
+              return <Paper key={category.kind} variant="outlined" aria-label={category.label} sx={{ p: 1.25, borderRadius: 2, bgcolor: category.background, minWidth: 0 }}>
+                <Typography fontSize={12} fontWeight={800} color={category.color}>{category.label}</Typography>
+                <Stack direction="row" alignItems="baseline" gap={0.75} useFlexGap flexWrap="wrap">
+                  <Typography fontSize={26} fontWeight={800} color={category.color} sx={{ lineHeight: 1.3, fontVariantNumeric: 'tabular-nums' }}>{counts.total ? formatValue(group.present) : '—'}</Typography>
+                  <Typography variant="caption" color="text.secondary" fontSize={11}>asistieron</Typography>
+                </Stack>
+                <Stack direction="row" gap={1} useFlexGap flexWrap="wrap" sx={{ mt: 0.25 }}>
+                  <Typography variant="caption" color="error.main" fontSize={11}>Faltaron: {counts.total ? formatValue(group.absent) : '—'}</Typography>
+                  <Typography variant="caption" color="text.secondary" fontSize={11}>En registro: {counts.total ? formatValue(group.total) : '—'}</Typography>
+                </Stack>
+                <Box sx={{ mt: 0.75, pt: 0.75, borderTop: '1px solid', borderColor: `${category.color}26` }}>
+                  <Stack direction="row" alignItems="baseline" gap={0.75}>
+                    <Typography fontSize={15} fontWeight={800} color={category.color} sx={{ fontVariantNumeric: 'tabular-nums' }}>{share(group.present)}</Typography>
+                    <Typography variant="caption" color="text.secondary" fontSize={11}>de quienes asistieron</Typography>
+                  </Stack>
+                  <Box role="img" aria-label={`${share(group.present)} de quienes asistieron`} sx={{ height: 6, borderRadius: 3, bgcolor: `${category.color}1f`, overflow: 'hidden', mt: 0.5 }}>
+                    <Box sx={{ height: '100%', width: presentTotal ? `${group.present / presentTotal * 100}%` : 0, bgcolor: category.color, borderRadius: 3 }} />
+                  </Box>
+                </Box>
+              </Paper>;
+            })}
+          </Box>
+        </>;
+      })()}
       <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
-        <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1} sx={{ px: 1.25, py: 1 }}><Typography fontWeight={800} fontSize={14}>Personal por sala y área</Typography><Stack direction="row" gap={0.5}><Chip size="small" label="A · Asistencia" color="success" variant="outlined" sx={{ fontSize: 10, height: 22 }} /><Chip size="small" label="X · Falta" color="error" variant="outlined" sx={{ fontSize: 10, height: 22 }} /></Stack></Stack>
-        <TableContainer><Table size="small" aria-label="Asistencia por sala y área" sx={{ ...tableSx, tableLayout: 'fixed', width: 795, minWidth: '100%' }}>
-          <colgroup>{[120, 75, 75, 90, 90, 75, 90, 90, 90].map((width, index) => <col key={index} style={{ width }} />)}</colgroup>
-          <TableHead><TableRow><TableCell>Sala / área</TableCell><TableCell align="right" sx={{ color: 'success.main' }}>A · Asistieron</TableCell><TableCell align="right" sx={{ color: 'error.main' }}>X · Faltaron</TableCell><TableCell align="right">Obra presentes</TableCell><TableCell align="right">Auxiliares presentes</TableCell><TableCell align="right">En registro</TableCell><TableCell align="right">Presentes sin clasificar</TableCell><TableCell align="right">Sin registro</TableCell><TableCell align="right">Revisar</TableCell></TableRow></TableHead>
-          <TableBody>{areas.map(area => { const rows = people.filter(person => person.area === area); return <TableRow key={area}><TableCell><Typography fontSize="inherit" fontWeight={700}>{area}</Typography>{rows.some(person => person.wildcard) && <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10 }}>{rows.filter(person => person.wildcard).length} comodines incluidos</Typography>}</TableCell>{bodyCells(rows, area)}</TableRow>; })}</TableBody>
+        <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1} sx={{ px: 1.25, py: 1 }}><Stack direction="row" alignItems="center" gap={1} useFlexGap flexWrap="wrap"><Typography fontWeight={800} fontSize={14}>{groupBy === 'area' ? 'Personal por sala y área' : groupBy === 'department' ? 'Personal por departamento' : 'Personal por actividad'}</Typography>
+          <ToggleButtonGroup exclusive size="small" value={groupBy} onChange={(_, value) => value && changeGroupBy(value)} aria-label="Agrupar personal por" sx={{ '& button': { textTransform: 'none', px: 1, py: 0.25, fontSize: 11.5 } }}><ToggleButton value="area">Por área</ToggleButton><ToggleButton value="department">Por departamento</ToggleButton><ToggleButton value="activity">Por actividad</ToggleButton></ToggleButtonGroup></Stack><Stack direction="row" gap={0.5}><Chip size="small" label="A · Asistencia" color="success" variant="outlined" sx={{ fontSize: 10, height: 22 }} /><Chip size="small" label="X · Falta" color="error" variant="outlined" sx={{ fontSize: 10, height: 22 }} /></Stack></Stack>
+        <TableContainer><Table size="small" aria-label={groupBy === 'area' ? 'Asistencia por sala y área' : groupBy === 'department' ? 'Asistencia por departamento' : 'Asistencia por actividad'} sx={{ ...tableSx, tableLayout: 'fixed', width: groupBy === 'area' ? 795 : 855, minWidth: '100%' }}>
+          <colgroup>{[groupBy === 'area' ? 120 : groupBy === 'department' ? 210 : 180, 75, 75, 90, 90, 75, 90, 90, 90].map((width, index) => <col key={index} style={{ width }} />)}</colgroup>
+          <TableHead><TableRow><TableCell>{groupBy === 'area' ? 'Sala / área' : groupBy === 'department' ? 'Departamento' : 'Actividad'}</TableCell><TableCell align="right" sx={{ color: 'success.main' }}>A · Asistieron</TableCell><TableCell align="right" sx={{ color: 'error.main' }}>X · Faltaron</TableCell><TableCell align="right">Obra presentes</TableCell><TableCell align="right">Auxiliares presentes</TableCell><TableCell align="right">En registro</TableCell><TableCell align="right">Presentes sin clasificar</TableCell><TableCell align="right">Sin registro</TableCell><TableCell align="right">Revisar</TableCell></TableRow></TableHead>
+          <TableBody>{groups.map(group => {
+            const rows = people.filter(person => groupOf(person) === group);
+            const mixed = groupBy === 'activity' ? rows.filter(person => person.otherActivities?.length).length : 0;
+            const section = groupBy === 'department' ? PLANT_DEPARTMENT_SECTIONS.find(item => item.items[0] === group) : undefined;
+            const sectionRows = section ? people.filter(person => section.items.includes(groupOf(person))) : [];
+            const sectioned = groupBy === 'department' && PLANT_DEPARTMENT_SECTIONS.some(item => item.items.includes(group));
+            return <Fragment key={group}>
+              {section && <TableRow sx={{ '& td': { bgcolor: '#eef2f7 !important', fontWeight: 800 } }}><TableCell><Button size="small" onClick={() => setStaffGroupSelection({ label: `${section.code}. ${section.label}`, rows: sectionRows })} sx={{ p: 0, minWidth: 0, justifyContent: 'flex-start', textAlign: 'left', textTransform: 'none', fontSize: 'inherit', fontWeight: 800, lineHeight: 1.35, color: 'text.primary' }}>{section.code}. {section.label}</Button></TableCell>{bodyCells(sectionRows, section.label)}</TableRow>}
+              <TableRow><TableCell sx={sectioned ? { pl: { xs: 2, sm: 3 } } : undefined}><Button size="small" onClick={() => setStaffGroupSelection({ label: group, rows })} sx={{ p: 0, minWidth: 0, justifyContent: 'flex-start', textAlign: 'left', textTransform: 'none', fontSize: 'inherit', fontWeight: sectioned ? 600 : 800, lineHeight: 1.35 }}>{group}</Button>{rows.some(person => person.wildcard) && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: 10 }}>{rows.filter(person => person.wildcard).length} comodines incluidos</Typography>}{!!mixed && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: 10 }}>{mixed} también en otra actividad</Typography>}</TableCell>{bodyCells(rows, group)}</TableRow>
+            </Fragment>;
+          })}</TableBody>
           <TableFooter><TableRow><TableCell>Total</TableCell>{bodyCells(people, '')}</TableRow></TableFooter>
         </Table></TableContainer>
       </Paper>
@@ -162,12 +241,90 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
         {people.some(person => person.kind === 'unknown') && <Chip size="small" label={`Puesto sin clasificar: ${people.filter(person => person.kind === 'unknown').length}`} variant="outlined" />}
       </Stack>}
     </>}
+    {tab === 'week' && history.data && <StaffWeek data={history.data} to={date} includedWeekdays={includedWeekdays} onDay={day => { setDate(day); setTab('day'); clearFilters(); }} />}
     {tab === 'history' && history.data && <StaffHistory data={history.data} includedWeekdays={includedWeekdays} onDay={day => { setDate(day); setTab('day'); clearFilters(); }} />}
     {active.data && <Box sx={{ px: 0.25 }}><Stack direction="row" justifyContent="space-between" gap={1} useFlexGap flexWrap="wrap" alignItems="center"><Typography variant="caption" color="text.secondary" sx={{ fontSize: 10 }}>Actualizado {new Date(active.data.updatedAt).toLocaleString('es-HN', { timeZone: 'America/Tegucigalpa' })}{tab === 'day' && date === today ? ' · Jornada en curso' : ''}</Typography><Button size="small" onClick={() => setMethodOpen(value => !value)} aria-expanded={methodOpen} aria-controls="staff-method" sx={{ fontSize: 11, py: 0 }}>Cómo se cuenta</Button></Stack>
       <Collapse in={methodOpen}><Paper id="staff-method" variant="outlined" sx={{ p: 1.25, mt: 0.5, borderRadius: 1.5 }}><Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75 }}>Última asistencia disponible: {active.data.lastAttendance ? formatPeriodo(active.data.lastAttendance) : 'Sin datos'}</Typography>{active.data.limitations.map(text => <Typography key={text} variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>{text}</Typography>)}</Paper></Collapse>
     </Box>}
+    <Dialog open={!!staffGroupSelection} onClose={() => setStaffGroupSelection(null)} fullWidth maxWidth="md">
+      <DialogTitle sx={{ px: 2, py: 1.25, borderBottom: '1px solid', borderColor: 'divider' }}>
+        <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1}>
+          <Box>
+            <Typography fontWeight={800}>{staffGroupSelection?.label ?? 'Personal'}</Typography>
+            <Typography variant="caption" color="text.secondary">{staffGroupSelection?.rows.length ?? 0} personas</Typography>
+          </Box>
+          <IconButton size="small" onClick={() => setStaffGroupSelection(null)} aria-label="Cerrar"><CloseIcon /></IconButton>
+        </Stack>
+      </DialogTitle>
+      <DialogContent sx={{ px: 0, pb: 0 }}>
+        {(() => {
+          const sortedRows = [...(staffGroupSelection?.rows ?? [])].sort((a, b) => a.name.localeCompare(b.name, 'es', { numeric: true }));
+          const productionRows = sortedRows.filter(person => person.kind === 'production');
+          const auxiliaryRows = sortedRows.filter(person => person.kind === 'auxiliary');
+          const unknownRows = sortedRows.filter(person => person.kind === 'unknown');
+          const peopleColumn = (title: string, rows: StaffEmployee[], color: string) => (
+            <Box sx={{ minWidth: 0, flex: 1 }}>
+              <Box sx={{ px: 1.25, py: 0.75, bgcolor: color, borderBottom: '1px solid', borderColor: 'divider' }}>
+                <Typography fontSize={13} fontWeight={800}>{title}</Typography>
+                <Typography variant="caption" color="text.secondary">{rows.length} personas</Typography>
+              </Box>
+              <TableContainer sx={{ maxHeight: 400 }}>
+                    <Table size="small" stickyHeader aria-label={`Listado de personas de ${title}`}>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell sx={{ fontWeight: 800 }}>Nombre</TableCell>
+                          <TableCell sx={{ fontWeight: 800 }}>Puesto</TableCell>
+                          <TableCell sx={{ fontWeight: 800 }}>Estado</TableCell>
+                          {groupBy === 'department' && <TableCell sx={{ fontWeight: 800 }}>Línea de origen</TableCell>}
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {rows.map(person => (
+                          <TableRow key={person.id} hover>
+                            <TableCell sx={{ fontWeight: 700 }}>{person.name}</TableCell>
+                            <TableCell>{person.job}</TableCell>
+                            <TableCell>
+                              <Chip
+                                size="small"
+                                label={staffStatusLabels[person.status]}
+                                color={person.status === 'present' ? 'success' : person.status === 'absent' ? 'error' : person.status === 'pending' || person.status === 'conflict' ? 'warning' : 'default'}
+                                variant="outlined"
+                                sx={{ fontSize: 10 }}
+                              />
+                            </TableCell>
+                            {groupBy === 'department' && <TableCell sx={{ fontSize: 11, color: 'text.secondary' }}>{person.plantDepartmentBasis}</TableCell>}
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+              </TableContainer>
+            </Box>
+          );
+          return <>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 0 }}>
+              {peopleColumn('Obra', productionRows, '#eff6ff')}
+              {peopleColumn('Auxiliares', auxiliaryRows, '#f0fdf4')}
+            </Box>
+            {!!unknownRows.length && (
+              <Box sx={{ px: 1.25, py: 1, borderTop: '1px solid', borderColor: 'divider' }}>
+                <Typography variant="caption" fontWeight={800} color="warning.dark">
+                  Puestos sin clasificar ({unknownRows.length})
+                </Typography>
+                <Stack sx={{ mt: 0.5 }} spacing={0.25}>
+                  {unknownRows.map(person => (
+                    <Typography key={person.id} variant="caption" color="text.secondary">
+                      {person.name} · {person.job} · {staffStatusLabels[person.status]}
+                    </Typography>
+                  ))}
+                </Stack>
+              </Box>
+            )}
+          </>;
+        })()}
+      </DialogContent>
+    </Dialog>
   </Stack>;
-}
+} 
 
 function StaffHistory({ data, includedWeekdays, onDay }: { data: StaffHistoryResponse; includedWeekdays: number[]; onDay: (day: string) => void }) {
   const selectedDays = data.days.filter(day => includedWeekdays.includes(new Date(`${day.day}T12:00:00Z`).getUTCDay()));
@@ -204,6 +361,68 @@ function StaffHistory({ data, includedWeekdays, onDay }: { data: StaffHistoryRes
           <TableCell align="right">{day.total ? formatValue(day.present) : '—'}</TableCell><TableCell align="right" sx={{ color: 'error.main', fontWeight: 800 }}>{day.total ? formatValue(day.absent) : '—'}</TableCell><TableCell align="right">{day.total ? formatValue(day.total) : '—'}</TableCell><TableCell align="right" sx={{ color: day.pending ? 'warning.dark' : undefined }}>{day.total ? formatValue(day.pending) : '—'}</TableCell><TableCell align="right">{day.total ? formatValue(day.conflict) : '—'}</TableCell><TableCell align="right">{day.absenceRate === null ? '—' : `${formatValue(day.absenceRate, 'decimal')}%`}</TableCell>
         </TableRow>)}</TableBody>
       </Table></TableContainer>
+    </Paper>
+  </Stack>;
+}
+
+/** Últimos 7 días calendario hasta la fecha elegida, sin los días de la semana desmarcados. */
+function StaffWeek({ data, to, includedWeekdays, onDay }: { data: StaffHistoryResponse; to: string; includedWeekdays: number[]; onDay: (day: string) => void }) {
+  const fromDate = new Date(`${to}T12:00:00Z`); fromDate.setUTCDate(fromDate.getUTCDate() - 6);
+  const from = fromDate.toISOString().slice(0, 10);
+  const days = data.days
+    .filter(day => day.day >= from && day.day <= to && includedWeekdays.includes(new Date(`${day.day}T12:00:00Z`).getUTCDay()))
+    .sort((a, b) => b.day.localeCompare(a.day));
+  const withData = days.filter(day => day.total > 0);
+  const sum = (field: keyof StaffHistoryDay) => withData.reduce((total, day) => total + Number(day[field] ?? 0), 0);
+  const rate = (absent: number, present: number) => present + absent > 0 ? absent / (present + absent) * 100 : null;
+  const complete = withData.every(day => !day.pending && !day.conflict);
+  const totals = {
+    present: sum('present'), absent: sum('absent'), total: sum('total'),
+    presentProduction: sum('presentProduction'), absentProduction: sum('absentProduction'), production: sum('production'),
+    presentAuxiliary: sum('presentAuxiliary'), absentAuxiliary: sum('absentAuxiliary'), auxiliary: sum('auxiliary'),
+  };
+  const totalRate = complete ? rate(totals.absent, totals.present) : null;
+  const num = (value: number | undefined, hasData: boolean, sx?: object) => <TableCell align="right" sx={sx}>{hasData ? formatValue(value ?? 0) : '—'}</TableCell>;
+  const pct = (value: number | null) => <TableCell align="right" sx={{ color: 'error.main', fontWeight: 800 }}>{value === null ? '—' : `${formatValue(value, 'decimal')}%`}</TableCell>;
+  const groupHead = { bgcolor: '#e8eef7 !important', textAlign: 'center', fontSize: '11px !important', py: '4px !important' } as const;
+  const weekdayName = (day: string) => weekdayLabels[new Date(`${day}T12:00:00Z`).getUTCDay()];
+  const cells = (row: typeof totals, hasData: boolean, absenceRate: number | null) => <>
+    {num(row.present, hasData, { color: 'success.main', fontWeight: 800 })}{num(row.absent, hasData, { color: 'error.main', fontWeight: 800 })}{num(row.total, hasData)}{pct(hasData ? absenceRate : null)}
+    {num(row.presentProduction, hasData, { color: '#1e40af', fontWeight: 700, borderLeft: '1px solid #e2e8f0' })}{num(row.absentProduction, hasData, { color: 'error.main' })}{num(row.production, hasData)}
+    {num(row.presentAuxiliary, hasData, { color: '#166534', fontWeight: 700, borderLeft: '1px solid #e2e8f0' })}{num(row.absentAuxiliary, hasData, { color: 'error.main' })}{num(row.auxiliary, hasData)}
+  </>;
+  return <Stack spacing={1}>
+    {!includedWeekdays.length && <Alert severity="info">Selecciona al menos un día de la semana.</Alert>}
+    <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
+      <Box sx={{ px: 1.25, py: 1 }}>
+        <Typography fontWeight={800} fontSize={14}>Asistencia por día · últimos 7 días</Typography>
+        <Typography variant="caption" color="text.secondary">{formatPeriodo(from)} a {formatPeriodo(to)}{includedWeekdays.length < 7 ? ` · sin ${weekdayLabels.filter((_, index) => !includedWeekdays.includes(index)).join(', ').toLowerCase()}` : ''} · toca una fecha para ver las salas</Typography>
+      </Box>
+      <TableContainer><Table size="small" aria-label="Asistencia por día de los últimos 7 días" sx={{ ...tableSx, minWidth: 900 }}>
+        <TableHead>
+          <TableRow><TableCell rowSpan={2}>Fecha</TableCell><TableCell colSpan={4} sx={groupHead}>Todo el personal</TableCell><TableCell colSpan={3} sx={{ ...groupHead, color: '#1e40af', borderLeft: '1px solid #cbd5e1' }}>Personal de obra</TableCell><TableCell colSpan={3} sx={{ ...groupHead, color: '#166534', borderLeft: '1px solid #cbd5e1' }}>Catalogado como auxiliar</TableCell></TableRow>
+          <TableRow>
+            <TableCell align="right" sx={{ color: 'success.main' }}>A · Asistieron</TableCell><TableCell align="right" sx={{ color: 'error.main' }}>X · Faltaron</TableCell><TableCell align="right">Personal en registro</TableCell><TableCell align="right">Inasistencia</TableCell>
+            <TableCell align="right" sx={{ borderLeft: '1px solid #e2e8f0' }}>Asistieron</TableCell><TableCell align="right">Faltaron</TableCell><TableCell align="right">En registro</TableCell>
+            <TableCell align="right" sx={{ borderLeft: '1px solid #e2e8f0' }}>Asistieron</TableCell><TableCell align="right">Faltaron</TableCell><TableCell align="right">En registro</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>{days.map(day => {
+          const hasData = day.total > 0;
+          const row = { present: day.present, absent: day.absent, total: day.total,
+            presentProduction: day.presentProduction ?? 0, absentProduction: day.absentProduction ?? 0, production: day.production,
+            presentAuxiliary: day.presentAuxiliary ?? 0, absentAuxiliary: day.absentAuxiliary ?? 0, auxiliary: day.auxiliary };
+          return <TableRow key={day.day} hover>
+            <TableCell><Button size="small" onClick={() => onDay(day.day)} sx={{ p: 0, minWidth: 0, whiteSpace: 'nowrap', fontSize: 'inherit', fontWeight: 700, textTransform: 'none' }}>{weekdayName(day.day)} {formatPeriodo(day.day)}</Button>
+              {day.day === data.today && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: 10 }}>Día en curso</Typography>}
+              {!hasData && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: 10 }}>Sin datos</Typography>}
+              {hasData && (day.pending > 0 || day.conflict > 0) && <Typography variant="caption" color="warning.dark" sx={{ display: 'block', fontSize: 10 }}>{day.pending + day.conflict} por revisar</Typography>}</TableCell>
+            {cells(row, hasData, day.absenceRate)}
+          </TableRow>;
+        })}</TableBody>
+        {withData.length > 0 && <TableFooter><TableRow><TableCell>Total · {withData.length} {withData.length === 1 ? 'día' : 'días'}</TableCell>{cells(totals, true, totalRate)}</TableRow></TableFooter>}
+      </Table></TableContainer>
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', px: 1.25, py: 0.75 }}>Los totales son personas-día: una persona cuenta una vez por cada fecha. Inasistencia = X / (A + X); queda en blanco si algún día tiene registros sin estado A/X definitivo.</Typography>
     </Paper>
   </Stack>;
 }

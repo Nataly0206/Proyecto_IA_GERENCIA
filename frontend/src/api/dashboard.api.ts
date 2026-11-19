@@ -46,9 +46,9 @@ export async function fetchPeladoLibrasHoyTalla(
   return data;
 }
 
-export async function fetchPeladoPorSala(refresh = false): Promise<PeladoPorSalaResponse> {
+export async function fetchPeladoPorSala(refresh = false, minHours: number | null = null, turno = ''): Promise<PeladoPorSalaResponse> {
   const { data } = await apiClient.get<PeladoPorSalaResponse>('/dashboard/pelado-por-sala', {
-    params: refresh ? { refresh: 'true' } : undefined,
+    params: { refresh: refresh ? 'true' : undefined, minHours: minHours ?? undefined, turno: turno || undefined },
   });
   return data;
 }

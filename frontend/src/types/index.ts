@@ -130,9 +130,19 @@ export interface PeladoStylePeriodRow extends DataRow {
 
 /** Libras peladas por talla (fuente: STB_data) */
 export interface PeladoTallaRow extends DataRow {
+  personas?: number;
+  horasPelado?: number | null;
+  personasPlanta?: number;
+  horasPeladoPlanta?: number | null;
+  rendimientosPersonas?: { libras: number; horas: number; rendimiento: number }[];
+  rendimientosPersonasPlanta?: { libras: number; horas: number; rendimiento: number }[];
   talla: string;
   libras: number;
   porcentaje: number;
+  librasConHoras?: number;
+  horasPersona?: number;
+  librasHoraPersona?: number | null;
+  librasHoraPersonaPlanta?: number | null;
 }
 
 /** Libras peladas por talla, agrupadas por período (día o mes) */
@@ -225,6 +235,8 @@ export interface PeladoSalaRow {
 }
 
 export interface PeladoPorSalaResponse {
+  /** Mismo corte de registros que las libras por sala. */
+  detalleTallas: PeladoTallaRow[];
   dia: string; // YYYY-MM-DD, siempre hoy
   actualizado: string; // ISO timestamp de la lectura
   horasTranscurridas: number; // horas desde el primer registro de pelado de hoy; divisor de librasPorHora

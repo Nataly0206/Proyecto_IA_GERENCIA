@@ -270,3 +270,44 @@ test('reporte A/X deduplica personas y detecta estados contradictorios sin doble
   assert.equal(summary.conflict, 1);
   assert.equal(summary.absenceRate, null);
 });
+
+test('actividad del día: usa el catálogo de actividades; sin actividad, agrupa por proceso', () => {
+  const people = buildStaffEmployees([row(1, { collector: 1 }), row(2, { collector: 1 }), row(3, { collector: 1 })], day);
+  const { employees } = attachStaffLocations(people, [
+    location(1),
+    // La columna actividad de la vista de obra es la línea: no debe usarse como actividad.
+    location(1, { source: 'workday', day, process: 'Pelado', room: '', line: 'OBRA  PELADO ND PROGRAMA', value: 40 }),
+    location(1, { source: 'workday', day, process: 'Descabezado', room: '', line: 'OBRA DESCABEZADO PROGRAMA TA (PESADO)', value: 60 }),
+    location(2, { source: 'workday', day, process: 'Clasificado', room: '', line: 'Pesado de Cola Clasificado', value: 460 }),
+    location(2, { source: 'activity', day, time: '07:00:00', process: 'Clasificado', room: '', line: 'Pesado de Cola Clasificado', activity: 'Pesado de Cola TA' }),
+    location(2, { source: 'activity', day, time: '09:00:00', process: 'Recepción', room: '', line: 'Recepcion', activity: 'Fabrica de Hielo TA' }),
+  ], day, day);
+  assert.equal(employees[0].area, 'Pelado · Sala 1');
+  assert.equal(employees[0].activity, 'Descabezado · sin actividad específica');
+  assert.deepEqual(employees[0].otherActivities, []);
+  assert.equal(employees[1].activity, 'Fabrica de Hielo TA');
+  assert.deepEqual(employees[1].otherActivities, ['Pesado de Cola TA']);
+  assert.equal(employees[2].activity, 'Sin actividad registrada');
+});
+
+const { departmentFromLine, departmentFromPayroll } = require('../dist/services/production-staff-department');
+test('departamento de planta según la línea de producción', () => {
+  const cases = [
+    ['Pelado', 'OBRA  PELADO ND PROGRAMA', '1.3 Pelado Programada'],
+    ['Pelado', 'Aux pelado tercero TA ', '1.4 Pelado Tercero'],
+    ['Pelado', 'OBRA PELADO ANILLO (PESADO)', '1.5 Pelado Anillo'],
+    ['Descabezado', 'Pesado de Cola Descabezado', '1.1 Descabezado'],
+    ['Clasificado', 'Clasificado Reproceso Programa 2 TA', '1.2 Clasificado'],
+    ['IQF', 'IQF Anillos 126G TA', '1.6 IQF'],
+    ['DECORACION ANILLOS', 'Perforacion Anillo TA', '1.11 Decoración Anillos'],
+    ['PRODUCCION', 'Reempaque TA', '1.12 Reempaque WSO'],
+    ['EMPAQUE', 'Codigo y Etiqueta', '2.1 Bodega, empaque, código'],
+    ['PLANILLA ACTIVIDADES', 'Poes', '2.2 Calidad, lavandería y POES'],
+    ['AUX. PESADO Y CHEQUEO ', 'Apoyo RRHH y SSO', '2.3 RRHH, gestión ambiental y mantenimiento'],
+    ['Recepción', 'Recepcion', '1.8 Recepción'],
+  ];
+  for (const [process, line, expected] of cases) assert.equal(departmentFromLine(process, line), expected, line);
+  assert.equal(departmentFromLine('Clasificado', 'Apoyo Cafeteria '), null);
+  assert.equal(departmentFromPayroll('CALIDAD E INOCUIDAD'), '2.2 Calidad, lavandería y POES');
+  assert.equal(departmentFromPayroll('PRODUCCION'), null);
+});

@@ -82,6 +82,8 @@ export interface PeladoStyleRow {
 
 /** Celda del reporte de libras peladas por estilo, agrupada por día, semana o mes. */
 export interface PeladoStylePeriodRow {
+  /** Libras / suma de (horas de planta × personas del día), solo jornadas con producción. */
+  rendimientoPorPersona?: number | null;
   tallaDominante?: string | null;
   /** "YYYY-MM-DD" para diario, "YYYY-Www" para semanal, "YYYY-MM" para mensual */
   periodo: string;
@@ -96,9 +98,22 @@ export interface PeladoStylePeriodRow {
 }
 
 export interface PeladoTallaRow {
+  /** Personas únicas y suma de horas-persona TRABAJADOS de la vista individual. */
+  personas: number;
+  horasPelado: number | null;
+  personasPlanta: number;
+  horasPeladoPlanta: number | null;
+  rendimientosPersonas: { libras: number; horas: number; rendimiento: number }[];
+  rendimientosPersonasPlanta: { libras: number; horas: number; rendimiento: number }[];
   talla: string;
   libras: number;
   porcentaje: number;
+  /** Insumos de L/HP: libras de la vista y suma de horas individuales TRABAJADOS. */
+  librasConHoras: number;
+  horasPersona: number;
+  librasHoraPersona: number | null;
+  /** Total del rango: libras / suma de TRABAJADOS; igual en todas las filas. */
+  librasHoraPersonaPlanta: number | null;
 }
 
 /** Celda del reporte de libras peladas por talla, agrupada por período (día o mes). */
@@ -214,6 +229,8 @@ export interface PeladoSalaRow {
 }
 
 export interface PeladoPorSalaResponse {
+  /** Mismo corte de registros que las libras por sala. */
+  detalleTallas: PeladoTallaRow[];
   /** Día mostrado (YYYY-MM-DD), siempre hoy */
   dia: string;
   /** Timestamp ISO de esta lectura */

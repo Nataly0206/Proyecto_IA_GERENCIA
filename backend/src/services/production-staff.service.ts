@@ -75,7 +75,6 @@ export async function getProductionStaff(day: string, forceRefresh = false) {
     const locations = await getStaffLocations(payrollEmployees.map(person => person.id), day, staffToday(), forceRefresh);
     const enriched = attachStaffLocations(payrollEmployees, locations, day, staffToday());
     employees = enriched.employees;
-    if (enriched.unverified) locationWarnings.push(`${enriched.unverified} personas sin coincidencia verificable con la asignación. Se conservan en el conteo de Payroll, sin asignarlas automáticamente a una sala.`);
   } catch (error) {
     locationAvailable = false;
     locationWarnings.push('No se pudieron consultar las asignaciones por sala. Las asistencias y faltas de Payroll se conservan; las ubicaciones quedan sin asignar.');
@@ -102,10 +101,10 @@ export async function getProductionStaffHistory(to: string, forceRefresh = false
     return { days: buildStaffHistory(rows, start, end), lastAttendance };
   };
   const [closed, current] = await Promise.all([
-    withTtlCache(`personal:history-closed:v1:${cacheScope}:${from}:${closedTo}`, 60 * 60_000,
+    withTtlCache(`personal:history-closed:v2:${cacheScope}:${from}:${closedTo}`, 60 * 60_000,
       () => loadPeriod(from, closedTo), forceRefresh),
     to === today
-      ? withTtlCache(`personal:history-today:v1:${cacheScope}:${today}`, 60_000,
+      ? withTtlCache(`personal:history-today:v2:${cacheScope}:${today}`, 60_000,
         () => loadPeriod(today, today), forceRefresh)
       : Promise.resolve({ days: [], lastAttendance: null }),
   ]);

@@ -33,7 +33,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import FilterAltOutlinedIcon from '@mui/icons-material/FilterAltOutlined';
 import { apiClient } from '../../api/client';
 import { useFilters } from '../../context/FiltersContext';
-import { usePeladoLibrasHoyTalla, usePeladoPorSala } from '../../hooks/useDashboardData';
+import { usePeladoPorSala } from '../../hooks/useDashboardData';
 import { PeladoSalaRow } from '../../types';
 import { formatPeriodo, formatValue } from '../../utils/format';
 
@@ -122,11 +122,10 @@ function readStoredHours(userId: string): string {
   }
 }
 
-export default function PeladoPorSalaTable({ userId }: { userId: string }) {
+export default function PeladoPorSalaTable({ userId, onMinHoursChange }: { userId: string; onMinHoursChange?: (value: number | null) => void }) {
   const { filters } = useFilters();
   const rowRefs = useRef(new Map<string, HTMLTableRowElement>());
   const previousPositions = useRef(new Map<string, number>());
-  const { data, isLoading, isError, error, dataUpdatedAt } = usePeladoPorSala();
   const [tallaOpen, setTallaOpen] = useState(false);
   const [vista, setVista] = useState<'salas' | 'dia' | 'semana' | 'mes'>('salas');
   const reportYear = filters.fechaFinal.slice(0, 4);
@@ -139,9 +138,11 @@ export default function PeladoPorSalaTable({ userId }: { userId: string }) {
 
   const parsedHours = Number(minHours);
   const hoursThreshold = minHours !== '' && Number.isFinite(parsedHours) && parsedHours >= 0 && parsedHours <= 24 ? parsedHours : null;
+  useEffect(() => { onMinHoursChange?.(hoursThreshold); }, [hoursThreshold, onMinHoursChange]);
+  const { data, isLoading, isError, error, dataUpdatedAt } = usePeladoPorSala(hoursThreshold, filters.turno);
   const validHours = minHours === '' || (Number.isFinite(parsedHours) && parsedHours >= 0 && parsedHours <= 24);
   const dailyQuery = useQuery<SalaDailyRow[]>({
-    queryKey: [vista === 'mes' ? 'pelado-por-sala-diario:mensual-v2' : 'pelado-por-sala-diario:periodos-v1', vista, reportFilters, hoursThreshold],
+    queryKey: [vista === 'mes' ? 'pelado-por-sala-diario:mensual-scope-v3' : 'pelado-por-sala-diario:periodos-scope-v2', vista, reportFilters, hoursThreshold],
     queryFn: async ({ signal }) => (await apiClient.get<SalaDailyRow[]>('/dashboard/pelado-por-sala-diario', {
       params: { ...reportFilters, periodo: vista === 'salas' ? 'dia' : vista, minHours: hoursThreshold ?? undefined },
       signal,
@@ -599,13 +600,22 @@ export default function PeladoPorSalaTable({ userId }: { userId: string }) {
         )}
       </CardContent>
 
-      <PeladoTallaHoyDialog open={tallaOpen} onClose={() => setTallaOpen(false)} />
+      <PeladoTallaHoyDialog open={tallaOpen} onClose={() => setTallaOpen(false)} salas={salas} day={data?.dia ?? ''} isLoading={isLoading} isError={isError} error={error} dataUpdatedAt={dataUpdatedAt} />
     </Card>
   );
 }
 
-function PeladoTallaHoyDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { data, isLoading, isError, error, dataUpdatedAt } = usePeladoLibrasHoyTalla(open);
+function PeladoTallaHoyDialog({ open, onClose, salas, day, isLoading, isError, error, dataUpdatedAt }: {
+  open: boolean; onClose: () => void; salas: PeladoSalaRow[]; day: string;
+  isLoading: boolean; isError: boolean; error: unknown; dataUpdatedAt: number;
+}) {
+  const sizes = new Map<string, number>();
+  for (const sala of salas) for (const row of sala.tallasHoy ?? []) sizes.set(row.talla, (sizes.get(row.talla) ?? 0) + row.libras);
+  const data = {
+    dia: day,
+    total: salas.reduce((sum, sala) => sum + sala.librasPeladasHoy, 0),
+    tallas: [...sizes].map(([talla, libras]) => ({ talla, libras })),
+  };
   const [sortBy, setSortBy] = useState<'talla' | 'libras' | 'porcentaje'>('talla');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const total = data?.total ?? 0;

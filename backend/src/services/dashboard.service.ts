@@ -1,3 +1,4 @@
+import { peelingSizePerformance } from '../utils/peladoTallaPerformance';
 import { normalizarTalla, tallaMasPelada } from '../utils/peladoTallas';
 import { summarizePeelingWorkdays } from '../utils/peelingWorkdays';
 import { ReportPeriod, reportPeriodOf } from '../utils/reportPeriod';
@@ -19,6 +20,7 @@ import {
 } from './reports.queries';
 import {
   PELADO_BY_DIMENSION_DAILY_QUERY,
+  PELADO_TALLA_PERSONAL_RENDIMIENTO_QUERY,
   PELADO_BY_DIMENSION_QUERY,
   PELADO_LIBRAS_HOY_ESTILOS_FALLBACK_QUERY,
   PELADO_LIBRAS_HOY_ESTILOS_QUERY,
@@ -29,6 +31,7 @@ import {
   PELADO_PERSONAL_DAILY_QUERY,
   PELADO_POR_SALA_ACTIVOS_QUERY,
   PELADO_POR_SALA_HOY_QUERY,
+  PELADO_SALAS_MINUTOS_HOY_QUERY,
   PELADO_TALLAS_POR_SALA_HOY_QUERY,
   PELADO_POR_SALA_DIARIO_QUERY,
   PELADO_POR_SALA_MENSUAL_QUERY,
@@ -412,10 +415,35 @@ export async function getPeladoPorEstilo(filters: DashboardFilters): Promise<Pel
 }
 
 /** Libras peladas por talla, totalizadas sobre el rango de fechas filtrado. */
-export async function getPeladoPorTalla(filters: DashboardFilters): Promise<PeladoTallaRow[]> {
-  const groups = await fetchPeladoDimensionGroups(filters.fechaInicial, filters.fechaFinal);
-  return aggregateDimensionTotal(groups, filters.turno, 'talla')
-    .map(({ valor, libras, porcentaje }) => ({ talla: valor, libras, porcentaje }));
+export async function getPeladoPorTalla(filters: DashboardFilters, minHours: number | null = null): Promise<PeladoTallaRow[]> {
+  const rows = await runStbQuery(PELADO_TALLA_PERSONAL_RENDIMIENTO_QUERY, [
+    ...dateParams(filters.fechaInicial, filters.fechaFinal),
+    { name: 'MinHours', type: sql.Decimal(5, 2), value: minHours },
+    { name: 'Turno', type: sql.VarChar(20), value: filters.turno ? `TURNO ${filters.turno.toUpperCase().replace('TURNO ', '')}` : null },
+  ]);
+  return peelingTallasFromScopeRows(rows);
+}
+
+function peelingTallasFromScopeRows(rows: SqlRow[]): PeladoTallaRow[] {
+  const aggregate = (source: string) => {
+    const grouped = new Map<string, { talla: string; id: number; libras: number; horas: number; sinHoras: number }>();
+    for (const row of rows.filter(row => pickString(row, 'Fuente') === source)) {
+      const talla = normalizarTalla(pickString(row, 'Talla'));
+      const id = pickNumber(row, 'IdEmpleado');
+      const key = `${id}|${talla}`;
+      const value = grouped.get(key) ?? { talla, id, libras: 0, horas: 0, sinHoras: 0 };
+      value.libras += pickNumber(row, 'Libras'); value.horas += pickNumber(row, 'HorasTrabajadas'); value.sinHoras += pickNumber(row, 'SinHoras');
+      grouped.set(key, value);
+    }
+    return grouped;
+  };
+  const hours = aggregate('PBI');
+  return peelingSizePerformance([...aggregate('BASE')].map(([key, record]) => {
+    const paid = hours.get(key);
+    // No atribuir horas de otra sala a libras incluidas cuando la vista mezcla registros.
+    const reconciled = paid && Math.abs(paid.libras - record.libras) < 0.005;
+    return { ...record, horas: reconciled ? paid.horas : 0, sinHoras: reconciled ? paid.sinHoras : 1 };
+  }));
 }
 
 interface PeladoDimensionDailyGroup extends PeladoDimensionGroup {
@@ -477,11 +505,6 @@ export async function getPeladoPorEstiloDia(
     aggregatePeladoPersonalByPeriod(personalGroups, filters.turno, periodOf)
       .map((p) => [p.periodo, p.empleados]),
   );
-  const horas = new Map<string, number>();
-  for (const [dia, hours] of horasPorDia) {
-    const key = periodOf(dia);
-    horas.set(key, (horas.get(key) ?? 0) + hours);
-  }
   const diasPorPeriodo = new Map<string, Set<string>>();
   for (const g of groups) {
     if (g.libras <= 0 || g.estilo === '' || (filters.turno && !matchesTurno(g.turno, filters.turno))) continue;
@@ -490,6 +513,25 @@ export async function getPeladoPorEstiloDia(
     dias.add(g.dia);
     diasPorPeriodo.set(key, dias);
   }
+  const personasPorDia = new Map(aggregatePeladoPersonalByPeriod(
+    personalGroups.filter(group => group.libras > 0), filters.turno, dia => dia,
+  ).map(row => [row.periodo, row.empleados]));
+  const horas = new Map<string, number>();
+  const horasPersona = new Map<string, number>();
+  const incompletos = new Set<string>();
+  for (const [periodo, dias] of diasPorPeriodo) {
+    for (const dia of dias) {
+      const hours = horasPorDia.get(dia) ?? 0;
+      const people = personasPorDia.get(dia) ?? 0;
+      // Solo jornadas con libras: pondera cada fecha por su propio personal.
+      horas.set(periodo, (horas.get(periodo) ?? 0) + hours);
+      if (hours <= 0 || people <= 0) incompletos.add(periodo);
+      else horasPersona.set(periodo, (horasPersona.get(periodo) ?? 0) + hours * people);
+    }
+  }
+  const estiloRows = aggregateDimensionByPeriod(groups, filters.turno, 'estilo', periodOf);
+  const librasPorPeriodo = new Map<string, number>();
+  for (const row of estiloRows) librasPorPeriodo.set(row.periodo, (librasPorPeriodo.get(row.periodo) ?? 0) + row.libras);
   const tallasDominantes = new Map<string, { talla: string; libras: number }>();
   for (const row of aggregateDimensionByPeriod(groups, filters.turno, 'talla', periodOf)) {
     const dominante = tallasDominantes.get(row.periodo);
@@ -497,13 +539,17 @@ export async function getPeladoPorEstiloDia(
       tallasDominantes.set(row.periodo, { talla: row.valor, libras: row.libras });
     }
   }
-  return aggregateDimensionByPeriod(groups, filters.turno, 'estilo', periodOf)
+  return estiloRows
     .map(({ periodo, valor, libras }) => ({
       periodo, estilo: valor, libras,
       tallaDominante: tallasDominantes.get(periodo)?.talla ?? null,
       horasTrabajadas: round2(horas.get(periodo) ?? 0),
       personas: personas.get(periodo) ?? 0,
       diasTrabajados: diasPorPeriodo.get(periodo)?.size ?? 0,
+      ...(period !== 'dia' ? {
+        rendimientoPorPersona: !incompletos.has(periodo) && (horasPersona.get(periodo) ?? 0) > 0
+          ? round2((librasPorPeriodo.get(periodo) ?? 0) / horasPersona.get(periodo)!) : null,
+      } : {}),
     }));
 }
 
@@ -675,67 +721,40 @@ export async function getPeladoLibrasHoyTalla(): Promise<PeladoLibrasHoyTallaRes
 /* usando la ventana de 30 min (solo pelado individual).               */
 /* ------------------------------------------------------------------ */
 
-export async function getPeladoPorSala(): Promise<PeladoPorSalaResponse> {
-  const [hoyRows, activosRows, transcurridoRows, tallaRows] = await Promise.all([
-    runStbQuery(PELADO_POR_SALA_HOY_QUERY, []),
-    runStbQuery(PELADO_POR_SALA_ACTIVOS_QUERY, []),
-    runStbQuery(PELADO_MINUTOS_TRANSCURRIDOS_HOY_QUERY, []),
-    runStbQuery(PELADO_TALLAS_POR_SALA_HOY_QUERY, []),
+export async function getPeladoPorSala(minHours: number | null = null, turno?: string): Promise<PeladoPorSalaResponse> {
+  const dia = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Tegucigalpa', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  // Libras por sala y por talla salen del mismo #PeladoDetalleIncluido congelado en SQL.
+  const rows = await runStbQuery(PELADO_TALLA_PERSONAL_RENDIMIENTO_QUERY, [
+    ...dateParams(dia, dia),
+    { name: 'MinHours', type: sql.Decimal(5, 2), value: minHours },
+    { name: 'Turno', type: sql.VarChar(20), value: turno ? `TURNO ${turno.toUpperCase().replace('TURNO ', '')}` : null },
   ]);
-
-  const tallasPorSala = new Map<string, { talla: string; libras: number }[]>();
-  for (const row of tallaRows) {
-    const sala = pickString(row, 'NOMBRE_SALA');
-    const tallas = tallasPorSala.get(sala) ?? [];
-    tallas.push({ talla: normalizarTalla(pickString(row, 'Talla')), libras: pickNumber(row, 'Libras') });
-    tallasPorSala.set(sala, tallas);
-  }
-
-  const activosPorSala = new Map(
-    activosRows.map((row) => [pickString(row, 'NOMBRE_SALA'), row] as const),
-  );
-
-  // Horas transcurridas del día (mismo divisor para todas las salas):
-  // desde el primer registro de pelado de hoy hasta ahora.
-  const minutosTranscurridos = pickNumber(transcurridoRows[0] ?? {}, 'MinutosTranscurridos');
-  const horasTranscurridas = minutosTranscurridos > 0 ? round2(minutosTranscurridos / 60) : 0;
-
-  const salas = hoyRows
-    .map((row) => {
-      const sala = pickString(row, 'NOMBRE_SALA');
-      const activos = activosPorSala.get(sala);
-      const tallas = tallasPorSala.get(sala) ?? [];
-      // `personasActivas` se aproxima con los empleados distintos que
-      // tienen pago de destajo de pelado hoy en la sala (individual +
-      // grupal), no con una ventana de 30 min: es un estimado de cuánta
-      // gente está pelando por sala. Coincide con `empleadosRegistrandoHoy`.
-      const empleadosHoy = pickNumber(row, 'EmpleadosRegistrando');
-      const librasPeladasHoy = round2(pickNumber(row, 'LibrasPeladasHoy'));
-      return {
-        sala,
-        personasActivas: empleadosHoy,
-        tallaMasPelada: tallaMasPelada(tallas),
-        tallasHoy: tallas,
-        librasUltimos30Min: activos ? round2(pickNumber(activos, 'LibrasUltimos30Min')) : 0,
-        librasPeladasHoy,
-        librasPorHora: horasTranscurridas > 0 ? round2(librasPeladasHoy / horasTranscurridas) : 0,
-        pagoAcumuladoHoy: round2(pickNumber(row, 'PagoAcumuladoHoy')),
-        empleadosRegistrandoHoy: empleadosHoy,
-        horasTrabajadas: round2(pickNumber(row, 'HorasTrabajadas')),
-      };
-    })
-    .sort((a, b) => {
-      const na = Number(a.sala.replace(/\D/g, '')) || 0;
-      const nb = Number(b.sala.replace(/\D/g, '')) || 0;
-      return na - nb;
-    });
-
-  return {
-    dia: formatDate(new Date()),
-    actualizado: new Date().toISOString(),
-    horasTranscurridas,
-    salas,
-  };
+  const roomRows = rows.filter(row => pickString(row, 'Fuente') === 'SALA');
+  const sizeRows = rows.filter(row => pickString(row, 'Fuente') === 'TALLA_SALA');
+  const seconds = (time: string) => time.split(':').reduce((sum, value) => sum * 60 + Number(value), 0);
+  const first = roomRows.map(row => pickString(row, 'PrimeraHora')).filter(Boolean).sort()[0];
+  const captured = pickString(rows[0] ?? {}, 'HoraCaptura');
+  const horasTranscurridas = first && captured ? Math.max(0, (seconds(captured) - seconds(first)) / 3600) : 0;
+  const salas = roomRows.map(row => {
+    const sala = pickString(row, 'Sala');
+    const tallas = new Map<string, number>();
+    for (const size of sizeRows.filter(size => pickString(size, 'Sala') === sala)) {
+      const talla = normalizarTalla(pickString(size, 'Talla'));
+      tallas.set(talla, (tallas.get(talla) ?? 0) + pickNumber(size, 'Libras'));
+    }
+    const tallasHoy = [...tallas].map(([talla, libras]) => ({ talla, libras: round2(libras) }));
+    const librasPeladasHoy = round2(pickNumber(row, 'Libras'));
+    const personas = pickNumber(row, 'Personas');
+    return {
+      sala, personasActivas: personas, empleadosRegistrandoHoy: personas,
+      tallaMasPelada: tallaMasPelada(tallasHoy), tallasHoy,
+      librasPeladasHoy, librasUltimos30Min: round2(pickNumber(row, 'LibrasRecientes')),
+      librasPorHora: horasTranscurridas > 0 ? round2(librasPeladasHoy / horasTranscurridas) : 0,
+      pagoAcumuladoHoy: round2(pickNumber(row, 'Valor')), horasTrabajadas: round2(pickNumber(row, 'HorasTrabajadas')),
+    };
+  }).sort((a, b) => a.sala.localeCompare(b.sala, 'es', { numeric: true }));
+  return { dia, actualizado: pickString(rows[0] ?? {}, 'Actualizado') || new Date().toISOString(),
+    horasTranscurridas: round2(horasTranscurridas), salas, detalleTallas: peelingTallasFromScopeRows(rows) };
 }
 
 export async function getPeladoPorSalaDiario(

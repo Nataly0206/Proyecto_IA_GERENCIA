@@ -11,6 +11,9 @@ export interface StaffEmployee {
   id: number; code: string; name: string; department: string; division: string; job: string; shift: string;
   kind: StaffKind; wildcard: boolean; status: StaffStatus; reason: string;
   area: string; areaBasis: string; areaDay: string | null; areaTime: string | null;
+  activity: string; activityBasis: string; otherActivities: string[];
+  /** Renglón de la lista de departamentos de planta (ver production-staff-department.ts). */
+  plantDepartment: string; plantDepartmentBasis: string;
   actions: { code: string; label: string }[]; entry: string | null; exit: string | null;
   reportMark: 'A' | 'X' | null; firstPunch: string | null; lastPunch: string | null;
   sources: PayrollSource[]; hasAttendance: boolean; absenceRecorded: boolean;
@@ -109,6 +112,8 @@ export function buildStaffEmployees(rows: PayrollStaffRow[], day: string): Staff
       job: reference.job || 'Sin puesto registrado', shift: reference.shift || 'Sin turno registrado',
       kind: staffKind(reference.job), wildcard: /COMODIN/.test(normalize(reference.job)),
       area: 'Sin sala/área asignada', areaBasis: 'Sin asignación verificada', areaDay: null, areaTime: null,
+      activity: 'Sin actividad registrada', activityBasis: 'Sin actividad ni proceso registrado para el día', otherActivities: [],
+      plantDepartment: 'Sin departamento asignado', plantDepartmentBasis: 'Sin ubicación de STB',
       reportMark, firstPunch: values.map(row => row.firstPunch).filter((value): value is string => !!value).sort()[0] ?? null,
       lastPunch: values.map(row => row.lastPunch).filter((value): value is string => !!value).sort().slice(-1)[0] ?? null,
       status, reason, actions: [...actions.values()], entry, exit, sources: [...new Set(values.map(row => row.source))], hasAttendance, absenceRecorded,
@@ -150,7 +155,12 @@ export function buildStaffHistory(rows: PayrollStaffRow[], from: string, to: str
   const days = [];
   for (let date = new Date(`${from}T12:00:00Z`); date.toISOString().slice(0, 10) <= to; date.setUTCDate(date.getUTCDate() + 1)) {
     const day = date.toISOString().slice(0, 10);
-    days.push({ day, ...summarizeStaff(buildStaffEmployees(byDay.get(day) ?? [], day)) });
+    const people = buildStaffEmployees(byDay.get(day) ?? [], day);
+    const by = (kind: StaffKind, status: StaffStatus) => people.filter(person => person.kind === kind && person.status === status).length;
+    // Desglose obra/auxiliar para la vista semanal; el tipo sale del puesto de Payroll, sin depender de la sala.
+    days.push({ day, ...summarizeStaff(people),
+      presentProduction: by('production', 'present'), absentProduction: by('production', 'absent'),
+      presentAuxiliary: by('auxiliary', 'present'), absentAuxiliary: by('auxiliary', 'absent') });
   }
   return days;
 }

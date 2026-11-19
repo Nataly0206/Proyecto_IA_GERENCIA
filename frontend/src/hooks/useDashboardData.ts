@@ -73,7 +73,7 @@ function writeBrowserCache<T>(key: string, data: T): void {
   }
 }
 
-export function useWidgetData(endpoint: DashboardEndpoint, extraParams?: Record<string, string>) {
+export function useWidgetData(endpoint: DashboardEndpoint, extraParams?: Record<string, string>, enabled = true) {
   const { filters } = useFilters();
   const queryClient = useQueryClient();
   const filtersAreValid = !getDateFilterError(filters);
@@ -89,8 +89,10 @@ export function useWidgetData(endpoint: DashboardEndpoint, extraParams?: Record<
       ? `${endpoint}:ships-exportacion-v3`
       : endpoint === 'libras-netas-proceso-dia' || endpoint === 'libras-netas-proceso-mes'
         ? `${endpoint}:fechas-trabajadas-v3`
+      : endpoint === 'pelado-por-talla'
+        ? `${endpoint}:scope-pbi-v7`
       : endpoint === 'pelado-por-estilo-dia'
-        ? `${endpoint}:talla-dominante-v3`
+        ? `${endpoint}:rendimiento-jornadas-v5`
       : endpoint === 'descabezado-por-dia' || endpoint === 'descabezado-por-dia-mes'
         ? `${endpoint}:pesos-v4`
       : endpoint === 'compra-mp-por-proveedor-dia'
@@ -117,9 +119,9 @@ export function useWidgetData(endpoint: DashboardEndpoint, extraParams?: Record<
     },
     initialData: cached?.data,
     initialDataUpdatedAt: cached?.updatedAt,
-    enabled: filtersAreValid,
+    enabled: enabled && filtersAreValid,
     staleTime: REFRESH_INTERVAL_MS,
-    refetchInterval: REFRESH_INTERVAL_MS,
+    refetchInterval: enabled ? REFRESH_INTERVAL_MS : false,
     refetchIntervalInBackground: true,
   });
   const refreshNow = async () => {
@@ -230,29 +232,30 @@ export function usePeladoLibrasHoyTalla(enabled: boolean) {
   return { ...query, refreshNow };
 }
 
-export function usePeladoPorSala() {
+export function usePeladoPorSala(minHours: number | null = null, turno = '', enabled = true) {
   const queryClient = useQueryClient();
-  const queryKey = ['dashboard', 'pelado-por-sala'] as const;
-  const cacheKey = browserCacheKey(['pelado-por-sala', 'current']);
+  const queryKey = ['dashboard', 'pelado-por-sala:snapshot-v3', minHours, turno] as const;
+  const cacheKey = browserCacheKey(['pelado-por-sala:snapshot-v3', minHours, turno]);
   const cached = readBrowserCache<PeladoPorSalaResponse>(cacheKey, LIVE_REFRESH_INTERVAL_MS);
-  const currentCache = cached?.data.salas.every((sala) => typeof sala.horasTrabajadas === 'number' && Array.isArray(sala.tallasHoy)) ? cached : null;
+  const currentCache = Array.isArray(cached?.data.detalleTallas) && cached?.data.salas.every((sala) => typeof sala.horasTrabajadas === 'number' && Array.isArray(sala.tallasHoy)) ? cached : null;
 
   const query = useQuery<PeladoPorSalaResponse>({
     queryKey,
+    enabled,
     queryFn: async () => {
-      const data = await fetchPeladoPorSala();
+      const data = await fetchPeladoPorSala(false, minHours, turno);
       writeBrowserCache(cacheKey, data);
       return data;
     },
     initialData: currentCache?.data,
     initialDataUpdatedAt: currentCache?.updatedAt,
     staleTime: LIVE_REFRESH_INTERVAL_MS,
-    refetchInterval: LIVE_REFRESH_INTERVAL_MS,
+    refetchInterval: enabled ? LIVE_REFRESH_INTERVAL_MS : false,
     refetchIntervalInBackground: true,
   });
 
   const refreshNow = async (): Promise<PeladoPorSalaResponse> => {
-    const data = await fetchPeladoPorSala(true);
+    const data = await fetchPeladoPorSala(true, minHours, turno);
     writeBrowserCache(cacheKey, data);
     queryClient.setQueryData<PeladoPorSalaResponse>(queryKey, data);
     return data;
@@ -367,7 +370,7 @@ export function useRefreshDashboard() {
       'pelado-libras-hoy',
       'pelado-libras-hoy-talla',
       'pelado-talla-dominante-diaria:v1',
-      'pelado-por-sala',
+      'pelado-por-sala:snapshot-v3',
       ...PROCESO_RESUMEN_ENDPOINTS,
     ]);
     const endpoints = Array.from(
@@ -388,8 +391,6 @@ export function useRefreshDashboard() {
     const liveCacheKey = browserCacheKey(['live', 'by-day-v2', filters.fechaFinal, filters.turno]);
     const peladoLiveKey = ['dashboard', 'pelado-libras-hoy'] as const;
     const peladoLiveCacheKey = browserCacheKey(['pelado-libras-hoy', 'current']);
-    const peladoPorSalaKey = ['dashboard', 'pelado-por-sala'] as const;
-    const peladoPorSalaCacheKey = browserCacheKey(['pelado-por-sala', 'current']);
 
     await Promise.all([
       fetchIqfLive(true, filters).then((data) => {
@@ -411,9 +412,12 @@ export function useRefreshDashboard() {
           queryClient.setQueryData(['dashboard', 'pelado-talla-dominante-diaria:v1', filters], data);
         }),
       ] : []),
-      fetchPeladoPorSala(true).then((data) => {
-        writeBrowserCache(peladoPorSalaCacheKey, data);
-        queryClient.setQueryData<PeladoPorSalaResponse>(peladoPorSalaKey, data);
+      ...activeQueries.filter(query => query.queryKey[1] === 'pelado-por-sala:snapshot-v3').map(async query => {
+        const minHours = typeof query.queryKey[2] === 'number' ? query.queryKey[2] : null;
+        const turno = typeof query.queryKey[3] === 'string' ? query.queryKey[3] : '';
+        const data = await fetchPeladoPorSala(true, minHours, turno);
+        writeBrowserCache(browserCacheKey(['pelado-por-sala:snapshot-v3', minHours, turno]), data);
+        queryClient.setQueryData<PeladoPorSalaResponse>(query.queryKey, data);
       }),
       ...endpoints.map(async (endpoint) => {
         const data = await fetchWidgetData(endpoint, filters, true);

@@ -26,20 +26,27 @@ export function staffLocationsQuery(historicalOnly = false) {
   ), Ultimas AS (
     SELECT *,DENSE_RANK() OVER(PARTITION BY IdEmpleado ORDER BY Dia DESC,Hora DESC) posicion FROM Pesadas
   )
-  SELECT DISTINCT IdEmpleado,'production' Fuente,CONVERT(varchar(10),Dia,23) Dia,Hora,Proceso,Sala,CAST(NULL AS varchar(200)) Linea FROM Ultimas WHERE posicion=1
-  ${historicalOnly ? '' : `
+  SELECT DISTINCT IdEmpleado,'production' Fuente,CONVERT(varchar(10),Dia,23) Dia,Hora,Proceso,Sala,CAST(NULL AS varchar(200)) Linea,CAST(NULL AS decimal(18,2)) Valor,CAST(NULL AS varchar(200)) Actividad FROM Ultimas WHERE posicion=1
+  ${historicalOnly ? `
   UNION ALL
-  SELECT e.ID_EMPLEADO,'assignment',NULL,NULL,'Pelado',s.NOMBRE_SALA,NULL
+  SELECT idempleado,'lastLine',CONVERT(varchar(10),Fecha,23),NULL,Proceso,NULL,LineaProduccion,ValorTrabajado,NULL
+  FROM (
+    SELECT idempleado,Fecha,Proceso,LineaProduccion,ValorTrabajado,
+      ROW_NUMBER() OVER(PARTITION BY idempleado ORDER BY Fecha DESC,ValorTrabajado DESC) orden
+    FROM dbo.V_EmpleadosObraActividades WHERE Fecha>=@Desde AND Fecha<=@Hasta
+  ) u WHERE orden=1` : `
+  UNION ALL
+  SELECT e.ID_EMPLEADO,'assignment',NULL,NULL,'Pelado',s.NOMBRE_SALA,NULL,NULL,NULL
   FROM dbo.PES_EMPLEADOS_LINEAS e
   LEFT JOIN dbo.DCP_LINEAS l ON l.ID_LINEA=e.ID_LINEA
   LEFT JOIN dbo.PES_SALAS s ON s.ID_SALA=l.ID_SALA
   WHERE @Actual=1 AND e.ACTIVO=1
   UNION ALL
-  SELECT e.ID_EMPLEADO,'assignment',NULL,NULL,'Descabezado',NULL,NULL
+  SELECT e.ID_EMPLEADO,'assignment',NULL,NULL,'Descabezado',NULL,NULL,NULL,NULL
   FROM dbo.DES_EMPLEADOS_LINEAS e
   WHERE @Actual=1 AND e.ACTIVO=1
   UNION ALL
-  SELECT f.IdEmpleado,'activation',CONVERT(varchar(10),f.Fecha,23),NULL,p.NOMBRE_PROCESO,NULL,NULL
+  SELECT f.IdEmpleado,'activation',CONVERT(varchar(10),f.Fecha,23),NULL,p.NOMBRE_PROCESO,NULL,NULL,NULL,NULL
   FROM (
     SELECT f.IdEmpleado,f.Fecha,f.IdProceso,f.Activo,
       ROW_NUMBER() OVER(PARTITION BY f.IdEmpleado ORDER BY f.FechaHora DESC,f.IdEmpleadoDepto DESC) orden
@@ -49,12 +56,12 @@ export function staffLocationsQuery(historicalOnly = false) {
   LEFT JOIN dbo.DCP_PROCESOS p ON p.ID_PROCESO=f.IdProceso
   WHERE f.Activo=1 AND f.orden=1
   UNION ALL
-  SELECT a.IdEmpleado,'activity',CONVERT(varchar(10),a.Fecha,23),CONVERT(varchar(8),a.HoraDesde,108),p.Proceso,NULL,a.LineaProduccion
+  SELECT a.IdEmpleado,'activity',CONVERT(varchar(10),a.Fecha,23),CONVERT(varchar(8),a.HoraDesde,108),p.Proceso,NULL,a.LineaProduccion,NULL,a.Actividad
   FROM dbo.VAsistenciaActividades a
   OUTER APPLY (SELECT TOP(1) p.NOMBRE_PROCESO Proceso FROM dbo.dcp_LineasProduccion l JOIN dbo.DCP_PROCESOS p ON p.ID_PROCESO=l.IdProceso WHERE l.LineaProduccion=a.LineaProduccion ORDER BY l.Activa DESC,l.IdLineaProduccion) p
   WHERE a.Fecha=@Hasta AND (a.HoraDesde<=CAST(@Corte AS time) OR a.HoraDesde IS NULL)
   UNION ALL
-  SELECT a.idempleado,'workday',CONVERT(varchar(10),a.Fecha,23),NULL,a.Proceso,NULL,a.LineaProduccion
+  SELECT a.idempleado,'workday',CONVERT(varchar(10),a.Fecha,23),NULL,a.Proceso,NULL,a.LineaProduccion,a.ValorTrabajado,NULL
   FROM dbo.V_EmpleadosObraActividades a WHERE a.Fecha=@Hasta`}`;
 }
 
@@ -83,7 +90,7 @@ async function loadLocations(start: string, end: string, current: boolean, cutof
   ]);
   return rows.map(row => ({ id: pickNumber(row, 'IdEmpleado'),
     source: pickString(row, 'Fuente') as StaffLocationRow['source'], day: pickString(row, 'Dia'), time: pickString(row, 'Hora'),
-    process: pickString(row, 'Proceso'), room: pickString(row, 'Sala'), line: pickString(row, 'Linea') }));
+    process: pickString(row, 'Proceso'), room: pickString(row, 'Sala'), line: pickString(row, 'Linea'), value: pickNumber(row, 'Valor'), activity: pickString(row, 'Actividad') }));
 }
 
 export async function getStaffLocations(ids: number[], day: string, currentDay: string, forceRefresh = false): Promise<StaffLocationRow[]> {
@@ -94,7 +101,7 @@ export async function getStaffLocations(ids: number[], day: string, currentDay: 
   // Las claves dependen solo del día: así las personas que marcan entrada durante la mañana no invalidan el caché.
   const scope = `${env.STB_DB_SERVER}:${env.STB_DB_DATABASE}:${day}`;
   const [history, names, current] = await Promise.all([
-    withTtlCache(`personal:locations-history:v3:${scope}`, 60 * 60_000,
+    withTtlCache(`personal:locations-history:v6:${scope}`, 60 * 60_000,
       () => loadLocations(isoDay(day, -30), isoDay(day, -1), false, '23:59:59', true), forceRefresh),
     withTtlCache(`personal:names:v1:${scope}`, 60 * 60_000, async () =>
       (await runStbQuery(staffNamesQuery, [{ name: 'Hasta', type: sql.Date, value: day }]))
@@ -113,7 +120,7 @@ export async function getStaffLocations(ids: number[], day: string, currentDay: 
   return rows
     .filter(row => row.source !== 'production' || `${row.day}T${row.time}` === latest.get(row.id))
     .filter(row => { // Equivale al SELECT DISTINCT de la consulta original.
-      const key = [row.id, row.source, row.day, row.time, row.process, row.room, row.line].join('|');
+      const key = [row.id, row.source, row.day, row.time, row.process, row.room, row.line, row.value, row.activity].join('|');
       return !seen.has(key) && !!seen.add(key);
     })
     .map(row => ({ ...row, name: nameById.get(row.id) ?? '' }));

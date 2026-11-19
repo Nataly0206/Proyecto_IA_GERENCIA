@@ -55,7 +55,7 @@ type Vista = 'total' | 'dia' | 'semana' | 'mes';
  * elegidos en GlobalFilters (a diferencia de PeladoLibrasHoyCards, que
  * siempre muestra el día actual).
  */
-export default function PeladoEstiloWidget() {
+export default function PeladoEstiloWidget({ minHours = null }: { minHours?: number | null }) {
   const [tallaOpen, setTallaOpen] = useState(false);
   const [vista, setVista] = useState<Vista>('total');
   const { filters } = useFilters();
@@ -111,7 +111,7 @@ export default function PeladoEstiloWidget() {
       { field: 'tallaDominante', label: 'Talla Prom' },
       { field: 'tallaSiguiente', label: 'Talla Sig' },
     ] : undefined,
-    hourlyPerPersonColumn: vista === 'dia' ? { hoursField: 'horasTrabajadas', peopleField: 'personas', valueField: 'rendimientoPorPersona' } : undefined,
+    hourlyPerPersonColumn: { hoursField: 'horasTrabajadas', peopleField: 'personas', valueField: 'rendimientoPorPersona' },
     teamHourlyColumn: vista === 'dia' ? { hoursField: 'horasTrabajadas', valueField: 'ritmoEquipo' } : undefined,
     xLabel: vista === 'dia' ? 'Fecha' : vista === 'semana' ? 'Semana' : 'Mes',
     ...(vista === 'mes' ? {
@@ -205,7 +205,7 @@ export default function PeladoEstiloWidget() {
           </IconButton>
         </DialogTitle>
         <DialogContent dividers sx={{ p: 1.5 }}>
-          {tallaOpen && <PeladoTallaWidget />}
+          {tallaOpen && <PeladoTallaWidget minHours={minHours} />}
         </DialogContent>
       </Dialog>
     </>

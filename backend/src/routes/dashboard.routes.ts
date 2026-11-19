@@ -42,8 +42,8 @@ for (const history of [false, true]) {
       res.status(400).json({ error: 'Selecciona una fecha válida, hasta hoy.' }); return;
     }
     res.json(await (history
-      ? withTtlCache(`personal-produccion:reporte-ax-v4:${env.PAYROLL_ATTENDANCE_DAY_START}:historico:${day}`, 5 * 60_000, () => getProductionStaffHistory(day, req.query.refresh === 'true'), req.query.refresh === 'true')
-      : withTtlCache(`personal-produccion:reporte-ax-v4:${env.PAYROLL_ATTENDANCE_DAY_START}:dia:${day}`, 60_000, () => getProductionStaff(day, req.query.refresh === 'true'), req.query.refresh === 'true')));
+      ? withTtlCache(`personal-produccion:reporte-ax-v6:${env.PAYROLL_ATTENDANCE_DAY_START}:historico:${day}`, 5 * 60_000, () => getProductionStaffHistory(day, req.query.refresh === 'true'), req.query.refresh === 'true')
+      : withTtlCache(`personal-produccion:reporte-ax-v6:${env.PAYROLL_ATTENDANCE_DAY_START}:dia:${day}`, 60_000, () => getProductionStaff(day, req.query.refresh === 'true'), req.query.refresh === 'true')));
   }));
 }
 
@@ -135,12 +135,12 @@ router.get('/pelado-dias-trabajados', pelado, asyncHandler(async (req, res) => {
     res.status(400).json({ error: 'Selecciona un año válido entre 2000 y el año actual.' });
     return;
   }
-  res.json(await withTtlCache(`pelado-dias-trabajados:${year}:${today}`, 5 * 60_000,
+  res.json(await withTtlCache(`pelado-dias-trabajados:scope-v1:${year}:${today}`, 5 * 60_000,
     () => getPeladoWorkdays(year, today), req.query.refresh === 'true'));
 }));
 router.get('/pelado-libras-mes', pelado, asyncHandler(async (req, res) => {
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Tegucigalpa', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-  res.json(await withTtlCache(`pelado-libras-mes:${today}`, 60_000, async () => {
+  res.json(await withTtlCache(`pelado-libras-mes:scope-v1:${today}`, 60_000, async () => {
     const rows = await getPeladoPorEstilo({ fechaInicial: `${today.slice(0, 7)}-01`, fechaFinal: today });
     return { mes: today.slice(0, 7), total: rows.reduce((total, row) => total + row.libras, 0) };
   }, req.query.refresh === 'true'));

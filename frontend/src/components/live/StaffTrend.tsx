@@ -71,7 +71,7 @@ const tableSx = {
   '& th, & td': { px: { xs: 0.75, sm: 1.25 }, py: 0.75, fontSize: { xs: 11, sm: 12.5 }, fontVariantNumeric: 'tabular-nums' },
   '& thead th': { bgcolor: '#f1f5f9', fontWeight: 800, whiteSpace: 'normal', lineHeight: 1.35 },
   '& th:first-of-type, & td:first-of-type': { position: 'sticky', left: 0, zIndex: 1, bgcolor: 'background.paper', boxShadow: '2px 0 3px #0f172a0d' },
-  '& thead th:first-of-type': { bgcolor: '#f1f5f9', zIndex: 2 },
+  '& thead th:first-of-type': { bgcolor: '#f1f5f9', zIndex: 3 },
   '& tfoot td': { bgcolor: '#f1f5f9', fontWeight: 800 },
 } as const;
 
@@ -176,7 +176,7 @@ export default function StaffTrend({ userId, includedWeekdays, onDay }: { userId
           <Typography fontWeight={800} fontSize={14}>Comparativo {mode === 'month' ? 'por mes' : 'por semana'}</Typography>
           <Typography variant="caption" color="text.secondary">Toca un {unit} para verlo en detalle · el cambio es contra el {previousLabel}</Typography>
         </Box>
-        <TableContainer><Table size="small" aria-label={`Comparativo ${mode === 'month' ? 'mensual' : 'semanal'} de asistencia`} sx={{ ...tableSx, minWidth: 980 }}>
+        <TableContainer sx={{ maxHeight: '60vh' }}><Table size="small" stickyHeader aria-label={`Comparativo ${mode === 'month' ? 'mensual' : 'semanal'} de asistencia`} sx={{ ...tableSx, minWidth: 980 }}>
           <TableHead><TableRow>
             <TableCell>{mode === 'month' ? 'Mes' : 'Semana'}</TableCell><TableCell align="right">Días</TableCell>
             <TableCell align="right" sx={{ color: 'success.main', minWidth: 170 }}>Asistieron · prom./día</TableCell><TableCell align="right">Cambio</TableCell>

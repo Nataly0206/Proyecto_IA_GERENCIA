@@ -293,18 +293,18 @@ test('actividad del día: usa el catálogo de actividades; sin actividad, agrupa
 const { departmentFromLine, departmentFromPayroll } = require('../dist/services/production-staff-department');
 test('departamento de planta según la línea de producción', () => {
   const cases = [
-    ['Pelado', 'OBRA  PELADO ND PROGRAMA', '1.3 Pelado Programada'],
-    ['Pelado', 'Aux pelado tercero TA ', '1.4 Pelado Tercero'],
-    ['Pelado', 'OBRA PELADO ANILLO (PESADO)', '1.5 Pelado Anillo'],
+    ['Pelado', 'OBRA  PELADO ND PROGRAMA', '1.3 Pelado'],
+    ['Pelado', 'Aux pelado tercero TA ', '1.3 Pelado'],
+    ['Pelado', 'OBRA PELADO ANILLO (PESADO)', '1.3 Pelado'],
     ['Descabezado', 'Pesado de Cola Descabezado', '1.1 Descabezado'],
     ['Clasificado', 'Clasificado Reproceso Programa 2 TA', '1.2 Clasificado'],
-    ['IQF', 'IQF Anillos 126G TA', '1.6 IQF'],
-    ['DECORACION ANILLOS', 'Perforacion Anillo TA', '1.11 Decoración Anillos'],
-    ['PRODUCCION', 'Reempaque TA', '1.12 Reempaque WSO'],
+    ['IQF', 'IQF Anillos 126G TA', '1.4 IQF'],
+    ['DECORACION ANILLOS', 'Perforacion Anillo TA', '1.9 Decoración Anillos'],
+    ['PRODUCCION', 'Reempaque TA', '1.10 Reempaque WSO'],
     ['EMPAQUE', 'Codigo y Etiqueta', '2.1 Bodega, empaque, código'],
     ['PLANILLA ACTIVIDADES', 'Poes', '2.2 Calidad, lavandería y POES'],
     ['AUX. PESADO Y CHEQUEO ', 'Apoyo RRHH y SSO', '2.3 RRHH, gestión ambiental y mantenimiento'],
-    ['Recepción', 'Recepcion', '1.8 Recepción'],
+    ['Recepción', 'Recepcion', '1.6 Recepción'],
   ];
   for (const [process, line, expected] of cases) assert.equal(departmentFromLine(process, line), expected, line);
   assert.equal(departmentFromLine('Clasificado', 'Apoyo Cafeteria '), null);

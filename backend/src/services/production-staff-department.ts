@@ -4,9 +4,9 @@
  * El frontend repite esta lista en PLANT_DEPARTMENT_SECTIONS: si se cambia aquí, cambiarla allá.
  */
 export const PLANT_DEPARTMENTS = [
-  '1.1 Descabezado', '1.2 Clasificado', '1.3 Pelado Programada', '1.4 Pelado Tercero', '1.5 Pelado Anillo',
-  '1.6 IQF', '1.7 Salmuera', '1.8 Recepción', '1.9 Cocinado', '1.10 Langosta', '1.11 Decoración Anillos',
-  '1.12 Reempaque WSO',
+  // Pelado Programada, Tercero y Anillo se muestran unidos en un solo renglón.
+  '1.1 Descabezado', '1.2 Clasificado', '1.3 Pelado', '1.4 IQF', '1.5 Salmuera', '1.6 Recepción', '1.7 Cocinado',
+  '1.8 Langosta', '1.9 Decoración Anillos', '1.10 Reempaque WSO',
   '2.1 Bodega, empaque, código', '2.2 Calidad, lavandería y POES', '2.3 RRHH, gestión ambiental y mantenimiento',
 ] as const;
 export type PlantDepartment = typeof PLANT_DEPARTMENTS[number];
@@ -15,7 +15,7 @@ export const OTHER_DEPARTMENT = 'Otros (fuera de la lista)';
 export const NO_DEPARTMENT = 'Sin departamento asignado';
 
 const norm = (value: string) => value.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/\s+/g, ' ').trim();
-const [descabezado, clasificado, programada, tercero, anillo, iqf, salmuera, recepcion, cocinado, langosta, decoracion, reempaque,
+const [descabezado, clasificado, pelado, iqf, salmuera, recepcion, cocinado, langosta, decoracion, reempaque,
   empaque, calidad, rrhh] = PLANT_DEPARTMENTS;
 
 /** Departamento según el proceso y la línea de producción de STB; null si la línea no está en la lista. */
@@ -36,11 +36,7 @@ export function departmentFromLine(process: string, line: string): PlantDepartme
   if (p === 'DESCABEZADO' || /DESCABEZ|DECABEZ/.test(l)) return descabezado;
   // Apoyo Cafetería y Apoyo a Contabilidad cuelgan del proceso Clasificado pero no son clasificado.
   if ((p === 'CLASIFICADO' && !/^APOYO/.test(l)) || /CLASIFICADO/.test(l)) return clasificado;
-  if (p === 'PELADO' || /PELADO/.test(l)) {
-    if (/ANILLO/.test(l)) return anillo;
-    if (/TERCERO/.test(l)) return tercero;
-    if (/PROGRAMA/.test(l)) return programada;
-  }
+  if (p === 'PELADO' || /PELADO/.test(l)) return pelado;
   return null;
 }
 

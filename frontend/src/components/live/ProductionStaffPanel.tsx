@@ -23,7 +23,7 @@ const activityRank = (group: string) => group === NO_ACTIVITY ? 2 : group.endsWi
 type GroupBy = 'area' | 'activity' | 'department';
 /** Lista oficial de departamentos de planta; debe coincidir con PLANT_DEPARTMENTS del backend (production-staff-department.ts). */
 const PLANT_DEPARTMENT_SECTIONS = [
-  { code: '1', label: 'Mano de obra directa', items: ['1.1 Descabezado', '1.2 Clasificado', '1.3 Pelado Programada', '1.4 Pelado Tercero', '1.5 Pelado Anillo', '1.6 IQF', '1.7 Salmuera', '1.8 Recepción', '1.9 Cocinado', '1.10 Langosta', '1.11 Decoración Anillos', '1.12 Reempaque WSO'] },
+  { code: '1', label: 'Mano de obra directa', items: ['1.1 Descabezado', '1.2 Clasificado', '1.3 Pelado', '1.4 IQF', '1.5 Salmuera', '1.6 Recepción', '1.7 Cocinado', '1.8 Langosta', '1.9 Decoración Anillos', '1.10 Reempaque WSO'] },
   { code: '2', label: 'Mano de obra de apoyo', items: ['2.1 Bodega, empaque, código', '2.2 Calidad, lavandería y POES', '2.3 RRHH, gestión ambiental y mantenimiento'] },
 ];
 const NO_DEPARTMENT = 'Sin departamento asignado';
@@ -87,7 +87,7 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
   const client = useQueryClient();
   const parsed = new Date(`${date}T12:00:00Z`);
   const validDate = /^\d{4}-\d{2}-\d{2}$/.test(date) && date >= '2000-01-01' && date <= today && Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date;
-  const queryKey = ['personal-produccion-reporte-ax-v6', userId, date] as const;
+  const queryKey = ['personal-produccion-reporte-ax-v7', userId, date] as const;
   const historyKey = ['personal-produccion-reporte-ax-historico-v4', userId, date] as const;
   const query = useQuery({
     queryKey, queryFn: async ({ signal }) => (await apiClient.get<StaffResponse>('/dashboard/personal-produccion', { params: { fecha: date }, signal })).data,

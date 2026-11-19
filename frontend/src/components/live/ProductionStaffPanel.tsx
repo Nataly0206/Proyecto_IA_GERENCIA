@@ -80,6 +80,20 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
     setGroupBy(value);
     try { localStorage.setItem(GROUP_STORAGE_KEY, value); } catch { /* preferencia opcional */ }
   };
+  const requiredByDepartment: Record<string, number> = {
+    '1.1 Descabezado': 19 + 9,
+    '1.2 Clasificado': 17 + 17 + 16,
+    '1.3 Pelado': 17 + 9 + 9 + 5 + 55,
+    '1.4 IQF': 8 + 13 + 13 + 13,
+    '1.6 Recepción': 6,
+    '1.7 Cocinado': 12,
+    '1.10 Reempaque WSO': 12,
+  };
+  const requiredIn = (group: string) => {
+    const section = PLANT_DEPARTMENT_SECTIONS.find(item => item.label === group);
+    const departments = !group ? PLANT_DEPARTMENT_SECTIONS.flatMap(item => item.items) : section?.items ?? [group];
+    return departments.reduce((sum, department) => sum + (requiredByDepartment[department] ?? 0), 0);
+  };
   const [methodOpen, setMethodOpen] = useState(false);
   const [includedWeekdays, setIncludedWeekdays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
   const [refreshing, setRefreshing] = useState(false);
@@ -140,7 +154,15 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
     const value = rows.filter(person => (!status || person.status === status) && (!category || person.kind === category)).length;
     return <TableCell align="right" sx={{ fontWeight: status === 'present' || status === 'absent' ? 800 : 600, color: status === 'absent' ? 'error.main' : status === 'present' ? 'success.main' : 'text.primary' }}>{unavailable ? '—' : formatValue(value)}</TableCell>;
   };
-  const bodyCells = (rows: StaffEmployee[], area: string) => <>{cell(rows, area, 'present')}{cell(rows, area, 'absent')}{cell(rows, area, 'present', 'production')}{cell(rows, area, 'present', 'auxiliary')}{cell(rows, area)}{cell(rows, area, 'present', 'unknown')}{cell(rows, area, 'pending')}{cell(rows, area, 'conflict')}</>;
+  const auxiliaryCells = (rows: StaffEmployee[], group: string) => {
+    if (groupBy !== 'department') return cell(rows, group, 'present', 'auxiliary');
+    const required = requiredIn(group);
+    const present = rows.filter(person => person.status === 'present' && person.kind === 'auxiliary').length;
+    const unavailable = !query.data?.employees.length || (query.data.locationAvailable === false && !!group && group !== emptyGroup);
+    const difference = present - required;
+    return <>{cell(rows, group, 'present', 'auxiliary')}<TableCell align="right" sx={{ fontWeight: 700 }}>{formatValue(required)}</TableCell><TableCell align="right" title={`Auxiliares presentes: ${present} · Requeridos: ${required}`} sx={{ fontWeight: 800, color: difference < 0 ? 'error.main' : difference > 0 ? 'success.main' : 'text.primary' }}>{unavailable ? '—' : `${difference > 0 ? '+' : ''}${formatValue(difference)}`}</TableCell></>;
+  };
+  const bodyCells = (rows: StaffEmployee[], area: string) => <>{cell(rows, area, 'present')}{cell(rows, area, 'absent')}{cell(rows, area, 'present', 'production')}{auxiliaryCells(rows, area)}{cell(rows, area)}{cell(rows, area, 'present', 'unknown')}{cell(rows, area, 'pending')}{cell(rows, area, 'conflict')}</>;
   const members = (category: StaffKind) => people.filter(person => person.kind === category);
   return <Stack spacing={1} sx={{ minWidth: 0 }}>
     <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 2 }}>
@@ -226,9 +248,9 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
       <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
         <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1} sx={{ px: 1.25, py: 1 }}><Stack direction="row" alignItems="center" gap={1} useFlexGap flexWrap="wrap"><Typography fontWeight={800} fontSize={14}>{groupBy === 'area' ? 'Personal por sala y área' : groupBy === 'department' ? 'Personal por departamento' : 'Personal por actividad'}</Typography>
           <ToggleButtonGroup exclusive size="small" value={groupBy} onChange={(_, value) => value && changeGroupBy(value)} aria-label="Agrupar personal por" sx={{ '& button': { textTransform: 'none', px: 1, py: 0.25, fontSize: 11.5 } }}><ToggleButton value="area">Por área</ToggleButton><ToggleButton value="department">Por departamento</ToggleButton><ToggleButton value="activity">Por actividad</ToggleButton></ToggleButtonGroup></Stack><Stack direction="row" gap={0.5}><Chip size="small" label="A · Asistencia" color="success" variant="outlined" sx={{ fontSize: 10, height: 22 }} /><Chip size="small" label="X · Falta" color="error" variant="outlined" sx={{ fontSize: 10, height: 22 }} /></Stack></Stack>
-        <TableContainer sx={{ maxHeight: '70vh' }}><Table size="small" stickyHeader aria-label={groupBy === 'area' ? 'Asistencia por sala y área' : groupBy === 'department' ? 'Asistencia por departamento' : 'Asistencia por actividad'} sx={{ ...tableSx, tableLayout: 'fixed', width: groupBy === 'area' ? 795 : 855, minWidth: '100%' }}>
-          <colgroup>{[groupBy === 'area' ? 120 : groupBy === 'department' ? 210 : 180, 75, 75, 90, 90, 75, 90, 90, 90].map((width, index) => <col key={index} style={{ width }} />)}</colgroup>
-          <TableHead><TableRow><TableCell>{groupBy === 'area' ? 'Sala / área' : groupBy === 'department' ? 'Departamento' : 'Actividad'}</TableCell><TableCell align="right" sx={{ color: 'success.main' }}>A · Asistieron</TableCell><TableCell align="right" sx={{ color: 'error.main' }}>X · Faltaron</TableCell><TableCell align="right">Obra presentes</TableCell><TableCell align="right">Auxiliares presentes</TableCell><TableCell align="right">En registro</TableCell><TableCell align="right">Presentes sin clasificar</TableCell><TableCell align="right">Sin registro</TableCell><TableCell align="right">Revisar</TableCell></TableRow></TableHead>
+        <TableContainer sx={{ maxHeight: '70vh' }}><Table size="small" stickyHeader aria-label={groupBy === 'area' ? 'Asistencia por sala y área' : groupBy === 'department' ? 'Asistencia por departamento' : 'Asistencia por actividad'} sx={{ ...tableSx, tableLayout: 'fixed', width: groupBy === 'area' ? 795 : groupBy === 'department' ? 1065 : 855, minWidth: '100%' }}>
+          <colgroup>{[groupBy === 'area' ? 120 : groupBy === 'department' ? 210 : 180, 75, 75, 90, 90, ...(groupBy === 'department' ? [90, 90] : []), 75, 90, 90, 90].map((width, index) => <col key={index} style={{ width }} />)}</colgroup>
+          <TableHead><TableRow><TableCell>{groupBy === 'area' ? 'Sala / área' : groupBy === 'department' ? 'Departamento' : 'Actividad'}</TableCell><TableCell align="right" sx={{ color: 'success.main' }}>A · Asistieron</TableCell><TableCell align="right" sx={{ color: 'error.main' }}>X · Faltaron</TableCell><TableCell align="right">Obra presentes</TableCell><TableCell align="right">Auxiliares presentes</TableCell>{groupBy === 'department' && <><TableCell align="right">Auxiliares Requeridos</TableCell><TableCell align="right">Diferencia</TableCell></>}<TableCell align="right">En registro</TableCell><TableCell align="right">Presentes sin clasificar</TableCell><TableCell align="right">Sin registro</TableCell><TableCell align="right">Revisar</TableCell></TableRow></TableHead>
           <TableBody>{groups.map(group => {
             const rows = people.filter(person => groupOf(person) === group);
             const mixed = groupBy === 'activity' ? rows.filter(person => person.otherActivities?.length).length : 0;

@@ -90,7 +90,7 @@ export function useWidgetData(endpoint: DashboardEndpoint, extraParams?: Record<
       : endpoint === 'libras-netas-proceso-dia' || endpoint === 'libras-netas-proceso-mes'
         ? `${endpoint}:fechas-trabajadas-v3`
       : endpoint === 'pelado-por-talla'
-        ? `${endpoint}:scope-pbi-v7`
+        ? `${endpoint}:scope-pbi-v8`
       : endpoint === 'pelado-por-estilo-dia'
         ? `${endpoint}:rendimiento-jornadas-v5`
       : endpoint === 'descabezado-por-dia' || endpoint === 'descabezado-por-dia-mes'

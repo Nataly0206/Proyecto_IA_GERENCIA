@@ -1,5 +1,5 @@
 import { env } from '../config/env';
-import { getProductionStaff, getProductionStaffHistory, staffToday, validStaffDate } from '../services/production-staff.service';
+import { STAFF_RANGE_MAX_DAYS, getProductionStaff, getProductionStaffHistory, getProductionStaffRange, staffToday, validStaffDate } from '../services/production-staff.service';
 import { Router } from 'express';
 import { getFreshInventory, FreshInventoryStage } from '../services/fresh-inventory.service';
 import { withTtlCache } from '../utils/ttlCache';
@@ -42,10 +42,21 @@ for (const history of [false, true]) {
       res.status(400).json({ error: 'Selecciona una fecha válida, hasta hoy.' }); return;
     }
     res.json(await (history
-      ? withTtlCache(`personal-produccion:reporte-ax-v6:${env.PAYROLL_ATTENDANCE_DAY_START}:historico:${day}`, 5 * 60_000, () => getProductionStaffHistory(day, req.query.refresh === 'true'), req.query.refresh === 'true')
-      : withTtlCache(`personal-produccion:reporte-ax-v6:${env.PAYROLL_ATTENDANCE_DAY_START}:dia:${day}`, 60_000, () => getProductionStaff(day, req.query.refresh === 'true'), req.query.refresh === 'true')));
+      ? withTtlCache(`personal-produccion:reporte-ax-v7:${env.PAYROLL_ATTENDANCE_DAY_START}:historico:${day}`, 5 * 60_000, () => getProductionStaffHistory(day, req.query.refresh === 'true'), req.query.refresh === 'true')
+      : withTtlCache(`personal-produccion:reporte-ax-v7:${env.PAYROLL_ATTENDANCE_DAY_START}:dia:${day}`, 60_000, () => getProductionStaff(day, req.query.refresh === 'true'), req.query.refresh === 'true')));
   }));
 }
+
+router.get('/personal-produccion/rango', requirePermission('personal'), asyncHandler(async (req, res) => {
+  const today = staffToday();
+  const { desde, hasta } = req.query;
+  if (!validStaffDate(desde, today) || !validStaffDate(hasta, today) || desde > hasta) {
+    res.status(400).json({ error: 'Selecciona un rango de fechas válido, hasta hoy.' }); return;
+  }
+  const days = (Date.parse(`${hasta}T12:00:00Z`) - Date.parse(`${desde}T12:00:00Z`)) / 86_400_000 + 1;
+  if (days > STAFF_RANGE_MAX_DAYS) { res.status(400).json({ error: `El rango no puede pasar de ${STAFF_RANGE_MAX_DAYS} días.` }); return; }
+  res.json(await getProductionStaffRange(desde, hasta, req.query.refresh === 'true'));
+}));
 
 const iqf = requirePermission('iqf');
 const pelado = requirePermission('pelado');

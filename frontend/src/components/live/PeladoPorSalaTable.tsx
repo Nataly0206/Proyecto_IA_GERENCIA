@@ -20,7 +20,6 @@ import {
   TableFooter,
   TableHead,
   TableRow,
-  TableSortLabel,
   TextField,
   ToggleButton,
   ToggleButtonGroup,
@@ -35,6 +34,7 @@ import { apiClient } from '../../api/client';
 import { useFilters } from '../../context/FiltersContext';
 import { usePeladoPorSala } from '../../hooks/useDashboardData';
 import { PeladoSalaRow } from '../../types';
+import PeladoTallaWidget from '../charts/PeladoTallaWidget';
 import { formatPeriodo, formatValue } from '../../utils/format';
 
 const NUM_SX = { fontVariantNumeric: 'tabular-nums' } as const;
@@ -104,14 +104,7 @@ function RaceCar({ color }: { color: string }) {
 
 const salaNum = (nombre: string) => Number(nombre.replace(/\D/g, '')) || 0;
 const HOURS_STORAGE_KEY = 'pelado-salas-horas-minimas:v1';
-const TALLAS_GRANDES = new Set(['16/20', '21/25', '26/30', '31/35', '36/40', '41/50']);
 type SalaDailyRow = { fecha: string; personas: number; libras: number; librasPorHoraPromedio: number; horasTrabajadas: number };
-
-function clasificarTalla(talla: string): 'grande' | 'pequeno' | 'sinClasificar' {
-  const normalizada = talla.toUpperCase().replace(/\s/g, '').replace(/-/g, '/');
-  if (!normalizada || normalizada.includes('SINTALLA')) return 'sinClasificar';
-  return TALLAS_GRANDES.has(normalizada) ? 'grande' : 'pequeno';
-}
 
 function readStoredHours(userId: string): string {
   try {
@@ -600,199 +593,25 @@ export default function PeladoPorSalaTable({ userId, onMinHoursChange }: { userI
         )}
       </CardContent>
 
-      <PeladoTallaHoyDialog open={tallaOpen} onClose={() => setTallaOpen(false)} salas={salas} day={data?.dia ?? ''} isLoading={isLoading} isError={isError} error={error} dataUpdatedAt={dataUpdatedAt} />
+      <PeladoTallaHoyDialog open={tallaOpen} onClose={() => setTallaOpen(false)} minHours={hoursThreshold} />
     </Card>
   );
 }
 
-function PeladoTallaHoyDialog({ open, onClose, salas, day, isLoading, isError, error, dataUpdatedAt }: {
-  open: boolean; onClose: () => void; salas: PeladoSalaRow[]; day: string;
-  isLoading: boolean; isError: boolean; error: unknown; dataUpdatedAt: number;
-}) {
-  const sizes = new Map<string, number>();
-  for (const sala of salas) for (const row of sala.tallasHoy ?? []) sizes.set(row.talla, (sizes.get(row.talla) ?? 0) + row.libras);
-  const data = {
-    dia: day,
-    total: salas.reduce((sum, sala) => sum + sala.librasPeladasHoy, 0),
-    tallas: [...sizes].map(([talla, libras]) => ({ talla, libras })),
-  };
-  const [sortBy, setSortBy] = useState<'talla' | 'libras' | 'porcentaje'>('talla');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  const total = data?.total ?? 0;
-  const tallas = (data?.tallas ?? [])
-    .map((talla) => ({
-      ...talla,
-      porcentaje: total > 0 ? (talla.libras / total) * 100 : 0,
-    }))
-    .sort((a, b) => {
-      const comparison = sortBy === 'talla'
-        ? a.talla.localeCompare(b.talla, 'es', { numeric: true, sensitivity: 'base' })
-        : a[sortBy] - b[sortBy];
-      return sortDirection === 'asc' ? comparison : -comparison;
-    });
-  const grupos = (data?.tallas ?? []).reduce(
-    (acumulado, talla) => {
-      acumulado[clasificarTalla(talla.talla)] += talla.libras;
-      return acumulado;
-    },
-    { grande: 0, pequeno: 0, sinClasificar: 0 },
-  );
-  const porcentajesGrupo = { grande: 0, pequeno: 0, sinClasificar: 0 };
-  if (total > 0) {
-    const participaciones = (Object.keys(grupos) as Array<keyof typeof grupos>).map((grupo) => {
-      const exacto = (grupos[grupo] / total) * 10_000;
-      const puntos = Math.floor(exacto);
-      return { grupo, puntos, residuo: exacto - puntos };
-    });
-    const puntosFaltantes = Math.max(0, 10_000 - participaciones.reduce((suma, item) => suma + item.puntos, 0));
-    const porResiduo = [...participaciones].sort((a, b) => b.residuo - a.residuo);
-    for (let indice = 0; indice < puntosFaltantes; indice += 1) {
-      porResiduo[indice % porResiduo.length].puntos += 1;
-    }
-    for (const item of participaciones) porcentajesGrupo[item.grupo] = item.puntos / 100;
-  }
-  const groupCellSx = {
-    fontWeight: 800,
-    fontSize: 12,
-    color: '#17362c',
-    bgcolor: '#eef7f3',
-    borderTop: '1px solid #cfe3d9',
-    ...NUM_SX,
-  } as const;
-
-  const changeSort = (column: 'talla' | 'libras' | 'porcentaje') => {
-    if (sortBy === column) {
-      setSortDirection((current) => current === 'asc' ? 'desc' : 'asc');
-      return;
-    }
-    setSortBy(column);
-    setSortDirection(column === 'talla' ? 'asc' : 'desc');
-  };
-
-  const sortableHead = (
-    label: string,
-    column: 'talla' | 'libras' | 'porcentaje',
-    align: 'left' | 'right',
-    unit?: string,
-  ) => (
-    <TableCell align={align} sortDirection={sortBy === column ? sortDirection : false} sx={HEAD_CELL_SX}>
-      <TableSortLabel
-        active={sortBy === column}
-        direction={sortBy === column ? sortDirection : 'asc'}
-        onClick={() => changeSort(column)}
-        sx={{
-          color: 'inherit !important',
-          '& .MuiTableSortLabel-icon': { fontSize: 15 },
-        }}
-      >
-        <Box sx={{ textAlign: align }}>
-          <Box>{label}</Box>
-          {unit && (
-            <Box sx={{ fontSize: 9, fontWeight: 600, letterSpacing: 0, color: '#94a3b8', textTransform: 'none' }}>
-              {unit}
-            </Box>
-          )}
-        </Box>
-      </TableSortLabel>
-    </TableCell>
-  );
-
+/** Mismas columnas que "Ver por talla", siempre con el día en curso y el filtro de horas de la tabla. */
+function PeladoTallaHoyDialog({ open, onClose, minHours }: { open: boolean; onClose: () => void; minHours: number | null }) {
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
       <DialogTitle sx={{ p: 1.75, pb: 1.25 }}>
         <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={1}>
-          <Box sx={{ minWidth: 0 }}>
-            <Typography sx={{ fontSize: 14, fontWeight: 800, lineHeight: 1.2 }}>
-              Libras Peladas por Talla — Hoy
-            </Typography>
-            {data && data.dia !== '' && (
-              <Typography variant="caption" color="text.secondary" sx={{ fontSize: 11 }}>
-                {formatPeriodo(data.dia)} · actualizado {new Date(dataUpdatedAt).toLocaleTimeString()}
-              </Typography>
-            )}
-          </Box>
+          <Typography sx={{ fontSize: 14, fontWeight: 800, lineHeight: 1.2 }}>Libras Peladas por Talla — Hoy</Typography>
           <IconButton size="small" onClick={onClose} aria-label="Cerrar" sx={{ mt: -0.5, mr: -0.5 }}>
             <CloseIcon sx={{ fontSize: 18 }} />
           </IconButton>
         </Stack>
       </DialogTitle>
-      <DialogContent dividers sx={{ p: 1.75 }}>
-        {isLoading && <Skeleton variant="rounded" height={200} />}
-
-        {isError && (
-          <Alert severity="error" sx={{ py: 0.5 }}>
-            Error al cargar libras por talla: {error instanceof Error ? error.message : 'desconocido'}
-          </Alert>
-        )}
-
-        {!isLoading && !isError && tallas.length === 0 && (
-          <Alert severity="info" sx={{ py: 0.5 }}>
-            Sin libras peladas registradas hoy.
-          </Alert>
-        )}
-
-        {!isLoading && !isError && tallas.length > 0 && (
-          <TableContainer sx={{ maxHeight: 360, borderRadius: 1.5, border: '1px solid #e6ebf2' }}>
-            <Table size="small" stickyHeader>
-              <TableHead>
-                <TableRow>
-                  {sortableHead('Talla / gramaje', 'talla', 'left')}
-                  {sortableHead('Libras hoy', 'libras', 'right', 'lbs · acumulado')}
-                  {sortableHead('Porcentaje', 'porcentaje', 'right', '% del total')}
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {tallas.map((t) => (
-                  <TableRow key={t.talla} sx={ROW_SX}>
-                    <TableCell sx={{ fontSize: 12.5, fontWeight: 700, color: '#0f172a', borderColor: '#eef2f7' }}>
-                      {t.talla}
-                    </TableCell>
-                    <TableCell align="right" sx={BODY_NUM_SX}>
-                      {formatValue(t.libras)}
-                    </TableCell>
-                    <TableCell align="right" sx={{ ...BODY_NUM_SX, fontWeight: 700, color: 'primary.main' }}>
-                      {formatValue(t.porcentaje, 'percent')}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-              <TableFooter>
-                <TableRow>
-                  <TableCell sx={{ ...FOOT_CELL_SX, fontSize: 11, letterSpacing: 0.4, textTransform: 'uppercase', color: '#64748b' }}>
-                    Total
-                  </TableCell>
-                  <TableCell align="right" sx={FOOT_CELL_SX}>{formatValue(total)}</TableCell>
-                  <TableCell align="right" sx={{ ...FOOT_CELL_SX, color: 'primary.main' }}>
-                    {formatValue(total > 0 ? 100 : 0, 'percent')}
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell sx={groupCellSx}>Grande</TableCell>
-                  <TableCell align="right" sx={groupCellSx}>{formatValue(grupos.grande)}</TableCell>
-                  <TableCell align="right" sx={{ ...groupCellSx, color: 'primary.main' }}>
-                    {formatValue(porcentajesGrupo.grande, 'percent')}
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell sx={groupCellSx}>Pequeño</TableCell>
-                  <TableCell align="right" sx={groupCellSx}>{formatValue(grupos.pequeno)}</TableCell>
-                  <TableCell align="right" sx={{ ...groupCellSx, color: 'primary.main' }}>
-                    {formatValue(porcentajesGrupo.pequeno, 'percent')}
-                  </TableCell>
-                </TableRow>
-                {grupos.sinClasificar > 0 && (
-                  <TableRow>
-                    <TableCell sx={groupCellSx}>Sin clasificar</TableCell>
-                    <TableCell align="right" sx={groupCellSx}>{formatValue(grupos.sinClasificar)}</TableCell>
-                    <TableCell align="right" sx={{ ...groupCellSx, color: 'primary.main' }}>
-                      {formatValue(porcentajesGrupo.sinClasificar, 'percent')}
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableFooter>
-            </Table>
-          </TableContainer>
-        )}
+      <DialogContent dividers sx={{ p: 1.5 }}>
+        {open && <PeladoTallaWidget scope="today" minHours={minHours} />}
       </DialogContent>
     </Dialog>
   );

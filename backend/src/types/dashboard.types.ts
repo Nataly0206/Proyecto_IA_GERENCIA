@@ -108,7 +108,7 @@ export interface PeladoTallaRow {
   talla: string;
   libras: number;
   porcentaje: number;
-  /** Insumos de L/HP: libras de la vista y suma de horas individuales TRABAJADOS. */
+  /** Insumos de L/HP: libras y horas TRABAJADOS solo de personas con horas conciliadas (cobertura = rendimientosPersonas.length / personas). */
   librasConHoras: number;
   horasPersona: number;
   librasHoraPersona: number | null;

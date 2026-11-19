@@ -7,8 +7,8 @@ import { runPayrollQuery } from './payroll.service';
 import type { SqlRow } from './sql.service';
 import { pickNumber, pickString } from '../utils/rows';
 import { ApiError } from '../middleware/errorHandler';
-import { PAYROLL_STAFF_QUERY, PAYROLL_ATTENDANCE_COVERAGE_QUERY } from './production-staff.queries';
-import { PayrollStaffRow, PayrollSource, buildStaffEmployees, buildStaffHistory, summarizeStaff, staffAreaRows } from './production-staff.model';
+import { PAYROLL_STAFF_QUERY, PAYROLL_ATTENDANCE_COVERAGE_QUERY, PAYROLL_STAFF_MOVEMENTS_QUERY } from './production-staff.queries';
+import { PayrollStaffRow, PayrollSource, buildStaffEmployees, buildStaffHistory, staffKind, summarizeStaff, staffAreaRows } from './production-staff.model';
 
 export function staffToday(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Tegucigalpa', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
@@ -101,10 +101,10 @@ export async function getProductionStaffHistory(to: string, forceRefresh = false
     return { days: buildStaffHistory(rows, start, end), lastAttendance };
   };
   const [closed, current] = await Promise.all([
-    withTtlCache(`personal:history-closed:v2:${cacheScope}:${from}:${closedTo}`, 60 * 60_000,
+    withTtlCache(`personal:history-closed:v3:${cacheScope}:${from}:${closedTo}`, 60 * 60_000,
       () => loadPeriod(from, closedTo), forceRefresh),
     to === today
-      ? withTtlCache(`personal:history-today:v2:${cacheScope}:${today}`, 60_000,
+      ? withTtlCache(`personal:history-today:v3:${cacheScope}:${today}`, 60_000,
         () => loadPeriod(today, today), forceRefresh)
       : Promise.resolve({ days: [], lastAttendance: null }),
   ]);
@@ -114,4 +114,63 @@ export async function getProductionStaffHistory(to: string, forceRefresh = false
     warnings: days.some(day => day.pending > 0 || day.conflict > 0)
       ? ['Hay registros sin estado A/X definitivo. Los días en curso pueden cambiar con nuevas marcaciones.'] : [],
     days, limitations };
+}
+
+const addDays = (day: string, amount: number) => { const date = new Date(`${day}T12:00:00Z`); date.setUTCDate(date.getUTCDate() + amount); return date.toISOString().slice(0, 10); };
+export const STAFF_RANGE_MAX_DAYS = 400;
+
+/** Altas y bajas de planilla por día, separadas en obra y auxiliares por el puesto actual. */
+async function loadMovements(from: string, to: string) {
+  const rows = await runPayrollQuery(PAYROLL_STAFF_MOVEMENTS_QUERY, params(from, to));
+  const byDay = new Map<string, { hires: number; exits: number; hiresProduction: number; hiresAuxiliary: number; exitsProduction: number; exitsAuxiliary: number }>();
+  for (const row of rows) {
+    const day = pickString(row, 'Dia');
+    const value = byDay.get(day) ?? { hires: 0, exits: 0, hiresProduction: 0, hiresAuxiliary: 0, exitsProduction: 0, exitsAuxiliary: 0 };
+    const kind = staffKind(pickString(row, 'Puesto'));
+    if (pickString(row, 'Tipo') === 'ingreso') {
+      value.hires += 1;
+      if (kind === 'production') value.hiresProduction += 1; else if (kind === 'auxiliary') value.hiresAuxiliary += 1;
+    } else {
+      value.exits += 1;
+      if (kind === 'production') value.exitsProduction += 1; else if (kind === 'auxiliary') value.exitsAuxiliary += 1;
+    }
+    byDay.set(day, value);
+  }
+  return byDay;
+}
+
+/**
+ * Asistencia diaria y movimientos de planilla en un rango (vista Tendencia).
+ * Se consulta por mes calendario: los meses cerrados se reutilizan varias horas
+ * y solo el día en curso se refresca cada minuto.
+ */
+export async function getProductionStaffRange(from: string, to: string, forceRefresh = false) {
+  const today = staffToday();
+  const cacheScope = JSON.stringify([env.PAYROLL_DB_SERVER, env.PAYROLL_DB_DATABASE,
+    env.PAYROLL_ATTENDANCE_LINKED_SERVER, env.PAYROLL_ATTENDANCE_DATABASE, env.PAYROLL_ATTENDANCE_DAY_START]);
+  const chunks: [string, string][] = [];
+  for (let start = from; start <= to;) {
+    const next = new Date(`${start.slice(0, 7)}-01T12:00:00Z`); next.setUTCMonth(next.getUTCMonth() + 1);
+    const end = [to, addDays(next.toISOString().slice(0, 10), -1)].sort()[0];
+    if (start < today && end >= today) { chunks.push([start, addDays(today, -1)], [today, end]); }
+    else chunks.push([start, end]);
+    start = addDays(end, 1);
+  }
+  const load = async (start: string, end: string) => {
+    const [{ rows, lastAttendance }, movements] = await Promise.all([loadPayroll(start, end), loadMovements(start, end)]);
+    const empty = { hires: 0, exits: 0, hiresProduction: 0, hiresAuxiliary: 0, exitsProduction: 0, exitsAuxiliary: 0 };
+    return { days: buildStaffHistory(rows, start, end).map(day => ({ ...day, ...(movements.get(day.day) ?? empty) })), lastAttendance };
+  };
+  const results = await Promise.all(chunks.map(([start, end]) => withTtlCache(
+    `personal:range:v1:${cacheScope}:${start}:${end}`,
+    end < today ? 6 * 60 * 60_000 : 60_000,
+    () => load(start, end), forceRefresh)));
+  const days = results.flatMap(result => result.days);
+  const lastAttendance = results.map(result => result.lastAttendance).filter((day): day is string => !!day).sort().slice(-1)[0] ?? null;
+  return { source: 'STBPayroll' as const, report: reportInfo(), from, to, today, updatedAt: new Date().toISOString(), lastAttendance,
+    warnings: days.some(day => day.pending > 0 || day.conflict > 0)
+      ? ['Hay registros sin estado A/X definitivo. Los días en curso pueden cambiar con nuevas marcaciones.'] : [],
+    days, limitations: [...limitations,
+      'Planilla por fecha: cada persona cuenta desde su fecha de ingreso y, si ya no está activa, hasta su fecha de retiro (inclusive).',
+      'Ingresos y retiros salen de RH_EMPLEADOS. Si una persona fue recontratada, Payroll conserva solo su último ingreso, así que su periodo anterior no se cuenta.'] };
 }

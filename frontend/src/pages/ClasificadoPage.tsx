@@ -6,7 +6,6 @@ import { apiClient } from '../api/client';
 import { AuthUser } from '../types/auth';
 import { tienePermiso } from '../config/permissions';
 import SortOutlinedIcon from '@mui/icons-material/SortOutlined';
-import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import CloseOutlinedIcon from '@mui/icons-material/CloseOutlined';
 import PrecisionManufacturingOutlinedIcon from '@mui/icons-material/PrecisionManufacturingOutlined';
@@ -18,7 +17,6 @@ import ClasificadoLibrasWidget from '../components/charts/ClasificadoLibrasWidge
 import ClasificadoPorMaquinaHoyCards from '../components/live/ClasificadoPorMaquinaHoyCards';
 import ChartWidget from '../components/charts/ChartWidget';
 import ClasificadoTallaWidget from '../components/charts/ClasificadoTallaWidget';
-import InventarioTallaTable from '../components/charts/InventarioTallaTable';
 import { REFRESH_INTERVAL_MS, useProcesoResumen, useWidgetData } from '../hooks/useDashboardData';
 import { clasificadoWidgets } from '../config/dashboardConfig';
 
@@ -162,7 +160,7 @@ export default function ClasificadoPage({ user }: { user: AuthUser }) {
     >
       <ProcessFilters
         title="Filtros de clasificado"
-        hint="Las tarjetas muestran el día, la semana y el mes en curso. Tablas: día y semana: rango seleccionado. Mes: los 12 meses del año de la fecha final. Los reportes responden al turno; el inventario muestra el disponible ahora."
+        hint="Las tarjetas muestran el día, la semana y el mes en curso. Tablas: día y semana: rango seleccionado. Mes: los 12 meses del año de la fecha final. Los reportes responden al turno."
       />
 
       <ClasificadoPorMaquinaHoyCards />
@@ -201,13 +199,6 @@ export default function ClasificadoPage({ user }: { user: AuthUser }) {
           },
         ]}
       /> : <ClasificadoLibrasWidget vista={vistaLibras} actions={librasActions} />} 
-
-      <InventarioTallaTable
-        title="Inventario de Clasificado Disponible"
-        subtitle="Bins y libras por talla · EnInventario = 1, Transferido = 0, Procesado = 0 · fuente: CL_InventarioClasificado"
-        icon={<Inventory2OutlinedIcon color="primary" sx={{ fontSize: 16 }} />}
-        endpoint="clasificado-inventario"
-      />
 
       <ChartWidget
         config={porMaquina}

@@ -311,3 +311,11 @@ test('departamento de planta según la línea de producción', () => {
   assert.equal(departmentFromPayroll('CALIDAD E INOCUIDAD'), '2.2 Calidad, lavandería y POES');
   assert.equal(departmentFromPayroll('PRODUCCION'), null);
 });
+
+test('la planilla por fecha respeta ingreso y retiro en lugar de repetir los activos actuales', () => {
+  const { PAYROLL_STAFF_QUERY, PAYROLL_STAFF_MOVEMENTS_QUERY } = require('../dist/services/production-staff.queries');
+  assert.doesNotMatch(PAYROLL_STAFF_QUERY, /V_RH_EMPLEADOS_DIAS/);
+  assert.match(PAYROLL_STAFF_QUERY, /f\.Fecha>=CAST\(e\.FECHA_INGRESO AS date\)/);
+  assert.match(PAYROLL_STAFF_QUERY, /e\.ACTIVO=1 OR \(e\.FECHA_RETIRO>='2000-01-01' AND f\.Fecha<=CAST\(e\.FECHA_RETIRO AS date\)\)/);
+  assert.match(PAYROLL_STAFF_MOVEMENTS_QUERY, /e\.ACTIVO=0 AND CAST\(e\.FECHA_RETIRO AS date\) BETWEEN/);
+});

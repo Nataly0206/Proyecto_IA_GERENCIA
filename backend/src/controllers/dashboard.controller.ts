@@ -188,7 +188,7 @@ export async function getPeladoPorTalla(req: Request, res: Response): Promise<vo
   const forceRefresh = req.query.refresh === 'true';
   res.json(
     await withTtlCache(
-      JSON.stringify(['pelado-por-talla:scope-pbi-v7', filters, minHours]),
+      JSON.stringify(['pelado-por-talla:scope-pbi-v8', filters, minHours]),
       REPORT_CACHE_MS,
       () => dashboardService.getPeladoPorTalla(filters, minHours),
       forceRefresh,

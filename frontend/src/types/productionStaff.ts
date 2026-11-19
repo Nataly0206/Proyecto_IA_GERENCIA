@@ -31,6 +31,8 @@ export interface StaffResponse {
 export interface StaffHistoryDay extends StaffCounts {
   day: string;
   presentProduction?: number; absentProduction?: number; presentAuxiliary?: number; absentAuxiliary?: number;
+  /** Altas y bajas de planilla de ese día (solo en /personal-produccion/rango). */
+  hires?: number; exits?: number; hiresProduction?: number; hiresAuxiliary?: number; exitsProduction?: number; exitsAuxiliary?: number;
 }
 export interface StaffHistoryResponse {
   report: { name: string; dayStart: string; cutoffVerified: boolean };

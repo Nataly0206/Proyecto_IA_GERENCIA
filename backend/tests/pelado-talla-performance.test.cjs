@@ -29,12 +29,14 @@ test('agrupa 61/70 y deduplica personas entre variantes, fechas y tallas en el t
   assert.ok(rows.every(row => row.personasPlanta === 2 && row.horasPeladoPlanta === 10 && row.librasHoraPersonaPlanta === 10));
 });
 
-test('datos incompletos no se muestran como cero ni convierten horas parciales en un rendimiento completo', () => {
+test('con horas incompletas el rendimiento usa solo a las personas conciliadas, sin inflarse con libras sin horas', () => {
   const row = peelingSizePerformance([record(1, '41-50', 40, 4), record(2, '41-50', 20, 0, 1)])[0];
   assert.equal(row.personas, 2);
+  assert.equal(row.libras, 60);
   assert.equal(row.horasPelado, null);
-  assert.equal(row.librasHoraPersona, null);
-  assert.equal(row.librasHoraPersonaPlanta, null);
+  // 40 lb ÷ 4 h de la persona conciliada; no 60 ÷ 4.
+  assert.equal(row.librasHoraPersona, 10);
+  assert.equal(row.librasHoraPersonaPlanta, 10);
   assert.equal(row.rendimientosPersonas.length, 1);
 });
 

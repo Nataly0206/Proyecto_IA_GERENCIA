@@ -25,16 +25,18 @@ import { getPeladoDetailPtSize, getTopPeelingPerformance, mergePeladoDetailSizes
 type SizeOrderResponse = { order: string[]; sizes: string[] };
 
 /**
- * Tabla de libras peladas por talla totalizadas sobre el rango y turno
- * elegidos. Se monta únicamente al abrir el diálogo "Ver por talla".
+ * Tabla de libras peladas por talla. Con scope="range" (diálogo "Ver por talla")
+ * usa el rango y turno elegidos; con scope="today" ("Libras Peladas por Talla — Hoy")
+ * usa siempre el día en curso. Las columnas son las mismas en ambos casos.
  */
-export default function PeladoTallaWidget({ minHours = null }: { minHours?: number | null }) {
+export default function PeladoTallaWidget({ minHours = null, scope = 'range' }: { minHours?: number | null; scope?: 'range' | 'today' }) {
   const [staffPercentage, setStaffPercentage] = useState('20');
   const percentageValue = Number(staffPercentage);
   const validPercentage = staffPercentage.trim() !== '' && Number.isFinite(percentageValue) && percentageValue > 0 && percentageValue <= 100;
   const { filters } = useFilters();
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Tegucigalpa', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-  const liveDay = filters.fechaInicial === today && filters.fechaFinal === today;
+  // Hoy sale del mismo corte que Actividad por Sala, para que libras y totales cuadren.
+  const liveDay = scope === 'today' || (filters.fechaInicial === today && filters.fechaFinal === today);
   const snapshot = usePeladoPorSala(minHours, filters.turno, liveDay);
   const report = useWidgetData('pelado-por-talla', minHours === null ? undefined : { minHours: String(minHours) }, !liveDay);
   const { isLoading, isError, error } = liveDay ? snapshot : report;
@@ -86,7 +88,7 @@ export default function PeladoTallaWidget({ minHours = null }: { minHours?: numb
   return (
     <Box>
       <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-        Rango de fechas y turno seleccionados · L/HP = libras de la talla ÷ horas trabajadas por sus personas · excluye SALA DESCABEZADO y registros anulados
+        {scope === 'today' ? 'Día en curso · no cambia con el filtro de fechas' : 'Rango de fechas y turno seleccionados'} · L/HP = libras de la talla ÷ horas trabajadas por sus personas · excluye SALA DESCABEZADO y registros anulados
       </Typography>
       {liveDay && snapshot.data && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>Mismo corte que Actividad por Sala · actualizado {new Date(snapshot.data.actualizado).toLocaleTimeString('es-HN')}</Typography>}
       {minHours !== null && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>Mismo filtro de actividad: salas con más de {minHours} horas por día.</Typography>}
@@ -118,7 +120,7 @@ export default function PeladoTallaWidget({ minHours = null }: { minHours?: numb
               return <TableRow key={String(row.talla ?? 'Sin talla')} hover sx={{ bgcolor: index % 2 ? '#f8fafc' : '#fff' }}>
                 <TableCell sx={{ fontWeight: 600 }}>{String(row.talla ?? 'Sin talla')}</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>{getPeladoDetailPtSize(String(row.talla ?? 'Sin talla'))}</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 700, color: '#1e40af' }}>{rendimiento(row.librasHoraPersona)}{Number(row.personas ?? 0) > (Array.isArray(row.rendimientosPersonas) ? row.rendimientosPersonas.length : 0) && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: 10 }}>Horas pendientes de conciliar</Typography>}</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 700, color: '#1e40af' }}>{rendimiento(row.librasHoraPersona)}{Number(row.personas ?? 0) > (Array.isArray(row.rendimientosPersonas) ? row.rendimientosPersonas.length : 0) && <Typography variant="caption" color="text.secondary" title="Solo entran las personas cuyas libras pagadas cuadran con las pesadas; las demás no tienen horas confiables." sx={{ display: 'block', fontSize: 10 }}>{Array.isArray(row.rendimientosPersonas) ? row.rendimientosPersonas.length : 0} de {formatValue(Number(row.personas ?? 0))} personas</Typography>}</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 700, color: '#166534' }}>{rendimiento(selected?.rate)}{selected && <Typography variant="caption" sx={{ display: 'block', fontSize: 10 }}>{selected.count} de {selected.total} personas</Typography>}</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 700 }}>{formatValue(Number(row.libras ?? 0), 'number')}</TableCell>
                 <TableCell>
@@ -131,7 +133,7 @@ export default function PeladoTallaWidget({ minHours = null }: { minHours?: numb
             })}
             <TableRow>
               <TableCell colSpan={2} sx={{ fontWeight: 800, bgcolor: '#e8eef7', borderTop: '2px solid #b8c7d9' }}>Total</TableCell>
-              <TableCell align="right" sx={{ fontWeight: 800, bgcolor: '#e8eef7', borderTop: '2px solid #b8c7d9', color: '#1e40af' }}>{rendimiento(totalRendimiento)}</TableCell>
+              <TableCell align="right" sx={{ fontWeight: 800, bgcolor: '#e8eef7', borderTop: '2px solid #b8c7d9', color: '#1e40af' }}>{rendimiento(totalRendimiento)}{Number(rows[0]?.personasPlanta ?? 0) > (Array.isArray(rows[0]?.rendimientosPersonasPlanta) ? rows[0].rendimientosPersonasPlanta.length : 0) && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: 10, fontWeight: 500 }}>{Array.isArray(rows[0]?.rendimientosPersonasPlanta) ? rows[0].rendimientosPersonasPlanta.length : 0} de {formatValue(Number(rows[0]?.personasPlanta ?? 0))} personas</Typography>}</TableCell>
               <TableCell align="right" sx={{ fontWeight: 800, bgcolor: '#e8eef7', borderTop: '2px solid #b8c7d9', color: '#166534' }}>{rendimiento(topTotal?.rate)}{topTotal && <Typography variant="caption" sx={{ display: 'block', fontSize: 10 }}>{topTotal.count} de {topTotal.total} personas</Typography>}</TableCell>
               <TableCell align="right" sx={{ fontWeight: 800, bgcolor: '#e8eef7', borderTop: '2px solid #b8c7d9' }}>
                 {formatValue(total, 'number')}

@@ -60,6 +60,13 @@ const tableSx = {
   '& tbody tr:nth-of-type(even) td': { bgcolor: '#fbfcfe' },
   '& tfoot td': { bgcolor: '#f1f5f9', fontWeight: 800 },
 } as const;
+// Las tablas de los modales deben ajustarse al panel y mostrar todo el texto.
+const staffDetailTableSx = {
+  width: '100%', tableLayout: 'fixed',
+  '& th, & td': { whiteSpace: 'normal', overflowWrap: 'anywhere', verticalAlign: 'top', px: 1.25, py: 0.8, fontSize: 12 },
+  '& .MuiChip-root': { maxWidth: '100%', height: 'auto', minHeight: 24 },
+  '& .MuiChip-label': { whiteSpace: 'normal', overflowWrap: 'anywhere', py: 0.4 },
+} as const;
 function message(error: unknown) {
   return isAxiosError(error) && typeof error.response?.data?.error === 'string' ? error.response.data.error : 'No se pudo consultar la asistencia de STBPayroll. Intenta actualizar.';
 }
@@ -277,7 +284,7 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
       <Collapse in={methodOpen}><Paper id="staff-method" variant="outlined" sx={{ p: 1.25, mt: 0.5, borderRadius: 1.5 }}><Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75 }}>Última asistencia disponible: {active.data.lastAttendance ? formatPeriodo(active.data.lastAttendance) : 'Sin datos'}</Typography>{active.data.limitations.map(text => <Typography key={text} variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>{text}</Typography>)}</Paper></Collapse>
     </Box>}
     <StaffKindDialog selection={kindSelection} people={kindSelection ? members(kindSelection.kind) : []} onClose={() => setKindSelection(null)} />
-    <Dialog open={!!staffGroupSelection} onClose={() => setStaffGroupSelection(null)} fullWidth maxWidth="md">
+    <Dialog open={!!staffGroupSelection} onClose={() => setStaffGroupSelection(null)} fullWidth maxWidth="xl" PaperProps={{ sx: { m: { xs: 1, sm: 3 }, width: { xs: 'calc(100% - 16px)', sm: 'calc(100% - 48px)' } } }}>
       <DialogTitle sx={{ px: 2, py: 1.25, borderBottom: '1px solid', borderColor: 'divider' }}>
         <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1}>
           <Box>
@@ -300,7 +307,8 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
                 <Typography variant="caption" color="text.secondary">{rows.length} personas</Typography>
               </Box>
               <TableContainer sx={{ maxHeight: 400 }}>
-                    <Table size="small" stickyHeader aria-label={`Listado de personas de ${title}`}>
+                    <Table size="small" stickyHeader aria-label={`Listado de personas de ${title}`} sx={staffDetailTableSx}>
+                      <colgroup>{(groupBy === 'department' ? ['32%', '30%', '18%', '20%'] : ['40%', '38%', '22%']).map((width, index) => <col key={index} style={{ width }} />)}</colgroup>
                       <TableHead>
                         <TableRow>
                           <TableCell sx={{ fontWeight: 800 }}>Nombre</TableCell>
@@ -332,7 +340,7 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
             </Box>
           );
           return <>
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 0 }}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'repeat(2, minmax(0, 1fr))' }, gap: 0 }}>
               {peopleColumn('Obra', productionRows, '#eff6ff')}
               {peopleColumn('Auxiliares', auxiliaryRows, '#f0fdf4')}
             </Box>
@@ -440,7 +448,8 @@ function StaffKindDialog({ selection, people, onClose }: { selection: { kind: St
               <TableCell align="right">{formatValue(group.total)}</TableCell>
             </TableRow>
             {expanded && <TableRow><TableCell colSpan={4} sx={{ p: '0 !important', bgcolor: '#f8fafc !important' }}>
-              <Table size="small" aria-label={`Personas de ${department}`} sx={{ '& td, & th': { fontSize: 12, py: 0.6, px: 1.5 } }}>
+              <Table size="small" aria-label={`Personas de ${department}`} sx={staffDetailTableSx}>
+                <colgroup><col style={{ width: '40%' }} /><col style={{ width: '38%' }} /><col style={{ width: '22%' }} /></colgroup>
                 <TableHead><TableRow><TableCell sx={{ fontWeight: 800 }}>Nombre</TableCell><TableCell sx={{ fontWeight: 800 }}>Puesto</TableCell><TableCell sx={{ fontWeight: 800 }}>Estado</TableCell></TableRow></TableHead>
                 <TableBody>{listed.map(person => <TableRow key={person.id}>
                   <TableCell sx={{ fontWeight: 700 }}>{person.name}</TableCell>

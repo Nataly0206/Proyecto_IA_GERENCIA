@@ -1,6 +1,6 @@
-/** Alcance común de pelado: producción válida, personal identificado y sin SALA DESCABEZADO. */
-export const PELADO_INCLUDED_RECORDS = `ISNULL(d.ANULADO,0)=0 AND d.LIBRAS>0 AND k.ID_EMPLEADO>0
-  AND UPPER(LTRIM(RTRIM(COALESCE(s.NOMBRE_SALA,''))))<>'SALA DESCABEZADO'`;
+/** Alcance común de pelado: libras de todas las salas y personal identificado.
+ * Incluye detalles marcados ANULADO para conciliar con el reporte operativo de total pelado. */
+export const PELADO_INCLUDED_RECORDS = `d.LIBRAS>0 AND k.ID_EMPLEADO>0`;
 
 /** Uniones que necesita PELADO_INCLUDED_RECORDS (alias d = detalle). */
 export const PELADO_SCOPE_JOINS = `

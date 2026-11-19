@@ -1,4 +1,5 @@
 import sql from 'mssql';
+import { PELADO_INCLUDED_RECORDS, PELADO_SCOPE_JOINS } from './stb.queries';
 import { runStbQuery } from './stb.service';
 import { runQuery } from './sql.service';
 import { IQF_DAILY_RATE_QUERY } from './reports.queries';
@@ -26,7 +27,8 @@ const PELADO = `SELECT CONVERT(varchar(10), h.FECHA, 23) AS Dia,
  DATEDIFF(SECOND, MIN(d.HORA), MAX(d.HORA)) / 3600.0 AS Horas
  FROM dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS h
  JOIN dbo.PES_ASIGNACION_LIBRAS_EMPLEADOS_DET d ON d.ID_ASIGNACION_LIBRAS_EMPLEADO = h.ID_ASIGNACION_LIBRAS_EMPLEADO
- WHERE h.FECHA BETWEEN @Fecha_Inicial AND @Fecha_Final
+ ${PELADO_SCOPE_JOINS}
+ WHERE h.FECHA BETWEEN @Fecha_Inicial AND @Fecha_Final AND ${PELADO_INCLUDED_RECORDS}
  GROUP BY h.FECHA`;
 
 async function loadSamples(from: string, to: string, index: number): Promise<ProcessSample[]> {

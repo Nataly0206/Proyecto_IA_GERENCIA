@@ -488,7 +488,7 @@ export default function PeladoPorSalaTable({ userId, onMinHoursChange }: { userI
                     </TableCell>
                   <TableCell align="right" sx={BODY_NUM_SX}>
                       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5 }}>
-                        <span>{formatValue(sala.librasPeladasHoy)}</span>
+                        <span>{formatValue(sala.librasPeladasHoy, 'decimal')}</span>
                         <Box sx={{ width: 72, height: 3, borderRadius: 2, bgcolor: '#e9eef5', overflow: 'hidden' }}>
                           <Box
                             sx={{
@@ -519,7 +519,7 @@ export default function PeladoPorSalaTable({ userId, onMinHoursChange }: { userI
                   <TableCell align="right" sx={FOOT_CELL_SX}>{tallaMasPelada || '—'}</TableCell>
                   <TableCell align="right" sx={FOOT_CELL_SX}>{formatValue(totales.personasActivas)}</TableCell>
                   <TableCell align="right" sx={FOOT_CELL_SX}>{formatValue(totales.librasUltimos30Min)}</TableCell>
-                  <TableCell align="right" sx={FOOT_CELL_SX}>{formatValue(totales.librasPeladasHoy)}</TableCell>
+                  <TableCell align="right" sx={FOOT_CELL_SX}>{formatValue(totales.librasPeladasHoy, 'decimal')}</TableCell>
                   <TableCell align="right" sx={FOOT_CELL_SX}>{formatValue(data?.horasTranscurridas ?? 0, 'decimal')}</TableCell>
                 </TableRow>
               </TableFooter>
@@ -563,7 +563,7 @@ export default function PeladoPorSalaTable({ userId, onMinHoursChange }: { userI
                     <TableRow key={row.fecha} hover>
                       <TableCell>{formatPeriodo(row.fecha)}</TableCell>
                       <TableCell align="right" sx={BODY_NUM_SX}>{formatValue(row.personas)}</TableCell>
-                      <TableCell align="right" sx={BODY_NUM_SX}>{formatValue(row.libras)}</TableCell>
+                      <TableCell align="right" sx={BODY_NUM_SX}>{formatValue(row.libras, 'decimal')}</TableCell>
                       <TableCell align="right" sx={BODY_NUM_SX}>{formatValue(row.librasPorHoraPromedio, 'decimal')}</TableCell>
                       <TableCell align="right" sx={BODY_NUM_SX}>{formatValue(row.horasTrabajadas, 'decimal')}</TableCell>
                     </TableRow>)}</TableBody>
@@ -573,7 +573,7 @@ export default function PeladoPorSalaTable({ userId, onMinHoursChange }: { userI
                         Total
                       </TableCell>
                       <TableCell align="right" sx={FOOT_CELL_SX}>{formatValue(dailyTotales.personas)}</TableCell>
-                      <TableCell align="right" sx={FOOT_CELL_SX}>{formatValue(dailyTotales.libras)}</TableCell>
+                      <TableCell align="right" sx={FOOT_CELL_SX}>{formatValue(dailyTotales.libras, 'decimal')}</TableCell>
                       <TableCell align="right" sx={{ ...FOOT_CELL_SX, color: 'primary.main' }}>{formatValue(dailyTotales.horasTrabajadas > 0 ? dailyTotales.libras / dailyTotales.horasTrabajadas : 0, 'decimal')}</TableCell>
                       <TableCell align="right" sx={FOOT_CELL_SX}>{formatValue(dailyTotales.horasTrabajadas, 'decimal')}</TableCell>
                     </TableRow>

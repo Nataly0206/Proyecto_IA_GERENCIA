@@ -92,7 +92,7 @@ function EstiloCard({
                 ...(destacado && { fontSize: 18, letterSpacing: '-0.2px' }),
               }}
             >
-              {formatValue(estilo.libras)}
+              {formatValue(estilo.libras, 'decimal')}
               <Typography component="span" variant="caption" color="text.secondary" ml={0.5}>
                 lbs
               </Typography>

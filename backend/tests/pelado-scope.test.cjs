@@ -35,8 +35,10 @@ test('detalle usa las libras incluidas, normaliza tallas y solo incorpora horas 
   assert.equal(mixed.rendimientosPersonas.length, 0);
 });
 
-test('todas las consultas de libras de pelado usan el mismo alcance (sin anulados ni SALA DESCABEZADO)', () => {
+test('todas las consultas de libras de pelado usan el mismo alcance (incluyendo anulados y SALA DESCABEZADO para conciliar con el reporte operativo)', () => {
   const queries = require('../dist/services/stb.queries');
+  assert.doesNotMatch(queries.PELADO_INCLUDED_RECORDS, /SALA DESCABEZADO/);
+  assert.doesNotMatch(queries.PELADO_INCLUDED_RECORDS, /ANULADO/);
   for (const name of [
     'PELADO_BY_DIMENSION_QUERY', 'PELADO_BY_DIMENSION_DAILY_QUERY', 'PELADO_LIBRAS_HOY_QUERY',
     'PELADO_LIBRAS_HOY_TALLA_QUERY', 'PELADO_RITMO_ULTIMA_HORA_QUERY', 'PELADO_MINUTOS_TRANSCURRIDOS_HOY_QUERY',

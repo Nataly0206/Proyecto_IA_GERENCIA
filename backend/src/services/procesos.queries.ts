@@ -582,6 +582,10 @@ GROUP BY e.FechaCarga, e.ReferenciaEnvio, e.CodigoEmbarque,
 ORDER BY Cliente, CodigoEmbarque, OrdenCompra, Item
 `;
 
+// El origen corregido de la OP prevalece sobre el lote original, sin cambiar cliente ni pesos.
+const EXPORT_TRACE_FARM_SQL = `COALESCE(NULLIF(LTRIM(RTRIM(op.FincaMadre)), ''), lr.Finca)`;
+const EXPORT_TRACE_POND_SQL = `COALESCE(NULLIF(LTRIM(RTRIM(op.NoLagunaMadre)), ''), lr.laguna)`;
+
 /** Trazabilidad del mismo envío mostrado en el diálogo, a nivel de OP y origen. */
 export const EXPORTACIONES_TRAZABILIDAD_QUERY = `
 SELECT
@@ -589,7 +593,7 @@ SELECT
   MAX(e.CodigoEmbarque) AS CodigoEmbarque,
   NULLIF(LTRIM(RTRIM(op.NoOrdenCompra)), '') AS PO,
   ${exportClientSql('lr')} AS Cliente,
-  i.Item AS Item, i.CodigoItem AS CodigoItem, lr.Finca AS Finca, lr.laguna AS Laguna,
+  i.Item AS Item, i.CodigoItem AS CodigoItem, ${EXPORT_TRACE_FARM_SQL} AS Finca, ${EXPORT_TRACE_POND_SQL} AS Laguna,
   CAST(DATEADD(MINUTE, -359, s.Created) AS date) AS FechaProduccion,
   op.OrdenProduccion AS CodigoProduccion,
   COUNT(DISTINCT m.IdMaster) AS Master,
@@ -608,9 +612,9 @@ WHERE e.FechaCarga = @Fecha AND e.NumeroContenedor = @Contenedor
   AND COALESCE(e.ReferenciaEnvio, '') = @Referencia
 GROUP BY e.ReferenciaEnvio, e.NumeroContenedor, op.NoOrdenCompra,
   ${exportClientSql('lr')},
-  i.Item, i.CodigoItem, lr.Finca, lr.laguna, CAST(DATEADD(MINUTE, -359, s.Created) AS date),
+  i.Item, i.CodigoItem, ${EXPORT_TRACE_FARM_SQL}, ${EXPORT_TRACE_POND_SQL}, CAST(DATEADD(MINUTE, -359, s.Created) AS date),
   op.OrdenProduccion, c.NombreColor
-ORDER BY i.Item, lr.Finca, lr.laguna, FechaProduccion, op.OrdenProduccion
+ORDER BY i.Item, ${EXPORT_TRACE_FARM_SQL}, ${EXPORT_TRACE_POND_SQL}, FechaProduccion, op.OrdenProduccion
 `;
 
 /** Conteo mensual directo en SQL; evita descargar el detalle de seis meses. */

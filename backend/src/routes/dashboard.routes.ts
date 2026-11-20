@@ -42,8 +42,8 @@ for (const history of [false, true]) {
       res.status(400).json({ error: 'Selecciona una fecha válida, hasta hoy.' }); return;
     }
     res.json(await (history
-      ? withTtlCache(`personal-produccion:reporte-ax-v7:${env.PAYROLL_ATTENDANCE_DAY_START}:historico:${day}`, 5 * 60_000, () => getProductionStaffHistory(day, req.query.refresh === 'true'), req.query.refresh === 'true')
-      : withTtlCache(`personal-produccion:reporte-ax-v8:${env.PAYROLL_ATTENDANCE_DAY_START}:dia:${day}`, 60_000, () => getProductionStaff(day, req.query.refresh === 'true'), req.query.refresh === 'true')));
+      ? withTtlCache(`personal-produccion:integrado-v14:${env.PAYROLL_ATTENDANCE_DAY_START}:historico:${day}`, 5 * 60_000, () => getProductionStaffHistory(day, req.query.refresh === 'true'), req.query.refresh === 'true')
+      : withTtlCache(`personal-produccion:integrado-v14:${env.PAYROLL_ATTENDANCE_DAY_START}:dia:${day}`, 60_000, () => getProductionStaff(day, req.query.refresh === 'true'), req.query.refresh === 'true')));
   }));
 }
 

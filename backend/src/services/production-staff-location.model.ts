@@ -177,7 +177,27 @@ export function attachStaffLocations(people: StaffEmployee[], locations: StaffLo
   }
   const employees = people.map(person => {
     const own = (byId.get(person.id) ?? []).filter(row => row.name && normalizeStaffName(row.name) === normalizeStaffName(person.name));
-    return { ...locate(person), ...staffActivity(own, day), ...staffDepartment(own, day, person.department) };
+    const enriched = { ...locate(person), ...staffActivity(own, day), ...staffDepartment(own, day, person.department) };
+    const concepts = person.paymentConcepts ?? [];
+    if (concepts.length) {
+      const departments = [...new Set(concepts.map(concept => departmentFromLine('', concept)).filter((value): value is NonNullable<typeof value> => value !== null))];
+      if (departments.length === 1 && departments[0]) {
+        enriched.plantDepartment = departments[0];
+        enriched.plantDepartmentBasis = `Conceptos de pagos del día: ${concepts.join(' · ')}`;
+      } else {
+        enriched.plantDepartment = NO_DEPARTMENT;
+        enriched.plantDepartmentBasis = `Conceptos de pagos en varios departamentos o sin equivalencia: ${concepts.join(' · ')}`;
+      }
+      // Los conceptos auxiliares no especifican sala: no reutilizar asignaciones guardadas ni pesadas anteriores.
+      if (concepts.every(concept => /^AUX\.?\s*PELADO/i.test(concept.trim()))
+        || (person.kind === 'auxiliary' && departments.length === 1 && departments[0] === '1.3 Pelado')) {
+        enriched.area = 'Pelado · Sin sala registrada';
+        enriched.areaBasis = `Conceptos de pagos del día sin sala: ${concepts.join(' · ')}`;
+        enriched.areaDay = day;
+        enriched.areaTime = null;
+      }
+    }
+    return enriched;
   });
   return { employees, unverified };
 }

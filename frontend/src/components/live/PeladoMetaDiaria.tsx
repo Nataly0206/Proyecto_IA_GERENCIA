@@ -6,6 +6,7 @@ import FlagOutlinedIcon from '@mui/icons-material/FlagOutlined';
 import { apiClient } from '../../api/client';
 import { REFRESH_INTERVAL_MS } from '../../hooks/useDashboardData';
 import { formatValue } from '../../utils/format';
+import { remainingPeelingGoalWorkdays } from '../../utils/peelingGoalWorkdays';
 
 type GoalResponse = { goal: number | null };
 
@@ -31,8 +32,8 @@ export default function PeladoMetaDiaria({ total, loading, unavailable, canEdit,
     timeZone: 'America/Tegucigalpa', year: 'numeric', month: 'numeric', day: 'numeric',
   }).formatToParts(new Date());
   const datePart = (type: Intl.DateTimeFormatPartTypes) => Number(dateParts.find((part) => part.type === type)?.value);
-  const remainingDays = new Date(Date.UTC(datePart('year'), datePart('month'), 0)).getUTCDate() - datePart('day') + 1;
-  const requiredPerDay = goal ? Math.ceil(Math.max(0, goal - total) / remainingDays) : 0;
+  const remainingDays = remainingPeelingGoalWorkdays(datePart('year'), datePart('month'), datePart('day'));
+  const requiredPerDay = !goal || total >= goal ? 0 : remainingDays > 0 ? Math.ceil((goal - total) / remainingDays) : null;
   const progress = Math.min(100, Math.max(0, percent));
   const valid = draft.trim() !== '' && Number.isFinite(Number(draft)) && Number(draft) > 0 && Number(draft) <= 1_000_000_000;
   const [whole, fraction] = draft.split('.');
@@ -52,9 +53,9 @@ export default function PeladoMetaDiaria({ total, loading, unavailable, canEdit,
           </Stack>
           <LinearProgress variant="determinate" value={goal && !loading && !unavailable ? Math.min(percent, 100) : 0} color={reached && !unavailable ? 'success' : 'primary'} aria-label={`Avance de la meta ${period} de pelado`} sx={{ mt: 0.5, height: 6, borderRadius: 4, bgcolor: 'action.hover', '& .MuiLinearProgress-bar': { borderRadius: 4, backgroundImage: 'linear-gradient(90deg, #dc2626 0%, #facc15 50%, #16a34a 100%)', backgroundSize: '100% 100%', clipPath: `inset(0 ${100 - (goal && !loading && !unavailable ? progress : 0)}% 0 0 round 4px)`, transform: 'none !important', transition: 'clip-path 0.4s ease' }, '@media (prefers-reduced-motion: reduce)': { '& .MuiLinearProgress-bar': { transition: 'none' } } }} />
           {period === 'mensual' && <Stack direction="row" justifyContent="space-between" useFlexGap flexWrap="wrap" gap={0.5} sx={{ mt: 0.75 }}>
-            <Typography variant="caption" color="text.secondary">{remainingDays} {remainingDays === 1 ? 'día restante' : 'días restantes'} del mes (incluye hoy)</Typography>
+            <Typography variant="caption" color="text.secondary">{remainingDays} {remainingDays === 1 ? 'día laborable restante' : 'días laborables restantes'}</Typography>
             {!isLoading && !isError && !!goal && !loading && !unavailable && <Typography variant="caption" fontWeight={700} color={reached ? 'success.main' : 'text.primary'}>
-              {formatValue(requiredPerDay)} lbs por día para llegar a la meta
+              {requiredPerDay === null ? 'No quedan días laborables este mes' : `${formatValue(requiredPerDay)} lbs por día para llegar a la meta`}
             </Typography>}
           </Stack>}
         </Box>

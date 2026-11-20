@@ -16,11 +16,11 @@ type Period = { key: string; start: string; end: string };
 type Summary = {
   period: Period; closed: boolean; days: number;
   present: number | null; absent: number | null; rate: number | null; roster: number | null;
-  presentProduction: number | null; presentAuxiliary: number | null;
+  presentProduction: number | null; presentAuxiliary: number | null; presentMachine: number | null; presentSupervisor: number | null;
   hires: number; exits: number; hiresProduction: number; hiresAuxiliary: number;
 };
 
-export const STAFF_TREND_QUERY_KEY = 'personal-rango-v1';
+export const STAFF_TREND_QUERY_KEY = 'personal-rango-integrado-v6';
 const weekdayLabels = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 const monthNames = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 /** Periodos visibles en el comparativo; se carga uno más para calcular el cambio del más antiguo. */
@@ -52,15 +52,17 @@ function summarize(period: Period, days: StaffHistoryDay[], included: number[], 
   const inPeriod = days.filter(day => day.day >= period.start && day.day <= period.end && day.day <= today);
   const counted = inPeriod.filter(day => day.day < today && day.total > 0 && included.includes(weekday(day.day)));
   const n = counted.length;
+  const absenceAvailable = n > 0 && counted.every(day => day.absenceDataAvailable ?? day.absenceRate !== null);
   const sum = (field: keyof StaffHistoryDay) => counted.reduce((total, day) => total + Number(day[field] ?? 0), 0);
   const all = (field: keyof StaffHistoryDay) => inPeriod.reduce((total, day) => total + Number(day[field] ?? 0), 0);
   const present = sum('present'), absent = sum('absent');
   const last = [...inPeriod].reverse().find(day => day.total > 0);
   return {
     period, closed: period.end < today, days: n,
-    present: n ? present / n : null, absent: n ? absent / n : null,
-    rate: present + absent > 0 ? absent / (present + absent) * 100 : null,
+    present: n ? present / n : null, absent: absenceAvailable ? absent / n : null,
+    rate: absenceAvailable && counted.every(day => day.absenceRate !== null) && present + absent > 0 ? absent / (present + absent) * 100 : null,
     roster: last?.total ?? null,
+    presentMachine: n ? sum('presentMachine') / n : null, presentSupervisor: n ? sum('presentSupervisor') / n : null,
     presentProduction: n ? sum('presentProduction') / n : null, presentAuxiliary: n ? sum('presentAuxiliary') / n : null,
     hires: all('hires'), exits: all('exits'), hiresProduction: all('hiresProduction'), hiresAuxiliary: all('hiresAuxiliary'),
   };
@@ -118,10 +120,12 @@ export default function StaffTrend({ userId, includedWeekdays, onDay }: { userId
     { label: 'Asistieron · promedio por día', value: one(current.present), color: 'success.main', delta: <Delta current={current.present} previous={previous.present} /> },
     { label: 'Faltaron · promedio por día', value: one(current.absent), color: 'error.main', delta: <Delta current={current.absent} previous={previous.absent} /> },
     { label: 'Inasistencia', value: current.rate === null ? '—' : `${current.rate.toFixed(2)}%`, color: 'error.main', delta: <Delta current={current.rate} previous={previous.rate} points /> },
-    { label: current.closed ? 'Planilla al cierre' : 'Planilla actual', value: current.roster === null ? '—' : formatValue(current.roster), color: 'text.primary', delta: <Delta current={current.roster} previous={previous.roster} decimals={false} /> },
+    { label: current.closed ? 'Personal al cierre' : 'Personal actual', value: current.roster === null ? '—' : formatValue(current.roster), color: 'text.primary', delta: <Delta current={current.roster} previous={previous.roster} decimals={false} /> },
     { label: 'Ingresos a planilla', value: formatValue(current.hires), color: '#1e40af', delta: <Delta current={current.hires} previous={previous.hires} decimals={false} />, detail: `Obra ${current.hiresProduction} · Aux. ${current.hiresAuxiliary}` },
     { label: 'Retiros de planilla', value: formatValue(current.exits), color: '#9a3412', delta: <Delta current={current.exits} previous={previous.exits} decimals={false} />, detail: `Neto ${current.hires - current.exits >= 0 ? '+' : ''}${current.hires - current.exits}` },
     { label: 'Obra · asistieron por día', value: one(current.presentProduction), color: '#1e40af', delta: <Delta current={current.presentProduction} previous={previous.presentProduction} /> },
+    { label: 'Máquinas · asistieron por día', value: one(current.presentMachine), color: '#7c3aed', delta: <Delta current={current.presentMachine} previous={previous.presentMachine} /> },
+    { label: 'Supervisores · asistieron por día', value: one(current.presentSupervisor), color: '#9a3412', delta: <Delta current={current.presentSupervisor} previous={previous.presentSupervisor} /> },
     { label: 'Auxiliar · asistieron por día', value: one(current.presentAuxiliary), color: '#166534', delta: <Delta current={current.presentAuxiliary} previous={previous.presentAuxiliary} /> },
   ] : [];
 
@@ -155,8 +159,8 @@ export default function StaffTrend({ userId, includedWeekdays, onDay }: { userId
       {range.isFetching && <LinearProgress sx={{ mt: 1, height: 2 }} />}
     </Paper>
 
-    {range.isError && <Alert severity="error">{isAxiosError(range.error) && typeof range.error.response?.data?.error === 'string' ? range.error.response.data.error : 'No se pudo consultar la asistencia de STBPayroll.'}</Alert>}
-    {range.isLoading && <><Skeleton variant="rounded" height={150} /><Typography variant="caption" color="text.secondary">Consultando varios meses de Payroll; la primera vez puede tardar unos segundos.</Typography></>}
+    {range.isError && <Alert severity="error">{isAxiosError(range.error) && typeof range.error.response?.data?.error === 'string' ? range.error.response.data.error : 'No se pudo consultar el reporte de pagos grupales de STB_data.'}</Alert>}
+    {range.isLoading && <><Skeleton variant="rounded" height={150} /><Typography variant="caption" color="text.secondary">Consultando varios meses del reporte de pagos; la primera vez puede tardar unos segundos.</Typography></>}
 
     {range.data && current && <>
       {!current.closed && <Alert severity="info" sx={{ py: 0, '& .MuiAlert-message': { fontSize: 12 } }}>El {unit} está en curso: los promedios usan los {current.days} días cerrados hasta ayer.</Alert>}
@@ -227,7 +231,7 @@ export default function StaffTrend({ userId, includedWeekdays, onDay }: { userId
               <TableCell><Button size="small" onClick={() => onDay(day.day)} sx={{ p: 0, minWidth: 0, whiteSpace: 'nowrap', fontSize: 'inherit', fontWeight: 700, textTransform: 'none' }}>{weekdayLabels[weekday(day.day)].slice(0, 3)} {formatPeriodo(day.day).replace(/-\d{4}$/, '')}</Button>
                 {day.day === today && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: 10 }}>En curso</Typography>}
                 {!hasData && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: 10 }}>Sin datos</Typography>}</TableCell>
-              {detailColumns.map(column => <TableCell key={column.field} align="right" sx={{ color: column.color, fontWeight: column.field === 'present' || column.field === 'absent' ? 800 : 500, borderLeft: column.group ? '1px solid #e2e8f0' : undefined }}>{hasData ? formatValue(Number(day[column.field] ?? 0)) : '—'}</TableCell>)}
+              {detailColumns.map(column => <TableCell key={column.field} align="right" sx={{ color: column.color, fontWeight: column.field === 'present' || column.field === 'absent' ? 800 : 500, borderLeft: column.group ? '1px solid #e2e8f0' : undefined }}>{hasData && !(column.field.startsWith('absent') && !(day.absenceDataAvailable ?? day.absenceRate !== null)) ? formatValue(Number(day[column.field] ?? 0)) : '—'}</TableCell>)}
               <TableCell align="right" sx={{ color: 'error.main', fontWeight: 800 }}>{day.absenceRate === null || !hasData ? '—' : `${formatValue(day.absenceRate, 'decimal')}%`}</TableCell>
               <TableCell align="right" sx={{ borderLeft: '1px solid #e2e8f0', color: '#1e40af' }}>{day.hires ? formatValue(day.hires) : '—'}</TableCell>
               <TableCell align="right" sx={{ color: '#9a3412' }}>{day.exits ? formatValue(day.exits) : '—'}</TableCell>
@@ -251,6 +255,6 @@ export default function StaffTrend({ userId, includedWeekdays, onDay }: { userId
         <Typography variant="caption" color="text.secondary" sx={{ px: 0.25, cursor: 'help' }}>Planilla por fecha: cada persona cuenta desde su ingreso y, si ya no está activa, hasta su retiro. ⓘ</Typography>
       </Tooltip>
     </>}
-    {range.data && !days.length && <Alert severity="info">Sin registros de Payroll para este periodo.</Alert>}
+    {range.data && !days.length && <Alert severity="info">Sin personas en el reporte de pagos para este periodo.</Alert>}
   </Stack>;
 }

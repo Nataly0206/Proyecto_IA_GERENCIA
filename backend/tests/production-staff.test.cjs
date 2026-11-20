@@ -97,7 +97,7 @@ test('departamentos reconcilian totales y comodines no se cuentan dos veces', ()
   const people = buildStaffEmployees([row(1, { job: 'APOYO COMODIN' }), row(2, { department: 'CALIDAD', job: 'AUXILIAR DE CALIDAD' }), row(3, { job: 'DECORACION ANILLO' })], day);
   assert.equal(staffAreaRows(people).reduce((sum, area) => sum + area.total, 0), 3);
   assert.equal(summarizeStaff(people).wildcard, 1);
-  assert.equal(staffKind(''), 'unknown');
+  assert.equal(staffKind(''), 'auxiliary');
   assert.equal(staffKind('APOYO COMODIN'), 'auxiliary');
   assert.equal(staffKind('OBRA'), 'production');
 });
@@ -114,35 +114,48 @@ test('fecha inválida, futura y parámetros no escalares se rechazan', () => {
   assert.equal(validStaffDate(day, day), true);
 });
 
-test('asistencia y faltas siguen saliendo de Payroll aunque fallen las asignaciones', async () => {
+test('personas y clasificación salen de pagos de STB aunque fallen las ubicaciones', async () => {
   const payroll = require('../dist/services/payroll.service');
   const stb = require('../dist/services/stb.service');
   const service = require('../dist/services/production-staff.service');
-  const { PAYROLL_STAFF_QUERY } = require('../dist/services/production-staff.queries');
+  const q = require('../dist/services/production-staff.queries');
   const original = payroll.runPayrollQuery; const originalStb = stb.runStbQuery; const log = console.error;
   try {
     console.error = () => {};
-    stb.runStbQuery = async () => { throw new Error('Asignaciones no disponibles'); };
-    payroll.runPayrollQuery = async query => query === PAYROLL_STAFF_QUERY
-      ? [{ Dia: day, IdEmpleado: 1, Fuente: 'calendar', CodigoAccion: 'A039', Accion: 'FALTO A TRABAJAR' }] : [{ UltimaFecha: '2026-11-11' }];
+    payroll.runPayrollQuery = async query => query === q.STAFF_ATTENDANCE_REFERENCES_QUERY
+      ? [{ UltimaFechaInasistencias: '2026-11-16', Inasistencias: 52, SupervisoresActivos: 14 }]
+      : query === q.PAYROLL_STAFF_COMPLEMENT_QUERY ? [{ Dia: day, IdEmpleado: 1, Fuente: 'payroll', MarcaReporte: 'A', Puesto: 'AUXILIAR' }]
+      : [{ IdConceptoPago: 31, ConceptoPago: 'OBRA PELADO ANILLO' }];
+    stb.runStbQuery = async query => {
+      if (query === q.STB_GROUP_PAYMENT_STAFF_QUERY) return [{ Dia: day, IdEmpleado: 1, Fuente: 'payment', IdConceptoPago: 31, Puesto: 'AUXILIAR' }];
+      if (query === q.STB_GROUP_PAYMENT_COVERAGE_QUERY) return [{ UltimaFecha: day }];
+      throw new Error('Asignaciones no disponibles');
+    };
     const result = await service.getProductionStaff(day);
-    assert.equal(result.source, 'STBPayroll');
-    assert.equal(result.summary.absent, 1);
-    assert.equal(result.lastAttendance, '2026-11-11');
-    assert.equal(result.employees.length, 1);
+    assert.equal(result.source, 'STB_data + STBPayroll');
+    assert.equal(result.summary.total, 1);
+    assert.equal(result.summary.present, 1);
+    assert.equal(result.summary.production, 1);
+    assert.equal(result.summary.absenceRate, null);
+    assert.equal(result.lastAttendance, day);
     assert.equal(result.locationAvailable, false);
+    assert.equal(result.attendanceReferences.activeSupervisors, 14);
+    assert.deepEqual(result.attendanceReferences.latestAbsences, { day: '2026-11-16', count: 52, report: 'RH_V_EMPLEADOS_PRODUCCION_INASISTENCIA · 013 INASISTENCIA' });
+    assert.equal(result.summary.absent, 0);
   } finally { payroll.runPayrollQuery = original; stb.runStbQuery = originalStb; console.error = log; }
 });
 
-test('un error de STBPayroll devuelve 503 sin sustituir conteos por ceros', async () => {
+test('un error del reporte STB devuelve 503 sin sustituir conteos por ceros', async () => {
+  const stb = require('../dist/services/stb.service');
   const payroll = require('../dist/services/payroll.service');
   const service = require('../dist/services/production-staff.service');
-  const original = payroll.runPayrollQuery; const log = console.error;
+  const original = stb.runStbQuery; const originalPayroll = payroll.runPayrollQuery; const log = console.error;
   try {
     console.error = () => {};
-    payroll.runPayrollQuery = async () => { throw new Error('Fallo de prueba'); };
+    stb.runStbQuery = async () => { throw new Error('Fallo de prueba'); };
+    payroll.runPayrollQuery = async () => [];
     await assert.rejects(() => service.getProductionStaff(day), error => error.statusCode === 503);
-  } finally { payroll.runPayrollQuery = original; console.error = log; }
+  } finally { stb.runStbQuery = original; payroll.runPayrollQuery = originalPayroll; console.error = log; }
 });
 
 test('Personal requiere su propio permiso y Productividad no lo concede', async () => {
@@ -312,10 +325,156 @@ test('departamento de planta según la línea de producción', () => {
   assert.equal(departmentFromPayroll('PRODUCCION'), null);
 });
 
-test('la planilla por fecha respeta ingreso y retiro en lugar de repetir los activos actuales', () => {
-  const { PAYROLL_STAFF_QUERY, PAYROLL_STAFF_MOVEMENTS_QUERY } = require('../dist/services/production-staff.queries');
-  assert.doesNotMatch(PAYROLL_STAFF_QUERY, /V_RH_EMPLEADOS_DIAS/);
-  assert.match(PAYROLL_STAFF_QUERY, /f\.Fecha>=CAST\(e\.FECHA_INGRESO AS date\)/);
-  assert.match(PAYROLL_STAFF_QUERY, /e\.ACTIVO=1 OR \(e\.FECHA_RETIRO>='2000-01-01' AND f\.Fecha<=CAST\(e\.FECHA_RETIRO AS date\)\)/);
+test('la población del reporte no se completa con el padrón de RH', () => {
+  const { STB_GROUP_PAYMENT_STAFF_QUERY, PAYROLL_STAFF_MOVEMENTS_QUERY } = require('../dist/services/production-staff.queries');
+  assert.doesNotMatch(STB_GROUP_PAYMENT_STAFF_QUERY, /RH_EMPLEADOS|FECHA_INGRESO|ID_TIPO_PLANILLA/);
+  assert.match(STB_GROUP_PAYMENT_STAFF_QUERY, /FROM dbo.V_PL_EMPLEADOS_PAGO_DETALLE_R/);
   assert.match(PAYROLL_STAFF_MOVEMENTS_QUERY, /e\.ACTIVO=0 AND CAST\(e\.FECHA_RETIRO AS date\) BETWEEN/);
+});
+
+test('conceptos de pagos deduplican asistencia y no inventan falta al faltar un concepto', () => {
+  const people = buildStaffEmployees([
+    row(1, { source: 'report', reportMark: 'A', paymentConcept: 'AUX. PELADO ND PROGRAMA' }),
+    row(1, { source: 'report', reportMark: 'A', paymentConcept: 'AUX. PELADO TERCERO' }),
+    row(2, { source: 'report', reportMark: null }),
+  ], day);
+  const summary = summarizeStaff(people);
+  assert.equal(summary.present, 1);
+  assert.equal(summary.pending, 1);
+  assert.equal(summary.absent, 0);
+  assert.equal(people.find(p => p.id === 1).paymentConcepts.length, 2);
+});
+
+test('auxiliar de Pelado por conceptos queda sin sala aunque haya asignación activa a Sala 4', () => {
+  const people = buildStaffEmployees([row(1, { job: 'AUXILIARES DE PELADO', source: 'report', reportMark: 'A', paymentConcept: 'AUX. PELADO ND PROGRAMA' })], day);
+  const { employees } = attachStaffLocations(people, [location(1, { source: 'assignment', room: 'SALA #4' })], day, day);
+  assert.equal(employees[0].area, 'Pelado · Sin sala registrada');
+  assert.equal(employees[0].plantDepartment, '1.3 Pelado');
+  assert.match(employees[0].plantDepartmentBasis, /Conceptos de pagos/);
+  assert.equal(employees[0].status, 'present');
+});
+
+test('el reporte conserva todos sus conceptos sin lista fija ni biométrico', () => {
+  const q = require('../dist/services/production-staff.queries');
+  assert.match(q.STB_GROUP_PAYMENT_STAFF_QUERY, /V_PL_EMPLEADOS_PAGO_DETALLE_R/);
+  assert.doesNotMatch(q.STB_GROUP_PAYMENT_STAFF_QUERY, /CHECKINOUT|IdPagoDeduccion IN|TOTAL_PAGO>0/);
+  assert.match(q.STB_GROUP_PAYMENT_COVERAGE_QUERY, /V_PL_EMPLEADOS_PAGO_DETALLE_R/);
+});
+
+test('la fuente de pagos es exclusiva aunque otras fuentes indiquen presencia o ausencia', () => {
+  const people = buildStaffEmployees([
+    row(1, { source: 'payment', reportMark: null, paymentConcept: '' }),
+    row(1, { source: 'clock', entry: '060000', exit: '140000', hours: '080000' }),
+    row(1, { source: 'report', reportMark: 'A' }),
+    row(2, { source: 'payment', paymentConcept: 'AUX. PELADO ND PROGRAMA' }),
+    row(2, { source: 'report', reportMark: 'X' }),
+    row(2, { source: 'action', actionCode: 'A039', action: 'FALTO A TRABAJAR' }),
+  ], day);
+  assert.equal(people.find(p => p.id === 1).status, 'pending');
+  assert.equal(people.find(p => p.id === 1).hasAttendance, false);
+  assert.equal(people.find(p => p.id === 2).status, 'present');
+  assert.equal(people.find(p => p.id === 2).absenceRecorded, false);
+  const history = buildStaffHistory([
+    row(1, { source: 'payment', paymentConcept: 'AUX. PELADO ND PROGRAMA' }),
+    row(1, { source: 'payment', paymentConcept: 'AUX. PELADO TERCERO' }),
+    row(2, { source: 'payment', paymentConcept: '' }),
+  ], day, day);
+  assert.equal(history[0].present, 1);
+  assert.equal(history[0].pending, 1);
+  assert.equal(history[0].absent, 0);
+});
+
+test('clasifica conceptos en obra, máquinas, auxiliares y supervisores sin duplicar personas', () => {
+  const cases = [
+    ['OBRA PELADO ANILLO', 'AUXILIAR', 'production'],
+    ['AUX. PELADO ND PROGRAMA', 'OBRA', 'auxiliary'],
+    ['DECORACION ANILLOS', 'DESTAJO', 'auxiliary'],
+    ['REEMPAQUE', 'OPERARIO', 'auxiliary'],
+    ['IQF PROGRAMA', '', 'machine'],
+    ['CLASIFICADO PROGRAMA', 'OPERARIO', 'machine'],
+    ['AUX CLASIFICADO', 'OPERARIO', 'auxiliary'],
+    ['AUX. IQF', 'OPERARIO', 'auxiliary'],
+    ['IQF PROGRAMA', 'SUPERVISOR DE PRODUCCION', 'supervisor'],
+    ['OBRA PELADO ANILLO', 'SUPERVISORA DE PELADO', 'supervisor'],
+    ['SUPERVISORES', '', 'supervisor'],
+    ['AUX. PELADO ND PROGRAMA', 'APOYO A SUPERVISOR', 'auxiliary'],
+    ['CONCEPTO PENDIENTE DE DEFINIR', '', 'auxiliary'],
+  ];
+  for (const [paymentConcept, job, expected] of cases) {
+    assert.equal(employee(row(1, { source: 'payment', paymentConcept, job })).kind, expected);
+  }
+  const people = buildStaffEmployees([
+    row(1, { source: 'payment', paymentConcept: 'OBRA PELADO ANILLO' }),
+    row(1, { source: 'payment', paymentConcept: 'AUX. PELADO ANILLO' }),
+  ], day);
+  assert.equal(people.length, 1);
+  assert.equal(people[0].kind, 'production');
+});
+
+test('las cuatro categorías concilian el total diario y el histórico', () => {
+  const rows = [
+    row(1, { source: 'payment', paymentConcept: 'OBRA PELADO' }),
+    row(2, { source: 'payment', paymentConcept: 'IQF PROGRAMA' }),
+    row(3, { source: 'payment', paymentConcept: 'POR DEFINIR' }),
+    row(4, { source: 'payment', paymentConcept: 'OBRA PELADO', job: 'SUPERVISOR' }),
+  ];
+  const summary = summarizeStaff(buildStaffEmployees(rows, day));
+  assert.equal(summary.total, 4);
+  assert.equal(summary.production + summary.machine + summary.auxiliary + summary.supervisor, summary.total);
+  assert.equal(summary.unknown, 0);
+  const history = buildStaffHistory(rows, day, day)[0];
+  assert.equal(history.presentProduction, 1);
+  assert.equal(history.presentMachine, 1);
+  assert.equal(history.presentAuxiliary, 1);
+  assert.equal(history.presentSupervisor, 1);
+});
+
+
+test('integra pagos, supervisores y novedades una sola vez por persona y fecha', () => {
+  const rows = [
+    row(1, { source: 'payment', paymentConcept: 'OBRA PELADO' }),
+    row(1, { source: 'payroll', reportMark: 'A' }),
+    row(2, { source: 'payroll', job: 'SUPERVISOR', reportMark: 'A' }),
+    row(3, { source: 'payroll', job: 'SUPERVISOR' }),
+    row(4, { source: 'payroll', actionCode: '013', action: 'INASISTENCIA' }),
+    row(5, { source: 'payroll', actionCode: '014', action: 'INCAPACIDAD' }),
+    row(6, { source: 'payroll', actionCode: '035', action: 'VACACIONES' }),
+    row(7, { source: 'payment', paymentConcept: 'AUX. PELADO' }),
+    row(7, { source: 'payroll', actionCode: '013', action: 'INASISTENCIA' }),
+  ];
+  const people = buildStaffEmployees(rows, day);
+  assert.equal(people.length, 7);
+  const summary = summarizeStaff(people);
+  assert.equal(summary.present, 2);
+  assert.equal(summary.absent, 1);
+  assert.equal(summary.excused, 1);
+  assert.equal(summary.off, 1);
+  assert.equal(summary.pending, 1);
+  assert.equal(summary.conflict, 1);
+  assert.equal(summary.supervisor, 2);
+  assert.equal(summary.total, summary.present + summary.absent + summary.excused + summary.off + summary.noProduction + summary.pending + summary.conflict);
+  assert.equal(summary.absenceRate, null);
+  const history = buildStaffHistory(rows, day, day)[0];
+  assert.equal(history.present, 2);
+  assert.equal(history.absent, 1);
+  assert.equal(history.presentSupervisor, 1);
+});
+
+test('una falta anterior no se traslada al día consultado ni la falta de pago crea una X', () => {
+  const people = buildStaffEmployees([
+    row(1, { source: 'payroll', day: '2026-11-16', actionCode: '013', action: 'INASISTENCIA' }),
+    row(1, { source: 'payroll' }),
+  ], day);
+  assert.equal(people[0].status, 'pending');
+  assert.equal(people[0].absenceRecorded, false);
+});
+
+test('la coincidencia de ID con distinto nombre se conserva como conflicto para revisión', () => {
+  const people = buildStaffEmployees([
+    row(1, { source: 'payment', name: 'ANA LOPEZ', paymentConcept: 'OBRA PELADO' }),
+    row(1, { source: 'payroll', name: 'MARIA PEREZ', reportMark: 'A' }),
+  ], day);
+  assert.equal(people.length, 1);
+  assert.equal(people[0].status, 'conflict');
+  assert.match(people[0].reason, /identidad/);
 });

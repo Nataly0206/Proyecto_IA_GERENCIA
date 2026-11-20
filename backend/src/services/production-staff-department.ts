@@ -22,7 +22,7 @@ const [descabezado, clasificado, pelado, iqf, salmuera, recepcion, cocinado, lan
 export function departmentFromLine(process: string, line: string): PlantDepartment | null {
   const p = norm(process), l = norm(line);
   if (!p && !l) return null;
-  if (/RRHH|GESTION AMBIENTAL|MANTENIMIENTO/.test(l) || p === 'GESTION AMBIENTAL' || p === 'MANTENIMIENTO') return rrhh;
+  if (/RRHH|RECURSOS HUMANOS|GESTION AMBIENTAL|MANTENIMIENTO/.test(l) || p === 'GESTION AMBIENTAL' || p === 'MANTENIMIENTO') return rrhh;
   if (/CALIDAD|LAVANDERIA|POES/.test(l)) return calidad;
   if (p === 'EMPAQUE' || /MASTERIZADO|BODEGA|CODIGO Y ETIQUETA/.test(l)) return empaque;
   if (/REEMPAQUE/.test(l)) return reempaque;

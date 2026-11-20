@@ -1,6 +1,13 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const payroll = require('../dist/services/payroll.service');
+const stb = require('../dist/services/stb.service');
+const { PAYMENT_CONCEPT_CATALOG_QUERY, PAYROLL_STAFF_COMPLEMENT_QUERY } = require('../dist/services/production-staff.queries');
+payroll.runPayrollQuery = async (query, params) => query === PAYMENT_CONCEPT_CATALOG_QUERY
+  ? [{ IdConceptoPago: 31, ConceptoPago: 'OBRA PELADO ANILLO' }]
+  : query === PAYROLL_STAFF_COMPLEMENT_QUERY
+    ? [{ Dia: params.find(p => p.name === 'Hasta').value, IdEmpleado: 1, Nombre: 'Persona', Fuente: 'payroll', MarcaReporte: 'A', Puesto: 'OBRA' }]
+    : [];
 const cache = require('../dist/utils/ttlCache');
 const values = new Map();
 let reads = [];
@@ -8,12 +15,12 @@ cache.withTtlCache = async (key, ttl, loader, force = false) => {
   if (!force && values.has(key)) return values.get(key);
   const value = await loader(); values.set(key, value); return value;
 };
-payroll.runPayrollQuery = async (query, params) => {
+stb.runStbQuery = async (query, params) => {
   const from = params.find(p => p.name === 'Desde').value;
   const to = params.find(p => p.name === 'Hasta').value;
   reads.push({ from, to });
   if (query.includes('UltimaFecha')) return [{ UltimaFecha: to }];
-  return [{ Dia: to, IdEmpleado: 1, CodigoEmpleado: '1', Nombre: 'Persona', Puesto: 'OBRA', Fuente: 'report', MarcaReporte: 'A' }];
+  return [{ Dia: to, IdEmpleado: 1, CodigoEmpleado: '1', Nombre: 'Persona', Puesto: 'OBRA', Fuente: 'payment', MarcaReporte: 'A', IdConceptoPago: 31 }];
 };
 const { getProductionStaffHistory, staffToday } = require('../dist/services/production-staff.service');
 

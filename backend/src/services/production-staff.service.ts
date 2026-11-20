@@ -4,10 +4,11 @@ import { getStaffLocations } from './production-staff-location.service';
 import { attachStaffLocations } from './production-staff-location.model';
 import sql from 'mssql';
 import { runPayrollQuery } from './payroll.service';
+import { runStbQuery } from './stb.service';
 import type { SqlRow } from './sql.service';
 import { pickNumber, pickString } from '../utils/rows';
 import { ApiError } from '../middleware/errorHandler';
-import { PAYROLL_STAFF_QUERY, PAYROLL_ATTENDANCE_COVERAGE_QUERY, PAYROLL_STAFF_MOVEMENTS_QUERY } from './production-staff.queries';
+import { STB_GROUP_PAYMENT_STAFF_QUERY, STB_GROUP_PAYMENT_COVERAGE_QUERY, PAYMENT_CONCEPT_CATALOG_QUERY, PAYROLL_STAFF_COMPLEMENT_QUERY, STAFF_ATTENDANCE_REFERENCES_QUERY, PAYROLL_STAFF_MOVEMENTS_QUERY } from './production-staff.queries';
 import { PayrollStaffRow, PayrollSource, buildStaffEmployees, buildStaffHistory, staffKind, summarizeStaff, staffAreaRows } from './production-staff.model';
 
 export function staffToday(): string {
@@ -18,17 +19,16 @@ export function validStaffDate(value: unknown, today: string): value is string {
   const parsed = new Date(`${value}T12:00:00Z`);
   return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }
-const reportCutoffMinutes = () => { const [hour, minute] = env.PAYROLL_ATTENDANCE_DAY_START.split(':').map(Number); return hour * 60 + minute; };
 const params = (from: string, to: string) => [
   { name: 'Desde', type: sql.Date, value: from }, { name: 'Hasta', type: sql.Date, value: to },
-  { name: 'CorteMinutos', type: sql.Int, value: reportCutoffMinutes() },
-  { name: 'HastaMarca', type: sql.DateTime, value: null },
+  { name: 'CorteMinutos', type: sql.Int, value: Number(env.PAYROLL_ATTENDANCE_DAY_START.slice(0, 2)) * 60 + Number(env.PAYROLL_ATTENDANCE_DAY_START.slice(3)) },
 ];
 export function mapPayrollStaffRow(row: SqlRow): PayrollStaffRow {
   return {
     day: pickString(row, 'Dia'), id: pickNumber(row, 'IdEmpleado'), code: pickString(row, 'CodigoEmpleado'),
     name: pickString(row, 'Nombre'), department: pickString(row, 'Departamento'), division: pickString(row, 'Division'),
     job: pickString(row, 'Puesto'), shift: pickString(row, 'Turno'), source: pickString(row, 'Fuente') as PayrollSource,
+    paymentConcept: pickString(row, 'ConceptoPago'),
     reportMark: ['A', 'X'].includes(pickString(row, 'MarcaReporte')) ? pickString(row, 'MarcaReporte') as 'A' | 'X' : null,
     firstPunch: pickString(row, 'PrimeraMarca'), lastPunch: pickString(row, 'UltimaMarca'),
     actionCode: pickString(row, 'CodigoAccion'), action: pickString(row, 'Accion'),
@@ -36,37 +36,70 @@ export function mapPayrollStaffRow(row: SqlRow): PayrollStaffRow {
     entry: pickString(row, 'Entrada'), exit: pickString(row, 'Salida'), hours: pickString(row, 'Horas'),
   };
 }
-async function loadPayroll(from: string, to: string) {
+async function loadGroupPayments(from: string, to: string) {
   try {
-    const [records, coverage] = await Promise.all([
-      runPayrollQuery(PAYROLL_STAFF_QUERY, params(from, to)),
-      runPayrollQuery(PAYROLL_ATTENDANCE_COVERAGE_QUERY, params(from, to)),
+    const [records, coverage, catalog] = await Promise.all([
+      runStbQuery(STB_GROUP_PAYMENT_STAFF_QUERY, params(from, to)),
+      runStbQuery(STB_GROUP_PAYMENT_COVERAGE_QUERY, params(from, to)),
+      withTtlCache(`personal:payment-concepts:v1:${env.PAYROLL_DB_SERVER}:${env.PAYROLL_DB_DATABASE}`, 60 * 60_000,
+        () => runPayrollQuery(PAYMENT_CONCEPT_CATALOG_QUERY, [])),
     ]);
+    const concepts = new Map(catalog.map(row => [pickNumber(row, 'IdConceptoPago'), pickString(row, 'ConceptoPago')]));
+    const mapped = records.map(row => {
+      const concept = concepts.get(pickNumber(row, 'IdConceptoPago'));
+      if (!concept) throw new ApiError(503, 'No se pudo identificar un concepto del reporte de pagos grupales. Intenta actualizar.');
+      return mapPayrollStaffRow({ ...row, ConceptoPago: concept });
+    });
     const lastAttendance = coverage.map(row => pickString(row, 'UltimaFecha')).filter(Boolean).sort().slice(-1)[0] ?? null;
-    return { rows: records.map(mapPayrollStaffRow), lastAttendance };
+    return { rows: mapped, lastAttendance };
   } catch (error) {
     if (error instanceof ApiError) throw error;
-    console.error('[personal-payroll] No se pudo consultar STBPayroll:', error instanceof Error ? error.message : 'Error de conexión');
-    throw new ApiError(503, 'No se pudo consultar la asistencia de STBPayroll. Intenta actualizar.');
+    console.error('[personal-pagos] No se pudo consultar el reporte de STB_data:', error instanceof Error ? error.message : 'Error de conexión');
+    throw new ApiError(503, 'No se pudo consultar el reporte de pagos grupales por concepto de STB_data. Intenta actualizar.');
   }
 }
 const limitations = [
-  'Se consulta la lista completa de la planilla OBRA configurada en Payroll: A verde es asistencia y X roja es inasistencia.',
-  'El estado A/X se calcula por jornada con las marcaciones de la fuente biométrica vinculada a Payroll. No se sustituye por libras, activaciones ni novedades de pago.',
-  'El corte de jornada es configurable y está pendiente de confirmación contra la regla completa del reporte de planillas.',
-  'Sala y área se cruzan por empleado con asignaciones y actividades de producción sin agregar asistentes ni duplicar personas.',
-  'En fechas anteriores se usa la última referencia de sala fechada disponible, con un máximo de 30 días de antigüedad.',
-  'La X indica falta en el reporte, sin determinar por sí sola si existe una justificación. El día en curso cambia con nuevas marcaciones.',
+  'STB_data aporta los pagos grupales del día; Payroll complementa la planilla OBRA y los supervisores con marcaciones, inasistencias explícitas, permisos, incapacidades, descansos y vacaciones.',
+  'Se cruza por ID de empleado y fecha; los nombres se validan. Cada persona cuenta una sola vez. Si hay pago o marcación junto con una novedad incompatible, queda para revisión.',
+  'Supervisores por puesto; obra y máquinas por concepto del día. Sin pago se usa el puesto de Payroll y lo no definido queda como auxiliar.',
+  'No tener pago o marcación no confirma una falta. Sin evidencia queda pendiente; sin cierre de inasistencias no se publica tasa.',
+  'La ubicación y la asistencia son datos distintos. Un concepto de Pelado general no asigna una sala concreta.',
 ];
-const reportInfo = () => ({ name: 'Reporte de inasistencia empleados obra', dayStart: env.PAYROLL_ATTENDANCE_DAY_START, cutoffVerified: env.PAYROLL_ATTENDANCE_DAY_START_CONFIRMED });
+const reportInfo = () => ({ name: 'Pagos grupales de STB_data + asistencia y novedades de Payroll', dayStart: env.PAYROLL_ATTENDANCE_DAY_START, cutoffVerified: env.PAYROLL_ATTENDANCE_DAY_START_CONFIRMED });
 function warningsFor(pending: number, conflict: number) {
   const warnings: string[] = [];
-  if (pending) warnings.push(`${pending} registros pendientes porque la jornada no ha iniciado o no hay un estado A/X válido.`);
-  if (conflict) warnings.push(`${conflict} personas tienen estados A/X contradictorios; requieren revisión.`);
+  if (pending) warnings.push(`${pending} personas sin pago, marcación o novedad que confirme su estado del día.`);
+  if (conflict) warnings.push(`${conflict} personas tienen datos contradictorios entre fuentes; requieren revisión.`);
   return warnings;
 }
+/** Contexto de Payroll, separado de la población y clasificación del reporte de pagos. */
+async function loadAttendanceReferences(day: string, forceRefresh: boolean) {
+  try {
+    const rows = await withTtlCache(`personal:references:v1:${env.PAYROLL_DB_SERVER}:${env.PAYROLL_DB_DATABASE}:${day}`, 60_000,
+      () => runPayrollQuery(STAFF_ATTENDANCE_REFERENCES_QUERY, params(day, day)), forceRefresh);
+    const row = rows[0];
+    if (!row || row.SupervisoresActivos === undefined) return null;
+    const absenceDay = pickString(row, 'UltimaFechaInasistencias');
+    return { source: 'STBPayroll' as const, activeSupervisors: pickNumber(row, 'SupervisoresActivos'),
+      latestAbsences: absenceDay ? { day: absenceDay, count: pickNumber(row, 'Inasistencias'), report: 'RH_V_EMPLEADOS_PRODUCCION_INASISTENCIA · 013 INASISTENCIA' } : null };
+  } catch { return null; }
+}
+async function loadStaffData(from: string, to: string, forceRefresh = false) {
+  const [payments, complements, references] = await Promise.all([
+    loadGroupPayments(from, to),
+    runPayrollQuery(PAYROLL_STAFF_COMPLEMENT_QUERY, params(from, to)).catch(() => { throw new ApiError(503, 'No se pudo consultar el complemento de asistencia de Payroll. Intenta actualizar.'); }),
+    loadAttendanceReferences(to, forceRefresh),
+  ]);
+  const payrollRows = complements.map(mapPayrollStaffRow).filter(row => row.id > 0 && row.day >= from && row.day <= to);
+  const paymentIds = new Set(payments.rows.map(row => row.id));
+  const payrollIds = new Set(payrollRows.map(row => row.id));
+  const overlap = [...paymentIds].filter(id => payrollIds.has(id)).length;
+  return { rows: [...payments.rows, ...payrollRows], lastAttendance: payments.lastAttendance, references,
+    reconciliation: { paymentPeople: paymentIds.size, payrollPeople: payrollIds.size, matchedPeople: overlap,
+      onlyPaymentPeople: paymentIds.size - overlap, onlyPayrollPeople: payrollIds.size - overlap } };
+}
 export async function getProductionStaff(day: string, forceRefresh = false) {
-  const { rows, lastAttendance } = await loadPayroll(day, day);
+  const { rows, lastAttendance, references: attendanceReferences, reconciliation } = await loadStaffData(day, day, forceRefresh);
   const payrollEmployees = buildStaffEmployees(rows, day);
   const locationWarnings: string[] = [];
   let locationAvailable = true;
@@ -77,12 +110,13 @@ export async function getProductionStaff(day: string, forceRefresh = false) {
     employees = enriched.employees;
   } catch (error) {
     locationAvailable = false;
-    locationWarnings.push('No se pudieron consultar las asignaciones por sala. Las asistencias y faltas de Payroll se conservan; las ubicaciones quedan sin asignar.');
+    locationWarnings.push('No se pudieron consultar las asignaciones por sala. Las personas del reporte de pagos se conservan; las ubicaciones quedan sin asignar.');
     console.error('[personal-payroll] Asignaciones no disponibles:', error instanceof Error ? error.message : 'Error de conexión');
   }
-  const summary = summarizeStaff(employees);
-  return { source: 'STBPayroll' as const, report: reportInfo(), day, today: staffToday(), updatedAt: new Date().toISOString(), lastAttendance,
-    locationSource: 'STB_data' as const, locationAvailable,
+  const absenceDataAvailable = attendanceReferences?.latestAbsences?.day === day || employees.some(person => person.absenceRecorded);
+  const summary = { ...summarizeStaff(employees), absenceRate: absenceDataAvailable ? summarizeStaff(employees).absenceRate : null };
+  return { source: 'STB_data + STBPayroll' as const, report: reportInfo(), day, today: staffToday(), updatedAt: new Date().toISOString(), lastAttendance,
+    locationSource: 'STB_data' as const, locationAvailable, attendanceReferences, reconciliation, absenceDataAvailable,
     warnings: [...warningsFor(summary.pending, summary.conflict), ...locationWarnings], summary,
     areas: staffAreaRows(employees), employees, limitations };
 }
@@ -94,25 +128,24 @@ export async function getProductionStaffHistory(to: string, forceRefresh = false
   const today = staffToday();
   const previousDate = new Date(`${today}T12:00:00Z`); previousDate.setUTCDate(previousDate.getUTCDate() - 1);
   const closedTo = to < today ? to : previousDate.toISOString().slice(0, 10);
-  const cacheScope = JSON.stringify([env.PAYROLL_DB_SERVER, env.PAYROLL_DB_DATABASE,
-    env.PAYROLL_ATTENDANCE_LINKED_SERVER, env.PAYROLL_ATTENDANCE_DATABASE, env.PAYROLL_ATTENDANCE_DAY_START]);
+  const cacheScope = JSON.stringify([env.STB_DB_SERVER, env.STB_DB_DATABASE, env.PAYROLL_DB_SERVER, env.PAYROLL_DB_DATABASE]);
   const loadPeriod = async (start: string, end: string) => {
-    const { rows, lastAttendance } = await loadPayroll(start, end);
+    const { rows, lastAttendance } = await loadStaffData(start, end, forceRefresh);
     return { days: buildStaffHistory(rows, start, end), lastAttendance };
   };
   const [closed, current] = await Promise.all([
-    withTtlCache(`personal:history-closed:v3:${cacheScope}:${from}:${closedTo}`, 60 * 60_000,
+    withTtlCache(`personal:history-closed:v8:${cacheScope}:${from}:${closedTo}`, 60 * 60_000,
       () => loadPeriod(from, closedTo), forceRefresh),
     to === today
-      ? withTtlCache(`personal:history-today:v3:${cacheScope}:${today}`, 60_000,
+      ? withTtlCache(`personal:history-today:v8:${cacheScope}:${today}`, 60_000,
         () => loadPeriod(today, today), forceRefresh)
       : Promise.resolve({ days: [], lastAttendance: null }),
   ]);
   const days = [...closed.days, ...current.days];
   const lastAttendance = [closed.lastAttendance, current.lastAttendance].filter((day): day is string => !!day).sort().slice(-1)[0] ?? null;
-  return { source: 'STBPayroll' as const, report: reportInfo(), from, to, today: staffToday(), updatedAt: new Date().toISOString(), lastAttendance,
+  return { source: 'STB_data + STBPayroll' as const, report: reportInfo(), from, to, today: staffToday(), updatedAt: new Date().toISOString(), lastAttendance,
     warnings: days.some(day => day.pending > 0 || day.conflict > 0)
-      ? ['Hay registros sin estado A/X definitivo. Los días en curso pueden cambiar con nuevas marcaciones.'] : [],
+      ? ['Hay registros sin estado A/X definitivo. Los días en curso pueden cambiar con nuevos conceptos de pagos.'] : [],
     days, limitations };
 }
 
@@ -146,8 +179,7 @@ async function loadMovements(from: string, to: string) {
  */
 export async function getProductionStaffRange(from: string, to: string, forceRefresh = false) {
   const today = staffToday();
-  const cacheScope = JSON.stringify([env.PAYROLL_DB_SERVER, env.PAYROLL_DB_DATABASE,
-    env.PAYROLL_ATTENDANCE_LINKED_SERVER, env.PAYROLL_ATTENDANCE_DATABASE, env.PAYROLL_ATTENDANCE_DAY_START]);
+  const cacheScope = JSON.stringify([env.STB_DB_SERVER, env.STB_DB_DATABASE, env.PAYROLL_DB_SERVER, env.PAYROLL_DB_DATABASE]);
   const chunks: [string, string][] = [];
   for (let start = from; start <= to;) {
     const next = new Date(`${start.slice(0, 7)}-01T12:00:00Z`); next.setUTCMonth(next.getUTCMonth() + 1);
@@ -157,20 +189,20 @@ export async function getProductionStaffRange(from: string, to: string, forceRef
     start = addDays(end, 1);
   }
   const load = async (start: string, end: string) => {
-    const [{ rows, lastAttendance }, movements] = await Promise.all([loadPayroll(start, end), loadMovements(start, end)]);
+    const [{ rows, lastAttendance }, movements] = await Promise.all([loadStaffData(start, end, forceRefresh), loadMovements(start, end)]);
     const empty = { hires: 0, exits: 0, hiresProduction: 0, hiresAuxiliary: 0, exitsProduction: 0, exitsAuxiliary: 0 };
     return { days: buildStaffHistory(rows, start, end).map(day => ({ ...day, ...(movements.get(day.day) ?? empty) })), lastAttendance };
   };
   const results = await Promise.all(chunks.map(([start, end]) => withTtlCache(
-    `personal:range:v1:${cacheScope}:${start}:${end}`,
+    `personal:range:v6:${cacheScope}:${start}:${end}`,
     end < today ? 6 * 60 * 60_000 : 60_000,
     () => load(start, end), forceRefresh)));
   const days = results.flatMap(result => result.days);
   const lastAttendance = results.map(result => result.lastAttendance).filter((day): day is string => !!day).sort().slice(-1)[0] ?? null;
-  return { source: 'STBPayroll' as const, report: reportInfo(), from, to, today, updatedAt: new Date().toISOString(), lastAttendance,
+  return { source: 'STB_data + STBPayroll' as const, report: reportInfo(), from, to, today, updatedAt: new Date().toISOString(), lastAttendance,
     warnings: days.some(day => day.pending > 0 || day.conflict > 0)
-      ? ['Hay registros sin estado A/X definitivo. Los días en curso pueden cambiar con nuevas marcaciones.'] : [],
+      ? ['Hay registros sin estado A/X definitivo. Los días en curso pueden cambiar con nuevos conceptos de pagos.'] : [],
     days, limitations: [...limitations,
-      'Planilla por fecha: cada persona cuenta desde su fecha de ingreso y, si ya no está activa, hasta su fecha de retiro (inclusive).',
+      'El total diario incluye personas únicas al complementar pagos, planilla, marcaciones y novedades de la misma fecha.',
       'Ingresos y retiros salen de RH_EMPLEADOS. Si una persona fue recontratada, Payroll conserva solo su último ingreso, así que su periodo anterior no se cuenta.'] };
 }

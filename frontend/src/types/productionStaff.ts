@@ -1,6 +1,6 @@
 export type StaffStatus = 'present' | 'absent' | 'excused' | 'off' | 'noProduction' | 'pending' | 'conflict';
-export type StaffKind = 'production' | 'auxiliary' | 'unknown';
-export type PayrollSource = 'calendar' | 'action' | 'clock' | 'attendance' | 'report';
+export type StaffKind = 'production' | 'machine' | 'auxiliary' | 'supervisor' | 'unknown';
+export type PayrollSource = 'calendar' | 'action' | 'clock' | 'attendance' | 'report' | 'payment' | 'payroll';
 export interface StaffEmployee {
   id: number; code: string; name: string; department: string; division: string; job: string; shift: string;
   kind: StaffKind; wildcard: boolean; status: StaffStatus; reason: string;
@@ -12,6 +12,7 @@ export interface StaffEmployee {
   activity: string; activityBasis: string; otherActivities: string[];
   /** Renglón de la lista de departamentos de planta (1.1 Descabezado … 2.3 RRHH, gestión ambiental y mantenimiento). */
   plantDepartment: string; plantDepartmentBasis: string;
+  paymentConcepts?: string[];
   actions: { code: string; label: string }[]; entry: string | null; exit: string | null;
   reportMark: 'A' | 'X' | null; firstPunch: string | null; lastPunch: string | null;
   sources: PayrollSource[]; hasAttendance: boolean; absenceRecorded: boolean;
@@ -19,23 +20,28 @@ export interface StaffEmployee {
 export interface StaffCounts {
   total: number; present: number; absent: number; excused: number; off: number;
   noProduction: number; pending: number; conflict: number; production: number;
-  auxiliary: number; unknown: number; wildcard: number; absenceRate: number | null;
+  machine?: number; supervisor?: number; auxiliary: number; unknown: number; wildcard: number; absenceRate: number | null;
 }
 export interface StaffResponse {
+  absenceDataAvailable?: boolean;
+  reconciliation?: { paymentPeople: number; payrollPeople: number; matchedPeople: number; onlyPaymentPeople: number; onlyPayrollPeople: number };
+  attendanceReferences?: { source: 'STBPayroll'; activeSupervisors: number; latestAbsences: { day: string; count: number; report: string } | null } | null;
   locationSource: 'STB_data'; locationAvailable: boolean;
   report: { name: string; dayStart: string; cutoffVerified: boolean };
-  source: 'STBPayroll'; day: string; today: string; updatedAt: string; lastAttendance: string | null;
+  source: 'STBPayroll' | 'STB_data' | 'STB_data + STBPayroll'; day: string; today: string; updatedAt: string; lastAttendance: string | null;
   warnings: string[]; summary: StaffCounts; areas: (StaffCounts & { area: string; presentProduction: number; presentAuxiliary: number; presentUnknown: number })[];
   employees: StaffEmployee[]; limitations: string[];
 }
 export interface StaffHistoryDay extends StaffCounts {
+  absenceDataAvailable?: boolean;
   day: string;
+  presentMachine?: number; absentMachine?: number; presentSupervisor?: number; absentSupervisor?: number;
   presentProduction?: number; absentProduction?: number; presentAuxiliary?: number; absentAuxiliary?: number;
   /** Altas y bajas de planilla de ese día (solo en /personal-produccion/rango). */
   hires?: number; exits?: number; hiresProduction?: number; hiresAuxiliary?: number; exitsProduction?: number; exitsAuxiliary?: number;
 }
 export interface StaffHistoryResponse {
   report: { name: string; dayStart: string; cutoffVerified: boolean };
-  source: 'STBPayroll'; from: string; to: string; today: string; updatedAt: string; lastAttendance: string | null;
+  source: 'STBPayroll' | 'STB_data' | 'STB_data + STBPayroll'; from: string; to: string; today: string; updatedAt: string; lastAttendance: string | null;
   warnings: string[]; days: StaffHistoryDay[]; limitations: string[];
 }

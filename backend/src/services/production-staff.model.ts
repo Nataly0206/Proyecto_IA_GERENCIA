@@ -1,9 +1,13 @@
+import type { ProductionShiftEvidence } from './production-staff-shift';
+import { applyProvisionalStaffAbsences, isProductionShiftDue } from './production-staff-absence';
+
 export type StaffStatus = 'present' | 'absent' | 'excused' | 'off' | 'noProduction' | 'pending' | 'conflict';
 export type StaffKind = 'production' | 'machine' | 'auxiliary' | 'supervisor' | 'unknown';
 export type PayrollSource = 'calendar' | 'action' | 'clock' | 'attendance' | 'report' | 'payment' | 'payroll';
 export interface PayrollStaffRow {
   day: string; id: number; code: string; name: string; department: string; division: string;
   job: string; shift: string; source: PayrollSource; actionCode: string; action: string;
+  productionShift?: ProductionShiftEvidence;
   paymentConcept?: string; reportMark?: 'A' | 'X' | null; firstPunch?: string; lastPunch?: string;
   collector: number; noProduction: boolean; entry: string; exit: string; hours: string;
 }
@@ -15,6 +19,8 @@ export interface StaffEmployee {
   /** Renglón de la lista de departamentos de planta (ver production-staff-department.ts). */
   plantDepartment: string; plantDepartmentBasis: string;
   paymentConcepts?: string[];
+  provisionalAbsence?: boolean;
+  productionShift?: ProductionShiftEvidence;
   actions: { code: string; label: string }[]; entry: string | null; exit: string | null;
   reportMark: 'A' | 'X' | null; firstPunch: string | null; lastPunch: string | null;
   sources: PayrollSource[]; hasAttendance: boolean; absenceRecorded: boolean;
@@ -136,7 +142,9 @@ export function buildStaffEmployees(rows: PayrollStaffRow[], day: string): Staff
     return {
       id, code: reference.code || String(id), name: reference.name || `Empleado ${id}`,
       department: reference.department || 'Sin departamento', division: reference.division || 'Sin división',
-      job: reference.job || 'Sin puesto registrado', shift: reference.shift || 'Sin turno registrado',
+      job: reference.job || 'Sin puesto registrado',
+      shift: reference.productionShift?.shift ?? values.find(row => row.productionShift)?.productionShift?.shift ?? (reference.shift || values.find(row => row.shift)?.shift || 'Sin turno registrado'),
+      productionShift: reference.productionShift ?? values.find(row => row.productionShift)?.productionShift,
       kind: paymentRows.length ? paymentStaffKind(paymentConcepts, reference.job) : integrated ? paymentStaffKind([/DESTAJO/i.test(reference.job) ? `OBRA ${reference.job}` : reference.job], reference.job) : staffKind(reference.job), wildcard: /COMODIN/.test(normalize(reference.job)),
       area: 'Sin sala/área asignada', areaBasis: 'Sin asignación verificada', areaDay: null, areaTime: null,
       activity: 'Sin actividad registrada', activityBasis: 'Sin actividad ni proceso registrado para el día', otherActivities: [],
@@ -150,9 +158,10 @@ export function buildStaffEmployees(rows: PayrollStaffRow[], day: string): Staff
 
 export function summarizeStaff(people: StaffEmployee[]) {
   const count = (status: StaffStatus) => people.filter(person => person.status === status).length;
-  const present = count('present'); const absent = count('absent'); const pending = count('pending'); const conflict = count('conflict');
+  const present = count('present'); const absent = count('absent');
+  const provisionalAbsent = people.filter(person => person.status === 'absent' && person.provisionalAbsence).length; const pending = count('pending'); const conflict = count('conflict');
   return {
-    total: people.length, present, absent, excused: count('excused'), off: count('off'), noProduction: count('noProduction'), pending, conflict,
+    total: people.length, present, absent, provisionalAbsent, confirmedAbsent: absent - provisionalAbsent, excused: count('excused'), off: count('off'), noProduction: count('noProduction'), pending, conflict,
     production: people.filter(person => person.kind === 'production').length,
     machine: people.filter(person => person.kind === 'machine').length,
     supervisor: people.filter(person => person.kind === 'supervisor').length,
@@ -177,7 +186,7 @@ export function staffAreaRows(people: StaffEmployee[]) {
     };
   });
 }
-export function buildStaffHistory(rows: PayrollStaffRow[], from: string, to: string) {
+export function buildStaffHistory(rows: PayrollStaffRow[], from: string, to: string, now?: Date) {
   const byDay = new Map<string, PayrollStaffRow[]>();
   for (const row of rows) {
     if (row.day < from || row.day > to) continue;
@@ -186,10 +195,12 @@ export function buildStaffHistory(rows: PayrollStaffRow[], from: string, to: str
   const days = [];
   for (let date = new Date(`${from}T12:00:00Z`); date.toISOString().slice(0, 10) <= to; date.setUTCDate(date.getUTCDate() + 1)) {
     const day = date.toISOString().slice(0, 10);
-    const people = buildStaffEmployees(byDay.get(day) ?? [], day);
+    const base = buildStaffEmployees(byDay.get(day) ?? [], day);
+    const people = now ? applyProvisionalStaffAbsences(base, day, now) : base;
     const by = (kind: StaffKind, status: StaffStatus) => people.filter(person => person.kind === kind && person.status === status).length;
     // Desglose obra/auxiliar para la vista semanal; el tipo sale del concepto de pago, sin depender del puesto ni de la sala.
-    const absenceDataAvailable = !people.some(person => person.sources.includes('payroll')) || people.some(person => person.absenceRecorded);
+    const absenceDataAvailable = !people.some(person => person.sources.includes('payroll')) || people.some(person => person.absenceRecorded)
+      || (now !== undefined && people.some(person => isProductionShiftDue(person, day, now)));
     const summary = summarizeStaff(people);
     days.push({ day, ...summary, absenceDataAvailable, absenceRate: absenceDataAvailable ? summary.absenceRate : null,
       presentMachine: by('machine', 'present'), absentMachine: by('machine', 'absent'),

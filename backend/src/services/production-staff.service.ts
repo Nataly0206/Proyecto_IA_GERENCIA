@@ -1,4 +1,6 @@
 import { env } from '../config/env';
+import { applyProvisionalStaffAbsences, isProductionShiftDue, STAFF_TIME_ZONE } from './production-staff-absence';
+import { attachProductionStaffShifts, StaffEntryPunch, StaffShiftReference } from './production-staff-shift';
 import { withTtlCache } from '../utils/ttlCache';
 import { getStaffLocations } from './production-staff-location.service';
 import { attachStaffLocations } from './production-staff-location.model';
@@ -8,7 +10,7 @@ import { runStbQuery } from './stb.service';
 import type { SqlRow } from './sql.service';
 import { pickNumber, pickString } from '../utils/rows';
 import { ApiError } from '../middleware/errorHandler';
-import { STB_GROUP_PAYMENT_STAFF_QUERY, STB_GROUP_PAYMENT_COVERAGE_QUERY, PAYMENT_CONCEPT_CATALOG_QUERY, PAYROLL_STAFF_COMPLEMENT_QUERY, STAFF_ATTENDANCE_REFERENCES_QUERY, PAYROLL_STAFF_MOVEMENTS_QUERY } from './production-staff.queries';
+import { STB_GROUP_PAYMENT_STAFF_QUERY, STB_GROUP_PAYMENT_COVERAGE_QUERY, PAYMENT_CONCEPT_CATALOG_QUERY, PAYROLL_STAFF_COMPLEMENT_QUERY, STB_STAFF_SHIFT_REFERENCES_QUERY, STAFF_ENTRY_PUNCHES_QUERY, STAFF_ATTENDANCE_REFERENCES_QUERY, PAYROLL_STAFF_MOVEMENTS_QUERY } from './production-staff.queries';
 import { PayrollStaffRow, PayrollSource, buildStaffEmployees, buildStaffHistory, staffKind, summarizeStaff, staffAreaRows } from './production-staff.model';
 
 export function staffToday(): string {
@@ -62,7 +64,7 @@ const limitations = [
   'STB_data aporta los pagos grupales del día; Payroll complementa la planilla OBRA y los supervisores con marcaciones, inasistencias explícitas, permisos, incapacidades, descansos y vacaciones.',
   'Se cruza por ID de empleado y fecha; los nombres se validan. Cada persona cuenta una sola vez. Si hay pago o marcación junto con una novedad incompatible, queda para revisión.',
   'Supervisores por puesto; obra y máquinas por concepto del día. Sin pago se usa el puesto de Payroll y lo no definido queda como auxiliar.',
-  'No tener pago o marcación no confirma una falta. Sin evidencia queda pendiente; sin cierre de inasistencias no se publica tasa.',
+  'Turno: línea TA/TB del día en STB_data; si no lo indica, las marcaciones de Payroll de los últimos 14 días; luego la última línea TA/TB. El turno asignado de STB_data no se usa (todos figuran como A). La hora límite es la entrada habitual de la persona + 45 min (en A, nunca antes de la ventana de STB_data). Sin turno verificado queda pendiente; una marcación o pago retira la falta provisional.',
   'La ubicación y la asistencia son datos distintos. Un concepto de Pelado general no asigna una sala concreta.',
 ];
 const reportInfo = () => ({ name: 'Pagos grupales de STB_data + asistencia y novedades de Payroll', dayStart: env.PAYROLL_ATTENDANCE_DAY_START, cutoffVerified: env.PAYROLL_ATTENDANCE_DAY_START_CONFIRMED });
@@ -84,24 +86,65 @@ async function loadAttendanceReferences(day: string, forceRefresh: boolean) {
       latestAbsences: absenceDay ? { day: absenceDay, count: pickNumber(row, 'Inasistencias'), report: 'RH_V_EMPLEADOS_PRODUCCION_INASISTENCIA · 013 INASISTENCIA' } : null };
   } catch { return null; }
 }
+/** Turno de cada persona: líneas TA/TB de STB_data + marcaciones recientes de Payroll. Cada fuente puede fallar sola. */
+async function loadShiftReferences(day: string, forceRefresh: boolean) {
+  const safe = async <T>(label: string, load: () => Promise<T>): Promise<T | null> => {
+    try { return await load(); } catch (error) {
+      // Sin turno verificado no se generan faltas provisionales: las personas quedan pendientes.
+      console.error(`[personal-turnos] ${label} no disponible:`, error instanceof Error ? error.message : 'Error de conexión');
+      return null;
+    }
+  };
+  const [lines, punches] = await Promise.all([
+    safe('Líneas de STB_data', () => queryShiftReferences(day, forceRefresh)),
+    safe('Marcaciones de Payroll', () => queryEntryPunches(day, forceRefresh)),
+  ]);
+  return { lines, punches };
+}
+async function queryEntryPunches(day: string, forceRefresh: boolean): Promise<StaffEntryPunch[]> {
+  const rows = await withTtlCache(`personal:entry-punches:v1:${env.PAYROLL_ATTENDANCE_DATABASE}:${env.PAYROLL_ATTENDANCE_DAY_START}:${day}`, 10 * 60_000,
+    () => runPayrollQuery(STAFF_ENTRY_PUNCHES_QUERY, params(day, day)), forceRefresh);
+  return rows.map(row => ({ id: pickNumber(row, 'IdEmpleado'), day: pickString(row, 'Dia'), minute: pickNumber(row, 'Minuto') }));
+}
+async function queryShiftReferences(day: string, forceRefresh: boolean): Promise<StaffShiftReference[]> {
+  const clock = new Intl.DateTimeFormat('en-GB', { timeZone: STAFF_TIME_ZONE, hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(new Date());
+  const rows = await withTtlCache(`personal:production-shifts:v2:${env.STB_DB_SERVER}:${env.STB_DB_DATABASE}:${day}`, 60_000,
+    () => runStbQuery(STB_STAFF_SHIFT_REFERENCES_QUERY, [...params(day, day), { name: 'HoraCorte', type: sql.VarChar(8), value: day === staffToday() ? clock : '23:59:59' }]), forceRefresh);
+  const minute = (row: SqlRow, key: string) => row[key] === null || row[key] === undefined ? null : pickNumber(row, key);
+  return rows.map(row => ({ id: pickNumber(row, 'IdEmpleado'), name: pickString(row, 'Nombre'), active: !!row.Activo,
+    currentLine: pickString(row, 'LineaActual'), previousLine: pickString(row, 'LineaAnterior'), previousLineDay: pickString(row, 'FechaLineaAnterior'),
+    dayDeadline: minute(row, 'FinEntradaA'), nightDeadline: minute(row, 'FinEntradaB'), nightEnd: minute(row, 'FinNocturno') }));
+}
 async function loadStaffData(from: string, to: string, forceRefresh = false) {
-  const [payments, complements, references] = await Promise.all([
+  const shiftDay = from === to ? to : from <= staffToday() && to >= staffToday() ? staffToday() : null;
+  const [payments, complements, references, shifts] = await Promise.all([
     loadGroupPayments(from, to),
     runPayrollQuery(PAYROLL_STAFF_COMPLEMENT_QUERY, params(from, to)).catch(() => { throw new ApiError(503, 'No se pudo consultar el complemento de asistencia de Payroll. Intenta actualizar.'); }),
     loadAttendanceReferences(to, forceRefresh),
+    shiftDay ? loadShiftReferences(shiftDay, forceRefresh) : Promise.resolve(null),
   ]);
   const payrollRows = complements.map(mapPayrollStaffRow).filter(row => row.id > 0 && row.day >= from && row.day <= to);
   const paymentIds = new Set(payments.rows.map(row => row.id));
   const payrollIds = new Set(payrollRows.map(row => row.id));
   const overlap = [...paymentIds].filter(id => payrollIds.has(id)).length;
-  return { rows: [...payments.rows, ...payrollRows], lastAttendance: payments.lastAttendance, references,
+  const allRows = [...payments.rows, ...payrollRows];
+  const linesOk = shifts?.lines != null, punchesOk = shifts?.punches != null;
+  const shiftWarnings = !shifts ? [] : !linesOk && !punchesOk
+    ? ['No se pudieron consultar los turnos (líneas de STB_data ni marcaciones de Payroll). Sin turno verificado no se marcan faltas provisionales; quienes no tienen marcación ni pago quedan pendientes.']
+    : [...(linesOk ? [] : ['No se pudieron consultar las líneas TA/TB de STB_data; el turno se toma solo de las marcaciones recientes de Payroll.']),
+      ...(punchesOk ? [] : ['No se pudieron consultar las marcaciones recientes de Payroll; el turno se toma solo de las líneas TA/TB de STB_data.'])];
+  return { rows: shiftDay && shifts && (linesOk || punchesOk) ? attachProductionStaffShifts(allRows, shiftDay, shifts.lines ?? [], shifts.punches ?? []) : allRows,
+    lastAttendance: payments.lastAttendance, references, shiftWarnings,
     reconciliation: { paymentPeople: paymentIds.size, payrollPeople: payrollIds.size, matchedPeople: overlap,
       onlyPaymentPeople: paymentIds.size - overlap, onlyPayrollPeople: payrollIds.size - overlap } };
 }
 export async function getProductionStaff(day: string, forceRefresh = false) {
-  const { rows, lastAttendance, references: attendanceReferences, reconciliation } = await loadStaffData(day, day, forceRefresh);
-  const payrollEmployees = buildStaffEmployees(rows, day);
-  const locationWarnings: string[] = [];
+  const { rows, lastAttendance, references: attendanceReferences, reconciliation, shiftWarnings } = await loadStaffData(day, day, forceRefresh);
+  const now = new Date();
+  const baseEmployees = buildStaffEmployees(rows, day);
+  const provisionalCutoffActive = baseEmployees.some(person => isProductionShiftDue(person, day, now));
+  const payrollEmployees = applyProvisionalStaffAbsences(baseEmployees, day, now);
+  const locationWarnings: string[] = [...shiftWarnings];
   let locationAvailable = true;
   let employees = payrollEmployees;
   try {
@@ -113,10 +156,11 @@ export async function getProductionStaff(day: string, forceRefresh = false) {
     locationWarnings.push('No se pudieron consultar las asignaciones por sala. Las personas del reporte de pagos se conservan; las ubicaciones quedan sin asignar.');
     console.error('[personal-payroll] Asignaciones no disponibles:', error instanceof Error ? error.message : 'Error de conexión');
   }
-  const absenceDataAvailable = attendanceReferences?.latestAbsences?.day === day || employees.some(person => person.absenceRecorded);
+  const absenceDataAvailable = provisionalCutoffActive || attendanceReferences?.latestAbsences?.day === day || employees.some(person => person.absenceRecorded);
   const summary = { ...summarizeStaff(employees), absenceRate: absenceDataAvailable ? summarizeStaff(employees).absenceRate : null };
   return { source: 'STB_data + STBPayroll' as const, report: reportInfo(), day, today: staffToday(), updatedAt: new Date().toISOString(), lastAttendance,
     locationSource: 'STB_data' as const, locationAvailable, attendanceReferences, reconciliation, absenceDataAvailable,
+    absenceCutoff: { mode: 'production-shift' as const, timeZone: STAFF_TIME_ZONE, active: provisionalCutoffActive },
     warnings: [...warningsFor(summary.pending, summary.conflict), ...locationWarnings], summary,
     areas: staffAreaRows(employees), employees, limitations };
 }
@@ -131,13 +175,13 @@ export async function getProductionStaffHistory(to: string, forceRefresh = false
   const cacheScope = JSON.stringify([env.STB_DB_SERVER, env.STB_DB_DATABASE, env.PAYROLL_DB_SERVER, env.PAYROLL_DB_DATABASE]);
   const loadPeriod = async (start: string, end: string) => {
     const { rows, lastAttendance } = await loadStaffData(start, end, forceRefresh);
-    return { days: buildStaffHistory(rows, start, end), lastAttendance };
+    return { days: buildStaffHistory(rows, start, end, new Date()), lastAttendance };
   };
   const [closed, current] = await Promise.all([
-    withTtlCache(`personal:history-closed:v8:${cacheScope}:${from}:${closedTo}`, 60 * 60_000,
+    withTtlCache(`personal:history-closed:v11:${cacheScope}:${from}:${closedTo}`, 60 * 60_000,
       () => loadPeriod(from, closedTo), forceRefresh),
     to === today
-      ? withTtlCache(`personal:history-today:v8:${cacheScope}:${today}`, 60_000,
+      ? withTtlCache(`personal:history-today:v11:${cacheScope}:${today}`, 60_000,
         () => loadPeriod(today, today), forceRefresh)
       : Promise.resolve({ days: [], lastAttendance: null }),
   ]);
@@ -191,10 +235,10 @@ export async function getProductionStaffRange(from: string, to: string, forceRef
   const load = async (start: string, end: string) => {
     const [{ rows, lastAttendance }, movements] = await Promise.all([loadStaffData(start, end, forceRefresh), loadMovements(start, end)]);
     const empty = { hires: 0, exits: 0, hiresProduction: 0, hiresAuxiliary: 0, exitsProduction: 0, exitsAuxiliary: 0 };
-    return { days: buildStaffHistory(rows, start, end).map(day => ({ ...day, ...(movements.get(day.day) ?? empty) })), lastAttendance };
+    return { days: buildStaffHistory(rows, start, end, new Date()).map(day => ({ ...day, ...(movements.get(day.day) ?? empty) })), lastAttendance };
   };
   const results = await Promise.all(chunks.map(([start, end]) => withTtlCache(
-    `personal:range:v6:${cacheScope}:${start}:${end}`,
+    `personal:range:v9:${cacheScope}:${start}:${end}`,
     end < today ? 6 * 60 * 60_000 : 60_000,
     () => load(start, end), forceRefresh)));
   const days = results.flatMap(result => result.days);

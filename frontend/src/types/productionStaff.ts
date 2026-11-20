@@ -13,17 +13,20 @@ export interface StaffEmployee {
   /** Renglón de la lista de departamentos de planta (1.1 Descabezado … 2.3 RRHH, gestión ambiental y mantenimiento). */
   plantDepartment: string; plantDepartmentBasis: string;
   paymentConcepts?: string[];
+  provisionalAbsence?: boolean;
+  productionShift?: { shift: 'A' | 'B'; basis: string; active: boolean; entranceDeadline: number | null; nightEnd: number | null };
   actions: { code: string; label: string }[]; entry: string | null; exit: string | null;
   reportMark: 'A' | 'X' | null; firstPunch: string | null; lastPunch: string | null;
   sources: PayrollSource[]; hasAttendance: boolean; absenceRecorded: boolean;
 }
 export interface StaffCounts {
-  total: number; present: number; absent: number; excused: number; off: number;
+  total: number; present: number; absent: number; provisionalAbsent?: number; confirmedAbsent?: number; excused: number; off: number;
   noProduction: number; pending: number; conflict: number; production: number;
   machine?: number; supervisor?: number; auxiliary: number; unknown: number; wildcard: number; absenceRate: number | null;
 }
 export interface StaffResponse {
   absenceDataAvailable?: boolean;
+  absenceCutoff?: { mode: 'production-shift'; timeZone: string; active: boolean };
   reconciliation?: { paymentPeople: number; payrollPeople: number; matchedPeople: number; onlyPaymentPeople: number; onlyPayrollPeople: number };
   attendanceReferences?: { source: 'STBPayroll'; activeSupervisors: number; latestAbsences: { day: string; count: number; report: string } | null } | null;
   locationSource: 'STB_data'; locationAvailable: boolean;

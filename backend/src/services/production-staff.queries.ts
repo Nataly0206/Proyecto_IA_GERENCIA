@@ -115,3 +115,69 @@ const sqlIdentifier = (value: string) => `[${value.replace(/\]/g, ']]')}]`;
 export const PAYROLL_STAFF_COMPLEMENT_QUERY = payrollStaffComplementQuery(
  `${sqlIdentifier(env.PAYROLL_ATTENDANCE_LINKED_SERVER)}.${sqlIdentifier(env.PAYROLL_ATTENDANCE_DATABASE)}.[dbo].[CHECKINOUT]`,
 );
+
+/** Línea del día y última línea TA/TB (14 días) de STB_data, con la ventana de entrada del departamento.
+ * El turno asignado (Cl_Turnos) no se consulta: todo el personal figura como TURNO A. */
+export const STB_STAFF_SHIFT_REFERENCES_QUERY = `
+WITH Empleados AS (
+ SELECT *,ROW_NUMBER() OVER(PARTITION BY IdEmpleado ORDER BY IdEmpleadoDepto DESC) Pos
+ FROM dbo.DCP_EmpleadosDeptos
+)
+SELECT e.IdEmpleado,COALESCE(f.NombreEmpleado,e.NombreEmpleado) Nombre,
+ COALESCE(f.Activo,e.Activo) Activo,
+ COALESCE(a.LineaProduccion,w.LineaProduccion) LineaActual,
+ h.LineaProduccion LineaAnterior,CONVERT(varchar(10),h.Fecha,23) FechaLineaAnterior,
+ CASE WHEN p.HED_Final BETWEEN 0 AND 23 AND p.MED_Final BETWEEN 0 AND 59
+  THEN p.HED_Final*60+p.MED_Final END FinEntradaA,
+ CASE WHEN p.HEN_Final BETWEEN 0 AND 23 AND p.MEN_Final BETWEEN 0 AND 59
+  THEN p.HEN_Final*60+p.MEN_Final END FinEntradaB,
+ (SELECT MAX(DATEPART(HOUR,ht.HORA_FINAL)*60+DATEPART(MINUTE,ht.HORA_FINAL))
+  FROM dbo.DCP_HORAS_TURNOS ht WHERE ht.IdTurno=2 AND ht.fechaAtras=1) FinNocturno
+FROM Empleados e
+OUTER APPLY (
+ SELECT TOP(1) f.NombreEmpleado,f.Activo,f.IdDepartamentoRRHH
+ FROM dbo.DCP_EmpleadosDeptosFechas f
+ WHERE f.IdEmpleado=e.IdEmpleado AND f.Fecha<=@Hasta AND f.Fecha>=DATEADD(DAY,-30,@Hasta)
+ ORDER BY f.Fecha DESC,f.FechaHora DESC,f.IdEmpleadoDepto DESC
+) f
+OUTER APPLY (
+ SELECT TOP(1) a.LineaProduccion FROM dbo.VAsistenciaActividades a
+ WHERE a.IdEmpleado=e.IdEmpleado AND a.Fecha=@Hasta
+  AND (a.HoraDesde<=CAST(@HoraCorte AS time) OR a.HoraDesde IS NULL)
+ ORDER BY a.HoraDesde DESC,a.LineaProduccion
+) a
+OUTER APPLY (
+ SELECT TOP(1) w.LineaProduccion FROM dbo.V_EmpleadosObraActividades w
+ WHERE w.idempleado=e.IdEmpleado AND w.Fecha=@Hasta
+ ORDER BY w.ValorTrabajado DESC,w.LineaProduccion
+) w
+OUTER APPLY (
+ SELECT TOP(1) h.LineaProduccion,h.Fecha FROM dbo.V_EmpleadosObraActividades h
+ WHERE h.idempleado=e.IdEmpleado AND h.Fecha<@Hasta AND h.Fecha>=DATEADD(DAY,-14,@Hasta)
+  AND (UPPER(RTRIM(h.LineaProduccion)) LIKE '%[^A-Z]T[AB]' OR UPPER(h.LineaProduccion) LIKE '%[^A-Z]T[AB][^A-Z]%')
+ ORDER BY h.Fecha DESC,h.ValorTrabajado DESC,h.LineaProduccion
+) h
+OUTER APPLY (
+ SELECT TOP(1) p.HED_Final,p.MED_Final,p.HEN_Final,p.MEN_Final
+ FROM dbo.Dcp_ParametrosHorasAsistenciaDepto p
+ WHERE p.IdDepartamento=COALESCE(f.IdDepartamentoRRHH,e.IdDepartamentoRRHH)
+ ORDER BY p.IdParametrosHoras DESC
+) p
+WHERE e.Pos=1`;
+
+/** Primera entrada de cada jornada de los 14 días previos (marcador biométrico).
+ * Prefiere la marca de entrada (I); la jornada usa el mismo corte que la asistencia, así la salida de madrugada del turno B no adelanta la entrada. */
+export function staffEntryPunchesQuery(punches: string) {
+ return `SELECT j.IdEmpleado,CONVERT(varchar(10),j.Dia,23) Dia,DATEPART(HOUR,j.Entrada)*60+DATEPART(MINUTE,j.Entrada) Minuto
+FROM (
+ SELECT c.USERID IdEmpleado,CAST(DATEADD(MINUTE,-@CorteMinutos,c.CHECKTIME) AS date) Dia,
+  COALESCE(MIN(CASE WHEN UPPER(c.CHECKTYPE)='I' THEN c.CHECKTIME END),MIN(c.CHECKTIME)) Entrada
+ FROM ${punches} c
+ WHERE c.CHECKTIME>=DATEADD(DAY,-14,DATEADD(MINUTE,@CorteMinutos,CAST(@Hasta AS datetime)))
+  AND c.CHECKTIME<DATEADD(MINUTE,@CorteMinutos,CAST(@Hasta AS datetime)) AND c.CHECKTIME<=GETDATE()
+ GROUP BY c.USERID,CAST(DATEADD(MINUTE,-@CorteMinutos,c.CHECKTIME) AS date)
+) j WHERE j.IdEmpleado>0`;
+}
+export const STAFF_ENTRY_PUNCHES_QUERY = staffEntryPunchesQuery(
+ `${sqlIdentifier(env.PAYROLL_ATTENDANCE_LINKED_SERVER)}.${sqlIdentifier(env.PAYROLL_ATTENDANCE_DATABASE)}.[dbo].[CHECKINOUT]`,
+);

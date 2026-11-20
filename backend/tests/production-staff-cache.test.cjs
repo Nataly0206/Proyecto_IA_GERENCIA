@@ -27,7 +27,8 @@ const { getProductionStaffHistory, staffToday } = require('../dist/services/prod
 test('histórico reutiliza días anteriores y renueva solo hoy; actualizar fuerza ambos bloques', async () => {
   const today = staffToday();
   const first = await getProductionStaffHistory(today);
-  assert.equal(reads.length, 4);
+  // 2 lecturas por bloque (pagos + cobertura) y 1 de turnos de STB_data solo para hoy.
+  assert.equal(reads.length, 5);
   assert.equal(first.days.length, 30);
   assert.equal(new Set(first.days.map(day => day.day)).size, 30);
   assert.equal(first.lastAttendance, today);
@@ -35,7 +36,7 @@ test('histórico reutiliza días anteriores y renueva solo hoy; actualizar fuerz
   assert.ok(original.some(read => read.from === today && read.to === today));
   assert.ok(original.some(read => read.to < today));
   await getProductionStaffHistory(today);
-  assert.equal(reads.length, 4);
+  assert.equal(reads.length, 5);
   for (const key of values.keys()) if (key.startsWith('personal:history-today:')) values.delete(key);
   reads = [];
   const next = await getProductionStaffHistory(today);
@@ -44,7 +45,7 @@ test('histórico reutiliza días anteriores y renueva solo hoy; actualizar fuerz
   assert.deepEqual(next.days, first.days);
   reads = [];
   await getProductionStaffHistory(today, true);
-  assert.equal(reads.length, 4);
+  assert.equal(reads.length, 5);
   reads = [];
   const past = await getProductionStaffHistory('2026-01-31');
   assert.equal(reads.length, 2);

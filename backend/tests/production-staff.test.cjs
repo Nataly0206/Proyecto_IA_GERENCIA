@@ -142,6 +142,7 @@ test('personas y clasificación salen de pagos de STB aunque fallen las ubicacio
     assert.equal(result.attendanceReferences.activeSupervisors, 14);
     assert.deepEqual(result.attendanceReferences.latestAbsences, { day: '2026-11-16', count: 52, report: 'RH_V_EMPLEADOS_PRODUCCION_INASISTENCIA · 013 INASISTENCIA' });
     assert.equal(result.summary.absent, 0);
+    assert.ok(result.warnings.some(warning => /líneas TA\/TB de STB_data/.test(warning)));
   } finally { payroll.runPayrollQuery = original; stb.runStbQuery = originalStb; console.error = log; }
 });
 
@@ -477,4 +478,153 @@ test('la coincidencia de ID con distinto nombre se conserva como conflicto para 
   assert.equal(people.length, 1);
   assert.equal(people[0].status, 'conflict');
   assert.match(people[0].reason, /identidad/);
+});
+
+// Ventanas reales de STB_data (Dcp_ParametrosHorasAsistenciaDepto / DCP_HORAS_TURNOS): A hasta 07:10, B hasta 19:05, la noche de B termina 04:59.
+const shiftRef = (id, extra = {}) => ({ id, name: `Persona ${id}`, active: true,
+  currentLine: 'Reempaque TA', previousLine: '', previousLineDay: '', dayDeadline: 430, nightDeadline: 1145, nightEnd: 299, ...extra });
+const withShifts = (records, today, refs, punches = []) => {
+  const { attachProductionStaffShifts } = require('../dist/services/production-staff-shift');
+  return buildStaffEmployees(attachProductionStaffShifts(records, today, refs, punches), today);
+};
+const entries = (id, minute, days = ['2026-11-17', '2026-11-18', '2026-11-19']) => days.map(day => ({ id, day, minute }));
+
+test('el turno sale de TA/TB en la línea del día, luego de las marcaciones de Payroll y luego de la última línea TA/TB', () => {
+  const { productionLineShift, attachProductionStaffShifts } = require('../dist/services/production-staff-shift');
+  assert.equal(productionLineShift('OBRA DESCABEZADO PROGRAMA TA (PESADO)'), 'A');
+  assert.equal(productionLineShift('IQF 3-PD TB'), 'B');
+  assert.equal(productionLineShift('Clasificado Programa 3 TA  '), 'A');
+  assert.equal(productionLineShift('TURNO B'), 'B');
+  assert.equal(productionLineShift('OBRA PELADO TERCERO'), null);
+  assert.equal(productionLineShift('MASTERIZADO Y LECTURA'), null);
+  const today = '2026-11-20';
+  const [byLine, byPunches, byPrevious, mismatch, none] = attachProductionStaffShifts([1, 2, 3, 4, 5].map(id => row(id, { day: today, source: 'payroll' })), today, [
+    shiftRef(1, { currentLine: 'IQF 3-PD TB' }),
+    shiftRef(2, { currentLine: 'OBRA PELADO TERCERO', previousLine: 'Reempaque TA', previousLineDay: '2026-11-10' }),
+    shiftRef(3, { currentLine: '', previousLine: 'UK IQF 2-ND TB', previousLineDay: '2026-11-19' }),
+    shiftRef(4, { name: 'Otra Persona', currentLine: 'IQF 3-PD TB' }),
+    shiftRef(5, { currentLine: 'OBRA PELADO TERCERO' }),
+  ], [...entries(1, 360), ...entries(2, 958), ...entries(4, 360)]);
+  assert.equal(byLine.productionShift.shift, 'B');
+  assert.match(byLine.productionShift.basis, /Línea del día/);
+  // La línea del día manda; sin marcaciones de B se usa la ventana de STB_data.
+  assert.equal(byLine.productionShift.entranceDeadline, 1145);
+  assert.equal(byPunches.productionShift.shift, 'B');
+  assert.match(byPunches.productionShift.basis, /Marcaciones de Payroll: entra 15:58/);
+  assert.equal(byPunches.productionShift.entranceDeadline, 958 + 45);
+  assert.equal(byPrevious.productionShift.shift, 'B');
+  assert.match(byPrevious.productionShift.basis, /Última línea/);
+  assert.equal(mismatch.productionShift, undefined);
+  assert.equal(none.productionShift, undefined);
+});
+
+test('marcaciones: turno de la jornada más reciente y hora habitual; madrugada cuenta como turno B', () => {
+  const { punchPattern, attachProductionStaffShifts } = require('../dist/services/production-staff-shift');
+  const changed = punchPattern([...entries(1, 360, ['2026-11-10', '2026-11-11', '2026-11-12']), { id: 1, day: '2026-11-19', minute: 970 }]);
+  assert.equal(changed.shift, 'B');
+  assert.equal(changed.days, 1);
+  const night = punchPattern([{ id: 1, day: '2026-11-17', minute: 1380 }, { id: 1, day: '2026-11-18', minute: 30 }, { id: 1, day: '2026-11-19', minute: 60 }]);
+  assert.equal(night.shift, 'B');
+  assert.equal(night.typical, 30 + 1440);
+  // En A nunca antes de la ventana de STB_data; sin referencia de STB_data basta la marcación.
+  const today = '2026-11-20';
+  const [early, late, onlyPayroll] = attachProductionStaffShifts([1, 2, 3].map(id => row(id, { day: today, source: 'payroll' })), today,
+    [shiftRef(1, { currentLine: '' }), shiftRef(2, { currentLine: '' })], [...entries(1, 330), ...entries(2, 450), ...entries(3, 375), { id: 3, day: today, minute: 900 }]);
+  assert.equal(early.productionShift.entranceDeadline, 430);
+  assert.equal(late.productionShift.entranceDeadline, 495);
+  assert.equal(onlyPayroll.productionShift.shift, 'A');
+  assert.equal(onlyPayroll.productionShift.entranceDeadline, 420);
+  assert.equal(onlyPayroll.productionShift.active, true);
+});
+
+test('turno A: falta provisional solo después de su ventana de entrada; turno B aún no', () => {
+  const { applyProvisionalStaffAbsences } = require('../dist/services/production-staff-absence');
+  const today = '2026-11-20';
+  const people = withShifts([row(1, { day: today, source: 'payroll' }), row(2, { day: today, source: 'payroll' })], today,
+    [shiftRef(1), shiftRef(2, { currentLine: 'OBRA PELADO TERCERO' })], entries(2, 960));
+  const at = iso => applyProvisionalStaffAbsences(people, today, new Date(iso)).map(person => person.status);
+  assert.deepEqual(at('2026-11-20T13:10:00Z'), ['pending', 'pending']);
+  assert.deepEqual(at('2026-11-20T13:11:00Z'), ['absent', 'pending']);
+  // Turno B real entra 16:00: falta después de 16:45, no a la ventana configurada de 19:05.
+  assert.deepEqual(at('2026-11-20T22:45:00Z'), ['absent', 'pending']);
+  assert.deepEqual(at('2026-11-20T22:46:00Z'), ['absent', 'absent']);
+  const late = applyProvisionalStaffAbsences(people, today, new Date('2026-11-20T13:11:00Z'))[0];
+  assert.equal(late.provisionalAbsence, true);
+  assert.equal(late.absenceRecorded, false);
+  assert.match(late.reason, /turno A/);
+  assert.equal(people[0].status, 'pending');
+});
+
+test('la noche del turno B pertenece a la jornada anterior hasta su cierre', () => {
+  const { applyProvisionalStaffAbsences } = require('../dist/services/production-staff-absence');
+  const day = '2026-11-20';
+  const people = withShifts([row(1, { day, source: 'payroll' }), row(2, { day, source: 'payroll' })], day,
+    [shiftRef(1), shiftRef(2, { currentLine: 'IQF 3-PD TB' })]);
+  const at = iso => applyProvisionalStaffAbsences(people, day, new Date(iso)).map(person => person.status);
+  assert.deepEqual(at('2026-11-21T08:00:00Z'), ['pending', 'absent']);
+  assert.deepEqual(at('2026-11-21T11:30:00Z'), ['pending', 'pending']);
+});
+
+test('sin turno verificado (línea TA/TB o marcaciones) nadie se marca como falta', () => {
+  const { applyProvisionalStaffAbsences } = require('../dist/services/production-staff-absence');
+  const today = '2026-11-20', now = new Date('2026-11-20T20:00:00Z');
+  const people = withShifts([1, 2, 3, 4].map(id => row(id, { day: today, source: 'payroll' })), today, [
+    shiftRef(2, { dayDeadline: null }),
+    shiftRef(3, { active: false }),
+    shiftRef(4, { currentLine: 'OBRA PELADO TERCERO' }),
+  ]);
+  assert.deepEqual(applyProvisionalStaffAbsences(people, today, now).map(person => person.status), ['pending', 'pending', 'pending', 'pending']);
+});
+
+test('una nueva marcación o pago durante el día elimina la falta provisional sin duplicar a la persona', () => {
+  const { applyProvisionalStaffAbsences } = require('../dist/services/production-staff-absence');
+  const today = '2026-11-20', now = new Date('2026-11-20T15:00:00Z');
+  const pending = row(1, { day: today, source: 'payroll' });
+  const check = records => summarizeStaff(applyProvisionalStaffAbsences(withShifts(records, today, [shiftRef(1)]), today, now));
+  assert.equal(check([pending]).provisionalAbsent, 1);
+  const punched = check([{ ...pending, reportMark: 'A', entry: '08:30:00', firstPunch: `${today}T08:30:00` }]);
+  assert.equal(punched.absent, 0);
+  assert.equal(punched.provisionalAbsent, 0);
+  assert.equal(punched.present, 1);
+  assert.equal(punched.total, 1);
+  const paid = check([pending, row(1, { day: today, source: 'payment', paymentConcept: 'OBRA PELADO' })]);
+  assert.equal(paid.absent, 0);
+  assert.equal(paid.present, 1);
+  assert.equal(paid.total, 1);
+});
+
+test('el corte excluye permisos, descansos, sin producción y conflictos; distingue faltas confirmadas', () => {
+  const { applyProvisionalStaffAbsences } = require('../dist/services/production-staff-absence');
+  const { attachProductionStaffShifts } = require('../dist/services/production-staff-shift');
+  const today = '2026-11-20', now = new Date('2026-11-20T14:00:00Z');
+  const records = attachProductionStaffShifts([
+    row(1, { day: today, source: 'payroll' }),
+    row(2, { day: today, source: 'payroll', reportMark: 'A' }),
+    row(3, { day: today, source: 'payroll', actionCode: '014', action: 'INCAPACIDAD' }),
+    row(4, { day: today, source: 'payroll', actionCode: '035', action: 'VACACIONES' }),
+    row(5, { day: today, source: 'payroll', actionCode: '013', action: 'INASISTENCIA' }),
+    row(6, { day: today, source: 'payroll', actionCode: '040', action: 'FALTA DE PRODUCTO' }),
+    row(7, { day: today, source: 'payroll', reportMark: 'A', actionCode: '026', action: 'PERMISO SIN SUELDO' }),
+  ], today, [1, 2, 3, 4, 5, 6, 7].map(id => shiftRef(id)));
+  const counts = summarizeStaff(applyProvisionalStaffAbsences(buildStaffEmployees(records, today), today, now));
+  assert.equal(counts.absent, 2);
+  assert.equal(counts.confirmedAbsent, 1);
+  assert.equal(counts.provisionalAbsent, 1);
+  assert.equal(counts.excused, 1);
+  assert.equal(counts.off, 1);
+  assert.equal(counts.noProduction, 1);
+  assert.equal(counts.conflict, 1);
+  const history = buildStaffHistory(records, today, today, now)[0];
+  assert.equal(history.absent, counts.absent);
+  assert.equal(history.provisionalAbsent, 1);
+  assert.equal(history.absenceDataAvailable, true);
+});
+
+test('una marca parcial sin estado resuelto no se convierte en falta provisional', () => {
+  const { applyProvisionalStaffAbsences } = require('../dist/services/production-staff-absence');
+  const today = '2026-11-20';
+  const people = withShifts([row(1, { day: today, source: 'payroll', firstPunch: `${today}T08:01:00` })], today, [shiftRef(1)]);
+  const result = applyProvisionalStaffAbsences(people, today, new Date('2026-11-20T15:00:00Z'));
+  assert.equal(result[0].status, 'pending');
+  assert.equal(result[0].provisionalAbsence, undefined);
 });

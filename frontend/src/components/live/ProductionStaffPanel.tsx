@@ -45,10 +45,12 @@ function storedGroupBy(): GroupBy {
   } catch { return 'area'; }
 }
 const kindLabels = { production: 'Obra', machine: 'Máquinas (Clasificado + IQF)', auxiliary: 'Auxiliares', supervisor: 'Supervisores' } as const;
+const statusLabel = (person: StaffEmployee) => person.provisionalAbsence ? 'X · Falta provisional' : staffStatusLabels[person.status];
 function countPeople(people: StaffEmployee[]) {
   const count = (status: StaffStatus) => people.filter(person => person.status === status).length;
   const present = count('present'), absent = count('absent'), pending = count('pending'), conflict = count('conflict');
-  return { total: people.length, present, absent, pending, conflict, excused: count('excused'), off: count('off'), noProduction: count('noProduction'),
+  const provisionalAbsent = people.filter(person => person.status === 'absent' && person.provisionalAbsence).length;
+  return { total: people.length, present, absent, provisionalAbsent, confirmedAbsent: absent - provisionalAbsent, pending, conflict, excused: count('excused'), off: count('off'), noProduction: count('noProduction'),
     absenceRate: !pending && !conflict && present + absent > 0 ? absent / (present + absent) * 100 : null };
 }
 const tableSx = {
@@ -108,8 +110,8 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
   const client = useQueryClient();
   const parsed = new Date(`${date}T12:00:00Z`);
   const validDate = /^\d{4}-\d{2}-\d{2}$/.test(date) && date >= '2000-01-01' && date <= today && Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date;
-  const queryKey = ['personal-produccion-integrado-v13', userId, date] as const;
-  const historyKey = ['personal-produccion-integrado-historico-v9', userId, date] as const;
+  const queryKey = ['personal-produccion-turnos-v15', userId, date] as const;
+  const historyKey = ['personal-produccion-turnos-historico-v11', userId, date] as const;
   const query = useQuery({
     queryKey, queryFn: async ({ signal }) => (await apiClient.get<StaffResponse>('/dashboard/personal-produccion', { params: { fecha: date }, signal })).data,
     enabled: validDate && tab === 'day', staleTime: 60_000, refetchInterval: tab === 'day' && date === today ? 60_000 : false,
@@ -188,7 +190,7 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
       </Stack>
       <Collapse in={filtersOpen && tab === 'day'}><Box id="staff-filters" sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(4, minmax(0, 1fr))' }, gap: 1, mt: 1.5 }}>
         <TextField select size="small" label="División" value={division} onChange={event => setDivision(event.target.value)}><MenuItem value="">Todas las divisiones</MenuItem>{[...new Set(query.data?.employees.map(value => value.division) ?? [])].sort().map(value => <MenuItem key={value} value={value}>{value}</MenuItem>)}</TextField>
-        <TextField select size="small" label="Turno de nómina" value={shift} onChange={event => setShift(event.target.value)}><MenuItem value="">Todos los turnos</MenuItem>{[...new Set(query.data?.employees.map(value => value.shift) ?? [])].sort().map(value => <MenuItem key={value} value={value}>{value}</MenuItem>)}</TextField>
+        <TextField select size="small" label="Turno de producción" value={shift} onChange={event => setShift(event.target.value)}><MenuItem value="">Todos los turnos</MenuItem>{[...new Set(query.data?.employees.map(value => value.shift) ?? [])].sort().map(value => <MenuItem key={value} value={value}>{value}</MenuItem>)}</TextField>
         <TextField select size="small" label="Puesto" value={job} onChange={event => setJob(event.target.value)}><MenuItem value="">Todos los puestos</MenuItem>{[...new Set(query.data?.employees.map(value => value.job) ?? [])].sort().map(value => <MenuItem key={value} value={value}>{value}</MenuItem>)}</TextField>
         <TextField select size="small" label="Tipo de personal" value={kind} onChange={event => setKind(event.target.value as StaffKind | '')}><MenuItem value="">Todo el personal</MenuItem>{(Object.keys(kindLabels) as (keyof typeof kindLabels)[]).map(value => <MenuItem key={value} value={value}>{kindLabels[value]}</MenuItem>)}</TextField>
       </Box>{!!activeFilters && <Button size="small" onClick={clearFilters} sx={{ mt: 0.5 }}>Limpiar filtros</Button>}</Collapse>
@@ -203,9 +205,9 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
         <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
           {[
             { label: 'Asistieron · A', value: counts.present, color: 'success.main', detail: 'Pagos o marcaciones confirmados' },
-            { label: 'Faltaron · X', value: absenceAvailable ? counts.absent : null, color: 'error.main', detail: absenceAvailable ? 'Faltas registradas en Payroll' : 'Pendiente de cierre en Payroll' },
+            { label: 'Faltaron · X', value: absenceAvailable ? counts.absent : null, color: 'error.main', detail: counts.provisionalAbsent ? `${counts.confirmedAbsent} confirmadas · ${counts.provisionalAbsent} provisionales según turno` : absenceAvailable ? 'Faltas registradas en Payroll' : 'Pendiente de cierre en Payroll' },
             { label: 'Personal total', value: counts.total, color: 'text.primary', detail: 'Personas únicas de ambas fuentes' },
-            { label: 'Inasistencia', value: counts.absenceRate === null ? null : `${formatValue(counts.absenceRate, 'decimal')}%`, color: 'error.main', detail: counts.absenceRate === null ? 'Pendiente de revisión' : 'X / (A + X)' },
+            { label: 'Inasistencia', value: counts.absenceRate === null ? null : `${formatValue(counts.absenceRate, 'decimal')}%`, color: 'error.main', detail: counts.absenceRate === null ? 'Pendiente de revisión' : counts.provisionalAbsent ? 'Provisional al corte · X / (A + X)' : 'X / (A + X)' },
           ].map(stat => <Box key={stat.label} sx={{ px: { xs: 0.75, sm: 1.25 }, py: { xs: 0.75, sm: 1 }, borderRight: '1px solid', borderColor: 'divider', '&:last-of-type': { borderRight: 0 }, minWidth: 0 }}>
             <Typography variant="caption" fontWeight={700} sx={{ display: 'block', fontSize: { xs: 9.5, sm: 11 }, lineHeight: 1.3 }}>{stat.label}</Typography>
             <Typography fontWeight={800} sx={{ fontSize: { xs: 17, sm: 26 }, color: stat.color, lineHeight: 1.3, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{!counts.total || stat.value === null ? '—' : typeof stat.value === 'number' ? formatValue(stat.value) : stat.value}</Typography>
@@ -238,7 +240,7 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
                 </Stack>
                 {category.kind === 'supervisor' && group.total === 0 && <Typography variant="caption" color="text.secondary">Sin supervisores para la fecha y filtros seleccionados.</Typography>}
                 <Stack direction="row" columnGap={1} useFlexGap flexWrap="wrap" sx={{ mt: 0.25 }}>
-                  <Typography variant="caption" color="error.main" sx={{ fontSize: { xs: 9.5, sm: 11 } }}>Faltaron: {absenceAvailable && counts.total ? formatValue(group.absent) : 'No disponible'}</Typography>
+                  <Typography variant="caption" color="error.main" sx={{ fontSize: { xs: 9.5, sm: 11 } }} title={`${group.confirmedAbsent} confirmadas · ${group.provisionalAbsent} provisionales`}>Faltaron: {absenceAvailable && counts.total ? formatValue(group.absent) : 'No disponible'}</Typography>
                   <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: 9.5, sm: 11 } }}>Total: {counts.total ? formatValue(group.total) : '—'}</Typography>
                 </Stack>
                 {(group.pending + group.excused + group.off + group.noProduction + group.conflict > 0) && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
@@ -334,7 +336,7 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
                             <TableCell>
                               <Chip
                                 size="small"
-                                title={person.reason} label={staffStatusLabels[person.status]}
+                                title={person.reason} label={statusLabel(person)}
                                 color={person.status === 'present' ? 'success' : person.status === 'absent' ? 'error' : person.status === 'pending' || person.status === 'conflict' ? 'warning' : 'default'}
                                 variant="outlined"
                                 sx={{ fontSize: 10 }}
@@ -456,7 +458,7 @@ function StaffKindDialog({ selection, people, onClose, absenceAvailable }: { abs
                 <TableBody>{listed.map(person => <TableRow key={person.id}>
                   <TableCell sx={{ fontWeight: 700 }}>{person.name}</TableCell>
                   <TableCell>{person.job}{!!person.paymentConcepts?.length && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', whiteSpace: 'normal', overflowWrap: 'anywhere' }}>{person.paymentConcepts.join(' · ')}</Typography>}</TableCell>
-                  <TableCell><Chip size="small" variant="outlined" title={person.reason} label={staffStatusLabels[person.status]} color={person.status === 'present' ? 'success' : person.status === 'absent' ? 'error' : person.status === 'pending' || person.status === 'conflict' ? 'warning' : 'default'} sx={{ fontSize: 10 }} /></TableCell>
+                  <TableCell><Chip size="small" variant="outlined" title={person.reason} label={statusLabel(person)} color={person.status === 'present' ? 'success' : person.status === 'absent' ? 'error' : person.status === 'pending' || person.status === 'conflict' ? 'warning' : 'default'} sx={{ fontSize: 10 }} /></TableCell>
                 </TableRow>)}</TableBody>
               </Table>
             </TableCell></TableRow>}

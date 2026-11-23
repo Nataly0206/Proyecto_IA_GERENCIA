@@ -1,162 +1,115 @@
-process.env.CACHE_ENABLED = 'false';
-const { test } = require('node:test');
-const assert = require('node:assert/strict');
-const { buildStaffEmployees, summarizeStaff, staffAreaRows, buildStaffHistory, staffKind, payrollTime } = require('../dist/services/production-staff.model');
-const { validStaffDate, mapPayrollStaffRow } = require('../dist/services/production-staff.service');
-const day = '2026-11-17';
-const row = (id, extra = {}) => ({ id, day, code: String(id), name: `Persona ${id}`, department: 'PRODUCCION', division: 'PRODUCCION', job: 'OBRA', shift: 'A', source: 'calendar', actionCode: 'N/A', action: '', collector: 0, noProduction: false, entry: '', exit: '', hours: '', ...extra });
-const employee = (...rows) => buildStaffEmployees(rows, day)[0];
+process.env.CACHE_ENABLED='false';
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const {buildStaffEmployees,buildStaffHistory,summarizeStaff,staffKind,payrollTime}=require('../dist/services/production-staff.model');
+const {attachStaffLocations}=require('../dist/services/production-staff-location.model');
+const {attachProductionStaffShifts}=require('../dist/services/production-staff-shift');
+const {validStaffDate,mapPayrollStaffRow,getProductionStaff}=require('../dist/services/production-staff.service');
+const q=require('../dist/services/production-staff.queries');
+const day='2026-11-20';
+const row=(id,extra={})=>({id,day,code:String(id),name:`Persona ${id}`,department:'PRODUCCION',division:'PRODUCCION',job:'DESTAJO',shift:'',source:'payroll',actionCode:'',action:'',collector:0,noProduction:false,entry:'',exit:'',hours:'',...extra});
+const person=(...rows)=>buildStaffEmployees(rows,day)[0];
 
-test('N/A sin asistencia no se interpreta como presente ni ausente', () => {
-  const person = employee(row(1));
-  assert.equal(person.status, 'pending');
-  assert.equal(person.hasAttendance, false);
-  assert.equal(summarizeStaff([person]).absenceRate, null);
+test('pagos no prueban presencia y las fuentes externas no agregan personas fuera del padrón',()=>{
+ for(const source of ['payment','clock','attendance','report','calendar']){
+  const external=row(1,{source,reportMark:'A',entry:'06:00:00',punchCount:1});
+  assert.equal(buildStaffEmployees([external],day).length,0);
+  if(source!=='clock')assert.equal(person(row(1),external).status,'pending');
+ }
+ const p=person(row(1,{reportMark:'A',entry:'06:00:00'}));
+ assert.equal(p.status,'pending');assert.equal(p.entry,null);
 });
-
-test('faltó a trabajar e inasistencia se clasifican solo por registro explícito', () => {
-  for (const code of ['A039', '039', 'A013', '009']) assert.equal(employee(row(1, { actionCode: code })).status, 'absent');
-  assert.equal(employee(row(1, { source: 'action', actionCode: '', action: 'FALTO A TRABAJAR' })).status, 'absent');
+test('obra confirma asistencia con la primera pesa válida aunque no tenga chequeo o pago',()=>{
+ const p=person(row(1),row(1,{source:'weighing',entry:'08:00:00'}),row(1,{source:'weighing',entry:'06:20:00'}));
+ assert.equal(p.status,'present');assert.equal(p.entry,'06:20:00');assert.match(p.reason,/primera pesa/);
+ assert.equal(summarizeStaff([p]).total,1);
 });
-
-test('permisos e incapacidades no se suman como faltas', () => {
-  for (const actionCode of ['A014', 'A015', 'A024', 'A026', 'A027']) {
-    const person = employee(row(1, { actionCode }));
-    assert.equal(person.status, 'excused');
-    assert.equal(summarizeStaff([person]).absent, 0);
-  }
+test('chequeo de auxiliares o máquinas confirma desde el inicio y conserva horas',()=>{
+ for(const job of ['AUXILIARES DE PELADO','COMODIN','CLASIFICADO','AUXILIAR DE SALMUERA IQF']){
+  const p=person(row(1,{job}),row(1,{job,source:'activity',entry:'06:00:00',exit:'07:00:00'}),row(1,{job,source:'activity',entry:'07:00:00',exit:'12:00:00'}));
+  assert.equal(p.status,'present');assert.equal(p.entry,'06:00:00');assert.equal(p.exit,'12:00:00');
+ }
 });
-
-test('descansos, vacaciones y falta de producción conservan estados separados', () => {
-  for (const actionCode of ['A006', 'A007', 'A035', 'A030']) assert.equal(employee(row(1, { actionCode })).status, 'off');
-  assert.equal(employee(row(1, { actionCode: 'A040' })).status, 'noProduction');
-  assert.equal(employee(row(1, { noProduction: true })).status, 'noProduction');
+test('chequeo sin hora válida no prueba presencia; chequeo iniciado confirma también obra',()=>{
+ for(const entry of ['','25:00:00'])assert.equal(person(row(1,{job:'AUXILIAR'}),row(1,{source:'activity',entry})).status,'pending');
+ assert.equal(person(row(1),row(1,{source:'activity',entry:'06:00:00'})).status,'present');
+ assert.equal(person(row(1),row(1,{source:'weighing'})).status,'present','pesa válida con hora nula conserva la evidencia');
 });
-
-test('marcaciones válidas y asistencia manual confirman asistencia sin exigir libras', () => {
-  const person = employee(row(1), row(1, { source: 'clock', entry: '050000', exit: '180000', hours: '130000' }));
-  assert.equal(person.status, 'present');
-  assert.equal(person.entry, '05:00:00');
-  assert.equal(person.exit, '18:00:00');
-  assert.equal(employee(row(2, { source: 'attendance', entry: '06:00:00' })).status, 'present');
-  assert.equal(employee(row(3, { collector: 1 })).status, 'present');
-  assert.equal(employee(row(4, { actionCode: 'A011', action: 'FERIADO TRABAJADO' })).status, 'present');
+test('faltas, permisos, incapacidades y descansos se mantienen separados',()=>{
+ for(const code of ['013','A039','009'])assert.equal(person(row(1,{actionCode:code})).status,'absent');
+ for(const code of ['014','026'])assert.equal(person(row(1,{actionCode:code})).status,'excused');
+ for(const code of ['007','035'])assert.equal(person(row(1,{actionCode:code})).status,'off');
+ assert.equal(person(row(1,{actionCode:'040'})).status,'noProduction');
+ assert.equal(person(row(1,{actionCode:'011',action:'FERIADO TRABAJADO'})).status,'pending','una etiqueta no reemplaza evidencia operativa');
 });
-
-test('marcación incompleta o inválida no inventa asistencia', () => {
-  assert.equal(employee(row(1, { source: 'clock', entry: '000000', exit: '000000', hours: '000000' })).status, 'pending');
-  assert.equal(employee(row(1, { source: 'clock', entry: '990000', exit: '180000', hours: '080000' })).status, 'pending');
-  assert.equal(payrollTime('05:30'), '05:30:00');
-  assert.equal(payrollTime('236099'), null);
+test('pesa o chequeo con una novedad incompatible se conserva para revisión',()=>{
+ const p=person(row(1,{actionCode:'013'}),row(1,{source:'weighing',entry:'06:00:00'}));
+ assert.equal(p.status,'conflict');assert.equal(p.absenceRecorded,true);assert.equal(p.hasAttendance,true);
+ assert.equal(summarizeStaff([p]).absent,0);
+ assert.equal(person(row(1,{job:'AUXILIAR',actionCode:'026'}),row(1,{source:'activity',entry:'07:00:00'})).status,'conflict');
 });
-
-test('deduplica persona entre calendario, novedades y varias marcas', () => {
-  const people = buildStaffEmployees([row(1), row(1), row(1, { source: 'clock', entry: '050000', exit: '180000', hours: '130000' }), row(1, { source: 'attendance', entry: '04:50:00', exit: '18:20:00' })], day);
-  assert.equal(people.length, 1);
-  assert.equal(people[0].entry, '04:50:00');
-  assert.equal(people[0].exit, '18:20:00');
-  assert.equal(summarizeStaff(people).present, 1);
+test('sin evidencia queda pendiente, sin trasladar faltas o pesas de otros días',()=>{
+ const records=[row(1),row(1,{day:'2026-11-19',source:'weighing',entry:'06:00:00'}),row(1,{day:'2026-11-19',actionCode:'013'})];
+ assert.equal(person(...records).status,'pending');
+ const h=buildStaffHistory(records,day,day,new Date('2026-11-22T18:00:00Z'))[0];
+ assert.equal(h.absent,0);assert.equal(h.pending,1);assert.equal(h.provisionalAbsent,0);assert.equal(h.derivedAbsent,0);assert.equal(h.confirmedAbsent,0);assert.equal(h.absenceDataAvailable,true);
 });
-
-test('novedad duplicada no genera conflicto ni duplica faltas', () => {
-  const person = employee(row(1, { actionCode: 'A039', action: 'FALTO A TRABAJAR' }), row(1, { source: 'action', actionCode: '', action: 'FALTO A TRABAJAR' }));
-  assert.equal(person.status, 'absent');
-  assert.equal(person.actions.length, 1);
-  assert.equal(person.actions[0].code, 'A039');
+test('no cruza identidades por el solo código y descarta IDs inválidos',()=>{
+ assert.equal(person(row(1),row(1,{source:'activity',name:'Otra Persona',entry:'06:00:00'})).status,'conflict');
+ assert.equal(buildStaffEmployees([row(0),row(1.5),row(-1)],day).length,0);
 });
-
-test('asistencia y falta simultáneas o novedades incompatibles requieren revisión', () => {
-  const person = employee(row(1, { actionCode: 'A039' }), row(1, { source: 'clock', entry: '050000', exit: '180000', hours: '130000' }));
-  assert.equal(person.status, 'conflict');
-  assert.equal(person.hasAttendance, true);
-  assert.equal(person.absenceRecorded, true);
-  assert.equal(summarizeStaff([person]).absent, 0);
-  assert.equal(employee(row(1, { actionCode: 'A014' }), row(1, { source: 'action', action: 'DIA LIBRE', actionCode: '' })).status, 'conflict');
-  assert.equal(employee(row(1, { actionCode: 'A999', action: 'ESTADO DESCONOCIDO' })).status, 'conflict');
+test('clasifica por puesto, sin conceptos de pago',()=>{
+ for(const [job,kind] of [['DESTAJO','production'],['DECORACION ANILLO','production'],['REEMPAQUE','production'],['CLASIFICADO','machine'],['MAQUINISTA','machine'],['AUXILIAR DE SALMUERA IQF','auxiliary'],['COMODIN','auxiliary'],['SUPERVISOR','supervisor'],['APOYO A SUPERVISOR','auxiliary']])assert.equal(staffKind(job),kind);
+ assert.equal(person(row(1,{job:'AUXILIAR'}),row(1,{source:'payment',paymentConcept:'OBRA PELADO'})).kind,'auxiliary');
 });
-
-test('tasa sobre asistencias y faltas con carga completa, sin permisos ni descansos', () => {
-  const people = buildStaffEmployees([row(1, { collector: 1 }), row(2, { actionCode: 'A039' }), row(3, { actionCode: 'A014' }), row(4, { actionCode: 'A007' }), row(5, { actionCode: 'A040' })], day);
-  const summary = summarizeStaff(people);
-  assert.equal(summary.absenceRate, 50);
-  assert.equal(summary.total, 5);
-  assert.equal(summary.present + summary.absent + summary.excused + summary.off + summary.noProduction + summary.pending + summary.conflict, 5);
-  assert.equal(summarizeStaff([...people, employee(row(6))]).absenceRate, null);
+test('histórico deduplica persona por día y mantiene estados y totales',()=>{
+ const rows=[row(1),row(1,{source:'weighing',entry:'06:00:00'}),row(1,{source:'weighing',entry:'07:00:00'}),row(1,{source:'clock',entry:'06:00:00',punchCount:1}),row(2,{actionCode:'013'}),row(3,{actionCode:'014'}),row(4,{actionCode:'007'})];
+ const h=buildStaffHistory(rows,day,'2026-11-21');assert.equal(h.length,2);
+ assert.equal(h[0].total,4);assert.equal(h[0].present,1);assert.equal(h[0].absent,1);assert.equal(h[0].excused,1);assert.equal(h[0].off,1);assert.equal(h[0].absenceRate,50);assert.equal(h[1].total,0);
 });
-
-test('histórico separa personas-día, no toma datos futuros e incluye días sin datos', () => {
-  const result = buildStaffHistory([row(1, { actionCode: 'A039' }), row(1, { actionCode: 'A039', day: '2026-11-16' }), row(2, { day: '2026-11-18', collector: 1 })], '2026-11-15', day);
-  assert.equal(result.length, 3);
-  assert.equal(result[0].total, 0);
-  assert.equal(result[1].absent, 1);
-  assert.equal(result[2].absent, 1);
-  assert.equal(result.reduce((sum, date) => sum + date.absent, 0), 2);
+test('conserva todos los tramos, actividad actual, línea y duración sin duplicar persona',()=>{
+ const p=person(row(1,{job:'AUXILIAR'}),row(1,{source:'activity',entry:'06:00:00'}));
+ const events=[
+  {id:1,name:p.name,source:'activity',day,time:'06:00:00',endTime:'07:00:00',process:'Pelado',room:'',line:'PELADO TA',activity:'Apoyo pelado'},
+  {id:1,name:p.name,source:'activity',day,time:'07:00:00',endTime:'10:00:00',process:'IQF',room:'',line:'IQF TA',activity:'Empaque'},
+ ];
+ const result=attachStaffLocations([p],events,day,day).employees[0];
+ assert.equal(result.dailyActivities.length,2);assert.equal(result.dailyActivities[0].hours,1);assert.equal(result.dailyActivities[1].hours,3);
+ assert.equal(result.dailyActivities[0].process,'Pelado');assert.equal(result.dailyActivities[1].area,'IQF');assert.equal(result.dailyActivities[1].line,'IQF TA');
+ assert.equal(result.activity,'Empaque');assert.deepEqual(result.otherActivities,['Apoyo pelado']);assert.equal(result.status,'present');assert.match(result.area,/IQF/);
 });
-
-test('departamentos reconcilian totales y comodines no se cuentan dos veces', () => {
-  const people = buildStaffEmployees([row(1, { job: 'APOYO COMODIN' }), row(2, { department: 'CALIDAD', job: 'AUXILIAR DE CALIDAD' }), row(3, { job: 'DECORACION ANILLO' })], day);
-  assert.equal(staffAreaRows(people).reduce((sum, area) => sum + area.total, 0), 3);
-  assert.equal(summarizeStaff(people).wildcard, 1);
-  assert.equal(staffKind(''), 'auxiliary');
-  assert.equal(staffKind('APOYO COMODIN'), 'auxiliary');
-  assert.equal(staffKind('OBRA'), 'production');
+test('ubicación histórica o asignación activa no confirma asistencia',()=>{
+ const p=person(row(1));
+ const loc={id:1,name:p.name,source:'production',day:'2026-11-19',time:'09:00:00',process:'Pelado',room:'Sala 2',line:''};
+ const result=attachStaffLocations([p],[loc],day,day).employees[0];
+ assert.equal(result.status,'pending');assert.equal(result.area,'Pelado · Sala 2');
+ assert.equal(attachStaffLocations([p],[{...loc,name:'Otra Persona'}],day,day).unverified,1);
 });
-
-test('mapeo mantiene códigos y fechas sin exponer otros datos de nómina', () => {
-  const result = mapPayrollStaffRow({ Dia: '2026-11-17', IdEmpleado: 1, CodigoEmpleado: '0001', Fuente: 'calendar', FaltaProducto: 1 });
-  assert.equal(result.code, '0001');
-  assert.equal(result.noProduction, true);
-  assert.equal(result.day, day);
+test('el turno solo usa líneas verificadas de chequeo',()=>{
+ const ref={id:1,name:'Persona 1',active:true,currentLine:'PELADO TB',previousLine:'',previousLineDay:'',dayDeadline:null,nightDeadline:null,nightEnd:null};
+ const result=attachProductionStaffShifts([row(1),row(2)],day,[ref]);
+ assert.equal(result[0].productionShift.shift,'B');assert.match(result[0].productionShift.basis,/chequeo/);assert.equal(result[1].productionShift,undefined);
 });
-
-test('fecha inválida, futura y parámetros no escalares se rechazan', () => {
-  for (const value of ['2026-02-30', '2026-11-18', '2026-1-2', 'x', ['2026-11-17'], undefined]) assert.equal(validStaffDate(value, day), false);
-  assert.equal(validStaffDate(day, day), true);
+test('servicio combina biométrico y pagos sin agregar personas fuera del padrón',async()=>{
+ const payroll=require('../dist/services/payroll.service'),stb=require('../dist/services/stb.service');
+ const originalPayroll=payroll.runPayrollQuery,originalStb=stb.runStbQuery;
+ const calls=[];
+ try{
+  payroll.runPayrollQuery=async(query)=>{calls.push(query);if(query!==q.PAYROLL_STAFF_COMPLEMENT_QUERY)return [];return [{Dia:day,IdEmpleado:1,Nombre:'Persona 1',Puesto:'DESTAJO',Fuente:'payroll'}]};
+  stb.runStbQuery=async(query)=>{calls.push(query);if(query===q.STB_FIRST_WEIGHING_QUERY)return [1,2].map(IdEmpleado=>({Dia:day,IdEmpleado,Fuente:'weighing',Entrada:'06:00:00'}));if(query===q.STB_ACTIVITY_ATTENDANCE_QUERY)return [];return []};
+  const result=await getProductionStaff(day,true);assert.equal(result.summary.total,1);assert.equal(result.summary.present,0);assert.equal(result.employees[0].hasAttendance,true);
+  assert.equal(result.employees[0].firstPunch,null);assert.deepEqual(result.employees[0].paymentConcepts,[]);
+  assert.ok(calls.includes(q.PAYROLL_BIOMETRIC_ATTENDANCE_QUERY));assert.ok(calls.includes(q.PAYROLL_POSITIVE_PAYMENT_QUERY));
+ }finally{payroll.runPayrollQuery=originalPayroll;stb.runStbQuery=originalStb}
 });
-
-test('personas y clasificación salen de pagos de STB aunque fallen las ubicaciones', async () => {
-  const payroll = require('../dist/services/payroll.service');
-  const stb = require('../dist/services/stb.service');
-  const service = require('../dist/services/production-staff.service');
-  const q = require('../dist/services/production-staff.queries');
-  const original = payroll.runPayrollQuery; const originalStb = stb.runStbQuery; const log = console.error;
-  try {
-    console.error = () => {};
-    payroll.runPayrollQuery = async query => query === q.STAFF_ATTENDANCE_REFERENCES_QUERY
-      ? [{ UltimaFechaInasistencias: '2026-11-16', Inasistencias: 52, SupervisoresActivos: 14 }]
-      : query === q.PAYROLL_STAFF_COMPLEMENT_QUERY ? [{ Dia: day, IdEmpleado: 1, Fuente: 'payroll', MarcaReporte: 'A', Puesto: 'AUXILIAR' }]
-      : [{ IdConceptoPago: 31, ConceptoPago: 'OBRA PELADO ANILLO' }];
-    stb.runStbQuery = async query => {
-      if (query === q.STB_GROUP_PAYMENT_STAFF_QUERY) return [{ Dia: day, IdEmpleado: 1, Fuente: 'payment', IdConceptoPago: 31, Puesto: 'AUXILIAR' }];
-      if (query === q.STB_GROUP_PAYMENT_COVERAGE_QUERY) return [{ UltimaFecha: day }];
-      throw new Error('Asignaciones no disponibles');
-    };
-    const result = await service.getProductionStaff(day);
-    assert.equal(result.source, 'STB_data + STBPayroll');
-    assert.equal(result.summary.total, 1);
-    assert.equal(result.summary.present, 1);
-    assert.equal(result.summary.production, 1);
-    assert.equal(result.summary.absenceRate, null);
-    assert.equal(result.lastAttendance, day);
-    assert.equal(result.locationAvailable, false);
-    assert.equal(result.attendanceReferences.activeSupervisors, 14);
-    assert.deepEqual(result.attendanceReferences.latestAbsences, { day: '2026-11-16', count: 52, report: 'RH_V_EMPLEADOS_PRODUCCION_INASISTENCIA · 013 INASISTENCIA' });
-    assert.equal(result.summary.absent, 0);
-    assert.ok(result.warnings.some(warning => /líneas TA\/TB de STB_data/.test(warning)));
-  } finally { payroll.runPayrollQuery = original; stb.runStbQuery = originalStb; console.error = log; }
+test('si falla chequeo o pesa devuelve error, nunca conteos en cero',async()=>{
+ const payroll=require('../dist/services/payroll.service'),stb=require('../dist/services/stb.service');const p=payroll.runPayrollQuery,s=stb.runStbQuery;
+ try{payroll.runPayrollQuery=async()=>[];stb.runStbQuery=async()=>{throw Error('sin acceso')};await assert.rejects(()=>getProductionStaff(day,true),e=>e.statusCode===503)}finally{payroll.runPayrollQuery=p;stb.runStbQuery=s}
 });
-
-test('un error del reporte STB devuelve 503 sin sustituir conteos por ceros', async () => {
-  const stb = require('../dist/services/stb.service');
-  const payroll = require('../dist/services/payroll.service');
-  const service = require('../dist/services/production-staff.service');
-  const original = stb.runStbQuery; const originalPayroll = payroll.runPayrollQuery; const log = console.error;
-  try {
-    console.error = () => {};
-    stb.runStbQuery = async () => { throw new Error('Fallo de prueba'); };
-    payroll.runPayrollQuery = async () => [];
-    await assert.rejects(() => service.getProductionStaff(day), error => error.statusCode === 503);
-  } finally { stb.runStbQuery = original; payroll.runPayrollQuery = originalPayroll; console.error = log; }
+test('validación de fechas y horas mapea marcas y excluye conceptos de pago',()=>{
+ assert.equal(validStaffDate(day,day),true);assert.equal(validStaffDate('2026-02-30',day),false);assert.equal(validStaffDate('2026-11-21',day),false);assert.equal(validStaffDate([day],day),false);
+ assert.equal(payrollTime('06:30'),'06:30:00');assert.equal(payrollTime('236099'),null);
+ const mapped=mapPayrollStaffRow({Dia:day,IdEmpleado:1,ConceptoPago:'OBRA',PrimeraMarca:'2026-11-20T05:00:00'});assert.equal(mapped.paymentConcept,undefined);assert.equal(mapped.firstPunch,'2026-11-20T05:00:00');
 });
 
 test('Personal requiere su propio permiso y Productividad no lo concede', async () => {
@@ -177,454 +130,117 @@ test('Personal requiere su propio permiso y Productividad no lo concede', async 
 });
 
 
-const { attachStaffLocations } = require('../dist/services/production-staff-location.model');
-const location = (id, extra = {}) => ({ id, name: `Persona ${id}`, source: 'assignment', day: '', time: '', process: 'Pelado', room: 'Sala 1', line: '', ...extra });
-
-test('asistente de Payroll cuenta en sala sin exigir una pesada y conserva su tipo auxiliar', () => {
-  const people = buildStaffEmployees([row(1, { collector: 1, job: 'AUXILIARES DE PELADO' })], day);
-  const { employees } = attachStaffLocations(people, [location(1)], day, day);
-  assert.equal(employees[0].area, 'Pelado · Sala 1');
-  assert.equal(employees[0].status, 'present');
-  const sala = staffAreaRows(employees).find(value => value.area === 'Pelado · Sala 1');
-  assert.equal(sala.presentAuxiliary, 1);
-  assert.equal(sala.presentProduction, 0);
-  assert.equal(sala.present, 1);
-});
-
-test('una pesada no convierte a un pendiente en asistente ni agrega otro empleado', () => {
-  const people = buildStaffEmployees([row(1)], day);
-  const { employees } = attachStaffLocations(people, [location(1, { source: 'production', day, time: '08:00:00' }), location(2, { source: 'production', day, time: '09:00:00' })], day, day);
-  assert.equal(employees.length, 1);
-  assert.equal(employees[0].status, 'pending');
-  assert.equal(summarizeStaff(employees).present, 0);
-  assert.equal(employees[0].area, 'Pelado · Sala 1');
-});
-
-test('las faltas se distribuyen por asignación de sala sin duplicar personas', () => {
-  const people = buildStaffEmployees([row(1, { actionCode: 'A039' })], day);
-  const { employees } = attachStaffLocations(people, [location(1, { room: 'Sala 2' }), location(1, { room: 'Sala 2' })], day, day);
-  assert.equal(employees[0].status, 'absent');
-  assert.equal(staffAreaRows(employees).find(value => value.area === 'Pelado · Sala 2').absent, 1);
-  assert.equal(staffAreaRows(employees).reduce((sum, area) => sum + area.total, 0), 1);
-});
-
-test('última actividad del día cambia sala a Descabezado y conserva asistencia de Payroll', () => {
-  const people = buildStaffEmployees([row(1, { collector: 1 })], day);
-  const { employees } = attachStaffLocations(people, [location(1), location(1, { source: 'production', day, time: '08:00:00' }), location(1, { source: 'production', process: 'Descabezado', room: '', day, time: '10:00:00' })], day, day);
-  assert.equal(employees[0].area, 'Descabezado');
-  assert.equal(employees[0].status, 'present');
-  assert.equal(employees[0].areaTime, '10:00:00');
-  assert.equal(staffAreaRows(employees).reduce((sum, area) => sum + area.present, 0), 1);
-});
-
-test('asignaciones simultáneas sin evidencia suficiente quedan por confirmar', () => {
-  const people = buildStaffEmployees([row(1)], day);
-  const { employees } = attachStaffLocations(people, [location(1), location(1, { room: 'Sala 2' })], day, day);
-  assert.equal(employees[0].area, 'Ubicación por confirmar');
-  assert.equal(employees[0].status, 'pending');
-});
-
-test('en consulta histórica ignora la asignación actual y las actividades futuras', () => {
-  const people = buildStaffEmployees([row(1)], day);
-  const { employees } = attachStaffLocations(people, [location(1, { room: 'Sala 4' }), location(1, { source: 'production', room: 'Sala 2', day: '2026-11-16', time: '12:00:00' }), location(1, { source: 'production', room: 'Sala 3', day: '2026-11-18', time: '12:00:00' })], day, '2026-11-18');
-  assert.equal(employees[0].area, 'Pelado · Sala 2');
-  assert.equal(employees[0].areaDay, '2026-11-16');
-});
-
-test('no asigna sala cuando el nombre del mismo ID no coincide entre las bases', () => {
-  const people = buildStaffEmployees([row(1)], day);
-  const result = attachStaffLocations(people, [location(1, { name: 'Otra persona' })], day, day);
-  assert.equal(result.unverified, 1);
-  assert.equal(result.employees[0].area, 'Sin sala/área asignada');
-  assert.equal(result.employees.length, 1);
-});
-
-test('una referencia genérica de pelado conserva la sala específica compatible', () => {
-  const people = buildStaffEmployees([row(1)], day);
-  const { employees } = attachStaffLocations(people, [location(1), location(1, { source: 'activity', day, time: '08:00:00', room: '', line: 'Pelado apoyo' })], day, day);
-  assert.equal(employees[0].area, 'Pelado · Sala 1');
-});
-
-test('A verde y X roja del reporte tienen prioridad sobre novedades y fuentes anteriores', () => {
-  const a = employee(row(1, { source: 'report', reportMark: 'A', actionCode: 'A014', action: 'INCAPACIDAD', firstPunch: `${day}T06:12:14` }));
-  assert.equal(a.status, 'present');
-  assert.equal(a.reportMark, 'A');
-  assert.equal(a.hasAttendance, true);
-  assert.equal(a.firstPunch, `${day}T06:12:14`);
-  const x = employee(row(2, { source: 'report', reportMark: 'X', actionCode: 'A026', action: 'PERMISO SIN SUELDO' }), row(2, { source: 'clock', entry: '010000', exit: '030000', hours: '020000' }));
-  assert.equal(x.status, 'absent');
-  assert.equal(x.reportMark, 'X');
-  assert.equal(x.hasAttendance, false);
-  assert.equal(x.absenceRecorded, true);
-});
-
-test('A del reporte no exige entrada I: puede sustentarse en otra marcación de la jornada', () => {
-  const a = employee(row(21803, { source: 'report', reportMark: 'A', entry: '', exit: '06:12:14', firstPunch: `${day}T06:12:14` }));
-  assert.equal(a.status, 'present');
-  assert.equal(a.entry, null);
-  assert.equal(a.exit, '06:12:14');
-});
-
-test('sin jornada iniciada no se convierte un estado de reporte nulo en X', () => {
-  const a = employee(row(1, { source: 'report', reportMark: null }));
-  assert.equal(a.status, 'pending');
-  assert.equal(a.reportMark, null);
-});
-
-test('reporte A/X deduplica personas y detecta estados contradictorios sin doble conteo', () => {
-  const people = buildStaffEmployees([
-    row(1, { source: 'report', reportMark: 'A' }), row(1, { source: 'report', reportMark: 'A' }),
-    row(2, { source: 'report', reportMark: 'X' }), row(2, { source: 'report', reportMark: 'X' }),
-    row(3, { source: 'report', reportMark: 'A' }), row(3, { source: 'report', reportMark: 'X' }),
-  ], day);
-  const summary = summarizeStaff(people);
-  assert.equal(summary.total, 3);
-  assert.equal(summary.present, 1);
-  assert.equal(summary.absent, 1);
-  assert.equal(summary.conflict, 1);
-  assert.equal(summary.absenceRate, null);
-});
-
-test('actividad del día: usa el catálogo de actividades; sin actividad, agrupa por proceso', () => {
-  const people = buildStaffEmployees([row(1, { collector: 1 }), row(2, { collector: 1 }), row(3, { collector: 1 })], day);
-  const { employees } = attachStaffLocations(people, [
-    location(1),
-    // La columna actividad de la vista de obra es la línea: no debe usarse como actividad.
-    location(1, { source: 'workday', day, process: 'Pelado', room: '', line: 'OBRA  PELADO ND PROGRAMA', value: 40 }),
-    location(1, { source: 'workday', day, process: 'Descabezado', room: '', line: 'OBRA DESCABEZADO PROGRAMA TA (PESADO)', value: 60 }),
-    location(2, { source: 'workday', day, process: 'Clasificado', room: '', line: 'Pesado de Cola Clasificado', value: 460 }),
-    location(2, { source: 'activity', day, time: '07:00:00', process: 'Clasificado', room: '', line: 'Pesado de Cola Clasificado', activity: 'Pesado de Cola TA' }),
-    location(2, { source: 'activity', day, time: '09:00:00', process: 'Recepción', room: '', line: 'Recepcion', activity: 'Fabrica de Hielo TA' }),
-  ], day, day);
-  assert.equal(employees[0].area, 'Pelado · Sala 1');
-  assert.equal(employees[0].activity, 'Descabezado · sin actividad específica');
-  assert.deepEqual(employees[0].otherActivities, []);
-  assert.equal(employees[1].activity, 'Fabrica de Hielo TA');
-  assert.deepEqual(employees[1].otherActivities, ['Pesado de Cola TA']);
-  assert.equal(employees[2].activity, 'Sin actividad registrada');
-});
-
-const { departmentFromLine, departmentFromPayroll } = require('../dist/services/production-staff-department');
-test('departamento de planta según la línea de producción', () => {
-  const cases = [
-    ['Pelado', 'OBRA  PELADO ND PROGRAMA', '1.3 Pelado'],
-    ['Pelado', 'Aux pelado tercero TA ', '1.3 Pelado'],
-    ['Pelado', 'OBRA PELADO ANILLO (PESADO)', '1.3 Pelado'],
-    ['Descabezado', 'Pesado de Cola Descabezado', '1.1 Descabezado'],
-    ['Clasificado', 'Clasificado Reproceso Programa 2 TA', '1.2 Clasificado'],
-    ['IQF', 'IQF Anillos 126G TA', '1.4 IQF'],
-    ['DECORACION ANILLOS', 'Perforacion Anillo TA', '1.9 Decoración Anillos'],
-    ['PRODUCCION', 'Reempaque TA', '1.10 Reempaque WSO'],
-    ['EMPAQUE', 'Codigo y Etiqueta', '2.1 Bodega, empaque, código'],
-    ['PLANILLA ACTIVIDADES', 'Poes', '2.2 Calidad, lavandería y POES'],
-    ['AUX. PESADO Y CHEQUEO ', 'Apoyo RRHH y SSO', '2.3 RRHH, gestión ambiental y mantenimiento'],
-    ['Recepción', 'Recepcion', '1.6 Recepción'],
-  ];
-  for (const [process, line, expected] of cases) assert.equal(departmentFromLine(process, line), expected, line);
-  assert.equal(departmentFromLine('Clasificado', 'Apoyo Cafeteria '), null);
-  assert.equal(departmentFromPayroll('CALIDAD E INOCUIDAD'), '2.2 Calidad, lavandería y POES');
-  assert.equal(departmentFromPayroll('PRODUCCION'), null);
-});
-
-test('la población del reporte no se completa con el padrón de RH', () => {
-  const { STB_GROUP_PAYMENT_STAFF_QUERY, PAYROLL_STAFF_MOVEMENTS_QUERY } = require('../dist/services/production-staff.queries');
-  assert.doesNotMatch(STB_GROUP_PAYMENT_STAFF_QUERY, /RH_EMPLEADOS|FECHA_INGRESO|ID_TIPO_PLANILLA/);
-  assert.match(STB_GROUP_PAYMENT_STAFF_QUERY, /FROM dbo.V_PL_EMPLEADOS_PAGO_DETALLE_R/);
-  assert.match(PAYROLL_STAFF_MOVEMENTS_QUERY, /e\.ACTIVO=0 AND CAST\(e\.FECHA_RETIRO AS date\) BETWEEN/);
-});
-
-test('conceptos de pagos deduplican asistencia y no inventan falta al faltar un concepto', () => {
-  const people = buildStaffEmployees([
-    row(1, { source: 'report', reportMark: 'A', paymentConcept: 'AUX. PELADO ND PROGRAMA' }),
-    row(1, { source: 'report', reportMark: 'A', paymentConcept: 'AUX. PELADO TERCERO' }),
-    row(2, { source: 'report', reportMark: null }),
-  ], day);
-  const summary = summarizeStaff(people);
-  assert.equal(summary.present, 1);
-  assert.equal(summary.pending, 1);
-  assert.equal(summary.absent, 0);
-  assert.equal(people.find(p => p.id === 1).paymentConcepts.length, 2);
-});
-
-test('auxiliar de Pelado por conceptos queda sin sala aunque haya asignación activa a Sala 4', () => {
-  const people = buildStaffEmployees([row(1, { job: 'AUXILIARES DE PELADO', source: 'report', reportMark: 'A', paymentConcept: 'AUX. PELADO ND PROGRAMA' })], day);
-  const { employees } = attachStaffLocations(people, [location(1, { source: 'assignment', room: 'SALA #4' })], day, day);
-  assert.equal(employees[0].area, 'Pelado · Sin sala registrada');
-  assert.equal(employees[0].plantDepartment, '1.3 Pelado');
-  assert.match(employees[0].plantDepartmentBasis, /Conceptos de pagos/);
-  assert.equal(employees[0].status, 'present');
-});
-
-test('el reporte conserva todos sus conceptos sin lista fija ni biométrico', () => {
-  const q = require('../dist/services/production-staff.queries');
-  assert.match(q.STB_GROUP_PAYMENT_STAFF_QUERY, /V_PL_EMPLEADOS_PAGO_DETALLE_R/);
-  assert.doesNotMatch(q.STB_GROUP_PAYMENT_STAFF_QUERY, /CHECKINOUT|IdPagoDeduccion IN|TOTAL_PAGO>0/);
-  assert.match(q.STB_GROUP_PAYMENT_COVERAGE_QUERY, /V_PL_EMPLEADOS_PAGO_DETALLE_R/);
-});
-
-test('la fuente de pagos es exclusiva aunque otras fuentes indiquen presencia o ausencia', () => {
-  const people = buildStaffEmployees([
-    row(1, { source: 'payment', reportMark: null, paymentConcept: '' }),
-    row(1, { source: 'clock', entry: '060000', exit: '140000', hours: '080000' }),
-    row(1, { source: 'report', reportMark: 'A' }),
-    row(2, { source: 'payment', paymentConcept: 'AUX. PELADO ND PROGRAMA' }),
-    row(2, { source: 'report', reportMark: 'X' }),
-    row(2, { source: 'action', actionCode: 'A039', action: 'FALTO A TRABAJAR' }),
-  ], day);
-  assert.equal(people.find(p => p.id === 1).status, 'pending');
-  assert.equal(people.find(p => p.id === 1).hasAttendance, false);
-  assert.equal(people.find(p => p.id === 2).status, 'present');
-  assert.equal(people.find(p => p.id === 2).absenceRecorded, false);
-  const history = buildStaffHistory([
-    row(1, { source: 'payment', paymentConcept: 'AUX. PELADO ND PROGRAMA' }),
-    row(1, { source: 'payment', paymentConcept: 'AUX. PELADO TERCERO' }),
-    row(2, { source: 'payment', paymentConcept: '' }),
-  ], day, day);
-  assert.equal(history[0].present, 1);
-  assert.equal(history[0].pending, 1);
-  assert.equal(history[0].absent, 0);
-});
-
-test('clasifica conceptos en obra, máquinas, auxiliares y supervisores sin duplicar personas', () => {
-  const cases = [
-    ['OBRA PELADO ANILLO', 'AUXILIAR', 'production'],
-    ['AUX. PELADO ND PROGRAMA', 'OBRA', 'auxiliary'],
-    ['DECORACION ANILLOS', 'DESTAJO', 'auxiliary'],
-    ['REEMPAQUE', 'OPERARIO', 'auxiliary'],
-    ['IQF PROGRAMA', '', 'machine'],
-    ['CLASIFICADO PROGRAMA', 'OPERARIO', 'machine'],
-    ['AUX CLASIFICADO', 'OPERARIO', 'auxiliary'],
-    ['AUX. IQF', 'OPERARIO', 'auxiliary'],
-    ['IQF PROGRAMA', 'SUPERVISOR DE PRODUCCION', 'supervisor'],
-    ['OBRA PELADO ANILLO', 'SUPERVISORA DE PELADO', 'supervisor'],
-    ['SUPERVISORES', '', 'supervisor'],
-    ['AUX. PELADO ND PROGRAMA', 'APOYO A SUPERVISOR', 'auxiliary'],
-    ['CONCEPTO PENDIENTE DE DEFINIR', '', 'auxiliary'],
-  ];
-  for (const [paymentConcept, job, expected] of cases) {
-    assert.equal(employee(row(1, { source: 'payment', paymentConcept, job })).kind, expected);
-  }
-  const people = buildStaffEmployees([
-    row(1, { source: 'payment', paymentConcept: 'OBRA PELADO ANILLO' }),
-    row(1, { source: 'payment', paymentConcept: 'AUX. PELADO ANILLO' }),
-  ], day);
-  assert.equal(people.length, 1);
-  assert.equal(people[0].kind, 'production');
-});
-
-test('las cuatro categorías concilian el total diario y el histórico', () => {
-  const rows = [
-    row(1, { source: 'payment', paymentConcept: 'OBRA PELADO' }),
-    row(2, { source: 'payment', paymentConcept: 'IQF PROGRAMA' }),
-    row(3, { source: 'payment', paymentConcept: 'POR DEFINIR' }),
-    row(4, { source: 'payment', paymentConcept: 'OBRA PELADO', job: 'SUPERVISOR' }),
-  ];
-  const summary = summarizeStaff(buildStaffEmployees(rows, day));
-  assert.equal(summary.total, 4);
-  assert.equal(summary.production + summary.machine + summary.auxiliary + summary.supervisor, summary.total);
-  assert.equal(summary.unknown, 0);
-  const history = buildStaffHistory(rows, day, day)[0];
-  assert.equal(history.presentProduction, 1);
-  assert.equal(history.presentMachine, 1);
-  assert.equal(history.presentAuxiliary, 1);
-  assert.equal(history.presentSupervisor, 1);
+test('sin evidencia queda pendiente en resumen, salas e histórico; solo novedades registran faltas',()=>{
+ const {staffAreaRows}=require('../dist/services/production-staff.model');
+ const records=[row(1),row(2,{job:'AUXILIAR'}),row(3,{actionCode:'026'}),row(4,{actionCode:'014'}),row(5,{actionCode:'007'}),row(6,{actionCode:'040'})];
+ const people=buildStaffEmployees(records,day),summary=summarizeStaff(people);
+ assert.equal(summary.absent,0);assert.equal(summary.derivedAbsent,0);assert.equal(summary.pending,2);assert.equal(summary.confirmedAbsent,0);
+ assert.equal(summary.excused,2);assert.equal(summary.off,1);assert.equal(summary.noProduction,1);
+ assert.ok(people.filter(p=>p.status==='absent').every(p=>p.derivedAbsence&&!p.absenceRecorded&&p.reportMark==='X'));
+ assert.equal(staffAreaRows(people).find(r=>r.area==='Sin sala/área asignada').absent,0);
+ const history=buildStaffHistory(records,day,day)[0];assert.equal(history.absenceDataAvailable,true);assert.equal(history.absent,0);
+ const later=buildStaffEmployees([...records,row(1,{source:'weighing',entry:'08:00:00'}),row(2,{source:'activity',entry:'08:00:00'})],day);
+ assert.equal(summarizeStaff(later).absent,0);assert.equal(summarizeStaff(later).present,0);
 });
 
 
-test('integra pagos, supervisores y novedades una sola vez por persona y fecha', () => {
-  const rows = [
-    row(1, { source: 'payment', paymentConcept: 'OBRA PELADO' }),
-    row(1, { source: 'payroll', reportMark: 'A' }),
-    row(2, { source: 'payroll', job: 'SUPERVISOR', reportMark: 'A' }),
-    row(3, { source: 'payroll', job: 'SUPERVISOR' }),
-    row(4, { source: 'payroll', actionCode: '013', action: 'INASISTENCIA' }),
-    row(5, { source: 'payroll', actionCode: '014', action: 'INCAPACIDAD' }),
-    row(6, { source: 'payroll', actionCode: '035', action: 'VACACIONES' }),
-    row(7, { source: 'payment', paymentConcept: 'AUX. PELADO' }),
-    row(7, { source: 'payroll', actionCode: '013', action: 'INASISTENCIA' }),
-  ];
-  const people = buildStaffEmployees(rows, day);
-  assert.equal(people.length, 7);
-  const summary = summarizeStaff(people);
-  assert.equal(summary.present, 2);
-  assert.equal(summary.absent, 1);
-  assert.equal(summary.excused, 1);
-  assert.equal(summary.off, 1);
-  assert.equal(summary.pending, 1);
-  assert.equal(summary.conflict, 1);
-  assert.equal(summary.supervisor, 2);
-  assert.equal(summary.total, summary.present + summary.absent + summary.excused + summary.off + summary.noProduction + summary.pending + summary.conflict);
-  assert.equal(summary.absenceRate, null);
-  const history = buildStaffHistory(rows, day, day)[0];
-  assert.equal(history.present, 2);
-  assert.equal(history.absent, 1);
-  assert.equal(history.presentSupervisor, 1);
+test('turnos A, B y desconocido sin evidencia quedan pendientes durante el día; Payroll mantiene faltas explícitas',()=>{
+ const now=new Date('2026-11-20T18:00:00Z');
+ const shift=(value)=>({shift:value,basis:'Línea del chequeo',active:true,entranceDeadline:null,nightEnd:null});
+ const rows=[row(1,{productionShift:shift('A')}),row(2,{productionShift:shift('B')}),row(3),row(4,{productionShift:shift('B'),actionCode:'013'})];
+ const people=buildStaffEmployees(rows,day,now);
+ assert.deepEqual(people.map(p=>p.status),['pending','pending','pending','absent']);
+ assert.ok(people.slice(0,3).every(p=>!p.derivedAbsence&&p.reportMark===null));
+ assert.equal(summarizeStaff(people).absent,1);
+ const history=buildStaffHistory(rows,day,day,now)[0];
+ assert.equal(history.absent,1);assert.equal(history.pending,3);
+ assert.equal(history.shifts.find(s=>s.shift==='B').absent,1);
+ assert.equal(history.shifts.reduce((sum,s)=>sum+s.total,0),history.total);
+});
+test('turno nocturno no se cierra a medianoche; una pesa confirma asistencia sin esperar el cierre',()=>{
+ const productionShift={shift:'B',basis:'Última línea de chequeo',active:true,entranceDeadline:null,nightEnd:null};
+ const rows=[row(1,{productionShift})];
+ assert.equal(buildStaffEmployees(rows,day,new Date('2026-11-21T07:00:00Z'))[0].status,'pending');
+ assert.equal(buildStaffEmployees(rows,day,new Date('2026-11-22T07:00:00Z'))[0].status,'pending');
+ assert.equal(buildStaffEmployees([...rows,row(1,{source:'weighing',entry:'21:00:00'})],day,new Date('2026-11-21T07:00:00Z'))[0].status,'present');
+});
+test('el chequeo actual reemplaza el turno histórico y no se cruzan identidades',()=>{
+ const ref={id:1,name:'Persona 1',active:true,currentLine:'PELADO TA',previousLine:'PELADO TB',previousLineDay:'2026-11-19',dayDeadline:null,nightDeadline:null,nightEnd:null};
+ assert.equal(attachProductionStaffShifts([row(1)],day,[ref])[0].productionShift.shift,'A');
+ const previous=attachProductionStaffShifts([row(1)],day,[{...ref,currentLine:''}])[0];
+ assert.equal(previous.productionShift.shift,'B');assert.match(previous.productionShift.basis,/2026-11-19/);
+ assert.equal(attachProductionStaffShifts([row(1)],day,[{...ref,name:'Otra Persona'}])[0].productionShift,undefined);
 });
 
-test('una falta anterior no se traslada al día consultado ni la falta de pago crea una X', () => {
-  const people = buildStaffEmployees([
-    row(1, { source: 'payroll', day: '2026-11-16', actionCode: '013', action: 'INASISTENCIA' }),
-    row(1, { source: 'payroll' }),
-  ], day);
-  assert.equal(people[0].status, 'pending');
-  assert.equal(people[0].absenceRecorded, false);
+
+test('biométrico deduplica empleados, distingue entrada y salida, y concilia pagos sin confundirlos con chequeos',()=>{
+ const rows=[row(1),row(2),row(3),row(4),
+  row(1,{source:'clock',entry:'06:00:00',exit:'14:00:00',firstPunch:'06:00:00',lastPunch:'14:00:00',punchCount:3}),
+  row(2,{source:'clock',exit:'02:00:00',firstPunch:'02:00:00',lastPunch:'02:00:00',punchCount:1}),
+  row(3,{source:'payment'}),row(1,{source:'payment'}),
+  row(4,{source:'activity',entry:'07:00:00',line:'PELADO TA'})];
+ const people=buildStaffEmployees(rows,day),summary=summarizeStaff(people);
+ assert.equal(summary.total,4);assert.equal(summary.biometricMarked,2);assert.equal(summary.biometricEntry,1);
+ assert.equal(summary.biometricReview,1);assert.equal(summary.biometricWithoutPayment,1);assert.equal(summary.checkedPeople,1);
+ assert.equal(people[0].firstPunch,'06:00:00');assert.equal(people[0].lastPunch,'14:00:00');assert.equal(people[0].punchCount,3);
+ assert.equal(people[1].status,'conflict');assert.equal(people[1].absenceRecorded,false);assert.equal(people[1].reportMark,null);
+ assert.equal(people[2].status,'pending');assert.equal(people[3].status,'present');assert.equal(summary.absent,0);
 });
 
-test('la coincidencia de ID con distinto nombre se conserva como conflicto para revisión', () => {
-  const people = buildStaffEmployees([
-    row(1, { source: 'payment', name: 'ANA LOPEZ', paymentConcept: 'OBRA PELADO' }),
-    row(1, { source: 'payroll', name: 'MARIA PEREZ', reportMark: 'A' }),
-  ], day);
-  assert.equal(people.length, 1);
-  assert.equal(people[0].status, 'conflict');
-  assert.match(people[0].reason, /identidad/);
+test('servicio cuenta biométricos sin pago y conserva chequeos fuera del conteo de marcaciones',async()=>{
+ const payroll=require('../dist/services/payroll.service'),stb=require('../dist/services/stb.service');const p=payroll.runPayrollQuery,s=stb.runStbQuery;
+ try{
+  payroll.runPayrollQuery=async(query)=>query===q.PAYROLL_STAFF_COMPLEMENT_QUERY?[1,2].map(IdEmpleado=>({Dia:day,IdEmpleado,Nombre:`Persona ${IdEmpleado}`,Puesto:'DESTAJO',Fuente:'payroll'})):query===q.PAYROLL_BIOMETRIC_ATTENDANCE_QUERY?[{Dia:day,IdEmpleado:1,Fuente:'clock',Entrada:'06:00:00',PrimeraMarca:'06:00:00',UltimaMarca:'06:00:00',CantidadMarcas:1},{Dia:day,IdEmpleado:2,Fuente:'clock',Salida:'02:00:00',PrimeraMarca:'02:00:00',UltimaMarca:'02:00:00',CantidadMarcas:1},{Dia:day,IdEmpleado:999,Fuente:'clock',Entrada:'06:00:00',CantidadMarcas:1}]:query===q.PAYROLL_POSITIVE_PAYMENT_QUERY?[{Dia:day,IdEmpleado:2,Fuente:'payment'}]:[];
+  stb.runStbQuery=async()=>[];
+  const result=await getProductionStaff(day,true);
+  assert.equal(result.summary.total,2);assert.equal(result.summary.biometricMarked,2);assert.equal(result.summary.biometricEntry,1);assert.equal(result.summary.biometricReview,1);assert.equal(result.summary.biometricWithoutPayment,1);
+ }finally{payroll.runPayrollQuery=p;stb.runStbQuery=s}
 });
 
-// Ventanas reales de STB_data (Dcp_ParametrosHorasAsistenciaDepto / DCP_HORAS_TURNOS): A hasta 07:10, B hasta 19:05, la noche de B termina 04:59.
-const shiftRef = (id, extra = {}) => ({ id, name: `Persona ${id}`, active: true,
-  currentLine: 'Reempaque TA', previousLine: '', previousLineDay: '', dayDeadline: 430, nightDeadline: 1145, nightEnd: 299, ...extra });
-const withShifts = (records, today, refs, punches = []) => {
-  const { attachProductionStaffShifts } = require('../dist/services/production-staff-shift');
-  return buildStaffEmployees(attachProductionStaffShifts(records, today, refs, punches), today);
-};
-const entries = (id, minute, days = ['2026-11-17', '2026-11-18', '2026-11-19']) => days.map(day => ({ id, day, minute }));
 
-test('el turno sale de TA/TB en la línea del día, luego de las marcaciones de Payroll y luego de la última línea TA/TB', () => {
-  const { productionLineShift, attachProductionStaffShifts } = require('../dist/services/production-staff-shift');
-  assert.equal(productionLineShift('OBRA DESCABEZADO PROGRAMA TA (PESADO)'), 'A');
-  assert.equal(productionLineShift('IQF 3-PD TB'), 'B');
-  assert.equal(productionLineShift('Clasificado Programa 3 TA  '), 'A');
-  assert.equal(productionLineShift('TURNO B'), 'B');
-  assert.equal(productionLineShift('OBRA PELADO TERCERO'), null);
-  assert.equal(productionLineShift('MASTERIZADO Y LECTURA'), null);
-  const today = '2026-11-20';
-  const [byLine, byPunches, byPrevious, mismatch, none] = attachProductionStaffShifts([1, 2, 3, 4, 5].map(id => row(id, { day: today, source: 'payroll' })), today, [
-    shiftRef(1, { currentLine: 'IQF 3-PD TB' }),
-    shiftRef(2, { currentLine: 'OBRA PELADO TERCERO', previousLine: 'Reempaque TA', previousLineDay: '2026-11-10' }),
-    shiftRef(3, { currentLine: '', previousLine: 'UK IQF 2-ND TB', previousLineDay: '2026-11-19' }),
-    shiftRef(4, { name: 'Otra Persona', currentLine: 'IQF 3-PD TB' }),
-    shiftRef(5, { currentLine: 'OBRA PELADO TERCERO' }),
-  ], [...entries(1, 360), ...entries(2, 958), ...entries(4, 360)]);
-  assert.equal(byLine.productionShift.shift, 'B');
-  assert.match(byLine.productionShift.basis, /Línea del día/);
-  // La línea del día manda; sin marcaciones de B se usa la ventana de STB_data.
-  assert.equal(byLine.productionShift.entranceDeadline, 1145);
-  assert.equal(byPunches.productionShift.shift, 'B');
-  assert.match(byPunches.productionShift.basis, /Marcaciones de Payroll: entra 15:58/);
-  assert.equal(byPunches.productionShift.entranceDeadline, 958 + 45);
-  assert.equal(byPrevious.productionShift.shift, 'B');
-  assert.match(byPrevious.productionShift.basis, /Última línea/);
-  assert.equal(mismatch.productionShift, undefined);
-  assert.equal(none.productionShift, undefined);
+test('recorrido conserva cambios de lugar, tramos nocturnos y final abierto; no agrega ubicaciones históricas',()=>{
+ const p=person(row(1));
+ const base={id:1,name:p.name,source:'activity',day,process:'Pelado',room:'',line:'PELADO TB',activity:'Apoyo'};
+ const events=[{...base,time:'22:00:00',endTime:'02:00:00'},
+  {...base,time:'23:00:00',endTime:'',process:'IQF',line:'IQF TB'},
+  {...base,day:'2026-11-19',time:'20:00:00',endTime:'21:00:00'},
+  {...base,source:'assignment',day:'',time:'',endTime:''}];
+ const result=attachStaffLocations([p],events,day,day).employees[0];
+ assert.equal(result.dailyActivities.length,2);assert.equal(result.dailyActivities[0].hours,4);
+ assert.equal(result.dailyActivities[1].end,null);assert.equal(result.dailyActivities[1].hours,null);
+ assert.equal(result.dailyActivities[1].line,'IQF TB');assert.equal(result.dailyActivities[1].area,'IQF');
 });
 
-test('marcaciones: turno de la jornada más reciente y hora habitual; madrugada cuenta como turno B', () => {
-  const { punchPattern, attachProductionStaffShifts } = require('../dist/services/production-staff-shift');
-  const changed = punchPattern([...entries(1, 360, ['2026-11-10', '2026-11-11', '2026-11-12']), { id: 1, day: '2026-11-19', minute: 970 }]);
-  assert.equal(changed.shift, 'B');
-  assert.equal(changed.days, 1);
-  const night = punchPattern([{ id: 1, day: '2026-11-17', minute: 1380 }, { id: 1, day: '2026-11-18', minute: 30 }, { id: 1, day: '2026-11-19', minute: 60 }]);
-  assert.equal(night.shift, 'B');
-  assert.equal(night.typical, 30 + 1440);
-  // En A nunca antes de la ventana de STB_data; sin referencia de STB_data basta la marcación.
-  const today = '2026-11-20';
-  const [early, late, onlyPayroll] = attachProductionStaffShifts([1, 2, 3].map(id => row(id, { day: today, source: 'payroll' })), today,
-    [shiftRef(1, { currentLine: '' }), shiftRef(2, { currentLine: '' })], [...entries(1, 330), ...entries(2, 450), ...entries(3, 375), { id: 3, day: today, minute: 900 }]);
-  assert.equal(early.productionShift.entranceDeadline, 430);
-  assert.equal(late.productionShift.entranceDeadline, 495);
-  assert.equal(onlyPayroll.productionShift.shift, 'A');
-  assert.equal(onlyPayroll.productionShift.entranceDeadline, 420);
-  assert.equal(onlyPayroll.productionShift.active, true);
+
+test('actividad principal usa el último chequeo y separa empates simultáneos sin asignación arbitraria',()=>{
+ const p=person(row(1));
+ const base={id:1,name:p.name,source:'activity',day,time:'06:00:00',endTime:'07:00:00',process:'Pelado',room:'',line:'PELADO TA',activity:'Apoyo'};
+ const latest={...base,time:'08:00:00',endTime:'',process:'IQF',line:'IQF TA',activity:'Empaque'};
+ const result=attachStaffLocations([p],[latest,base],day,day).employees[0];
+ assert.equal(result.activity,'Empaque');assert.deepEqual(result.activityAssignment,{source:'check',process:'IQF',line:'IQF TA',start:'08:00:00',end:null});
+ const ambiguous=attachStaffLocations([p],[latest,{...base,time:'08:00:00'}],day,day).employees[0];
+ assert.equal(ambiguous.activity,'Actividad por confirmar');assert.equal(ambiguous.activityAssignment.source,'conflict');assert.equal(ambiguous.dailyActivities.length,2);
+});
+test('sin chequeo usa el último proceso pesado y no infiere actividad desde ubicación histórica',()=>{
+ const p=person(row(1));
+ const base={id:1,name:p.name,source:'production',day,time:'06:00:00',process:'Pelado',room:'Sala 2',line:''};
+ const result=attachStaffLocations([p],[{...base,time:'09:00:00',process:'Descabezado'},base],day,day).employees[0];
+ assert.equal(result.activityAssignment.source,'weighing');assert.equal(result.activityAssignment.process,'Descabezado');
+ const unknown=attachStaffLocations([p],[{...base,day:'2026-11-19'}],day,day).employees[0];
+ assert.equal(unknown.activity,'Sin actividad registrada');assert.equal(unknown.activityAssignment.source,'unknown');
 });
 
-test('turno A: falta provisional solo después de su ventana de entrada; turno B aún no', () => {
-  const { applyProvisionalStaffAbsences } = require('../dist/services/production-staff-absence');
-  const today = '2026-11-20';
-  const people = withShifts([row(1, { day: today, source: 'payroll' }), row(2, { day: today, source: 'payroll' })], today,
-    [shiftRef(1), shiftRef(2, { currentLine: 'OBRA PELADO TERCERO' })], entries(2, 960));
-  const at = iso => applyProvisionalStaffAbsences(people, today, new Date(iso)).map(person => person.status);
-  assert.deepEqual(at('2026-11-20T13:10:00Z'), ['pending', 'pending']);
-  assert.deepEqual(at('2026-11-20T13:11:00Z'), ['absent', 'pending']);
-  // Turno B real entra 16:00: falta después de 16:45, no a la ventana configurada de 19:05.
-  assert.deepEqual(at('2026-11-20T22:45:00Z'), ['absent', 'pending']);
-  assert.deepEqual(at('2026-11-20T22:46:00Z'), ['absent', 'absent']);
-  const late = applyProvisionalStaffAbsences(people, today, new Date('2026-11-20T13:11:00Z'))[0];
-  assert.equal(late.provisionalAbsence, true);
-  assert.equal(late.absenceRecorded, false);
-  assert.match(late.reason, /turno A/);
-  assert.equal(people[0].status, 'pending');
-});
 
-test('la noche del turno B pertenece a la jornada anterior hasta su cierre', () => {
-  const { applyProvisionalStaffAbsences } = require('../dist/services/production-staff-absence');
-  const day = '2026-11-20';
-  const people = withShifts([row(1, { day, source: 'payroll' }), row(2, { day, source: 'payroll' })], day,
-    [shiftRef(1), shiftRef(2, { currentLine: 'IQF 3-PD TB' })]);
-  const at = iso => applyProvisionalStaffAbsences(people, day, new Date(iso)).map(person => person.status);
-  assert.deepEqual(at('2026-11-21T08:00:00Z'), ['pending', 'absent']);
-  assert.deepEqual(at('2026-11-21T11:30:00Z'), ['pending', 'pending']);
-});
-
-test('sin turno verificado (línea TA/TB o marcaciones) nadie se marca como falta', () => {
-  const { applyProvisionalStaffAbsences } = require('../dist/services/production-staff-absence');
-  const today = '2026-11-20', now = new Date('2026-11-20T20:00:00Z');
-  const people = withShifts([1, 2, 3, 4].map(id => row(id, { day: today, source: 'payroll' })), today, [
-    shiftRef(2, { dayDeadline: null }),
-    shiftRef(3, { active: false }),
-    shiftRef(4, { currentLine: 'OBRA PELADO TERCERO' }),
-  ]);
-  assert.deepEqual(applyProvisionalStaffAbsences(people, today, now).map(person => person.status), ['pending', 'pending', 'pending', 'pending']);
-});
-
-test('una nueva marcación o pago durante el día elimina la falta provisional sin duplicar a la persona', () => {
-  const { applyProvisionalStaffAbsences } = require('../dist/services/production-staff-absence');
-  const today = '2026-11-20', now = new Date('2026-11-20T15:00:00Z');
-  const pending = row(1, { day: today, source: 'payroll' });
-  const check = records => summarizeStaff(applyProvisionalStaffAbsences(withShifts(records, today, [shiftRef(1)]), today, now));
-  assert.equal(check([pending]).provisionalAbsent, 1);
-  const punched = check([{ ...pending, reportMark: 'A', entry: '08:30:00', firstPunch: `${today}T08:30:00` }]);
-  assert.equal(punched.absent, 0);
-  assert.equal(punched.provisionalAbsent, 0);
-  assert.equal(punched.present, 1);
-  assert.equal(punched.total, 1);
-  const paid = check([pending, row(1, { day: today, source: 'payment', paymentConcept: 'OBRA PELADO' })]);
-  assert.equal(paid.absent, 0);
-  assert.equal(paid.present, 1);
-  assert.equal(paid.total, 1);
-});
-
-test('el corte excluye permisos, descansos, sin producción y conflictos; distingue faltas confirmadas', () => {
-  const { applyProvisionalStaffAbsences } = require('../dist/services/production-staff-absence');
-  const { attachProductionStaffShifts } = require('../dist/services/production-staff-shift');
-  const today = '2026-11-20', now = new Date('2026-11-20T14:00:00Z');
-  const records = attachProductionStaffShifts([
-    row(1, { day: today, source: 'payroll' }),
-    row(2, { day: today, source: 'payroll', reportMark: 'A' }),
-    row(3, { day: today, source: 'payroll', actionCode: '014', action: 'INCAPACIDAD' }),
-    row(4, { day: today, source: 'payroll', actionCode: '035', action: 'VACACIONES' }),
-    row(5, { day: today, source: 'payroll', actionCode: '013', action: 'INASISTENCIA' }),
-    row(6, { day: today, source: 'payroll', actionCode: '040', action: 'FALTA DE PRODUCTO' }),
-    row(7, { day: today, source: 'payroll', reportMark: 'A', actionCode: '026', action: 'PERMISO SIN SUELDO' }),
-  ], today, [1, 2, 3, 4, 5, 6, 7].map(id => shiftRef(id)));
-  const counts = summarizeStaff(applyProvisionalStaffAbsences(buildStaffEmployees(records, today), today, now));
-  assert.equal(counts.absent, 2);
-  assert.equal(counts.confirmedAbsent, 1);
-  assert.equal(counts.provisionalAbsent, 1);
-  assert.equal(counts.excused, 1);
-  assert.equal(counts.off, 1);
-  assert.equal(counts.noProduction, 1);
-  assert.equal(counts.conflict, 1);
-  const history = buildStaffHistory(records, today, today, now)[0];
-  assert.equal(history.absent, counts.absent);
-  assert.equal(history.provisionalAbsent, 1);
-  assert.equal(history.absenceDataAvailable, true);
-});
-
-test('una marca parcial sin estado resuelto no se convierte en falta provisional', () => {
-  const { applyProvisionalStaffAbsences } = require('../dist/services/production-staff-absence');
-  const today = '2026-11-20';
-  const people = withShifts([row(1, { day: today, source: 'payroll', firstPunch: `${today}T08:01:00` })], today, [shiftRef(1)]);
-  const result = applyProvisionalStaffAbsences(people, today, new Date('2026-11-20T15:00:00Z'));
-  assert.equal(result[0].status, 'pending');
-  assert.equal(result[0].provisionalAbsence, undefined);
+test('Asistieron suma solo entradas biométricas, sin sumar pesa, chequeo ni salida sola',()=>{
+ const rows=[row(1),row(2),row(3),row(4),
+  row(1,{source:'clock',entry:'06:00:00',punchCount:2}),
+  row(2,{source:'weighing',entry:'07:00:00'}),
+  row(3,{source:'activity',entry:'08:00:00'}),
+  row(4,{source:'clock',exit:'02:00:00',punchCount:1})];
+ const people=buildStaffEmployees(rows,day),summary=summarizeStaff(people);
+ assert.equal(summary.present,1);assert.equal(summary.biometricEntry,1);assert.equal(summary.biometricMarked,2);
+ assert.equal(summary.absenceRate,null);
+ const areas=require('../dist/services/production-staff.model').staffAreaRows(people);
+ assert.equal(areas.reduce((sum,area)=>sum+area.present,0),1);
+ const history=buildStaffHistory(rows,day,day)[0];assert.equal(history.present,1);assert.equal(history.presentProduction,1);
 });

@@ -7,7 +7,7 @@ export interface StaffLocationRow {
   /** Valor trabajado en la jornada de obra (solo fuente workday); decide el proceso principal. */
   value?: number;
   /** Actividad del catálogo Dcp_Actividades (solo fuente activity). */
-  activity?: string;
+  activity?: string; endTime?: string;
 }
 export function normalizeStaffName(value: string): string {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase()
@@ -55,50 +55,44 @@ export const NO_ACTIVITY = 'Sin actividad registrada';
 export const ACTIVITY_PROCESS_SUFFIX = ' · sin actividad específica';
 const clean = (value: string) => value.replace(/\s+/g, ' ').trim();
 /**
- * Actividad del día, del catálogo Dcp_Actividades (DCP_PagoGrupalAsistenciasDetalle.idActividad, vía
- * VAsistenciaActividades): la última registrada hasta el corte. La obra (Pelado, Descabezado) y las líneas
+ * Actividad del día, del catálogo Dcp_Actividades (DCP_PagoGrupalAsistenciasDetalle.idActividad): la última registrada hasta el corte. La obra (Pelado, Descabezado) y las líneas
  * grupales no tienen actividad en el catálogo; para ellas se usa su proceso del día. Ojo: la columna
  * `actividad` de V_EmpleadosObraActividades es solo la línea de producción, no una actividad.
  */
 function staffActivity(rows: StaffLocationRow[], day: string) {
-  const timed = rows.filter(row => row.source === 'activity' && row.day === day && clean(row.activity ?? ''))
-    .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
-  const last = timed[timed.length - 1];
+  const timed = rows.filter(row => row.source === 'activity' && row.day === day)
+    .sort((a,b) => a.time.localeCompare(b.time));
+  const label = (row: StaffLocationRow) => clean(row.activity ?? '') || (clean(row.process) ? `${clean(row.process)}${ACTIVITY_PROCESS_SUFFIX}` : NO_ACTIVITY);
+  const last = timed[timed.length-1];
+  const assignment = (source: 'check' | 'weighing' | 'unknown' | 'conflict', row?: StaffLocationRow) => ({ source, process: row?.process ?? '', line: row?.line ?? '', start: row?.time || null, end: row?.endTime || null });
   if (last) {
-    const activity = clean(last.activity ?? '');
-    return { activity, activityBasis: timed.length > 1 ? 'Última actividad registrada en asistencia grupal' : 'Actividad registrada en asistencia grupal',
-      otherActivities: [...new Set(timed.map(row => clean(row.activity ?? '')))].filter(label => label !== activity) };
+    const simultaneous = timed.filter(row => row.time === last.time);
+    const distinct = new Set(simultaneous.map(row => JSON.stringify([label(row), clean(row.process), clean(row.line)])));
+    if (distinct.size > 1) return { activity: 'Actividad por confirmar', activityBasis: 'Hay chequeos simultáneos en distintas actividades o líneas',
+      activityAssignment: assignment('conflict'), otherActivities: [...new Set(timed.map(label))] };
+    return {activity: label(last), activityBasis: 'Último chequeo de actividad del día', activityAssignment: assignment('check', last),
+      otherActivities: [...new Set(timed.map(label))].filter(value => value !== label(last))};
   }
-  // Sin actividad: proceso con mayor valor trabajado en la jornada de obra; si no hay, el de la asignación o pesada del día.
-  const processes = new Map<string, number>();
-  for (const row of rows) if (row.source === 'workday' && row.day === day && clean(row.process)) {
-    processes.set(clean(row.process), (processes.get(clean(row.process)) ?? 0) + (row.value ?? 0));
+  const weighed = rows.filter(row => row.source === 'production' && row.day === day && clean(row.process)).sort((a,b) => a.time.localeCompare(b.time));
+  const latest = weighed[weighed.length - 1];
+  if (latest) {
+    const processes = new Set(weighed.filter(row => row.time === latest.time).map(row => clean(row.process)));
+    if (processes.size > 1) return { activity: 'Actividad por confirmar', activityBasis: 'Hay pesas simultáneas en distintos procesos', activityAssignment: assignment('conflict'), otherActivities: [] as string[] };
+    return { activity: `${clean(latest.process)}${ACTIVITY_PROCESS_SUFFIX}`, activityBasis: 'Proceso de la pesada del día', activityAssignment: assignment('weighing', latest), otherActivities: [] as string[] };
   }
-  const ranked = [...processes].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'es')).map(([label]) => label);
-  const process = ranked[0]
-    ?? rows.find(row => row.source === 'activation' && row.day === day && clean(row.process))?.process
-    ?? rows.find(row => row.source === 'production' && row.day === day && clean(row.process))?.process;
-  if (process) return { activity: `${clean(process)}${ACTIVITY_PROCESS_SUFFIX}`, activityBasis: 'Sin actividad del catálogo; se agrupa por su proceso del día', otherActivities: [] as string[] };
-  return { activity: NO_ACTIVITY, activityBasis: 'Sin actividad ni proceso registrado para el día', otherActivities: [] as string[] };
+  return { activity: NO_ACTIVITY, activityBasis: 'Sin chequeo ni proceso de pesada registrado para el día', activityAssignment: assignment('unknown'), otherActivities: [] as string[] };
 }
 
 /**
- * Departamento de planta: línea de obra con mayor valor trabajado del día; si no hay, la última línea con hora
+ * Departamento de planta: última línea con hora
  * de la asistencia grupal; si no trabajó hoy, su última línea de los 30 días previos; y por último su departamento de Payroll.
  */
 function staffDepartment(rows: StaffLocationRow[], day: string, payrollDepartment: string) {
-  const worked = new Map<string, { process: string; line: string; value: number }>();
-  for (const row of rows) if (row.source === 'workday' && row.day === day && clean(row.line)) {
-    const current = worked.get(clean(row.line)) ?? { process: row.process, line: row.line, value: 0 };
-    current.value += row.value ?? 0; worked.set(clean(row.line), current);
-  }
-  const main = [...worked.values()].sort((a, b) => b.value - a.value)[0];
   const timed = rows.filter(row => row.source === 'activity' && row.day === day && clean(row.line))
     .sort((a, b) => (a.time || '').localeCompare(b.time || '')).slice(-1)[0];
   const previous = rows.filter(row => row.source === 'lastLine' && row.day < day && clean(row.line))
     .sort((a, b) => a.day.localeCompare(b.day)).slice(-1)[0];
-  const reference = main ? { row: main, basis: 'Línea de producción del día' }
-    : timed ? { row: timed, basis: 'Línea de la asistencia grupal del día' }
+  const reference = timed ? { row: timed, basis: 'Última línea del chequeo del día' }
       : previous ? { row: previous, basis: `Última línea registrada (${previous.day})` } : null;
   const byLine = reference && departmentFromLine(reference.row.process, reference.row.line);
   if (byLine) return { plantDepartment: byLine as string, plantDepartmentBasis: `${reference!.basis}: ${clean(reference!.row.line)}` };
@@ -110,7 +104,7 @@ function staffDepartment(rows: StaffLocationRow[], day: string, payrollDepartmen
   return { plantDepartment: NO_DEPARTMENT, plantDepartmentBasis: 'Sin línea de producción en los últimos 30 días' };
 }
 
-/** Solo enriquece personas de Payroll. Ninguna asignación o pesada agrega asistencia o empleados. */
+/** Enriquece la ubicación del padrón. La asistencia se calcula antes con pesas y chequeos. */
 export function attachStaffLocations(people: StaffEmployee[], locations: StaffLocationRow[], day: string, currentDay: string) {
   const byId = new Map<number, StaffLocationRow[]>();
   for (const row of locations) {
@@ -128,7 +122,7 @@ export function attachStaffLocations(people: StaffEmployee[], locations: StaffLo
     const latestTime = currentTimed.map(row => row.time).sort().slice(-1)[0];
     const latest = latestTime ? currentTimed.filter(row => row.time === latestTime) : [];
     const assignments = rows.filter(row => row.source === 'assignment');
-    const activity = rows.filter(row => row.day === day && ['workday', 'activation', 'activity', 'production'].includes(row.source));
+    const activity = rows.filter(row => row.day === day && ['activation', 'activity', 'production'].includes(row.source));
     const past = rows.filter(row => row.source === 'production' && row.day && row.day < day);
     const latestPast = past.map(row => `${row.day}T${row.time || '00:00:00'}`).sort().slice(-1)[0];
     const historical = latestPast ? past.filter(row => `${row.day}T${row.time || '00:00:00'}` === latestPast) : [];
@@ -177,26 +171,14 @@ export function attachStaffLocations(people: StaffEmployee[], locations: StaffLo
   }
   const employees = people.map(person => {
     const own = (byId.get(person.id) ?? []).filter(row => row.name && normalizeStaffName(row.name) === normalizeStaffName(person.name));
-    const enriched = { ...locate(person), ...staffActivity(own, day), ...staffDepartment(own, day, person.department) };
-    const concepts = person.paymentConcepts ?? [];
-    if (concepts.length) {
-      const departments = [...new Set(concepts.map(concept => departmentFromLine('', concept)).filter((value): value is NonNullable<typeof value> => value !== null))];
-      if (departments.length === 1 && departments[0]) {
-        enriched.plantDepartment = departments[0];
-        enriched.plantDepartmentBasis = `Conceptos de pagos del día: ${concepts.join(' · ')}`;
-      } else {
-        enriched.plantDepartment = NO_DEPARTMENT;
-        enriched.plantDepartmentBasis = `Conceptos de pagos en varios departamentos o sin equivalencia: ${concepts.join(' · ')}`;
-      }
-      // Los conceptos auxiliares no especifican sala: no reutilizar asignaciones guardadas ni pesadas anteriores.
-      if (concepts.every(concept => /^AUX\.?\s*PELADO/i.test(concept.trim()))
-        || (person.kind === 'auxiliary' && departments.length === 1 && departments[0] === '1.3 Pelado')) {
-        enriched.area = 'Pelado · Sin sala registrada';
-        enriched.areaBasis = `Conceptos de pagos del día sin sala: ${concepts.join(' · ')}`;
-        enriched.areaDay = day;
-        enriched.areaTime = null;
-      }
-    }
+    const dailyActivities = own.filter(row => row.source === 'activity' && row.day === day)
+      .sort((a,b) => a.time.localeCompare(b.time)).map(row => {
+        const start = row.time, end = row.endTime ?? '';
+        const minutes = (value: string) => Number(value.slice(0,2))*60+Number(value.slice(3,5));
+        return { activity: clean(row.activity ?? '') || NO_ACTIVITY, line: row.line, process: row.process, area: staffLocationArea(row.process, row.room, row.line), start: start || null, end: end || null,
+          hours: start && end ? ((minutes(end)-minutes(start)+1440)%1440)/60 : null };
+      });
+    const enriched = { ...locate(person), dailyActivities, ...staffActivity(own, day), ...staffDepartment(own, day, person.department) };
     return enriched;
   });
   return { employees, unverified };

@@ -2,12 +2,11 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const payroll = require('../dist/services/payroll.service');
 const stb = require('../dist/services/stb.service');
-const { PAYMENT_CONCEPT_CATALOG_QUERY, PAYROLL_STAFF_COMPLEMENT_QUERY } = require('../dist/services/production-staff.queries');
-payroll.runPayrollQuery = async (query, params) => query === PAYMENT_CONCEPT_CATALOG_QUERY
-  ? [{ IdConceptoPago: 31, ConceptoPago: 'OBRA PELADO ANILLO' }]
-  : query === PAYROLL_STAFF_COMPLEMENT_QUERY
-    ? [{ Dia: params.find(p => p.name === 'Hasta').value, IdEmpleado: 1, Nombre: 'Persona', Fuente: 'payroll', MarcaReporte: 'A', Puesto: 'OBRA' }]
-    : [];
+const { PAYROLL_STAFF_COMPLEMENT_QUERY, STB_FIRST_WEIGHING_QUERY, STB_STAFF_SHIFT_HISTORY_QUERY } = require('../dist/services/production-staff.queries');
+payroll.runPayrollQuery = async (query, params) => {
+  if (query !== PAYROLL_STAFF_COMPLEMENT_QUERY) return [];
+  return [{ Dia: params.find(p => p.name === 'Hasta').value, IdEmpleado: 1, Nombre: 'Persona', Fuente: 'payroll', Puesto: 'DESTAJO' }];
+};
 const cache = require('../dist/utils/ttlCache');
 const values = new Map();
 let reads = [];
@@ -16,19 +15,20 @@ cache.withTtlCache = async (key, ttl, loader, force = false) => {
   const value = await loader(); values.set(key, value); return value;
 };
 stb.runStbQuery = async (query, params) => {
+  if (!params.some(p => p.name === 'Desde') || query === STB_STAFF_SHIFT_HISTORY_QUERY) return [];
   const from = params.find(p => p.name === 'Desde').value;
   const to = params.find(p => p.name === 'Hasta').value;
   reads.push({ from, to });
-  if (query.includes('UltimaFecha')) return [{ UltimaFecha: to }];
-  return [{ Dia: to, IdEmpleado: 1, CodigoEmpleado: '1', Nombre: 'Persona', Puesto: 'OBRA', Fuente: 'payment', MarcaReporte: 'A', IdConceptoPago: 31 }];
+  if (query !== STB_FIRST_WEIGHING_QUERY) return [];
+  return [{ Dia: to, IdEmpleado: 1, Fuente: 'weighing', Entrada: '06:00:00' }];
 };
 const { getProductionStaffHistory, staffToday } = require('../dist/services/production-staff.service');
 
 test('histórico reutiliza días anteriores y renueva solo hoy; actualizar fuerza ambos bloques', async () => {
   const today = staffToday();
   const first = await getProductionStaffHistory(today);
-  // 2 lecturas por bloque (pagos + cobertura) y 1 de turnos de STB_data solo para hoy.
-  assert.equal(reads.length, 5);
+  // Dos fuentes operativas por bloque: chequeos y pesas.
+  assert.equal(reads.length, 4);
   assert.equal(first.days.length, 30);
   assert.equal(new Set(first.days.map(day => day.day)).size, 30);
   assert.equal(first.lastAttendance, today);
@@ -36,7 +36,7 @@ test('histórico reutiliza días anteriores y renueva solo hoy; actualizar fuerz
   assert.ok(original.some(read => read.from === today && read.to === today));
   assert.ok(original.some(read => read.to < today));
   await getProductionStaffHistory(today);
-  assert.equal(reads.length, 5);
+  assert.equal(reads.length, 4);
   for (const key of values.keys()) if (key.startsWith('personal:history-today:')) values.delete(key);
   reads = [];
   const next = await getProductionStaffHistory(today);
@@ -45,7 +45,7 @@ test('histórico reutiliza días anteriores y renueva solo hoy; actualizar fuerz
   assert.deepEqual(next.days, first.days);
   reads = [];
   await getProductionStaffHistory(today, true);
-  assert.equal(reads.length, 5);
+  assert.equal(reads.length, 4);
   reads = [];
   const past = await getProductionStaffHistory('2026-01-31');
   assert.equal(reads.length, 2);

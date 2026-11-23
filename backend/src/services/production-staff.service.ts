@@ -1,7 +1,8 @@
 import { env } from '../config/env';
-import { applyProvisionalStaffAbsences, isProductionShiftDue, STAFF_TIME_ZONE } from './production-staff-absence';
-import { attachProductionStaffShifts, StaffEntryPunch, StaffShiftReference } from './production-staff-shift';
+import { STAFF_TIME_ZONE } from './production-staff-absence';
+import { attachProductionStaffShifts, productionLineShift, StaffShiftReference } from './production-staff-shift';
 import { withTtlCache } from '../utils/ttlCache';
+import { staffNamesQuery } from './production-staff-location.service';
 import { getStaffLocations } from './production-staff-location.service';
 import { attachStaffLocations } from './production-staff-location.model';
 import sql from 'mssql';
@@ -10,7 +11,7 @@ import { runStbQuery } from './stb.service';
 import type { SqlRow } from './sql.service';
 import { pickNumber, pickString } from '../utils/rows';
 import { ApiError } from '../middleware/errorHandler';
-import { STB_GROUP_PAYMENT_STAFF_QUERY, STB_GROUP_PAYMENT_COVERAGE_QUERY, PAYMENT_CONCEPT_CATALOG_QUERY, PAYROLL_STAFF_COMPLEMENT_QUERY, STB_STAFF_SHIFT_REFERENCES_QUERY, STAFF_ENTRY_PUNCHES_QUERY, STAFF_ATTENDANCE_REFERENCES_QUERY, PAYROLL_STAFF_MOVEMENTS_QUERY } from './production-staff.queries';
+import { STB_FIRST_WEIGHING_QUERY, STB_ACTIVITY_ATTENDANCE_QUERY, PAYROLL_STAFF_COMPLEMENT_QUERY, PAYROLL_STAFF_MOVEMENTS_QUERY, STB_STAFF_SHIFT_HISTORY_QUERY, PAYROLL_BIOMETRIC_ATTENDANCE_QUERY, PAYROLL_POSITIVE_PAYMENT_QUERY } from './production-staff.queries';
 import { PayrollStaffRow, PayrollSource, buildStaffEmployees, buildStaffHistory, staffKind, summarizeStaff, staffAreaRows } from './production-staff.model';
 
 export function staffToday(): string {
@@ -23,128 +24,79 @@ export function validStaffDate(value: unknown, today: string): value is string {
 }
 const params = (from: string, to: string) => [
   { name: 'Desde', type: sql.Date, value: from }, { name: 'Hasta', type: sql.Date, value: to },
-  { name: 'CorteMinutos', type: sql.Int, value: Number(env.PAYROLL_ATTENDANCE_DAY_START.slice(0, 2)) * 60 + Number(env.PAYROLL_ATTENDANCE_DAY_START.slice(3)) },
+  { name: 'HoraCorte', type: sql.VarChar(8), value: to === staffToday() ? new Intl.DateTimeFormat('en-GB', {timeZone: STAFF_TIME_ZONE, hour:'2-digit', minute:'2-digit', second:'2-digit', hourCycle:'h23'}).format(new Date()) : '23:59:59' },
 ];
 export function mapPayrollStaffRow(row: SqlRow): PayrollStaffRow {
   return {
     day: pickString(row, 'Dia'), id: pickNumber(row, 'IdEmpleado'), code: pickString(row, 'CodigoEmpleado'),
     name: pickString(row, 'Nombre'), department: pickString(row, 'Departamento'), division: pickString(row, 'Division'),
     job: pickString(row, 'Puesto'), shift: pickString(row, 'Turno'), source: pickString(row, 'Fuente') as PayrollSource,
-    paymentConcept: pickString(row, 'ConceptoPago'),
+    line: pickString(row, 'Linea'), process: pickString(row, 'Proceso'), activity: pickString(row, 'Actividad'),
     reportMark: ['A', 'X'].includes(pickString(row, 'MarcaReporte')) ? pickString(row, 'MarcaReporte') as 'A' | 'X' : null,
-    firstPunch: pickString(row, 'PrimeraMarca'), lastPunch: pickString(row, 'UltimaMarca'),
+
+    firstPunch: pickString(row, 'PrimeraMarca'), lastPunch: pickString(row, 'UltimaMarca'), punchCount: pickNumber(row, 'CantidadMarcas'),
     actionCode: pickString(row, 'CodigoAccion'), action: pickString(row, 'Accion'),
     collector: pickNumber(row, 'Colector'), noProduction: pickNumber(row, 'FaltaProducto') > 0,
     entry: pickString(row, 'Entrada'), exit: pickString(row, 'Salida'), hours: pickString(row, 'Horas'),
   };
 }
-async function loadGroupPayments(from: string, to: string) {
-  try {
-    const [records, coverage, catalog] = await Promise.all([
-      runStbQuery(STB_GROUP_PAYMENT_STAFF_QUERY, params(from, to)),
-      runStbQuery(STB_GROUP_PAYMENT_COVERAGE_QUERY, params(from, to)),
-      withTtlCache(`personal:payment-concepts:v1:${env.PAYROLL_DB_SERVER}:${env.PAYROLL_DB_DATABASE}`, 60 * 60_000,
-        () => runPayrollQuery(PAYMENT_CONCEPT_CATALOG_QUERY, [])),
-    ]);
-    const concepts = new Map(catalog.map(row => [pickNumber(row, 'IdConceptoPago'), pickString(row, 'ConceptoPago')]));
-    const mapped = records.map(row => {
-      const concept = concepts.get(pickNumber(row, 'IdConceptoPago'));
-      if (!concept) throw new ApiError(503, 'No se pudo identificar un concepto del reporte de pagos grupales. Intenta actualizar.');
-      return mapPayrollStaffRow({ ...row, ConceptoPago: concept });
-    });
-    const lastAttendance = coverage.map(row => pickString(row, 'UltimaFecha')).filter(Boolean).sort().slice(-1)[0] ?? null;
-    return { rows: mapped, lastAttendance };
-  } catch (error) {
-    if (error instanceof ApiError) throw error;
-    console.error('[personal-pagos] No se pudo consultar el reporte de STB_data:', error instanceof Error ? error.message : 'Error de conexión');
-    throw new ApiError(503, 'No se pudo consultar el reporte de pagos grupales por concepto de STB_data. Intenta actualizar.');
-  }
-}
 const limitations = [
-  'STB_data aporta los pagos grupales del día; Payroll complementa la planilla OBRA y los supervisores con marcaciones, inasistencias explícitas, permisos, incapacidades, descansos y vacaciones.',
-  'Se cruza por ID de empleado y fecha; los nombres se validan. Cada persona cuenta una sola vez. Si hay pago o marcación junto con una novedad incompatible, queda para revisión.',
-  'Supervisores por puesto; obra y máquinas por concepto del día. Sin pago se usa el puesto de Payroll y lo no definido queda como auxiliar.',
-  'Turno: línea TA/TB del día en STB_data; si no lo indica, las marcaciones de Payroll de los últimos 14 días; luego la última línea TA/TB. El turno asignado de STB_data no se usa (todos figuran como A). La hora límite es la entrada habitual de la persona + 45 min (en A, nunca antes de la ventana de STB_data). Sin turno verificado queda pendiente; una marcación o pago retira la falta provisional.',
-  'La ubicación y la asistencia son datos distintos. Un concepto de Pelado general no asigna una sala concreta.',
+  'Solo personal temporal (TIPO_CONTRATO=T) de planilla OBRA; una persona por fecha.',
+  'Con marca biométrica cuenta cualquier marca del día calendario; con entrada distingue CHECKTYPE=I. Las marcas sin entrada se muestran para revisión del turno nocturno.',
+  'Asistieron y sus desgloses cuentan exclusivamente personas con entrada biométrica I. Pesas y chequeos conservan su evidencia operativa y recorrido; no se suman a la asistencia confirmada. Los pagos positivos solo concilian.',
+  'Sin evidencia queda pendiente; solo las faltas explícitas de Payroll cuentan como faltas. No se anticipa inasistencia del turno nocturno.',
+  'El recorrido conserva cada chequeo del día por actividad, proceso, línea, hora inicial y final. La última ubicación registrada no implica permanencia actual.',
+  'TA es día y TB noche; sin chequeo de hoy se usa la última línea de los 30 días previos como referencia histórica, con identidad verificada.',
+  'Las asignaciones e historial de sala son referencias; no equivalen a un chequeo del día.',
 ];
-const reportInfo = () => ({ name: 'Pagos grupales de STB_data + asistencia y novedades de Payroll', dayStart: env.PAYROLL_ATTENDANCE_DAY_START, cutoffVerified: env.PAYROLL_ATTENDANCE_DAY_START_CONFIRMED });
+const reportInfo = () => ({ name: 'Biométrico y recorrido de chequeos', dayStart: '00:00', cutoffVerified: false });
 function warningsFor(pending: number, conflict: number) {
   const warnings: string[] = [];
-  if (pending) warnings.push(`${pending} personas sin pago, marcación o novedad que confirme su estado del día.`);
-  if (conflict) warnings.push(`${conflict} personas tienen datos contradictorios entre fuentes; requieren revisión.`);
+  if (pending) warnings.push(`${pending} personas sin chequeo, pesa o novedad que confirme su estado del día.`);
+  if (conflict) warnings.push(`${conflict} personas tienen evidencias o novedades contradictorias; requieren revisión.`);
   return warnings;
 }
-/** Contexto de Payroll, separado de la población y clasificación del reporte de pagos. */
-async function loadAttendanceReferences(day: string, forceRefresh: boolean) {
-  try {
-    const rows = await withTtlCache(`personal:references:v1:${env.PAYROLL_DB_SERVER}:${env.PAYROLL_DB_DATABASE}:${day}`, 60_000,
-      () => runPayrollQuery(STAFF_ATTENDANCE_REFERENCES_QUERY, params(day, day)), forceRefresh);
-    const row = rows[0];
-    if (!row || row.SupervisoresActivos === undefined) return null;
-    const absenceDay = pickString(row, 'UltimaFechaInasistencias');
-    return { source: 'STBPayroll' as const, activeSupervisors: pickNumber(row, 'SupervisoresActivos'),
-      latestAbsences: absenceDay ? { day: absenceDay, count: pickNumber(row, 'Inasistencias'), report: 'RH_V_EMPLEADOS_PRODUCCION_INASISTENCIA · 013 INASISTENCIA' } : null };
-  } catch { return null; }
-}
-/** Turno de cada persona: líneas TA/TB de STB_data + marcaciones recientes de Payroll. Cada fuente puede fallar sola. */
-async function loadShiftReferences(day: string, forceRefresh: boolean) {
-  const safe = async <T>(label: string, load: () => Promise<T>): Promise<T | null> => {
-    try { return await load(); } catch (error) {
-      // Sin turno verificado no se generan faltas provisionales: las personas quedan pendientes.
-      console.error(`[personal-turnos] ${label} no disponible:`, error instanceof Error ? error.message : 'Error de conexión');
-      return null;
-    }
-  };
-  const [lines, punches] = await Promise.all([
-    safe('Líneas de STB_data', () => queryShiftReferences(day, forceRefresh)),
-    safe('Marcaciones de Payroll', () => queryEntryPunches(day, forceRefresh)),
-  ]);
-  return { lines, punches };
-}
-async function queryEntryPunches(day: string, forceRefresh: boolean): Promise<StaffEntryPunch[]> {
-  const rows = await withTtlCache(`personal:entry-punches:v1:${env.PAYROLL_ATTENDANCE_DATABASE}:${env.PAYROLL_ATTENDANCE_DAY_START}:${day}`, 10 * 60_000,
-    () => runPayrollQuery(STAFF_ENTRY_PUNCHES_QUERY, params(day, day)), forceRefresh);
-  return rows.map(row => ({ id: pickNumber(row, 'IdEmpleado'), day: pickString(row, 'Dia'), minute: pickNumber(row, 'Minuto') }));
-}
-async function queryShiftReferences(day: string, forceRefresh: boolean): Promise<StaffShiftReference[]> {
-  const clock = new Intl.DateTimeFormat('en-GB', { timeZone: STAFF_TIME_ZONE, hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(new Date());
-  const rows = await withTtlCache(`personal:production-shifts:v2:${env.STB_DB_SERVER}:${env.STB_DB_DATABASE}:${day}`, 60_000,
-    () => runStbQuery(STB_STAFF_SHIFT_REFERENCES_QUERY, [...params(day, day), { name: 'HoraCorte', type: sql.VarChar(8), value: day === staffToday() ? clock : '23:59:59' }]), forceRefresh);
-  const minute = (row: SqlRow, key: string) => row[key] === null || row[key] === undefined ? null : pickNumber(row, key);
-  return rows.map(row => ({ id: pickNumber(row, 'IdEmpleado'), name: pickString(row, 'Nombre'), active: !!row.Activo,
-    currentLine: pickString(row, 'LineaActual'), previousLine: pickString(row, 'LineaAnterior'), previousLineDay: pickString(row, 'FechaLineaAnterior'),
-    dayDeadline: minute(row, 'FinEntradaA'), nightDeadline: minute(row, 'FinEntradaB'), nightEnd: minute(row, 'FinNocturno') }));
-}
 async function loadStaffData(from: string, to: string, forceRefresh = false) {
-  const shiftDay = from === to ? to : from <= staffToday() && to >= staffToday() ? staffToday() : null;
-  const [payments, complements, references, shifts] = await Promise.all([
-    loadGroupPayments(from, to),
-    runPayrollQuery(PAYROLL_STAFF_COMPLEMENT_QUERY, params(from, to)).catch(() => { throw new ApiError(503, 'No se pudo consultar el complemento de asistencia de Payroll. Intenta actualizar.'); }),
-    loadAttendanceReferences(to, forceRefresh),
-    shiftDay ? loadShiftReferences(shiftDay, forceRefresh) : Promise.resolve(null),
+  const [complements, weighings, checks, shiftHistory, names, biometrics, payments] = await Promise.all([
+    runPayrollQuery(PAYROLL_STAFF_COMPLEMENT_QUERY, params(from, to)).catch(() => { throw new ApiError(503, 'No se pudo consultar el padrón temporal y las novedades de Payroll.'); }),
+    runStbQuery(STB_FIRST_WEIGHING_QUERY, params(from, to)).catch(() => { throw new ApiError(503, 'No se pudieron consultar las primeras pesas del personal.'); }),
+    runStbQuery(STB_ACTIVITY_ATTENDANCE_QUERY, params(from, to)).catch(() => { throw new ApiError(503, 'No se pudo consultar el chequeo manual por actividad.'); }),
+    runStbQuery(STB_STAFF_SHIFT_HISTORY_QUERY, params(from, to)).catch(() => { throw new ApiError(503, 'No se pudo consultar la referencia de turnos.'); }),
+    runStbQuery(staffNamesQuery, [{ name: 'Hasta', type: sql.Date, value: to }]).catch(() => { throw new ApiError(503, 'No se pudo verificar la identidad para los turnos.'); }),
+    runPayrollQuery(PAYROLL_BIOMETRIC_ATTENDANCE_QUERY, params(from, to)).catch(() => { throw new ApiError(503, 'No se pudo consultar el biométrico.'); }),
+    runPayrollQuery(PAYROLL_POSITIVE_PAYMENT_QUERY, params(from, to)).catch(() => { throw new ApiError(503, 'No se pudo conciliar el pesado positivo.'); }),
   ]);
+  const namesById = new Map(names.map(row => [pickNumber(row, 'IdEmpleado'), pickString(row, 'Nombre')]));
+  const historicalChecks = shiftHistory.map(row => ({ id: pickNumber(row, 'IdEmpleado'), day: pickString(row, 'Dia'), entry: pickString(row, 'Entrada'), line: pickString(row, 'Linea'), order: pickNumber(row, 'Orden') }))
+    .filter(row => productionLineShift(row.line)).sort((a, b) => b.day.localeCompare(a.day) || b.entry.localeCompare(a.entry) || b.order - a.order);
   const payrollRows = complements.map(mapPayrollStaffRow).filter(row => row.id > 0 && row.day >= from && row.day <= to);
-  const paymentIds = new Set(payments.rows.map(row => row.id));
-  const payrollIds = new Set(payrollRows.map(row => row.id));
-  const overlap = [...paymentIds].filter(id => payrollIds.has(id)).length;
-  const allRows = [...payments.rows, ...payrollRows];
-  const linesOk = shifts?.lines != null, punchesOk = shifts?.punches != null;
-  const shiftWarnings = !shifts ? [] : !linesOk && !punchesOk
-    ? ['No se pudieron consultar los turnos (líneas de STB_data ni marcaciones de Payroll). Sin turno verificado no se marcan faltas provisionales; quienes no tienen marcación ni pago quedan pendientes.']
-    : [...(linesOk ? [] : ['No se pudieron consultar las líneas TA/TB de STB_data; el turno se toma solo de las marcaciones recientes de Payroll.']),
-      ...(punchesOk ? [] : ['No se pudieron consultar las marcaciones recientes de Payroll; el turno se toma solo de las líneas TA/TB de STB_data.'])];
-  return { rows: shiftDay && shifts && (linesOk || punchesOk) ? attachProductionStaffShifts(allRows, shiftDay, shifts.lines ?? [], shifts.punches ?? []) : allRows,
-    lastAttendance: payments.lastAttendance, references, shiftWarnings,
-    reconciliation: { paymentPeople: paymentIds.size, payrollPeople: payrollIds.size, matchedPeople: overlap,
-      onlyPaymentPeople: paymentIds.size - overlap, onlyPayrollPeople: payrollIds.size - overlap } };
+  const rosterDays = new Set(payrollRows.map(row => `${row.id}:${row.day}`));
+  const evidence = [...weighings, ...checks, ...biometrics, ...payments].map(mapPayrollStaffRow).filter(row => rosterDays.has(`${row.id}:${row.day}`));
+  const byDay = new Map<string, PayrollStaffRow[]>();
+  for (const row of [...payrollRows, ...evidence]) {
+    const group = byDay.get(row.day) ?? []; group.push(row); byDay.set(row.day, group);
+  }
+  const latestChecks = new Map<string, PayrollStaffRow>();
+  for (const check of evidence) if (check.line) {
+    const key = `${check.id}:${check.day}`, previous = latestChecks.get(key);
+    if (!previous || check.entry > previous.entry) latestChecks.set(key, check);
+  }
+  // El turno se toma únicamente de la línea del chequeo; nunca de marcaciones biométricas.
+  const rows = [...byDay].flatMap(([day, todayRows]) => {
+    const references: StaffShiftReference[] = todayRows.filter(row => row.source === 'payroll').map(row => {
+      const latest = latestChecks.get(`${row.id}:${day}`);
+      const previous = historicalChecks.find(check => check.id === row.id && check.day < day && check.day >= addDays(day, -30));
+      return {id: row.id, name: namesById.get(row.id) ?? '', active: true, currentLine: latest?.line ?? '', previousLine: previous?.line ?? '', previousLineDay: previous?.day ?? '', dayDeadline: null, nightDeadline: null, nightEnd: null};
+    });
+    return attachProductionStaffShifts(todayRows, day, references);
+  });
+  return { rows, lastAttendance: evidence.filter(row => row.source !== 'payment').map(row => row.day).sort().slice(-1)[0] ?? null };
 }
 export async function getProductionStaff(day: string, forceRefresh = false) {
-  const { rows, lastAttendance, references: attendanceReferences, reconciliation, shiftWarnings } = await loadStaffData(day, day, forceRefresh);
-  const now = new Date();
+  const { rows, lastAttendance } = await loadStaffData(day, day, forceRefresh);
   const baseEmployees = buildStaffEmployees(rows, day);
-  const provisionalCutoffActive = baseEmployees.some(person => isProductionShiftDue(person, day, now));
-  const payrollEmployees = applyProvisionalStaffAbsences(baseEmployees, day, now);
-  const locationWarnings: string[] = [...shiftWarnings];
+  const payrollEmployees = baseEmployees;
+  const locationWarnings: string[] = [];
   let locationAvailable = true;
   let employees = payrollEmployees;
   try {
@@ -153,14 +105,17 @@ export async function getProductionStaff(day: string, forceRefresh = false) {
     employees = enriched.employees;
   } catch (error) {
     locationAvailable = false;
-    locationWarnings.push('No se pudieron consultar las asignaciones por sala. Las personas del reporte de pagos se conservan; las ubicaciones quedan sin asignar.');
+    locationWarnings.push('No se pudieron consultar las asignaciones por sala. Las personas del padrón se conservan; las ubicaciones quedan sin asignar.');
     console.error('[personal-payroll] Asignaciones no disponibles:', error instanceof Error ? error.message : 'Error de conexión');
   }
-  const absenceDataAvailable = provisionalCutoffActive || attendanceReferences?.latestAbsences?.day === day || employees.some(person => person.absenceRecorded);
+  const absenceDataAvailable = true;
+  const absenceReconciliation = { recorded: employees.filter(person => person.absenceRecorded).length,
+    conflicts: employees.filter(person => person.absenceRecorded && person.status === 'conflict').length,
+    actionReference: null };
   const summary = { ...summarizeStaff(employees), absenceRate: absenceDataAvailable ? summarizeStaff(employees).absenceRate : null };
   return { source: 'STB_data + STBPayroll' as const, report: reportInfo(), day, today: staffToday(), updatedAt: new Date().toISOString(), lastAttendance,
-    locationSource: 'STB_data' as const, locationAvailable, attendanceReferences, reconciliation, absenceDataAvailable,
-    absenceCutoff: { mode: 'production-shift' as const, timeZone: STAFF_TIME_ZONE, active: provisionalCutoffActive },
+    locationSource: 'STB_data' as const, locationAvailable, absenceReconciliation, absenceDataAvailable,
+    absenceCutoff: { mode: 'biometric-checks' as const, timeZone: STAFF_TIME_ZONE, active: true },
     warnings: [...warningsFor(summary.pending, summary.conflict), ...locationWarnings], summary,
     areas: staffAreaRows(employees), employees, limitations };
 }
@@ -172,16 +127,16 @@ export async function getProductionStaffHistory(to: string, forceRefresh = false
   const today = staffToday();
   const previousDate = new Date(`${today}T12:00:00Z`); previousDate.setUTCDate(previousDate.getUTCDate() - 1);
   const closedTo = to < today ? to : previousDate.toISOString().slice(0, 10);
-  const cacheScope = JSON.stringify([env.STB_DB_SERVER, env.STB_DB_DATABASE, env.PAYROLL_DB_SERVER, env.PAYROLL_DB_DATABASE]);
+  const cacheScope = JSON.stringify([env.STB_DB_SERVER, env.STB_DB_DATABASE, env.PAYROLL_DB_SERVER, env.PAYROLL_DB_DATABASE, today]);
   const loadPeriod = async (start: string, end: string) => {
     const { rows, lastAttendance } = await loadStaffData(start, end, forceRefresh);
     return { days: buildStaffHistory(rows, start, end, new Date()), lastAttendance };
   };
   const [closed, current] = await Promise.all([
-    withTtlCache(`personal:history-closed:v11:${cacheScope}:${from}:${closedTo}`, 60 * 60_000,
+    withTtlCache(`personal:history-closed:v18:${cacheScope}:${from}:${closedTo}`, 60 * 60_000,
       () => loadPeriod(from, closedTo), forceRefresh),
     to === today
-      ? withTtlCache(`personal:history-today:v11:${cacheScope}:${today}`, 60_000,
+      ? withTtlCache(`personal:history-today:v18:${cacheScope}:${today}`, 60_000,
         () => loadPeriod(today, today), forceRefresh)
       : Promise.resolve({ days: [], lastAttendance: null }),
   ]);
@@ -189,7 +144,7 @@ export async function getProductionStaffHistory(to: string, forceRefresh = false
   const lastAttendance = [closed.lastAttendance, current.lastAttendance].filter((day): day is string => !!day).sort().slice(-1)[0] ?? null;
   return { source: 'STB_data + STBPayroll' as const, report: reportInfo(), from, to, today: staffToday(), updatedAt: new Date().toISOString(), lastAttendance,
     warnings: days.some(day => day.pending > 0 || day.conflict > 0)
-      ? ['Hay registros sin estado A/X definitivo. Los días en curso pueden cambiar con nuevos conceptos de pagos.'] : [],
+      ? ['Hay registros sin estado A/X definitivo. Los días en curso pueden cambiar con nuevos chequeos o pesas.'] : [],
     days, limitations };
 }
 
@@ -223,7 +178,7 @@ async function loadMovements(from: string, to: string) {
  */
 export async function getProductionStaffRange(from: string, to: string, forceRefresh = false) {
   const today = staffToday();
-  const cacheScope = JSON.stringify([env.STB_DB_SERVER, env.STB_DB_DATABASE, env.PAYROLL_DB_SERVER, env.PAYROLL_DB_DATABASE]);
+  const cacheScope = JSON.stringify([env.STB_DB_SERVER, env.STB_DB_DATABASE, env.PAYROLL_DB_SERVER, env.PAYROLL_DB_DATABASE, today]);
   const chunks: [string, string][] = [];
   for (let start = from; start <= to;) {
     const next = new Date(`${start.slice(0, 7)}-01T12:00:00Z`); next.setUTCMonth(next.getUTCMonth() + 1);
@@ -238,15 +193,15 @@ export async function getProductionStaffRange(from: string, to: string, forceRef
     return { days: buildStaffHistory(rows, start, end, new Date()).map(day => ({ ...day, ...(movements.get(day.day) ?? empty) })), lastAttendance };
   };
   const results = await Promise.all(chunks.map(([start, end]) => withTtlCache(
-    `personal:range:v9:${cacheScope}:${start}:${end}`,
+    `personal:range:v16:${cacheScope}:${start}:${end}`,
     end < today ? 6 * 60 * 60_000 : 60_000,
     () => load(start, end), forceRefresh)));
   const days = results.flatMap(result => result.days);
   const lastAttendance = results.map(result => result.lastAttendance).filter((day): day is string => !!day).sort().slice(-1)[0] ?? null;
   return { source: 'STB_data + STBPayroll' as const, report: reportInfo(), from, to, today, updatedAt: new Date().toISOString(), lastAttendance,
     warnings: days.some(day => day.pending > 0 || day.conflict > 0)
-      ? ['Hay registros sin estado A/X definitivo. Los días en curso pueden cambiar con nuevos conceptos de pagos.'] : [],
+      ? ['Hay registros sin estado A/X definitivo. Los días en curso pueden cambiar con nuevos chequeos o pesas.'] : [],
     days, limitations: [...limitations,
-      'El total diario incluye personas únicas al complementar pagos, planilla, marcaciones y novedades de la misma fecha.',
+      'El total diario incluye personas únicas al cruzar el padrón, chequeos, pesas y novedades de la misma fecha.',
       'Ingresos y retiros salen de RH_EMPLEADOS. Si una persona fue recontratada, Payroll conserva solo su último ingreso, así que su periodo anterior no se cuenta.'] };
 }

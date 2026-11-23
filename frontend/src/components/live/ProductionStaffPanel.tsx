@@ -12,6 +12,9 @@ import CloseIcon from '@mui/icons-material/Close';
 import { apiClient } from '../../api/client';
 import type { StaffEmployee, StaffHistoryResponse, StaffKind, StaffResponse, StaffStatus } from '../../types/productionStaff';
 import { formatPeriodo, formatValue } from '../../utils/format';
+import StaffDashboardOverview from './StaffDashboardOverview';
+import StaffActivityDistribution from './StaffActivityDistribution';
+import StaffJourneyButton from './StaffJourneyButton';
 import StaffTrend, { STAFF_TREND_QUERY_KEY } from './StaffTrend';
 
 const todayInHonduras = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Tegucigalpa', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
@@ -37,6 +40,7 @@ const staffStatusLabels: Record<StaffStatus, string> = {
   pending: 'Sin registro',
   conflict: 'Revisar',
 };
+const shiftLabel = (shift: string) => shift === 'A' ? 'Turno A · Día' : shift === 'B' ? 'Turno B · Noche' : 'Sin turno confirmado';
 const GROUP_STORAGE_KEY = 'personal:agrupar-por';
 function storedGroupBy(): GroupBy {
   try {
@@ -45,13 +49,15 @@ function storedGroupBy(): GroupBy {
   } catch { return 'area'; }
 }
 const kindLabels = { production: 'Obra', machine: 'Máquinas (Clasificado + IQF)', auxiliary: 'Auxiliares', supervisor: 'Supervisores' } as const;
-const statusLabel = (person: StaffEmployee) => person.provisionalAbsence ? 'X · Falta provisional' : staffStatusLabels[person.status];
+const statusLabel = (person: StaffEmployee) => person.biometricEntry ? person.status === 'conflict' ? 'A · Entrada / revisar novedad' : 'A · Entrada confirmada' : person.status === 'present' ? 'Pesa / chequeo sin entrada' : person.derivedAbsence ? 'X · Sin chequeo/pesa al corte' : person.provisionalAbsence ? 'X · Falta provisional' : staffStatusLabels[person.status];
 function countPeople(people: StaffEmployee[]) {
   const count = (status: StaffStatus) => people.filter(person => person.status === status).length;
-  const present = count('present'), absent = count('absent'), pending = count('pending'), conflict = count('conflict');
+  const present = people.filter(person => person.biometricEntry).length, absent = count('absent'), pending = count('pending'), conflict = count('conflict');
   const provisionalAbsent = people.filter(person => person.status === 'absent' && person.provisionalAbsence).length;
-  return { total: people.length, present, absent, provisionalAbsent, confirmedAbsent: absent - provisionalAbsent, pending, conflict, excused: count('excused'), off: count('off'), noProduction: count('noProduction'),
-    absenceRate: !pending && !conflict && present + absent > 0 ? absent / (present + absent) * 100 : null };
+  return { biometricMarked: people.filter(p => p.biometricMarked).length, biometricEntry: people.filter(p => p.biometricEntry).length,
+    biometricReview: people.filter(p => p.biometricReview).length, biometricWithoutPayment: people.filter(p => p.biometricMarked && !p.hasPositivePayment).length,
+    checkedPeople: people.filter(p => p.hasCheck).length, total: people.length, present, absent, provisionalAbsent, derivedAbsent: people.filter(person => person.status === 'absent' && person.derivedAbsence).length, confirmedAbsent: people.filter(person => person.status === 'absent' && person.absenceRecorded).length, pending, conflict, excused: count('excused'), off: count('off'), noProduction: count('noProduction'),
+    absenceRate: !pending && !conflict && !people.some(person => person.status === 'present' && !person.biometricEntry) && present + absent > 0 ? absent / (present + absent) * 100 : null };
 }
 const tableSx = {
   '& th, & td': { px: { xs: 0.75, sm: 1.5 }, py: 0.8, fontSize: { xs: 11, sm: 12.5 }, fontVariantNumeric: 'tabular-nums' },
@@ -70,7 +76,7 @@ const staffDetailTableSx = {
   '& .MuiChip-label': { whiteSpace: 'normal', overflowWrap: 'anywhere', py: 0.4 },
 } as const;
 function message(error: unknown) {
-  return isAxiosError(error) && typeof error.response?.data?.error === 'string' ? error.response.data.error : 'No se pudo consultar el reporte de pagos grupales de STB_data. Intenta actualizar.';
+  return isAxiosError(error) && typeof error.response?.data?.error === 'string' ? error.response.data.error : 'No se pudieron consultar los chequeos y las pesas de Personal. Intenta actualizar.';
 }
 
 export default function ProductionStaffPanel({ userId }: { userId: string }) {
@@ -81,6 +87,9 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
   const [shift, setShift] = useState('');
   const [job, setJob] = useState('');
   const [kind, setKind] = useState<StaffKind | ''>('');
+  const [evidenceFilter, setEvidenceFilter] = useState('');
+  const [search, setSearch] = useState('');
+  const [directoryOpen, setDirectoryOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [groupBy, setGroupBy] = useState<GroupBy>(storedGroupBy);
   const [staffGroupSelection, setStaffGroupSelection] = useState<StaffGroupSelection>(null);
@@ -110,8 +119,8 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
   const client = useQueryClient();
   const parsed = new Date(`${date}T12:00:00Z`);
   const validDate = /^\d{4}-\d{2}-\d{2}$/.test(date) && date >= '2000-01-01' && date <= today && Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date;
-  const queryKey = ['personal-produccion-turnos-v15', userId, date] as const;
-  const historyKey = ['personal-produccion-turnos-historico-v11', userId, date] as const;
+  const queryKey = ['personal-produccion-operativo-v5', userId, date] as const;
+  const historyKey = ['personal-produccion-operativo-historico-v4', userId, date] as const;
   const query = useQuery({
     queryKey, queryFn: async ({ signal }) => (await apiClient.get<StaffResponse>('/dashboard/personal-produccion', { params: { fecha: date }, signal })).data,
     enabled: validDate && tab === 'day', staleTime: 60_000, refetchInterval: tab === 'day' && date === today ? 60_000 : false,
@@ -137,8 +146,10 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
     } catch (error) { setRefreshError(error); }
     finally { setRefreshing(false); }
   };
-  const clearFilters = () => { setDivision(''); setShift(''); setJob(''); setKind(''); };
+  const clearFilters = () => { setDivision(''); setShift(''); setJob(''); setKind(''); setEvidenceFilter(''); setSearch(''); };
   const people = (query.data?.employees ?? []).map(person => person.kind === 'unknown' ? { ...person, kind: 'auxiliary' as const } : person).filter(person => (!division || person.division === division) && (!shift || person.shift === shift) && (!job || person.job === job) && (!kind || person.kind === kind));
+  const evidenceMatches = (person: StaffEmployee) => !evidenceFilter || (evidenceFilter === 'marked' ? person.biometricMarked : evidenceFilter === 'entry' ? person.biometricEntry : evidenceFilter === 'review' ? person.biometricReview : evidenceFilter === 'unpaid' ? person.biometricMarked && !person.hasPositivePayment : person.hasCheck);
+  const directoryPeople = people.filter(evidenceMatches).filter(person => !search || `${person.name} ${person.code} ${person.id}`.toLocaleLowerCase('es').includes(search.toLocaleLowerCase('es')));
   const absenceAvailable = query.data?.absenceDataAvailable ?? query.data?.source !== 'STB_data';
   const counted = countPeople(people);
   const counts = { ...counted, absenceRate: absenceAvailable ? counted.absenceRate : null };
@@ -148,7 +159,7 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
     : groupBy === 'department'
       ? person.plantDepartment ?? NO_DEPARTMENT
       : person.activity ?? NO_ACTIVITY;
-  const presentIn = (group: string) => people.filter(person => groupOf(person) === group && person.status === 'present').length;
+  const presentIn = (group: string) => people.filter(person => groupOf(person) === group && person.biometricEntry).length;
   const groups = groupBy === 'area'
     ? [...mainAreas, ...[...new Set(people.map(person => person.area))].filter(value => !mainAreas.includes(value)).sort((a, b) => a.localeCompare(b, 'es', { numeric: true }))]
     : groupBy === 'department'
@@ -162,35 +173,41 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
   const cell = (rows: StaffEmployee[], area: string, status?: StaffStatus, category?: StaffKind) => {
     const unavailable = (status === 'absent' && !absenceAvailable) || !query.data?.employees.length
       || (query.data.locationAvailable === false && !!area && area !== emptyGroup);
-    const value = rows.filter(person => (!status || person.status === status) && (!category || person.kind === category)).length;
+    const value = rows.filter(person => (!status || (status === 'present' ? person.biometricEntry : person.status === status)) && (!category || person.kind === category)).length;
     return <TableCell align="right" sx={{ fontWeight: status === 'present' || status === 'absent' ? 800 : 600, color: status === 'absent' ? 'error.main' : status === 'present' ? 'success.main' : 'text.primary' }}>{unavailable ? '—' : formatValue(value)}</TableCell>;
   };
   const auxiliaryCells = (rows: StaffEmployee[], group: string) => {
     if (groupBy !== 'department') return cell(rows, group, 'present', 'auxiliary');
     const required = requiredIn(group);
-    const present = rows.filter(person => person.status === 'present' && person.kind === 'auxiliary').length;
+    const present = rows.filter(person => person.biometricEntry && person.kind === 'auxiliary').length;
     const unavailable = !query.data?.employees.length || (query.data.locationAvailable === false && !!group && group !== emptyGroup);
     const difference = present - required;
     return <>{cell(rows, group, 'present', 'auxiliary')}<TableCell align="right" sx={{ fontWeight: 700 }}>{formatValue(required)}</TableCell><TableCell align="right" title={`Auxiliares presentes: ${present} · Requeridos: ${required}`} sx={{ fontWeight: 800, color: difference < 0 ? 'error.main' : difference > 0 ? 'success.main' : 'text.primary' }}>{unavailable ? '—' : `${difference > 0 ? '+' : ''}${formatValue(difference)}`}</TableCell></>;
   };
   const bodyCells = (rows: StaffEmployee[], area: string) => <>{cell(rows, area, 'present')}{cell(rows, area, 'absent')}{cell(rows, area, 'present', 'production')}{auxiliaryCells(rows, area)}{cell(rows, area)}{cell(rows, area, 'present', 'machine')}{cell(rows, area, 'present', 'supervisor')}{cell(rows, area, 'pending')}{cell(rows, area, 'conflict')}</>;
   const members = (category: StaffKind) => people.filter(person => person.kind === category);
-  return <Stack spacing={1} sx={{ minWidth: 0 }}>
-    <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 2 }}>
-      <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1}>
-        <Box><Typography fontWeight={800} sx={{ fontSize: { xs: 17, sm: 20 } }}>Personal</Typography><Typography variant="caption" color="text.secondary">Personal · pagos de STB_data y asistencia de Payroll</Typography></Box>
-        <IconButton size="small" aria-label="Actualizar asistencia" disabled={tab === 'trend' ? trendFetching : refreshing || active.isFetching || !validDate} onClick={() => void refresh()}><RefreshOutlinedIcon fontSize="small" /></IconButton>
-      </Stack>
-      <Stack direction="row" gap={0.75} useFlexGap flexWrap="wrap" alignItems="center" sx={{ mt: 1 }}>
-        <ToggleButtonGroup exclusive size="small" value={tab} onChange={(_, value) => value && setTab(value)} sx={{ '& button': { textTransform: 'none', px: 1.1, py: 0.5, fontSize: 12 } }} aria-label="Vista de asistencia"><ToggleButton value="day">Por sala</ToggleButton><ToggleButton value="trend">Tendencia</ToggleButton><ToggleButton value="history">Histórico</ToggleButton></ToggleButtonGroup>
-        {tab !== 'trend' && <><TextField size="small" type="date" label={tab === 'day' ? 'Fecha' : 'Hasta la fecha'} value={date} onChange={event => { setDate(event.target.value); clearFilters(); }} error={!validDate} InputLabelProps={{ shrink: true }} inputProps={{ min: '2000-01-01', max: today }} sx={{ width: 155, '& input': { py: 0.75, fontSize: 12 } }} />
+  return <Stack spacing={1.5} sx={{ minWidth: 0 }}>
+    <Paper variant="outlined" sx={{ px: 1.75, py: 1.25, borderRadius: 2.5, borderColor: '#e2e8f0', boxShadow: '0 2px 8px #0f172a03' }}>
+      <Stack direction="row" gap={{ xs: 1.25, md: 2 }} useFlexGap flexWrap="wrap" alignItems="center" sx={{ '& > *': { flexShrink: 0 }, '& .MuiToggleButtonGroup-root': { height: 30 }, '& .MuiToggleButton-root': { textTransform: 'none', px: 0.9, py: 0.4, fontSize: 11, whiteSpace: 'nowrap' }, '& .MuiButton-root': { textTransform: 'none', fontSize: 11, minWidth: 0, px: 0.75 } }}>
+        <Typography fontWeight={800} fontSize={15} title="Personal temporal · biométrico y recorrido de chequeos" sx={{ mr: 0.5 }}>Personal</Typography>
+        <ToggleButtonGroup exclusive size="small" value={tab} onChange={(_, value) => value && setTab(value)} aria-label="Vista de asistencia"><ToggleButton value="day">Por sala</ToggleButton><ToggleButton value="trend">Tendencia</ToggleButton><ToggleButton value="history">Histórico</ToggleButton></ToggleButtonGroup>
+        {tab !== 'trend' && <><TextField size="small" type="date" label={tab === 'day' ? 'Fecha' : 'Hasta la fecha'} value={date} onChange={event => { setDate(event.target.value); clearFilters(); }} error={!validDate} InputLabelProps={{ shrink: true }} inputProps={{ min: '2000-01-01', max: today }} sx={{ width: 138, '& input': { py: 0.65, px: 1, fontSize: 11 }, '& .MuiInputLabel-root': { fontSize: 11 } }} />
         <Button size="small" onClick={() => { setDate(today); clearFilters(); }}>Hoy</Button></>}
         {tab !== 'day' && <WeekdaySelector includedWeekdays={includedWeekdays} onWeekdaysChange={setIncludedWeekdays} />}
-        {tab === 'day' && <Button size="small" startIcon={<FilterAltOutlinedIcon fontSize="small" />} onClick={() => setFiltersOpen(value => !value)} aria-expanded={filtersOpen} aria-controls="staff-filters">Filtros{activeFilters ? ` (${activeFilters})` : ''}</Button>}
+        {tab === 'day' && <Button size="small" startIcon={<FilterAltOutlinedIcon sx={{ fontSize: '14px !important' }} />} onClick={() => setFiltersOpen(value => !value)} aria-expanded={filtersOpen} aria-controls="staff-filters">Filtros{activeFilters ? ` (${activeFilters})` : ''}</Button>}
+        {tab !== 'trend' && <ToggleButtonGroup size="small" exclusive value={shift} onChange={(_, value) => { if (value !== null) { setShift(value); setStaffGroupSelection(null); setKindSelection(null); } }} aria-label="Separar asistencia por turno">
+          <ToggleButton value="">Todos</ToggleButton><ToggleButton value="A">Turno A · Día</ToggleButton><ToggleButton value="B">Turno B · Noche</ToggleButton><ToggleButton value="Sin turno registrado">Sin turno confirmado</ToggleButton>
+        </ToggleButtonGroup>}
+        {tab === 'day' && <Stack direction="row" gap={1.25} alignItems="center">
+          <Typography variant="caption" fontWeight={700} sx={{ whiteSpace: 'nowrap', fontSize: 11 }}>Agrupar por</Typography>
+          <ToggleButtonGroup exclusive size="small" value={groupBy} onChange={(_, value) => { if (value) { changeGroupBy(value); setStaffGroupSelection(null); } }} aria-label="Agrupar personal por">
+            <ToggleButton value="area">Área</ToggleButton><ToggleButton value="department">Departamento</ToggleButton><ToggleButton value="activity">Actividad</ToggleButton>
+          </ToggleButtonGroup>
+        </Stack>}
+        <IconButton size="small" aria-label="Actualizar asistencia" disabled={tab === 'trend' ? trendFetching : refreshing || active.isFetching || !validDate} onClick={() => void refresh()} sx={{ ml: 'auto' }}><RefreshOutlinedIcon sx={{ fontSize: 17 }} /></IconButton>
       </Stack>
-      <Collapse in={filtersOpen && tab === 'day'}><Box id="staff-filters" sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(4, minmax(0, 1fr))' }, gap: 1, mt: 1.5 }}>
+      <Collapse in={filtersOpen && tab === 'day'}><Box id="staff-filters" sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(4, minmax(0, 1fr))' }, gap: 1, mt: 1 }}>
         <TextField select size="small" label="División" value={division} onChange={event => setDivision(event.target.value)}><MenuItem value="">Todas las divisiones</MenuItem>{[...new Set(query.data?.employees.map(value => value.division) ?? [])].sort().map(value => <MenuItem key={value} value={value}>{value}</MenuItem>)}</TextField>
-        <TextField select size="small" label="Turno de producción" value={shift} onChange={event => setShift(event.target.value)}><MenuItem value="">Todos los turnos</MenuItem>{[...new Set(query.data?.employees.map(value => value.shift) ?? [])].sort().map(value => <MenuItem key={value} value={value}>{value}</MenuItem>)}</TextField>
         <TextField select size="small" label="Puesto" value={job} onChange={event => setJob(event.target.value)}><MenuItem value="">Todos los puestos</MenuItem>{[...new Set(query.data?.employees.map(value => value.job) ?? [])].sort().map(value => <MenuItem key={value} value={value}>{value}</MenuItem>)}</TextField>
         <TextField select size="small" label="Tipo de personal" value={kind} onChange={event => setKind(event.target.value as StaffKind | '')}><MenuItem value="">Todo el personal</MenuItem>{(Object.keys(kindLabels) as (keyof typeof kindLabels)[]).map(value => <MenuItem key={value} value={value}>{kindLabels[value]}</MenuItem>)}</TextField>
       </Box>{!!activeFilters && <Button size="small" onClick={clearFilters} sx={{ mt: 0.5 }}>Limpiar filtros</Button>}</Collapse>
@@ -200,21 +217,16 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
     {tab !== 'trend' && (active.isError || !!refreshError) && <Alert severity="error" action={<Button color="inherit" size="small" onClick={() => void refresh()}>Reintentar</Button>}>{message(refreshError || active.error)}{active.data ? ' Se conserva la última consulta; revisa su hora de actualización.' : ''}</Alert>}
     {tab !== 'trend' && validDate && active.isLoading && <Skeleton variant="rounded" height={200} />}
     {tab === 'day' && query.data && <>
+      <StaffDashboardOverview counts={counts} people={people} groupOf={groupOf} groupLabel={groupBy === 'area' ? 'área' : groupBy === 'department' ? 'departamento' : 'actividad'} locationAvailable={query.data.locationAvailable} absenceAvailable={absenceAvailable} dateLabel={formatPeriodo(date)} currentDay={date === today}
+        onEvidence={key => { setEvidenceFilter(key); setSearch(''); setDirectoryOpen(true); }} onGroup={(label, rows) => setStaffGroupSelection({ label, rows })} />
+      {date === today && <Alert severity="info" sx={{ py: 0 }}>Sin evidencia queda pendiente. Una marca de salida sin entrada hoy requiere revisión del turno nocturno; no se convierte en falta.</Alert>}
+      <Typography variant="caption" color="text.secondary">Turno según línea TA/TB del chequeo o última línea de los 30 días previos. Una referencia histórica puede cambiar; las personas sin referencia quedan separadas.</Typography>
       {!query.data.employees.length && <Alert severity="info">Sin personal registrado en las fuentes para esta fecha.</Alert>}
-      <Paper variant="outlined" aria-label="Resumen de asistencia" sx={{ borderRadius: 2, overflow: 'hidden' }}>
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
-          {[
-            { label: 'Asistieron · A', value: counts.present, color: 'success.main', detail: 'Pagos o marcaciones confirmados' },
-            { label: 'Faltaron · X', value: absenceAvailable ? counts.absent : null, color: 'error.main', detail: counts.provisionalAbsent ? `${counts.confirmedAbsent} confirmadas · ${counts.provisionalAbsent} provisionales según turno` : absenceAvailable ? 'Faltas registradas en Payroll' : 'Pendiente de cierre en Payroll' },
-            { label: 'Personal total', value: counts.total, color: 'text.primary', detail: 'Personas únicas de ambas fuentes' },
-            { label: 'Inasistencia', value: counts.absenceRate === null ? null : `${formatValue(counts.absenceRate, 'decimal')}%`, color: 'error.main', detail: counts.absenceRate === null ? 'Pendiente de revisión' : counts.provisionalAbsent ? 'Provisional al corte · X / (A + X)' : 'X / (A + X)' },
-          ].map(stat => <Box key={stat.label} sx={{ px: { xs: 0.75, sm: 1.25 }, py: { xs: 0.75, sm: 1 }, borderRight: '1px solid', borderColor: 'divider', '&:last-of-type': { borderRight: 0 }, minWidth: 0 }}>
-            <Typography variant="caption" fontWeight={700} sx={{ display: 'block', fontSize: { xs: 9.5, sm: 11 }, lineHeight: 1.3 }}>{stat.label}</Typography>
-            <Typography fontWeight={800} sx={{ fontSize: { xs: 17, sm: 26 }, color: stat.color, lineHeight: 1.3, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{!counts.total || stat.value === null ? '—' : typeof stat.value === 'number' ? formatValue(stat.value) : stat.value}</Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10, lineHeight: 1.3, display: { xs: 'none', sm: 'block' } }}>{stat.detail}</Typography>
-          </Box>)}
-        </Box>
-      </Paper>
+      {!!query.data.absenceReconciliation?.recorded && <Alert severity={query.data.absenceReconciliation.conflicts ? 'warning' : 'info'} sx={{ py: 0 }}>
+        Novedades de inasistencia registradas: {query.data.absenceReconciliation.recorded}.
+        {query.data.absenceReconciliation.actionReference !== null && ` Referencia de novedades 013 en Payroll: ${query.data.absenceReconciliation.actionReference}.`}
+        {!!query.data.absenceReconciliation.conflicts && ` ${query.data.absenceReconciliation.conflicts} tienen registros contradictorios y aparecen en «Revisar».`}
+      </Alert>}
       {(() => {
         // Composición de quienes asistieron: las cuatro tarjetas suman 100%.
         const presentOf = (category: StaffKind) => countPeople(members(category)).present;
@@ -232,15 +244,15 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
               const open = () => setKindSelection({ kind: category.kind, label: category.label, color: category.color });
               return <Paper key={category.kind} variant="outlined" role="button" tabIndex={0} aria-label={`${category.label}: ver personas por departamento`}
                 onClick={open} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } }}
-                sx={{ p: { xs: 0.75, sm: 1.25 }, borderRadius: 2, bgcolor: category.background, minWidth: 0, cursor: 'pointer', transition: 'box-shadow 150ms, border-color 150ms', '&:hover': { borderColor: category.color, boxShadow: '0 2px 8px #0f172a14' }, '&:focus-visible': { outline: `2px solid ${category.color}`, outlineOffset: 2 } }}>
+                sx={{ p: { xs: 1.25, sm: 1.75 }, borderRadius: 3, bgcolor: 'background.paper', borderColor: '#e2e8f0', borderTop: `3px solid ${category.color}`, minWidth: 0, cursor: 'pointer', transition: 'box-shadow 150ms, border-color 150ms', '&:hover': { borderColor: category.color, boxShadow: '0 2px 8px #0f172a14' }, '&:focus-visible': { outline: `2px solid ${category.color}`, outlineOffset: 2 } }}>
                 <Typography fontWeight={800} color={category.color} sx={{ fontSize: { xs: 10.5, sm: 12 }, lineHeight: 1.3 }}><Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>{category.label}</Box><Box component="span" sx={{ display: { xs: 'inline', sm: 'none' } }}>{category.short}</Box></Typography>
                 <Stack direction="row" alignItems="baseline" gap={0.75} useFlexGap flexWrap="wrap">
-                  <Typography fontWeight={800} color={category.color} sx={{ fontSize: { xs: 18, sm: 26 }, lineHeight: 1.3, fontVariantNumeric: 'tabular-nums' }}>{counts.total ? formatValue(group.present) : '—'}</Typography>
+                  <Typography fontWeight={800} color={category.color} sx={{ fontSize: { xs: 25, sm: 30 }, lineHeight: 1.3, fontVariantNumeric: 'tabular-nums' }}>{counts.total ? formatValue(group.present) : '—'}</Typography>
                   <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: 9.5, sm: 11 } }}>asistieron</Typography>
                 </Stack>
                 {category.kind === 'supervisor' && group.total === 0 && <Typography variant="caption" color="text.secondary">Sin supervisores para la fecha y filtros seleccionados.</Typography>}
                 <Stack direction="row" columnGap={1} useFlexGap flexWrap="wrap" sx={{ mt: 0.25 }}>
-                  <Typography variant="caption" color="error.main" sx={{ fontSize: { xs: 9.5, sm: 11 } }} title={`${group.confirmedAbsent} confirmadas · ${group.provisionalAbsent} provisionales`}>Faltaron: {absenceAvailable && counts.total ? formatValue(group.absent) : 'No disponible'}</Typography>
+                  <Typography variant="caption" color="error.main" sx={{ fontSize: { xs: 9.5, sm: 11 } }} title={`${group.derivedAbsent} sin chequeo/pesa · ${group.confirmedAbsent} registradas`}>Faltaron: {absenceAvailable && counts.total ? formatValue(group.absent) : 'No disponible'}</Typography>
                   <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: 9.5, sm: 11 } }}>Total: {counts.total ? formatValue(group.total) : '—'}</Typography>
                 </Stack>
                 {(group.pending + group.excused + group.off + group.noProduction + group.conflict > 0) && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
@@ -260,9 +272,9 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
           </Box>
         </>;
       })()}
-      <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
-        <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1} sx={{ px: 1.25, py: 1 }}><Stack direction="row" alignItems="center" gap={1} useFlexGap flexWrap="wrap"><Typography fontWeight={800} fontSize={14}>{groupBy === 'area' ? 'Personal por sala y área' : groupBy === 'department' ? 'Personal por departamento' : 'Personal por actividad'}</Typography>
-          <ToggleButtonGroup exclusive size="small" value={groupBy} onChange={(_, value) => value && changeGroupBy(value)} aria-label="Agrupar personal por" sx={{ '& button': { textTransform: 'none', px: 1, py: 0.25, fontSize: 11.5 } }}><ToggleButton value="area">Por área</ToggleButton><ToggleButton value="department">Por departamento</ToggleButton><ToggleButton value="activity">Por actividad</ToggleButton></ToggleButtonGroup></Stack><Stack direction="row" gap={0.5}><Chip size="small" label="A · Asistencia" color="success" variant="outlined" sx={{ fontSize: 10, height: 22 }} /><Chip size="small" label="X · Falta" color="error" variant="outlined" sx={{ fontSize: 10, height: 22 }} /></Stack></Stack>
+      <Paper variant="outlined" sx={{ borderRadius: 3, borderColor: '#e2e8f0', overflow: 'hidden' }}>
+        <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1} sx={{ px: 1.75, py: 1.5 }}><Stack direction="row" alignItems="center" gap={1} useFlexGap flexWrap="wrap"><Typography fontWeight={800} fontSize={14}>{groupBy === 'area' ? 'Personal por sala y área' : groupBy === 'department' ? 'Personal por departamento' : 'Personal por actividad'}</Typography>
+</Stack><Stack direction="row" gap={0.5}><Chip size="small" label="A · Asistencia" color="success" variant="outlined" sx={{ fontSize: 10, height: 22 }} /><Chip size="small" label="X · Falta" color="error" variant="outlined" sx={{ fontSize: 10, height: 22 }} /></Stack></Stack>
         <TableContainer sx={{ maxHeight: '70vh' }}><Table size="small" stickyHeader aria-label={groupBy === 'area' ? 'Asistencia por sala y área' : groupBy === 'department' ? 'Asistencia por departamento' : 'Asistencia por actividad'} sx={{ ...tableSx, tableLayout: 'fixed', width: groupBy === 'area' ? 885 : groupBy === 'department' ? 1155 : 945, minWidth: '100%' }}>
           <colgroup>{[groupBy === 'area' ? 120 : groupBy === 'department' ? 210 : 180, 75, 75, 90, 90, ...(groupBy === 'department' ? [90, 90] : []), 75, 90, 90, 90, 90].map((width, index) => <col key={index} style={{ width }} />)}</colgroup>
           <TableHead><TableRow><TableCell>{groupBy === 'area' ? 'Sala / área' : groupBy === 'department' ? 'Departamento' : 'Actividad'}</TableCell><TableCell align="right" sx={{ color: 'success.main' }}>A · Asistieron</TableCell><TableCell align="right" sx={{ color: 'error.main' }}>X · Faltaron</TableCell><TableCell align="right">Obra presentes</TableCell><TableCell align="right">Auxiliares presentes</TableCell>{groupBy === 'department' && <><TableCell align="right">Auxiliares Requeridos</TableCell><TableCell align="right">Diferencia</TableCell></>}<TableCell align="right">Personal total</TableCell><TableCell align="right">Máquinas presentes</TableCell><TableCell align="right">Supervisores presentes</TableCell><TableCell align="right">Sin registro</TableCell><TableCell align="right">Revisar</TableCell></TableRow></TableHead>
@@ -280,6 +292,7 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
           <TableFooter><TableRow><TableCell>Total</TableCell>{bodyCells(people, '')}</TableRow></TableFooter>
         </Table></TableContainer>
       </Paper>
+      <StaffActivityDistribution people={people} available={query.data.locationAvailable} onSelect={(label, rows) => setStaffGroupSelection({ label, rows })} />
       {(counts.pending > 0 || counts.conflict > 0 || counts.excused > 0 || counts.off > 0 || counts.noProduction > 0) && <Stack direction="row" gap={0.5} useFlexGap flexWrap="wrap">
         {!!counts.excused && <Chip size="small" label={`Permiso / incapacidad: ${counts.excused}`} variant="outlined" />}
         {!!counts.off && <Chip size="small" label={`Descanso / vacaciones: ${counts.off}`} variant="outlined" />}
@@ -289,10 +302,23 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
       </Stack>}
     </>}
     {tab === 'trend' && <StaffTrend userId={userId} includedWeekdays={includedWeekdays} onDay={day => { setDate(day); setTab('day'); clearFilters(); }} />}
-    {tab === 'history' && history.data && <StaffHistory data={history.data} includedWeekdays={includedWeekdays} onDay={day => { setDate(day); setTab('day'); clearFilters(); }} />}
+    {tab === 'history' && history.data && <StaffHistory data={shift ? { ...history.data, days: history.data.days.map(day => ({ ...day, ...day.shifts?.find(item => item.shift === shift) })) } : history.data} shift={shift} includedWeekdays={includedWeekdays} onDay={day => { setDate(day); setTab('day'); clearFilters(); }} />}
     {tab !== 'trend' && active.data && <Box sx={{ px: 0.25 }}><Stack direction="row" justifyContent="space-between" gap={1} useFlexGap flexWrap="wrap" alignItems="center"><Typography variant="caption" color="text.secondary" sx={{ fontSize: 10 }}>Actualizado {new Date(active.data.updatedAt).toLocaleString('es-HN', { timeZone: 'America/Tegucigalpa' })}{tab === 'day' && date === today ? ' · Jornada en curso' : ''}</Typography><Button size="small" onClick={() => setMethodOpen(value => !value)} aria-expanded={methodOpen} aria-controls="staff-method" sx={{ fontSize: 11, py: 0 }}>Cómo se cuenta</Button></Stack>
       <Collapse in={methodOpen}><Paper id="staff-method" variant="outlined" sx={{ p: 1.25, mt: 0.5, borderRadius: 1.5 }}><Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75 }}>Última asistencia disponible: {active.data.lastAttendance ? formatPeriodo(active.data.lastAttendance) : 'Sin datos'}</Typography>{active.data.limitations.map(text => <Typography key={text} variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>{text}</Typography>)}</Paper></Collapse>
     </Box>}
+    <Dialog open={directoryOpen} onClose={() => setDirectoryOpen(false)} fullWidth maxWidth="md">
+      <DialogTitle>Personas y recorrido de chequeos</DialogTitle>
+      <DialogContent>
+        <Stack direction={{ xs: 'column', sm: 'row' }} gap={1} sx={{ py: 1 }}>
+          <TextField size="small" label="Nombre, código o ID" value={search} onChange={event => setSearch(event.target.value)} fullWidth />
+          <TextField select size="small" label="Registro" value={evidenceFilter} onChange={event => setEvidenceFilter(event.target.value)} sx={{ minWidth: 220 }}><MenuItem value="">Todo el padrón</MenuItem><MenuItem value="marked">Según biométrico</MenuItem><MenuItem value="entry">Según Chequeo</MenuItem><MenuItem value="review">Marca sin entrada</MenuItem><MenuItem value="unpaid">Con marca, sin pesado</MenuItem><MenuItem value="checks">Con chequeo de actividad</MenuItem></TextField>
+        </Stack>
+        <Typography variant="caption">{directoryPeople.length} personas · respeta los filtros de turno y personal seleccionados</Typography>
+        <TableContainer sx={{ maxHeight: '60vh' }}><Table size="small" stickyHeader><TableHead><TableRow><TableCell>Empleado</TableCell><TableCell>Turno</TableCell><TableCell>Estado</TableCell><TableCell>Recorrido</TableCell></TableRow></TableHead><TableBody>{directoryPeople.map(person => <TableRow key={person.id}><TableCell>{person.name}<Typography variant="caption" sx={{ display: 'block' }}>{person.code} · ID {person.id}</Typography></TableCell><TableCell>{shiftLabel(person.shift)}</TableCell><TableCell>{statusLabel(person)}</TableCell><TableCell><StaffJourneyButton person={person} /></TableCell></TableRow>)}</TableBody></Table></TableContainer>
+        {!directoryPeople.length && <Alert severity="info">Sin personas para esta selección.</Alert>}
+        <Button onClick={() => setDirectoryOpen(false)} sx={{ mt: 1 }}>Cerrar</Button>
+      </DialogContent>
+    </Dialog>
     <StaffKindDialog absenceAvailable={absenceAvailable} selection={kindSelection} people={kindSelection ? members(kindSelection.kind) : []} onClose={() => setKindSelection(null)} />
     <Dialog open={!!staffGroupSelection} onClose={() => setStaffGroupSelection(null)} fullWidth maxWidth="xl" PaperProps={{ sx: { m: { xs: 1, sm: 3 }, width: { xs: 'calc(100% - 16px)', sm: 'calc(100% - 48px)' } } }}>
       <DialogTitle sx={{ px: 2, py: 1.25, borderBottom: '1px solid', borderColor: 'divider' }}>
@@ -331,8 +357,8 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
                       <TableBody>
                         {rows.map(person => (
                           <TableRow key={person.id} hover>
-                            <TableCell sx={{ fontWeight: 700 }}>{person.name}</TableCell>
-                            <TableCell>{person.job}{!!person.paymentConcepts?.length && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', whiteSpace: 'normal', overflowWrap: 'anywhere' }}>{person.paymentConcepts.join(' · ')}</Typography>}</TableCell>
+                            <TableCell sx={{ fontWeight: 700 }}>{person.name}<StaffJourneyButton person={person} /><Typography variant="caption" color="text.secondary" title={person.productionShift?.basis} sx={{ display: 'block' }}>{shiftLabel(person.shift)}{person.productionShift?.basis.startsWith('Última') ? ' · referencia histórica' : ''}</Typography></TableCell>
+                            <TableCell>{person.job}{person.dailyActivities?.map((item, index) => <Typography key={index} variant="caption" sx={{ display: 'block', whiteSpace: 'normal' }}>{item.activity} · {item.line} · {item.start?.slice(0, 5) ?? '—'}–{item.end?.slice(0, 5) ?? '—'}{item.hours !== null ? ` (${item.hours.toFixed(2)} h)` : ''}</Typography>)}</TableCell>
                             <TableCell>
                               <Chip
                                 size="small"
@@ -365,7 +391,7 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
   </Stack>;
 } 
 
-function StaffHistory({ data, includedWeekdays, onDay }: { data: StaffHistoryResponse; includedWeekdays: number[]; onDay: (day: string) => void }) {
+function StaffHistory({ data, shift, includedWeekdays, onDay }: { data: StaffHistoryResponse; shift: string; includedWeekdays: number[]; onDay: (day: string) => void }) {
   const absenceAvailable = data.days.some(day => day.absenceDataAvailable ?? data.source !== 'STB_data');
   const selectedDays = data.days.filter(day => includedWeekdays.includes(new Date(`${day.day}T12:00:00Z`).getUTCDay()));
   const closed = selectedDays.filter(day => day.day < data.today && day.total > 0);
@@ -393,7 +419,7 @@ function StaffHistory({ data, includedWeekdays, onDay }: { data: StaffHistoryRes
       <Paper variant="outlined" sx={{ p: 1, borderRadius: 1.5 }}><Typography variant="caption" fontWeight={700}>Fecha con más faltas</Typography><Typography fontSize={17} fontWeight={800}>{maxDate ? formatPeriodo(maxDate.day) : closed.length ? 'Sin faltas registradas' : 'Sin datos'}</Typography><Typography variant="caption" color="text.secondary">{maxDate ? `${maxDate.absent} faltas registradas` : 'En los días cerrados consultados'}</Typography></Paper>
       <Paper variant="outlined" sx={{ p: 1, borderRadius: 1.5 }}><Typography variant="caption" fontWeight={700}>Día con mayor promedio de faltas</Typography><Typography fontSize={17} fontWeight={800}>{topWeekday?.label ?? (absenceAvailable && closed.length ? 'Sin faltas registradas' : 'Sin datos')}</Typography><Typography variant="caption" color="text.secondary">{topWeekday ? `${topWeekday.average!.toLocaleString('es-HN', { maximumFractionDigits: 1 })} por fecha · ${topWeekday.count} fechas` : 'En los días cerrados consultados'}</Typography></Paper>
     </Box>
-    <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}><Typography fontWeight={800}>¿Qué días se registran más faltas?</Typography><Typography variant="caption" color="text.secondary">Promedio por día de semana · {formatPeriodo(data.from)} a {formatPeriodo(data.to)} · todas las divisiones y turnos</Typography>
+    <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}><Typography fontWeight={800}>¿Qué días se registran más faltas?</Typography><Typography variant="caption" color="text.secondary">Promedio por día de semana · {formatPeriodo(data.from)} a {formatPeriodo(data.to)} · todas las divisiones · {shift ? shiftLabel(shift) : 'todos los turnos'}</Typography>
       <Stack spacing={1} sx={{ mt: 1.5 }}>{rankedWeekdays.map(day => <Box key={day.label} sx={{ display: 'grid', gridTemplateColumns: '70px 1fr 46px 54px', gap: 1, alignItems: 'center' }}><Typography variant="caption">{day.label}</Typography><Box sx={{ bgcolor: '#fde8e8', height: 12, borderRadius: 1, overflow: 'hidden' }}><Box sx={{ height: '100%', bgcolor: 'error.main', width: `${(day.average ?? 0) / max * 100}%`, borderRadius: 1 }} /></Box><Typography variant="caption" fontWeight={800} textAlign="right">{day.average === null ? '—' : day.average.toLocaleString('es-HN', { maximumFractionDigits: 1 })}</Typography><Typography variant="caption" color="error.main" fontWeight={800} textAlign="right">{day.absenceRate === null ? '—' : `${day.absenceRate.toLocaleString('es-HN', { maximumFractionDigits: 1 })}%`}</Typography></Box>)}</Stack>
       <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>Se muestran el promedio de faltas por fecha y el porcentaje de inasistencia: X / (A + X) de cada día de la semana.</Typography>
     </Paper>
@@ -418,7 +444,7 @@ function StaffKindDialog({ selection, people, onClose, absenceAvailable }: { abs
     const rank = (value: string) => { const index = official.indexOf(value); return index >= 0 ? index : value === NO_DEPARTMENT ? 10_000 : 5_000; };
     return rank(a) - rank(b) || a.localeCompare(b, 'es');
   });
-  const visible = (person: StaffEmployee) => status === 'all' || person.status === status;
+  const visible = (person: StaffEmployee) => status === 'all' || (status === 'present' ? person.biometricEntry : person.status === status);
   const close = () => { onClose(); setStatus('all'); setOpenDepartment(null); };
   const totals = countPeople(people);
   return <Dialog open={!!selection} onClose={close} fullWidth maxWidth="md">
@@ -456,8 +482,8 @@ function StaffKindDialog({ selection, people, onClose, absenceAvailable }: { abs
                 <colgroup><col style={{ width: '40%' }} /><col style={{ width: '38%' }} /><col style={{ width: '22%' }} /></colgroup>
                 <TableHead><TableRow><TableCell sx={{ fontWeight: 800 }}>Nombre</TableCell><TableCell sx={{ fontWeight: 800 }}>Puesto</TableCell><TableCell sx={{ fontWeight: 800 }}>Estado</TableCell></TableRow></TableHead>
                 <TableBody>{listed.map(person => <TableRow key={person.id}>
-                  <TableCell sx={{ fontWeight: 700 }}>{person.name}</TableCell>
-                  <TableCell>{person.job}{!!person.paymentConcepts?.length && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', whiteSpace: 'normal', overflowWrap: 'anywhere' }}>{person.paymentConcepts.join(' · ')}</Typography>}</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>{person.name}<StaffJourneyButton person={person} /><Typography variant="caption" color="text.secondary" title={person.productionShift?.basis} sx={{ display: 'block' }}>{shiftLabel(person.shift)}{person.productionShift?.basis.startsWith('Última') ? ' · referencia histórica' : ''}</Typography></TableCell>
+                  <TableCell>{person.job}{person.dailyActivities?.map((item, index) => <Typography key={index} variant="caption" sx={{ display: 'block', whiteSpace: 'normal' }}>{item.activity} · {item.line} · {item.start?.slice(0, 5) ?? '—'}–{item.end?.slice(0, 5) ?? '—'}{item.hours !== null ? ` (${item.hours.toFixed(2)} h)` : ''}</Typography>)}</TableCell>
                   <TableCell><Chip size="small" variant="outlined" title={person.reason} label={statusLabel(person)} color={person.status === 'present' ? 'success' : person.status === 'absent' ? 'error' : person.status === 'pending' || person.status === 'conflict' ? 'warning' : 'default'} sx={{ fontSize: 10 }} /></TableCell>
                 </TableRow>)}</TableBody>
               </Table>

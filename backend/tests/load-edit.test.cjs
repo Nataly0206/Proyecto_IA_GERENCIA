@@ -1,6 +1,6 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {applyLoadEdit,editCandidates,lotKey}=require('../dist/services/load-edit');
+const {applyLoadEdit,editCandidates,additionalEditCandidates,lotKey}=require('../dist/services/load-edit');
 const {planPreload,itemKey}=require('../dist/services/preload-planner');
 const base={nombreClientePrincipal:'Principal',nombreCliente:'Cliente',codigoItem:'ITEM',nombreItem:'Producto',estiloFinal:'IQF',marca:'Marca',talla:'71/90',empaque:'Caja',tipoItem:'PT',disponibilidad:'DISPONIBLE',fechaProduccion:'2026-10-19',noOrdenCompra:'1',codigoExterno:'A',pesoKilos:100,cantidadSerial:10,nombreFinca:'Finca',laguna:'A1',color:'A2',codigoProduccion:'PROD1'};
 const second={...base,noOrdenCompra:'2',codigoProduccion:'PROD2',fechaProduccion:'2026-10-23',pesoKilos:200};
@@ -121,4 +121,36 @@ test('excluye los 14 sin orden y conserva los 79 pendientes al editar',()=>{
  assert.equal(group.inventoryTotal,786);
  assert.equal(group.inventoryTotal-group.lots.reduce((s,x)=>s+x.assigned,0),86);
  assert.equal(group.lots.reduce((s,x)=>s+Math.max(0,x.current-x.assigned),0),86);
+});
+
+
+test('busca ítems nuevos del mismo cliente, distingue variantes y excluye agotados, sin orden y ya incluidos',()=>{
+ const extra={...second,codigoItem:'NUEVO',nombreItem:'Nuevo producto'};
+ const variant={...extra,empaque:'Otra caja'};
+ const choices=additionalEditCandidates(saved,[base,extra,{...extra,noOrdenCompra:'3'},variant,{...extra,nombreCliente:'Otro'},{...extra,nombreClientePrincipal:'Otro principal'},{...extra,codigoItem:'AGOTADO',cantidadSerial:0},{...extra,codigoItem:'SINORDEN',noOrdenCompra:'Sin orden'},{...extra,codigoItem:'INVALIDO',pesoKilos:NaN}]);
+ assert.equal(choices.length,2);assert.ok(choices.every(group=>group.item.nombreCliente==='Cliente'));
+ const option=choices.find(group=>group.key===itemKey(extra));
+ assert.equal(option.requested,0);assert.equal(option.inventoryTotal,20);assert.equal(option.lots.length,2);
+ assert.ok(option.lots.every(lot=>lot.assigned===0));
+});
+test('agrega un ítem a una carga existente, conserva lo guardado y calcula peso y faltantes',()=>{
+ const extra={...second,codigoItem:'NUEVO',nombreItem:'Nuevo producto'};
+ const extraKey=itemKey(extra);
+ const edited=applyLoadEdit(saved,[base,extra],[...line([{key:lotKey(base),quantity:10}]),{key:extraKey,requested:12,allocations:[{key:lotKey(extra),quantity:7}]}]);
+ assert.equal(edited.length,2);assert.equal(edited[0].assigned,10);assert.equal(edited[0].pesoKilos,100);
+ assert.equal(edited[1].requested,12);assert.equal(edited[1].assigned,7);assert.equal(edited[1].missing,5);assert.equal(edited[1].pesoKilos,140);
+ assert.equal(saved.length,1);assert.equal(edited[1].initialStock[0].cantidadSerial,10);
+ const completed=require('../dist/services/load-edit').completePreload(edited,[base,extra]);
+ assert.equal(completed[1].assigned,10);assert.equal(completed[1].missing,2);
+});
+test('rechaza nuevos ítems de otro cliente, agotados, inventados o con cantidades inválidas',()=>{
+ const extra={...second,codigoItem:'NUEVO',nombreItem:'Nuevo producto'};
+ const lines=quantity=>[...line([{key:lotKey(base),quantity:10}]),{key:itemKey(extra),requested:quantity,allocations:[]}];
+ assert.throws(()=>applyLoadEdit(saved,[base],lines(1)),/ítem nuevo/);
+ assert.throws(()=>applyLoadEdit(saved,[base,{...extra,nombreCliente:'Otro'}],lines(1)),/ítem nuevo/);
+ assert.throws(()=>applyLoadEdit(saved,[base,{...extra,cantidadSerial:0}],lines(1)),/ítem nuevo/);
+ for(const quantity of [0,-1,1.5])assert.throws(()=>applyLoadEdit(saved,[base,extra],lines(quantity)),/entera mayor/);
+ const over=lines(11);over[1].allocations=[{key:lotKey(extra),quantity:11}];
+ assert.throws(()=>applyLoadEdit(saved,[base,extra],over),/existencia/);
+ assert.throws(()=>applyLoadEdit(saved,[base,extra],[lines(1)[1]]),/Revisa/);
 });

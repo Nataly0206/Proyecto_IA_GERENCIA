@@ -14,7 +14,7 @@ import { listPreloads, savePreload, getPreload, updatePreload, listLoadEdits, de
 
 import { buildLoadReport, exportLoadReport } from '../services/load-report';
 
-import { editCandidates, applyLoadEdit, completePreload } from '../services/load-edit';
+import { editCandidates, additionalEditCandidates, applyLoadEdit, completePreload } from '../services/load-edit';
 
 import { subtractLoad } from '../services/load-remainder';
 
@@ -117,7 +117,8 @@ router.get('/preloads/:id/edit', asyncHandler(async (req, res) => {
   if (!Number.isSafeInteger(id) || id <= 0 || id > 2147483647) { res.status(400).json({ error: 'Carga no válida.' }); return; }
   const load = await getPreload(id);
   if (!load) { res.status(404).json({ error: 'Carga no encontrada.' }); return; }
-  res.json({ revision: load.revision, groups: editCandidates(load.items, await getInventory()), edits: await listLoadEdits(id) });
+  const inventory = await getInventory();
+  res.json({ revision: load.revision, groups: editCandidates(load.items, inventory), additionalGroups: additionalEditCandidates(load.items, inventory), edits: await listLoadEdits(id) });
 }));
 
 router.post('/preloads/:id/refresh', asyncHandler(async (req, res) => {

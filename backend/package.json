@@ -1,7 +1,7 @@
 {
   "name": "dashboard-camaronera-backend",
   "version": "1.0.0",
-  "description": "API Express para Dashboard Gerencial de Producción Camaronera (SQL Server)",
+  "description": "API Express para Dashboard Gerencial de Producci\u00f3n Camaronera (SQL Server)",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
@@ -22,7 +22,8 @@
     "test:rankings": "npm run build && node --test tests/rankings.test.cjs",
     "test:personal-produccion": "npm run build && node --test tests/production-staff.test.cjs tests/production-staff-cache.test.cjs tests/production-staff-location-cache.test.cjs",
     "test:resumen-procesos": "npm run build && node --test tests/process-summary.test.cjs tests/process-summary-cache.test.cjs",
-    "test:inventario-fresco": "npm run build && node --test tests/fresh-inventory.test.cjs"
+    "test:inventario-fresco": "npm run build && node --test tests/fresh-inventory.test.cjs",
+    "reconcile:personal": "tsx src/scripts/reconcile-staff-report.ts"
   },
   "dependencies": {
     "@azure/msal-node": "^6.0.0",

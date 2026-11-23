@@ -20,7 +20,7 @@ type Summary = {
   hires: number; exits: number; hiresProduction: number; hiresAuxiliary: number;
 };
 
-export const STAFF_TREND_QUERY_KEY = 'personal-rango-turnos-v8';
+export const STAFF_TREND_QUERY_KEY = 'personal-rango-operativo-v3';
 const weekdayLabels = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 const monthNames = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 /** Periodos visibles en el comparativo; se carga uno más para calcular el cambio del más antiguo. */

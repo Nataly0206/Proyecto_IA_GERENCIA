@@ -28,10 +28,34 @@ export function editCandidates(saved: PlannedItem[], inventory: InventoryItem[])
     return { key: group.key, item: group.item, inventoryTotal, requested: group.requested, excludedLots: group.excludedLots ?? [], lots };
   });
 }
+/** Nuevos ítems con existencia y orden, conservando el cliente de la carga. */
+export function additionalEditCandidates(saved: PlannedItem[], inventory: InventoryItem[]) {
+  const clients = new Set(saved.map(group => JSON.stringify([group.item.nombreClientePrincipal, group.item.nombreCliente])));
+  const known = new Set(saved.map(group => group.key));
+  const seeds = new Map<string, PlannedItem>();
+  for (const item of inventory) {
+    const key = itemKey(item);
+    if (known.has(key) || seeds.has(key) || !clients.has(JSON.stringify([item.nombreClientePrincipal, item.nombreCliente]))
+      || !hasPurchaseOrder(item) || item.cantidadSerial <= 0 || !Number.isFinite(item.pesoKilos) || item.pesoKilos < 0) continue;
+    seeds.set(key, { key, item, requested: 0, assigned: 0, missing: 0, pesoKilos: 0, allocations: [] });
+  }
+  return editCandidates([...seeds.values()], inventory)
+    .sort((a,b) => a.item.nombreItem.localeCompare(b.item.nombreItem, 'es') || a.item.codigoItem.localeCompare(b.item.codigoItem));
+}
 export function applyLoadEdit(saved: PlannedItem[], inventory: InventoryItem[], lines: EditLine[]): PlannedItem[] {
-  if (!Array.isArray(lines) || lines.length !== saved.length || new Set(lines.map(line => line?.key)).size !== lines.length) throw new ApiError(400, 'Revisa los ítems de la carga.');
-  const candidates = editCandidates(saved, inventory);
-  return saved.map(group => {
+  if (!Array.isArray(lines) || lines.length < saved.length || lines.length > Math.max(500, saved.length) || new Set(lines.map(line => line?.key)).size !== lines.length || saved.some(group => !lines.some(line => line?.key === group.key))) throw new ApiError(400, 'Revisa los ítems de la carga.');
+  const savedKeys = new Set(saved.map(group => group.key));
+  const newKeys = lines.filter(line => !savedKeys.has(line?.key));
+  const available = new Map((newKeys.length ? additionalEditCandidates(saved, inventory) : []).map(group => [group.key, group]));
+  const additions: PlannedItem[] = newKeys.map(line => {
+    const candidate = available.get(line?.key);
+    if (!candidate) throw new ApiError(409, 'El ítem nuevo ya no tiene existencia disponible o no corresponde al cliente de la carga. Actualiza las existencias.');
+    if (!Number.isSafeInteger(line.requested) || line.requested <= 0) throw new ApiError(400, 'Los ítems nuevos deben tener una cantidad solicitada entera mayor que cero.');
+    return { key: candidate.key, item: candidate.item, requested: 0, assigned: 0, missing: 0, pesoKilos: 0, allocations: [] };
+  });
+  const allGroups = [...saved, ...additions];
+  const candidates = editCandidates(allGroups, inventory);
+  return allGroups.map(group => {
     const line = lines.find(entry => entry?.key === group.key);
     if (!line || !Number.isSafeInteger(line.requested) || line.requested < 0 || !Array.isArray(line.allocations) || line.allocations.length > 5000 || new Set(line.allocations.map(entry => entry?.key)).size !== line.allocations.length) throw new ApiError(400, 'Revisa las cantidades solicitadas y las producciones.');
     const excluded = line.excludedLots ?? [];

@@ -1,4 +1,5 @@
 import sql from 'mssql';
+import { STAFF_CHECKS_FROM } from './production-staff.queries';
 import { env } from '../config/env';
 import { withTtlCache } from '../utils/ttlCache';
 import { runStbQuery } from './stb.service';
@@ -26,27 +27,29 @@ export function staffLocationsQuery(historicalOnly = false) {
   ), Ultimas AS (
     SELECT *,DENSE_RANK() OVER(PARTITION BY IdEmpleado ORDER BY Dia DESC,Hora DESC) posicion FROM Pesadas
   )
-  SELECT DISTINCT IdEmpleado,'production' Fuente,CONVERT(varchar(10),Dia,23) Dia,Hora,Proceso,Sala,CAST(NULL AS varchar(200)) Linea,CAST(NULL AS decimal(18,2)) Valor,CAST(NULL AS varchar(200)) Actividad FROM Ultimas WHERE posicion=1
+  SELECT DISTINCT IdEmpleado,'production' Fuente,CONVERT(varchar(10),Dia,23) Dia,Hora,Proceso,Sala,CAST(NULL AS varchar(200)) Linea,CAST(NULL AS decimal(18,2)) Valor,CAST(NULL AS varchar(200)) Actividad,CAST(NULL AS varchar(8)) HoraHasta FROM Ultimas WHERE posicion=1
   ${historicalOnly ? `
   UNION ALL
-  SELECT idempleado,'lastLine',CONVERT(varchar(10),Fecha,23),NULL,Proceso,NULL,LineaProduccion,ValorTrabajado,NULL
+  SELECT IdEmpleado,'lastLine',CONVERT(varchar(10),Fecha,23),Hora,Proceso,NULL,LineaProduccion,NULL,Actividad,HoraHasta
   FROM (
-    SELECT idempleado,Fecha,Proceso,LineaProduccion,ValorTrabajado,
-      ROW_NUMBER() OVER(PARTITION BY idempleado ORDER BY Fecha DESC,ValorTrabajado DESC) orden
-    FROM dbo.V_EmpleadosObraActividades WHERE Fecha>=@Desde AND Fecha<=@Hasta
+    SELECT d.IdEmpleado,h.Fecha,CONVERT(varchar(8),d.HoraDesde,108) Hora,p.NOMBRE_PROCESO Proceso,l.LineaProduccion,a.Actividad,
+      CONVERT(varchar(8),d.HoraHasta,108) HoraHasta,
+      ROW_NUMBER() OVER(PARTITION BY d.IdEmpleado ORDER BY h.Fecha DESC,d.HoraDesde DESC,d.IdPagoGrupalAsistenciaDetalle DESC) orden
+    ${STAFF_CHECKS_FROM}
+    WHERE h.Fecha>=@Desde AND h.Fecha<=@Hasta AND d.HoraDesde IS NOT NULL
   ) u WHERE orden=1` : `
   UNION ALL
-  SELECT e.ID_EMPLEADO,'assignment',NULL,NULL,'Pelado',s.NOMBRE_SALA,NULL,NULL,NULL
+  SELECT e.ID_EMPLEADO,'assignment',NULL,NULL,'Pelado',s.NOMBRE_SALA,NULL,NULL,NULL,NULL
   FROM dbo.PES_EMPLEADOS_LINEAS e
   LEFT JOIN dbo.DCP_LINEAS l ON l.ID_LINEA=e.ID_LINEA
   LEFT JOIN dbo.PES_SALAS s ON s.ID_SALA=l.ID_SALA
   WHERE @Actual=1 AND e.ACTIVO=1
   UNION ALL
-  SELECT e.ID_EMPLEADO,'assignment',NULL,NULL,'Descabezado',NULL,NULL,NULL,NULL
+  SELECT e.ID_EMPLEADO,'assignment',NULL,NULL,'Descabezado',NULL,NULL,NULL,NULL,NULL
   FROM dbo.DES_EMPLEADOS_LINEAS e
   WHERE @Actual=1 AND e.ACTIVO=1
   UNION ALL
-  SELECT f.IdEmpleado,'activation',CONVERT(varchar(10),f.Fecha,23),NULL,p.NOMBRE_PROCESO,NULL,NULL,NULL,NULL
+  SELECT f.IdEmpleado,'activation',CONVERT(varchar(10),f.Fecha,23),NULL,p.NOMBRE_PROCESO,NULL,NULL,NULL,NULL,NULL
   FROM (
     SELECT f.IdEmpleado,f.Fecha,f.IdProceso,f.Activo,
       ROW_NUMBER() OVER(PARTITION BY f.IdEmpleado ORDER BY f.FechaHora DESC,f.IdEmpleadoDepto DESC) orden
@@ -56,13 +59,9 @@ export function staffLocationsQuery(historicalOnly = false) {
   LEFT JOIN dbo.DCP_PROCESOS p ON p.ID_PROCESO=f.IdProceso
   WHERE f.Activo=1 AND f.orden=1
   UNION ALL
-  SELECT a.IdEmpleado,'activity',CONVERT(varchar(10),a.Fecha,23),CONVERT(varchar(8),a.HoraDesde,108),p.Proceso,NULL,a.LineaProduccion,NULL,a.Actividad
-  FROM dbo.VAsistenciaActividades a
-  OUTER APPLY (SELECT TOP(1) p.NOMBRE_PROCESO Proceso FROM dbo.dcp_LineasProduccion l JOIN dbo.DCP_PROCESOS p ON p.ID_PROCESO=l.IdProceso WHERE l.LineaProduccion=a.LineaProduccion ORDER BY l.Activa DESC,l.IdLineaProduccion) p
-  WHERE a.Fecha=@Hasta AND (a.HoraDesde<=CAST(@Corte AS time) OR a.HoraDesde IS NULL)
-  UNION ALL
-  SELECT a.idempleado,'workday',CONVERT(varchar(10),a.Fecha,23),NULL,a.Proceso,NULL,a.LineaProduccion,a.ValorTrabajado,NULL
-  FROM dbo.V_EmpleadosObraActividades a WHERE a.Fecha=@Hasta`}`;
+  SELECT d.IdEmpleado,'activity',CONVERT(varchar(10),h.Fecha,23),CONVERT(varchar(8),d.HoraDesde,108),p.NOMBRE_PROCESO,NULL,l.LineaProduccion,NULL,a.Actividad,CONVERT(varchar(8),d.HoraHasta,108)
+  ${STAFF_CHECKS_FROM}
+  WHERE h.Fecha=@Hasta AND d.HoraDesde IS NOT NULL AND d.HoraDesde<=CAST(@Corte AS time)`}`;
 }
 
 /** Nombre vigente al día consultado; si no hay registro fechado, el del catálogo de departamentos. */
@@ -90,7 +89,7 @@ async function loadLocations(start: string, end: string, current: boolean, cutof
   ]);
   return rows.map(row => ({ id: pickNumber(row, 'IdEmpleado'),
     source: pickString(row, 'Fuente') as StaffLocationRow['source'], day: pickString(row, 'Dia'), time: pickString(row, 'Hora'),
-    process: pickString(row, 'Proceso'), room: pickString(row, 'Sala'), line: pickString(row, 'Linea'), value: pickNumber(row, 'Valor'), activity: pickString(row, 'Actividad') }));
+    process: pickString(row, 'Proceso'), room: pickString(row, 'Sala'), line: pickString(row, 'Linea'), value: pickNumber(row, 'Valor'), activity: pickString(row, 'Actividad'), endTime: pickString(row, 'HoraHasta') }));
 }
 
 export async function getStaffLocations(ids: number[], day: string, currentDay: string, forceRefresh = false): Promise<StaffLocationRow[]> {
@@ -101,7 +100,7 @@ export async function getStaffLocations(ids: number[], day: string, currentDay: 
   // Las claves dependen solo del día: así las personas que marcan entrada durante la mañana no invalidan el caché.
   const scope = `${env.STB_DB_SERVER}:${env.STB_DB_DATABASE}:${day}`;
   const [history, names, current] = await Promise.all([
-    withTtlCache(`personal:locations-history:v6:${scope}`, 60 * 60_000,
+    withTtlCache(`personal:locations-history:v8:${scope}`, 60 * 60_000,
       () => loadLocations(isoDay(day, -30), isoDay(day, -1), false, '23:59:59', true), forceRefresh),
     withTtlCache(`personal:names:v1:${scope}`, 60 * 60_000, async () =>
       (await runStbQuery(staffNamesQuery, [{ name: 'Hasta', type: sql.Date, value: day }]))
@@ -120,7 +119,7 @@ export async function getStaffLocations(ids: number[], day: string, currentDay: 
   return rows
     .filter(row => row.source !== 'production' || `${row.day}T${row.time}` === latest.get(row.id))
     .filter(row => { // Equivale al SELECT DISTINCT de la consulta original.
-      const key = [row.id, row.source, row.day, row.time, row.process, row.room, row.line, row.value, row.activity].join('|');
+      const key = [row.id, row.source, row.day, row.time, row.process, row.room, row.line, row.value, row.activity, row.endTime].join('|');
       return !seen.has(key) && !!seen.add(key);
     })
     .map(row => ({ ...row, name: nameById.get(row.id) ?? '' }));

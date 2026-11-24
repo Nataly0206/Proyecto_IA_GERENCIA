@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
-import { Alert, Box, Button, Chip, InputAdornment, LinearProgress, MenuItem, Paper, Skeleton, Stack, Table, TableBody, TableCell, TableContainer, TableFooter, TableHead, TablePagination, TableRow, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, Chip, Collapse, InputAdornment, LinearProgress, MenuItem, Paper, Skeleton, Stack, Table, TableBody, TableCell, TableContainer, TableFooter, TableHead, TablePagination, TableRow, TextField, Typography } from '@mui/material';
 import RefreshOutlinedIcon from '@mui/icons-material/RefreshOutlined';
 import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined';
+import FilterListOutlinedIcon from '@mui/icons-material/FilterListOutlined';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import { apiClient } from '../api/client';
 import type { PurchaseOrdersResponse } from '../types/purchaseOrders';
@@ -14,6 +15,7 @@ const time = (value: string | null) => value && Number.isFinite(Date.parse(value
 const tableSx = { '& th': { bgcolor: '#f1f5f9', fontWeight: 800 }, '& td, & th': { px: 1.5, py: 1.2, fontSize: 12.5 }, '& td': { fontVariantNumeric: 'tabular-nums' }, '& tfoot td': { bgcolor: '#f8fafc', fontWeight: 800 } };
 
 export default function PurchaseOrdersPage({ userId }: { userId: string }) {
+  const [filtersOpen, setFiltersOpen] = useState(true);
   const [search, setSearch] = useState('');
   const [client, setClient] = useState('');
   const [size, setSize] = useState('');
@@ -38,18 +40,14 @@ export default function PurchaseOrdersPage({ userId }: { userId: string }) {
   return <Stack spacing={2} sx={{ py: 1, minWidth: 0 }}>
     <Stack direction="row" alignItems="center" justifyContent="space-between" gap={2} useFlexGap flexWrap="wrap">
       <Stack direction="row" gap={1.25} alignItems="center"><Box sx={{ display: 'flex', p: 1, borderRadius: 2, bgcolor: '#eaf4ff', color: '#2563eb' }}><ReceiptLongOutlinedIcon /></Box><Box><Typography variant="h5" fontWeight={800}>Órdenes de Compra</Typography><Typography variant="body2" color="text.secondary">Contratos y productos pendientes por cliente</Typography></Box></Stack>
-      <Button variant="outlined" startIcon={<RefreshOutlinedIcon />} disabled={query.isFetching} onClick={() => void query.refetch()}>{query.isFetching ? 'Actualizando…' : 'Actualizar'}</Button>
+      <Stack direction="row" gap={1}>
+        <Button variant={hasFilters ? 'contained' : 'outlined'} startIcon={<FilterListOutlinedIcon />} aria-expanded={filtersOpen} aria-controls="purchase-order-filters" onClick={() => setFiltersOpen(open => !open)}>{filtersOpen ? 'Ocultar filtros' : 'Mostrar filtros'}{hasFilters ? ' · Activos' : ''}</Button>
+        <Button variant="outlined" startIcon={<RefreshOutlinedIcon />} disabled={query.isFetching} onClick={() => void query.refetch()}>{query.isFetching ? 'Actualizando…' : 'Actualizar'}</Button>
+      </Stack>
     </Stack>
     {query.isError && <Alert severity="error" action={<Button color="inherit" onClick={() => void query.refetch()}>Reintentar</Button>}>{error}{query.data ? ' Se conserva la última consulta correcta; revisa su fecha de actualización.' : ''}</Alert>}
-    {query.isLoading ? <Skeleton variant="rounded" height={110} /> : query.data && <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(4, minmax(0, 1fr))' }, gap: 1.5 }}>
-      {[
-        { label: 'Órdenes pendientes', value: orders.length, unit: `${new Set(lines.map(line => line.client)).size} clientes · ${lines.length} líneas`, color: '#2563eb' },
-        { label: 'Kilos pendientes', value: totalKg, unit: 'kg · líneas filtradas', color: '#0f766e' },
-        { label: 'Masters pendientes', value: totalMasters, unit: 'masters · líneas filtradas', color: '#6366f1' },
-        { label: 'Órdenes con atraso', value: lateOrders, unit: 'Al menos una semana de atraso', color: '#b45309' },
-      ].map(metric => <Paper variant="outlined" key={metric.label} sx={{ p: 2, borderRadius: 3, borderColor: '#e2e8f0', borderTop: `3px solid ${metric.color}` }}><Typography variant="body2" fontWeight={700} color="text.secondary">{metric.label}</Typography><Typography fontSize={{ xs: 27, md: 35 }} fontWeight={800} color={metric.color} sx={{ fontVariantNumeric: 'tabular-nums', my: 0.5 }}>{amount(metric.value)}</Typography><Typography variant="caption" color="text.secondary">{metric.unit}</Typography></Paper>)}
-    </Box>}
-    <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2.5 }}>
+    <Collapse in={filtersOpen}>
+      <Paper id="purchase-order-filters" variant="outlined" sx={{ p: 1.5, borderRadius: 2.5 }}>
       <Stack direction="row" gap={1.5} useFlexGap flexWrap="wrap">
         <TextField size="small" label="Buscar orden o producto" placeholder="Contrato, cliente, código, producto o talla" value={search} onChange={event => { setSearch(event.target.value); resetPage(); }} InputProps={{ startAdornment: <InputAdornment position="start"><SearchOutlinedIcon fontSize="small" /></InputAdornment> }} sx={{ flex: '1 1 280px' }} />
         <TextField size="small" select label="Cliente" value={client} onChange={event => { setClient(event.target.value); resetPage(); }} sx={{ flex: '1 1 170px' }}><MenuItem value="">Todos los clientes</MenuItem>{[...new Set([...clients, ...(client ? [client] : [])])].map(value => <MenuItem key={value} value={value}>{value}</MenuItem>)}</TextField>
@@ -58,13 +56,27 @@ export default function PurchaseOrdersPage({ userId }: { userId: string }) {
         {hasFilters && <Button size="small" onClick={clear}>Limpiar filtros</Button>}
       </Stack>
     </Paper>
+    </Collapse>
+    {query.isLoading ? <Skeleton variant="rounded" height={80} /> : query.data && <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(4, minmax(0, 1fr))' }, gap: 1 }}>
+      {[
+        { label: 'Órdenes pendientes', value: orders.length, unit: `${new Set(lines.map(line => line.client)).size} clientes · ${lines.length} líneas`, color: '#2563eb' },
+        { label: 'Kilos pendientes', value: totalKg, unit: 'kg · líneas filtradas', color: '#0f766e' },
+        { label: 'Masters pendientes', value: totalMasters, unit: 'masters · líneas filtradas', color: '#6366f1' },
+        { label: 'Órdenes con atraso', value: lateOrders, unit: 'Al menos una semana de atraso', color: '#b45309' },
+      ].map(metric => <Paper variant="outlined" key={metric.label} sx={{ px: 1.5, py: 1, borderRadius: 2, borderColor: '#e2e8f0', borderTop: `2px solid ${metric.color}` }}><Typography fontSize={11} lineHeight={1.3} fontWeight={700} color="text.secondary">{metric.label}</Typography><Typography fontSize={{ xs: 22, md: 26 }} fontWeight={800} color={metric.color} sx={{ fontVariantNumeric: 'tabular-nums', lineHeight: 1.2, my: 0.25 }}>{amount(metric.value)}</Typography><Typography fontSize={10} lineHeight={1.3} color="text.secondary">{metric.unit}</Typography></Paper>)}
+    </Box>}
     <Paper variant="outlined" sx={{ borderRadius: 3, overflow: 'hidden', borderColor: '#e2e8f0' }}>
       <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1} sx={{ p: 1.75 }}><Typography fontWeight={800}>Órdenes y contratos</Typography><Chip size="small" label={query.data ? `${orders.length} órdenes · ${lines.length} líneas` : query.isLoading ? 'Consultando…' : 'Sin datos'} variant="outlined" /></Stack>
       {query.isFetching && <LinearProgress sx={{ height: 2 }} />}
       <TableContainer sx={{ maxHeight: '60vh' }}><Table size="small" stickyHeader aria-label="Órdenes de compra pendientes" sx={{ ...tableSx, minWidth: 850 }}>
-        <TableHead><TableRow><TableCell>Contrato / orden</TableCell><TableCell>Cliente</TableCell><TableCell>Producto</TableCell><TableCell align="right">Kg pendientes</TableCell><TableCell align="right">Masters pendientes</TableCell><TableCell align="right">Semanas de atraso</TableCell></TableRow></TableHead>
+        <TableHead><TableRow><TableCell>Contrato / orden</TableCell><TableCell>Producto</TableCell><TableCell>Cliente</TableCell><TableCell align="right">Kg pendientes</TableCell><TableCell align="right">Masters pendientes</TableCell><TableCell align="right">Semanas de atraso</TableCell></TableRow></TableHead>
         <TableBody>{orders.slice(currentPage * rowsPerPage, (currentPage + 1) * rowsPerPage).map(order => <TableRow key={order.key} hover>
-          <TableCell sx={{ fontWeight: 800 }}>{order.contractNumber}</TableCell><TableCell>{order.client}</TableCell><TableCell>{[...new Set(order.lines.map(line => line.product))].map(product => <Typography key={product} variant="body2">{product}</Typography>)}</TableCell><TableCell align="right">{amount(order.pendingKg)}</TableCell><TableCell align="right">{amount(order.pendingMasters)}</TableCell><TableCell align="right"><Chip size="small" label={order.delayWeeks} color={order.delayWeeks > 0 ? 'warning' : 'default'} variant="outlined" /></TableCell>
+          <TableCell sx={{ fontWeight: 800 }}>{order.contractNumber}</TableCell>
+          {(['product', 'client', 'pendingKg', 'pendingMasters', 'delayWeeks'] as const).map(column => <TableCell key={column} align={column === 'product' || column === 'client' ? 'left' : 'right'}>
+            <Stack spacing={0.5}>{order.lines.map((line, index) => <Box key={index} sx={{ height: 28, display: 'flex', alignItems: 'center', justifyContent: column === 'product' || column === 'client' ? 'flex-start' : 'flex-end', whiteSpace: 'nowrap' }}>
+              {column === 'delayWeeks' ? <Chip size="small" label={line.delayWeeks} color={line.delayWeeks > 0 ? 'warning' : 'default'} variant="outlined" /> : column === 'pendingKg' || column === 'pendingMasters' ? amount(line[column]) : line[column]}
+            </Box>)}</Stack>
+          </TableCell>)}
         </TableRow>)}</TableBody>
         {!!orders.length && <TableFooter><TableRow><TableCell colSpan={3}>Total de líneas filtradas · {lines.length}</TableCell><TableCell align="right">{amount(totalKg)}</TableCell><TableCell align="right">{amount(totalMasters)}</TableCell><TableCell /></TableRow></TableFooter>}
       </Table></TableContainer>

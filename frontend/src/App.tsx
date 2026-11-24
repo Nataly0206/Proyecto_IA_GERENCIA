@@ -7,6 +7,7 @@ import PeladoPage from './pages/PeladoPage';
 import LoginPage from './pages/LoginPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
 import UsersPage from './pages/UsersPage';
+import PurchaseOrdersPage from './pages/PurchaseOrdersPage';
 import PreloadPage from './pages/PreloadPage';
 import InventoryPage from './pages/InventoryPage';
 import FreshInventoryPage from './pages/FreshInventoryPage';
@@ -37,6 +38,7 @@ const PERMISO_POR_VISTA: Record<DashboardView, Permiso> = {
   users: 'usuarios',
   inventory: 'inventario',
   carga: 'cargas',
+  'ordenes-compra': 'ordenes_compra',
   'inventario-fresco': 'inventario_fresco',
   prestamos: 'prestamos',
   rendimientos: 'rendimientos',
@@ -56,6 +58,7 @@ const VIEW_ORDER: DashboardView[] = [
   'exportaciones',
   'inventory',
   'carga',
+  'ordenes-compra',
   'inventario-fresco',
   'prestamos',
   'rendimientos',
@@ -181,6 +184,8 @@ export default function App() {
           <InventoryPage canRequestLoad={tienePermiso(user, 'cargas')} userId={user.id} onPreload={() => { setCurrentView('carga'); persistView('carga'); }} />
         ) : view === 'carga' ? (
           <PreloadPage canViewInventory={tienePermiso(user, 'inventario')} userId={user.id} onInventory={() => { setCurrentView('inventory'); persistView('inventory'); }} />
+        ) : view === 'ordenes-compra' ? (
+          <PurchaseOrdersPage userId={user.id} />
         ) : view === 'prestamos' ? (
           <PrestamosPage />
         ) : view === 'rankings' ? (

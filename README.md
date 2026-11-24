@@ -235,3 +235,24 @@ renderizará con el mismo motor — sin cambios de código. El panel lateral
 La importación de PDF/foto conserva el calendario original sin recalcularlo y exige
 revisión antes de registrar. Configuración, vinculación y pruebas locales en
 [Telegram_Prestamos.md](docs/Telegram_Prestamos.md). La entrada calculada se mantiene.
+
+### Órdenes de Compra
+
+En Exportaciones → Órdenes de Compra se consultan los pendientes del servicio externo
+`/api/externo/ordenes-venta`. La conexión usa `PURCHASE_ORDERS_API_URL` y
+`PURCHASE_ORDERS_API_KEY` en `backend/.env`; la clave no debe definirse como variable
+`VITE_*`. Docker Compose carga el mismo archivo de entorno del backend.
+
+El endpoint local `GET /api/purchase-orders` exige sesión, contraseña actualizada y
+permiso `ordenes_compra` (los administradores tienen acceso implícito). El permiso
+se asigna desde Usuarios. La pantalla agrupa por contrato y cliente, permite buscar
+producto/código y filtrar cliente, talla y atraso; los totales corresponden a las
+líneas filtradas. El atraso de una orden es el máximo de sus líneas, no su suma.
+La actualización es cada minuto y también manual, con fecha de origen y de consulta.
+
+La integración es solo de lectura y usa un timeout de 15 segundos. Si falla la
+conexión o el formato de origen, se muestra un error y se conserva la última consulta
+correcta en pantalla. No se interpretan errores como una lista vacía de pendientes.
+
+Pruebas: `cd backend && npm run test:ordenes-compra`; desde la raíz,
+`./backend/node_modules/.bin/tsx --test frontend/tests/purchase-orders.test.ts`.

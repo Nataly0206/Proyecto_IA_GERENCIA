@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query';
 import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined';
 import { ReactNode, useEffect, useState } from 'react';
 import {
@@ -65,6 +66,7 @@ export type DashboardView =
   | 'exportaciones'
   | 'inventory'
   | 'carga'
+  | 'ordenes-compra'
   | 'inventario-fresco'
   | 'prestamos'
   | 'rendimientos'
@@ -108,6 +110,7 @@ const NAVIGATION_GROUPS: NavigationGroup[] = [
   ] },
   { id: 'inventario', label: 'Exportaciones', icon: <LocalShippingOutlinedIcon fontSize="small" />, items: [
     { view: 'inventory', label: 'Inventario PT', permission: 'inventario', icon: <Inventory2OutlinedIcon fontSize="small" /> },
+    { view: 'ordenes-compra', label: 'Órdenes de Compra', permission: 'ordenes_compra', icon: <ShoppingCartOutlinedIcon fontSize="small" /> },
     { view: 'carga', label: 'Carga', permission: 'cargas', icon: <AssignmentOutlinedIcon fontSize="small" /> },
     { view: 'exportaciones', label: 'Exportaciones', permission: 'exportaciones', icon: <LocalShippingOutlinedIcon fontSize="small" /> },
   ] },
@@ -138,6 +141,7 @@ export default function DashboardLayout({
   const [devDetailsOpen, setDevDetailsOpen] = useState(false);
   const [mobileActionsAnchor, setMobileActionsAnchor] = useState<HTMLElement | null>(null);
   const refreshDashboard = useRefreshDashboard();
+  const queryClient = useQueryClient();
   const visibleGroups = NAVIGATION_GROUPS.map(group => ({
     ...group, items: group.items.filter(item => tienePermiso(user, item.permission)),
   })).filter(group => group.items.length > 0);
@@ -167,7 +171,8 @@ export default function DashboardLayout({
     setIsRefreshing(true);
     setRefreshFailed(false);
     try {
-      await refreshDashboard();
+      if (currentView === 'ordenes-compra') await queryClient.refetchQueries({ queryKey: ['purchase-orders', user.id], type: 'active' }, { throwOnError: true });
+      else await refreshDashboard();
     } catch {
       setRefreshFailed(true);
     } finally {

@@ -16,6 +16,7 @@ export const PERMISOS = [
   'exportaciones',
   'inventario',
   'cargas',
+  'ordenes_compra',
   'inventario_fresco',
   'prestamos',
   'rendimientos',

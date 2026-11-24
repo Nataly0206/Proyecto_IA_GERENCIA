@@ -30,6 +30,8 @@ export const env = {
   PORT: numberFromEnv('PORT', 3002, 1, 65535),
   CORS_ORIGIN: process.env.CORS_ORIGIN ?? '',
   API_KEY: process.env.API_KEY ?? '',
+  PURCHASE_ORDERS_API_URL: process.env.PURCHASE_ORDERS_API_URL?.trim() ?? '',
+  PURCHASE_ORDERS_API_KEY: process.env.PURCHASE_ORDERS_API_KEY?.trim() ?? '',
   LOGIN_PASSWORD: process.env.LOGIN_PASSWORD ?? '',
   SESSION_SECRET: process.env.SESSION_SECRET ?? '',
   SESSION_HOURS: numberFromEnv('SESSION_HOURS', 12, 1, 168),

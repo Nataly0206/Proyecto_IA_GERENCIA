@@ -69,12 +69,13 @@ export default function PurchaseOrdersPage({ userId }: { userId: string }) {
       <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1} sx={{ p: 1.75 }}><Typography fontWeight={800}>Órdenes y contratos</Typography><Chip size="small" label={query.data ? `${orders.length} órdenes · ${lines.length} líneas` : query.isLoading ? 'Consultando…' : 'Sin datos'} variant="outlined" /></Stack>
       {query.isFetching && <LinearProgress sx={{ height: 2 }} />}
       <TableContainer sx={{ maxHeight: '60vh' }}><Table size="small" stickyHeader aria-label="Órdenes de compra pendientes" sx={{ ...tableSx, minWidth: 850 }}>
-        <TableHead><TableRow><TableCell>Contrato / orden</TableCell><TableCell>Producto</TableCell><TableCell>Cliente</TableCell><TableCell align="right">Kg pendientes</TableCell><TableCell align="right">Masters pendientes</TableCell><TableCell align="right">Semanas de atraso</TableCell></TableRow></TableHead>
+        <TableHead><TableRow><TableCell>Cliente</TableCell><TableCell>Contrato / orden</TableCell><TableCell>Producto</TableCell><TableCell align="right">Kg pendientes</TableCell><TableCell align="right">Masters pendientes</TableCell><TableCell align="right">Semanas de atraso</TableCell></TableRow></TableHead>
         <TableBody>{orders.slice(currentPage * rowsPerPage, (currentPage + 1) * rowsPerPage).map(order => <TableRow key={order.key} hover>
+          <TableCell>{order.lines[0]?.client}</TableCell>
           <TableCell sx={{ fontWeight: 800 }}>{order.contractNumber}</TableCell>
-          {(['product', 'client', 'pendingKg', 'pendingMasters', 'delayWeeks'] as const).map(column => <TableCell key={column} align={column === 'product' || column === 'client' ? 'left' : 'right'}>
-            <Stack spacing={0.5}>{order.lines.map((line, index) => <Box key={index} sx={{ height: 28, display: 'flex', alignItems: 'center', justifyContent: column === 'product' || column === 'client' ? 'flex-start' : 'flex-end', whiteSpace: 'nowrap' }}>
-              {column === 'delayWeeks' ? <Chip size="small" label={line.delayWeeks} color={line.delayWeeks > 0 ? 'warning' : 'default'} variant="outlined" /> : column === 'pendingKg' || column === 'pendingMasters' ? amount(line[column]) : line[column]}
+          {(['product', 'pendingKg', 'pendingMasters', 'delayWeeks'] as const).map(column => <TableCell key={column} align={column === 'product' ? 'left' : 'right'} sx={column === 'delayWeeks' && order.delayWeeks > 0 ? { bgcolor: '#fee2e2', color: '#b91c1c' } : undefined}>
+            <Stack spacing={0.5}>{order.lines.map((line, index) => <Box key={index} sx={{ height: 28, display: 'flex', alignItems: 'center', justifyContent: column === 'product' ? 'flex-start' : 'flex-end', whiteSpace: 'nowrap' }}>
+              {column === 'delayWeeks' ? <Chip size="small" label={line.delayWeeks} color={line.delayWeeks > 0 ? 'error' : 'default'} variant="outlined" /> : column === 'pendingKg' || column === 'pendingMasters' ? amount(line[column]) : line[column]}
             </Box>)}</Stack>
           </TableCell>)}
         </TableRow>)}</TableBody>

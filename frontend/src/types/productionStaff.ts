@@ -20,6 +20,8 @@ export interface StaffEmployee {
   productionShift?: { shift: 'A' | 'B'; basis: string; active: boolean; entranceDeadline: number | null; nightEnd: number | null };
   biometricMarked: boolean; biometricEntry: boolean; biometricReview: boolean; hasPositivePayment: boolean;
   punchCount: number; hasCheck: boolean;
+  /** Asistencia según STB (chequeo o pesa del día): base de las tarjetas Obra / Auxiliares. */
+  stbAttendance?: boolean;
   actions: { code: string; label: string }[]; entry: string | null; exit: string | null;
   reportMark: 'A' | 'X' | null; firstPunch: string | null; lastPunch: string | null;
   sources: PayrollSource[]; hasAttendance: boolean; absenceRecorded: boolean;

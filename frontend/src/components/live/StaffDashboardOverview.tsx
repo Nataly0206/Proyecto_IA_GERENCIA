@@ -24,11 +24,6 @@ export default function StaffDashboardOverview({ counts, people, groupOf, groupL
   const maxGroup = Math.max(1, ...shownGroups.map(group => group.total));
   const ratio = counts.biometricMarked ? counts.biometricEntry / counts.biometricMarked : 0;
   const circumference = 2 * Math.PI * 59;
-  const shifts = [
-    { key: 'A', label: 'Turno A · Día', color: '#0d9488' },
-    { key: 'B', label: 'Turno B · Noche', color: '#6366f1' },
-    { key: 'Sin turno registrado', label: 'Sin turno confirmado', color: '#94a3b8' },
-  ].map(shift => { const rows = people.filter(person => person.shift === shift.key); return { ...shift, rows, present: rows.filter(person => person.biometricEntry).length }; });
   const metrics = [
     { label: 'Asistieron · A', value: counts.present, detail: 'Según Chequeo · entrada confirmada', color: '#0f766e', background: '#eaf8f4', icon: HowToRegOutlinedIcon, key: 'entry' },
     { label: 'Según biométrico', value: counts.biometricMarked, detail: 'Personas con alguna marca del día', color: '#2563eb', background: '#eff6ff', icon: FingerprintOutlinedIcon, key: 'marked' },
@@ -59,7 +54,7 @@ export default function StaffDashboardOverview({ counts, people, groupOf, groupL
         ].map(metric => <ButtonBase key={metric.key} onClick={() => metric.key === 'absent' ? onGroup('Faltas registradas', people.filter(person => person.status === 'absent')) : metric.key === 'rate' ? onGroup('Personal · estado de asistencia', people) : onEvidence(metric.key)} sx={{ textAlign: 'left', p: 1.25, justifyContent: 'space-between', gap: 1, borderRadius: 2, '&:hover': { bgcolor: '#f8fafc' } }}><Typography variant="caption" color="text.secondary">{metric.label}</Typography><Typography fontSize={20} fontWeight={800} color={metric.color} sx={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{metric.value}</Typography></ButtonBase>)}
       </Box>
     </Paper>
-    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 0.9fr) minmax(0, 1.25fr)', lg: 'minmax(0, 0.85fr) minmax(0, 1.35fr) minmax(0, 1fr)' }, gap: 1.5 }}>
+    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 0.9fr) minmax(0, 1.25fr)', lg: 'minmax(0, 0.85fr) minmax(0, 1.35fr)' }, gap: 1.5 }}>
       <Paper variant="outlined" sx={{ ...panelSx, p: 2 }}>
         <Typography fontWeight={800} fontSize={14}>Confirmación de marcaciones</Typography><Typography variant="caption" color="text.secondary">Entradas confirmadas sobre personas con marca</Typography>
         <Box sx={{ position: 'relative', width: 166, height: 166, mx: 'auto', my: 1.5 }}>
@@ -78,14 +73,6 @@ export default function StaffDashboardOverview({ counts, people, groupOf, groupL
           <Box sx={{ height: 7, mt: 0.6, borderRadius: 2, width: `${group.total / maxGroup * 100}%`, bgcolor: '#e2e8f0', minWidth: 2 }}><Box sx={{ height: '100%', width: `${group.total ? group.present / group.total * 100 : 0}%`, borderRadius: 2, bgcolor: '#0d9488' }} /></Box>
         </ButtonBase>)}</Stack>}
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5 }}>Verde: asistieron · Gris: padrón del grupo. Pulsa para ver personas.</Typography>
-      </Paper>
-      <Paper variant="outlined" sx={{ ...panelSx, p: 2, gridColumn: { md: '1 / -1', lg: 'auto' } }}>
-        <Typography fontWeight={800} fontSize={14}>Asistencia por turno</Typography><Typography variant="caption" color="text.secondary">Entradas confirmadas / personal del turno</Typography>
-        <Stack spacing={2.5} sx={{ mt: 2.5 }}>{shifts.map(shift => <ButtonBase key={shift.key} onClick={() => onGroup(shift.label, shift.rows)} sx={{ display: 'block', width: '100%', textAlign: 'left', borderRadius: 1, p: 0.25, '&:hover': { bgcolor: '#f8fafc' } }}>
-          <Stack direction="row" justifyContent="space-between" gap={1}><Typography fontSize={12} fontWeight={700}>{shift.label}</Typography><Typography fontSize={12} fontWeight={800}>{number(shift.present)} <Box component="span" sx={{ color: '#94a3b8' }}>/ {number(shift.rows.length)}</Box></Typography></Stack>
-          <Box sx={{ height: 9, borderRadius: 2, bgcolor: '#edf2f7', mt: 0.75, overflow: 'hidden' }}><Box sx={{ width: `${shift.rows.length ? shift.present / shift.rows.length * 100 : 0}%`, height: '100%', bgcolor: shift.color, borderRadius: 2 }} /></Box>
-        </ButtonBase>)}</Stack>
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2.5 }}>El resto del padrón incluye pendientes y novedades; no equivale a faltas.</Typography>
       </Paper>
     </Box>
     <Stack direction="row" justifyContent="space-between" alignItems="center" gap={1} useFlexGap flexWrap="wrap" sx={{ px: 0.5 }}><Typography variant="caption" color="text.secondary">Los contadores y gráficas respetan todos los filtros seleccionados.</Typography><Button size="small" endIcon={<ArrowForwardOutlinedIcon />} onClick={() => onEvidence('')} sx={{ textTransform: 'none', fontWeight: 700, fontSize: 12 }}>Buscar persona / recorrido</Button></Stack>

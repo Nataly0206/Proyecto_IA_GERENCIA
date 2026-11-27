@@ -40,7 +40,6 @@ const staffStatusLabels: Record<StaffStatus, string> = {
   pending: 'Sin registro',
   conflict: 'Revisar',
 };
-const shiftLabel = (shift: string) => shift === 'A' ? 'Turno A · Día' : shift === 'B' ? 'Turno B · Noche' : 'Sin turno confirmado';
 const GROUP_STORAGE_KEY = 'personal:agrupar-por';
 function storedGroupBy(): GroupBy {
   try {
@@ -48,7 +47,9 @@ function storedGroupBy(): GroupBy {
     return stored === 'activity' || stored === 'department' ? stored : 'area';
   } catch { return 'area'; }
 }
-const kindLabels = { production: 'Obra', machine: 'Máquinas (Clasificado + IQF)', auxiliary: 'Auxiliares', supervisor: 'Supervisores' } as const;
+const kindLabels = { production: 'Obra', auxiliary: 'Auxiliares', supervisor: 'Supervisores' } as const;
+/** Asistió según STB (chequeo o pesa); las tarjetas y columnas por tipo de personal usan esta regla. */
+const stbPresent = (person: StaffEmployee) => person.stbAttendance ?? (person.hasCheck || person.sources.includes('weighing'));
 const statusLabel = (person: StaffEmployee) => person.biometricEntry ? person.status === 'conflict' ? 'A · Entrada / revisar novedad' : 'A · Entrada confirmada' : person.status === 'present' ? 'Pesa / chequeo sin entrada' : person.derivedAbsence ? 'X · Sin chequeo/pesa al corte' : person.provisionalAbsence ? 'X · Falta provisional' : staffStatusLabels[person.status];
 function countPeople(people: StaffEmployee[]) {
   const count = (status: StaffStatus) => people.filter(person => person.status === status).length;
@@ -84,8 +85,7 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
   const [date, setDate] = useState(today);
   const [tab, setTab] = useState<'day' | 'trend' | 'history'>('day');
   const [division, setDivision] = useState('');
-  const [shift, setShift] = useState('');
-  const [job, setJob] = useState('');
+    const [job, setJob] = useState('');
   const [kind, setKind] = useState<StaffKind | ''>('');
   const [evidenceFilter, setEvidenceFilter] = useState('');
   const [search, setSearch] = useState('');
@@ -146,8 +146,8 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
     } catch (error) { setRefreshError(error); }
     finally { setRefreshing(false); }
   };
-  const clearFilters = () => { setDivision(''); setShift(''); setJob(''); setKind(''); setEvidenceFilter(''); setSearch(''); };
-  const people = (query.data?.employees ?? []).map(person => person.kind === 'unknown' ? { ...person, kind: 'auxiliary' as const } : person).filter(person => (!division || person.division === division) && (!shift || person.shift === shift) && (!job || person.job === job) && (!kind || person.kind === kind));
+  const clearFilters = () => { setDivision(''); setJob(''); setKind(''); setEvidenceFilter(''); setSearch(''); };
+  const people = (query.data?.employees ?? []).map(person => person.kind === 'unknown' || person.kind === 'machine' ? { ...person, kind: 'auxiliary' as const } : person).filter(person => (!division || person.division === division) && (!job || person.job === job) && (!kind || person.kind === kind));
   const evidenceMatches = (person: StaffEmployee) => !evidenceFilter || (evidenceFilter === 'marked' ? person.biometricMarked : evidenceFilter === 'entry' ? person.biometricEntry : evidenceFilter === 'review' ? person.biometricReview : evidenceFilter === 'unpaid' ? person.biometricMarked && !person.hasPositivePayment : person.hasCheck);
   const directoryPeople = people.filter(evidenceMatches).filter(person => !search || `${person.name} ${person.code} ${person.id}`.toLocaleLowerCase('es').includes(search.toLocaleLowerCase('es')));
   const absenceAvailable = query.data?.absenceDataAvailable ?? query.data?.source !== 'STB_data';
@@ -169,22 +169,22 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
     // dentro de cada bloque, de mayor a menor asistencia.
     : [...new Set(people.map(groupOf))].sort((a, b) => activityRank(a) - activityRank(b) || presentIn(b) - presentIn(a) || a.localeCompare(b, 'es', { numeric: true }));
   const emptyGroup = groupBy === 'area' ? 'Sin sala/área asignada' : groupBy === 'department' ? NO_DEPARTMENT : NO_ACTIVITY;
-  const activeFilters = [division, shift, job, kind].filter(Boolean).length;
+  const activeFilters = [division, job, kind].filter(Boolean).length;
   const cell = (rows: StaffEmployee[], area: string, status?: StaffStatus, category?: StaffKind) => {
     const unavailable = (status === 'absent' && !absenceAvailable) || !query.data?.employees.length
       || (query.data.locationAvailable === false && !!area && area !== emptyGroup);
-    const value = rows.filter(person => (!status || (status === 'present' ? person.biometricEntry : person.status === status)) && (!category || person.kind === category)).length;
+    const value = rows.filter(person => (!status || (status === 'present' ? (category ? stbPresent(person) : person.biometricEntry) : person.status === status)) && (!category || person.kind === category)).length;
     return <TableCell align="right" sx={{ fontWeight: status === 'present' || status === 'absent' ? 800 : 600, color: status === 'absent' ? 'error.main' : status === 'present' ? 'success.main' : 'text.primary' }}>{unavailable ? '—' : formatValue(value)}</TableCell>;
   };
   const auxiliaryCells = (rows: StaffEmployee[], group: string) => {
     if (groupBy !== 'department') return cell(rows, group, 'present', 'auxiliary');
     const required = requiredIn(group);
-    const present = rows.filter(person => person.biometricEntry && person.kind === 'auxiliary').length;
+    const present = rows.filter(person => stbPresent(person) && person.kind === 'auxiliary').length;
     const unavailable = !query.data?.employees.length || (query.data.locationAvailable === false && !!group && group !== emptyGroup);
     const difference = present - required;
     return <>{cell(rows, group, 'present', 'auxiliary')}<TableCell align="right" sx={{ fontWeight: 700 }}>{formatValue(required)}</TableCell><TableCell align="right" title={`Auxiliares presentes: ${present} · Requeridos: ${required}`} sx={{ fontWeight: 800, color: difference < 0 ? 'error.main' : difference > 0 ? 'success.main' : 'text.primary' }}>{unavailable ? '—' : `${difference > 0 ? '+' : ''}${formatValue(difference)}`}</TableCell></>;
   };
-  const bodyCells = (rows: StaffEmployee[], area: string) => <>{cell(rows, area, 'present')}{cell(rows, area, 'absent')}{cell(rows, area, 'present', 'production')}{auxiliaryCells(rows, area)}{cell(rows, area)}{cell(rows, area, 'present', 'machine')}{cell(rows, area, 'present', 'supervisor')}{cell(rows, area, 'pending')}{cell(rows, area, 'conflict')}</>;
+  const bodyCells = (rows: StaffEmployee[], area: string) => <>{cell(rows, area, 'present')}{cell(rows, area, 'absent')}{cell(rows, area, 'present', 'production')}{auxiliaryCells(rows, area)}{cell(rows, area)}{cell(rows, area, 'present', 'supervisor')}{cell(rows, area, 'pending')}{cell(rows, area, 'conflict')}</>;
   const members = (category: StaffKind) => people.filter(person => person.kind === category);
   return <Stack spacing={1.5} sx={{ minWidth: 0 }}>
     <Paper variant="outlined" sx={{ px: 1.75, py: 1.25, borderRadius: 2.5, borderColor: '#e2e8f0', boxShadow: '0 2px 8px #0f172a03' }}>
@@ -195,9 +195,6 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
         <Button size="small" onClick={() => { setDate(today); clearFilters(); }}>Hoy</Button></>}
         {tab !== 'day' && <WeekdaySelector includedWeekdays={includedWeekdays} onWeekdaysChange={setIncludedWeekdays} />}
         {tab === 'day' && <Button size="small" startIcon={<FilterAltOutlinedIcon sx={{ fontSize: '14px !important' }} />} onClick={() => setFiltersOpen(value => !value)} aria-expanded={filtersOpen} aria-controls="staff-filters">Filtros{activeFilters ? ` (${activeFilters})` : ''}</Button>}
-        {tab !== 'trend' && <ToggleButtonGroup size="small" exclusive value={shift} onChange={(_, value) => { if (value !== null) { setShift(value); setStaffGroupSelection(null); setKindSelection(null); } }} aria-label="Separar asistencia por turno">
-          <ToggleButton value="">Todos</ToggleButton><ToggleButton value="A">Turno A · Día</ToggleButton><ToggleButton value="B">Turno B · Noche</ToggleButton><ToggleButton value="Sin turno registrado">Sin turno confirmado</ToggleButton>
-        </ToggleButtonGroup>}
         {tab === 'day' && <Stack direction="row" gap={1.25} alignItems="center">
           <Typography variant="caption" fontWeight={700} sx={{ whiteSpace: 'nowrap', fontSize: 11 }}>Agrupar por</Typography>
           <ToggleButtonGroup exclusive size="small" value={groupBy} onChange={(_, value) => { if (value) { changeGroupBy(value); setStaffGroupSelection(null); } }} aria-label="Agrupar personal por">
@@ -220,7 +217,6 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
       <StaffDashboardOverview counts={counts} people={people} groupOf={groupOf} groupLabel={groupBy === 'area' ? 'área' : groupBy === 'department' ? 'departamento' : 'actividad'} locationAvailable={query.data.locationAvailable} absenceAvailable={absenceAvailable} dateLabel={formatPeriodo(date)} currentDay={date === today}
         onEvidence={key => { setEvidenceFilter(key); setSearch(''); setDirectoryOpen(true); }} onGroup={(label, rows) => setStaffGroupSelection({ label, rows })} />
       {date === today && <Alert severity="info" sx={{ py: 0 }}>Sin evidencia queda pendiente. Una marca de salida sin entrada hoy requiere revisión del turno nocturno; no se convierte en falta.</Alert>}
-      <Typography variant="caption" color="text.secondary">Turno según línea TA/TB del chequeo o última línea de los 30 días previos. Una referencia histórica puede cambiar; las personas sin referencia quedan separadas.</Typography>
       {!query.data.employees.length && <Alert severity="info">Sin personal registrado en las fuentes para esta fecha.</Alert>}
       {!!query.data.absenceReconciliation?.recorded && <Alert severity={query.data.absenceReconciliation.conflicts ? 'warning' : 'info'} sx={{ py: 0 }}>
         Novedades de inasistencia registradas: {query.data.absenceReconciliation.recorded}.
@@ -228,19 +224,18 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
         {!!query.data.absenceReconciliation.conflicts && ` ${query.data.absenceReconciliation.conflicts} tienen registros contradictorios y aparecen en «Revisar».`}
       </Alert>}
       {(() => {
-        // Composición de quienes asistieron: las cuatro tarjetas suman 100%.
-        const presentOf = (category: StaffKind) => countPeople(members(category)).present;
-        const presentTotal = presentOf('production') + presentOf('machine') + presentOf('auxiliary') + presentOf('supervisor');
+        // Composición de quienes asistieron según STB (chequeo o pesa): las tarjetas suman 100%.
+        const presentOf = (category: StaffKind) => members(category).filter(stbPresent).length;
+        const presentTotal = presentOf('production') + presentOf('auxiliary') + presentOf('supervisor');
         const share = (value: number) => presentTotal ? `${formatValue(value / presentTotal * 100, 'decimal')}%` : '—';
         return <>
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(4, minmax(0, 1fr))' }, gap: { xs: 0.75, sm: 1 } }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))' }, gap: { xs: 0.75, sm: 1 } }}>
             {([
               { kind: 'production', label: 'En Obra', short: 'Obra', color: '#1e40af', background: '#eff6ff' },
-              { kind: 'machine', label: 'En Máquinas (Clasificado + IQF)', short: 'Máquinas', color: '#7c3aed', background: '#f5f3ff' },
               { kind: 'auxiliary', label: 'Auxiliares', short: 'Auxiliar', color: '#166534', background: '#f0fdf4' },
               { kind: 'supervisor', label: 'Supervisores', short: 'Supervisores', color: '#9a3412', background: '#fff7ed' },
             ] as const).map(category => {
-              const group = countPeople(members(category.kind));
+              const group = { ...countPeople(members(category.kind)), present: presentOf(category.kind) };
               const open = () => setKindSelection({ kind: category.kind, label: category.label, color: category.color });
               return <Paper key={category.kind} variant="outlined" role="button" tabIndex={0} aria-label={`${category.label}: ver personas por departamento`}
                 onClick={open} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } }}
@@ -277,7 +272,7 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
 </Stack><Stack direction="row" gap={0.5}><Chip size="small" label="A · Asistencia" color="success" variant="outlined" sx={{ fontSize: 10, height: 22 }} /><Chip size="small" label="X · Falta" color="error" variant="outlined" sx={{ fontSize: 10, height: 22 }} /></Stack></Stack>
         <TableContainer sx={{ maxHeight: '70vh' }}><Table size="small" stickyHeader aria-label={groupBy === 'area' ? 'Asistencia por sala y área' : groupBy === 'department' ? 'Asistencia por departamento' : 'Asistencia por actividad'} sx={{ ...tableSx, tableLayout: 'fixed', width: groupBy === 'area' ? 885 : groupBy === 'department' ? 1155 : 945, minWidth: '100%' }}>
           <colgroup>{[groupBy === 'area' ? 120 : groupBy === 'department' ? 210 : 180, 75, 75, 90, 90, ...(groupBy === 'department' ? [90, 90] : []), 75, 90, 90, 90, 90].map((width, index) => <col key={index} style={{ width }} />)}</colgroup>
-          <TableHead><TableRow><TableCell>{groupBy === 'area' ? 'Sala / área' : groupBy === 'department' ? 'Departamento' : 'Actividad'}</TableCell><TableCell align="right" sx={{ color: 'success.main' }}>A · Asistieron</TableCell><TableCell align="right" sx={{ color: 'error.main' }}>X · Faltaron</TableCell><TableCell align="right">Obra presentes</TableCell><TableCell align="right">Auxiliares presentes</TableCell>{groupBy === 'department' && <><TableCell align="right">Auxiliares Requeridos</TableCell><TableCell align="right">Diferencia</TableCell></>}<TableCell align="right">Personal total</TableCell><TableCell align="right">Máquinas presentes</TableCell><TableCell align="right">Supervisores presentes</TableCell><TableCell align="right">Sin registro</TableCell><TableCell align="right">Revisar</TableCell></TableRow></TableHead>
+          <TableHead><TableRow><TableCell>{groupBy === 'area' ? 'Sala / área' : groupBy === 'department' ? 'Departamento' : 'Actividad'}</TableCell><TableCell align="right" sx={{ color: 'success.main' }}>A · Asistieron</TableCell><TableCell align="right" sx={{ color: 'error.main' }}>X · Faltaron</TableCell><TableCell align="right">Obra presentes</TableCell><TableCell align="right">Auxiliares presentes</TableCell>{groupBy === 'department' && <><TableCell align="right">Auxiliares Requeridos</TableCell><TableCell align="right">Diferencia</TableCell></>}<TableCell align="right">Personal total</TableCell><TableCell align="right">Supervisores presentes</TableCell><TableCell align="right">Sin registro</TableCell><TableCell align="right">Revisar</TableCell></TableRow></TableHead>
           <TableBody>{groups.map(group => {
             const rows = people.filter(person => groupOf(person) === group);
             const mixed = groupBy === 'activity' ? rows.filter(person => person.otherActivities?.length).length : 0;
@@ -302,7 +297,7 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
       </Stack>}
     </>}
     {tab === 'trend' && <StaffTrend userId={userId} includedWeekdays={includedWeekdays} onDay={day => { setDate(day); setTab('day'); clearFilters(); }} />}
-    {tab === 'history' && history.data && <StaffHistory data={shift ? { ...history.data, days: history.data.days.map(day => ({ ...day, ...day.shifts?.find(item => item.shift === shift) })) } : history.data} shift={shift} includedWeekdays={includedWeekdays} onDay={day => { setDate(day); setTab('day'); clearFilters(); }} />}
+    {tab === 'history' && history.data && <StaffHistory data={history.data} includedWeekdays={includedWeekdays} onDay={day => { setDate(day); setTab('day'); clearFilters(); }} />}
     {tab !== 'trend' && active.data && <Box sx={{ px: 0.25 }}><Stack direction="row" justifyContent="space-between" gap={1} useFlexGap flexWrap="wrap" alignItems="center"><Typography variant="caption" color="text.secondary" sx={{ fontSize: 10 }}>Actualizado {new Date(active.data.updatedAt).toLocaleString('es-HN', { timeZone: 'America/Tegucigalpa' })}{tab === 'day' && date === today ? ' · Jornada en curso' : ''}</Typography><Button size="small" onClick={() => setMethodOpen(value => !value)} aria-expanded={methodOpen} aria-controls="staff-method" sx={{ fontSize: 11, py: 0 }}>Cómo se cuenta</Button></Stack>
       <Collapse in={methodOpen}><Paper id="staff-method" variant="outlined" sx={{ p: 1.25, mt: 0.5, borderRadius: 1.5 }}><Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75 }}>Última asistencia disponible: {active.data.lastAttendance ? formatPeriodo(active.data.lastAttendance) : 'Sin datos'}</Typography>{active.data.limitations.map(text => <Typography key={text} variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>{text}</Typography>)}</Paper></Collapse>
     </Box>}
@@ -313,8 +308,8 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
           <TextField size="small" label="Nombre, código o ID" value={search} onChange={event => setSearch(event.target.value)} fullWidth />
           <TextField select size="small" label="Registro" value={evidenceFilter} onChange={event => setEvidenceFilter(event.target.value)} sx={{ minWidth: 220 }}><MenuItem value="">Todo el padrón</MenuItem><MenuItem value="marked">Según biométrico</MenuItem><MenuItem value="entry">Según Chequeo</MenuItem><MenuItem value="review">Marca sin entrada</MenuItem><MenuItem value="unpaid">Con marca, sin pesado</MenuItem><MenuItem value="checks">Con chequeo de actividad</MenuItem></TextField>
         </Stack>
-        <Typography variant="caption">{directoryPeople.length} personas · respeta los filtros de turno y personal seleccionados</Typography>
-        <TableContainer sx={{ maxHeight: '60vh' }}><Table size="small" stickyHeader><TableHead><TableRow><TableCell>Empleado</TableCell><TableCell>Turno</TableCell><TableCell>Estado</TableCell><TableCell>Recorrido</TableCell></TableRow></TableHead><TableBody>{directoryPeople.map(person => <TableRow key={person.id}><TableCell>{person.name}<Typography variant="caption" sx={{ display: 'block' }}>{person.code} · ID {person.id}</Typography></TableCell><TableCell>{shiftLabel(person.shift)}</TableCell><TableCell>{statusLabel(person)}</TableCell><TableCell><StaffJourneyButton person={person} /></TableCell></TableRow>)}</TableBody></Table></TableContainer>
+        <Typography variant="caption">{directoryPeople.length} personas · respeta los filtros de personal seleccionados</Typography>
+        <TableContainer sx={{ maxHeight: '60vh' }}><Table size="small" stickyHeader><TableHead><TableRow><TableCell>Empleado</TableCell><TableCell>Estado</TableCell><TableCell>Recorrido</TableCell></TableRow></TableHead><TableBody>{directoryPeople.map(person => <TableRow key={person.id}><TableCell>{person.name}<Typography variant="caption" sx={{ display: 'block' }}>{person.code} · ID {person.id}</Typography></TableCell><TableCell>{statusLabel(person)}</TableCell><TableCell><StaffJourneyButton person={person} /></TableCell></TableRow>)}</TableBody></Table></TableContainer>
         {!directoryPeople.length && <Alert severity="info">Sin personas para esta selección.</Alert>}
         <Button onClick={() => setDirectoryOpen(false)} sx={{ mt: 1 }}>Cerrar</Button>
       </DialogContent>
@@ -335,7 +330,6 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
           const sortedRows = [...(staffGroupSelection?.rows ?? [])].sort((a, b) => a.name.localeCompare(b.name, 'es', { numeric: true }));
           const productionRows = sortedRows.filter(person => person.kind === 'production');
           const auxiliaryRows = sortedRows.filter(person => person.kind === 'auxiliary');
-          const machineRows = sortedRows.filter(person => person.kind === 'machine');
           const supervisorRows = sortedRows.filter(person => person.kind === 'supervisor');
           const peopleColumn = (title: string, rows: StaffEmployee[], color: string) => (
             <Box sx={{ minWidth: 0, flex: 1 }}>
@@ -357,7 +351,7 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
                       <TableBody>
                         {rows.map(person => (
                           <TableRow key={person.id} hover>
-                            <TableCell sx={{ fontWeight: 700 }}>{person.name}<StaffJourneyButton person={person} /><Typography variant="caption" color="text.secondary" title={person.productionShift?.basis} sx={{ display: 'block' }}>{shiftLabel(person.shift)}{person.productionShift?.basis.startsWith('Última') ? ' · referencia histórica' : ''}</Typography></TableCell>
+                            <TableCell sx={{ fontWeight: 700 }}>{person.name}<StaffJourneyButton person={person} /></TableCell>
                             <TableCell>{person.job}{person.dailyActivities?.map((item, index) => <Typography key={index} variant="caption" sx={{ display: 'block', whiteSpace: 'normal' }}>{item.activity} · {item.line} · {item.start?.slice(0, 5) ?? '—'}–{item.end?.slice(0, 5) ?? '—'}{item.hours !== null ? ` (${item.hours.toFixed(2)} h)` : ''}</Typography>)}</TableCell>
                             <TableCell>
                               <Chip
@@ -379,7 +373,6 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
           return <>
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'repeat(2, minmax(0, 1fr))' }, gap: 0 }}>
               {peopleColumn('Obra', productionRows, '#eff6ff')}
-              {peopleColumn('Máquinas (Clasificado + IQF)', machineRows, '#f5f3ff')}
               {peopleColumn('Auxiliares', auxiliaryRows, '#f0fdf4')}
               {peopleColumn('Supervisores', supervisorRows, '#fff7ed')}
             </Box>
@@ -391,7 +384,7 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
   </Stack>;
 } 
 
-function StaffHistory({ data, shift, includedWeekdays, onDay }: { data: StaffHistoryResponse; shift: string; includedWeekdays: number[]; onDay: (day: string) => void }) {
+function StaffHistory({ data, includedWeekdays, onDay }: { data: StaffHistoryResponse; includedWeekdays: number[]; onDay: (day: string) => void }) {
   const absenceAvailable = data.days.some(day => day.absenceDataAvailable ?? data.source !== 'STB_data');
   const selectedDays = data.days.filter(day => includedWeekdays.includes(new Date(`${day.day}T12:00:00Z`).getUTCDay()));
   const closed = selectedDays.filter(day => day.day < data.today && day.total > 0);
@@ -419,7 +412,7 @@ function StaffHistory({ data, shift, includedWeekdays, onDay }: { data: StaffHis
       <Paper variant="outlined" sx={{ p: 1, borderRadius: 1.5 }}><Typography variant="caption" fontWeight={700}>Fecha con más faltas</Typography><Typography fontSize={17} fontWeight={800}>{maxDate ? formatPeriodo(maxDate.day) : closed.length ? 'Sin faltas registradas' : 'Sin datos'}</Typography><Typography variant="caption" color="text.secondary">{maxDate ? `${maxDate.absent} faltas registradas` : 'En los días cerrados consultados'}</Typography></Paper>
       <Paper variant="outlined" sx={{ p: 1, borderRadius: 1.5 }}><Typography variant="caption" fontWeight={700}>Día con mayor promedio de faltas</Typography><Typography fontSize={17} fontWeight={800}>{topWeekday?.label ?? (absenceAvailable && closed.length ? 'Sin faltas registradas' : 'Sin datos')}</Typography><Typography variant="caption" color="text.secondary">{topWeekday ? `${topWeekday.average!.toLocaleString('es-HN', { maximumFractionDigits: 1 })} por fecha · ${topWeekday.count} fechas` : 'En los días cerrados consultados'}</Typography></Paper>
     </Box>
-    <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}><Typography fontWeight={800}>¿Qué días se registran más faltas?</Typography><Typography variant="caption" color="text.secondary">Promedio por día de semana · {formatPeriodo(data.from)} a {formatPeriodo(data.to)} · todas las divisiones · {shift ? shiftLabel(shift) : 'todos los turnos'}</Typography>
+    <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}><Typography fontWeight={800}>¿Qué días se registran más faltas?</Typography><Typography variant="caption" color="text.secondary">Promedio por día de semana · {formatPeriodo(data.from)} a {formatPeriodo(data.to)} · todas las divisiones</Typography>
       <Stack spacing={1} sx={{ mt: 1.5 }}>{rankedWeekdays.map(day => <Box key={day.label} sx={{ display: 'grid', gridTemplateColumns: '70px 1fr 46px 54px', gap: 1, alignItems: 'center' }}><Typography variant="caption">{day.label}</Typography><Box sx={{ bgcolor: '#fde8e8', height: 12, borderRadius: 1, overflow: 'hidden' }}><Box sx={{ height: '100%', bgcolor: 'error.main', width: `${(day.average ?? 0) / max * 100}%`, borderRadius: 1 }} /></Box><Typography variant="caption" fontWeight={800} textAlign="right">{day.average === null ? '—' : day.average.toLocaleString('es-HN', { maximumFractionDigits: 1 })}</Typography><Typography variant="caption" color="error.main" fontWeight={800} textAlign="right">{day.absenceRate === null ? '—' : `${day.absenceRate.toLocaleString('es-HN', { maximumFractionDigits: 1 })}%`}</Typography></Box>)}</Stack>
       <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>Se muestran el promedio de faltas por fecha y el porcentaje de inasistencia: X / (A + X) de cada día de la semana.</Typography>
     </Paper>
@@ -434,7 +427,7 @@ function StaffHistory({ data, shift, includedWeekdays, onDay }: { data: StaffHis
   </Stack>;
 }
 
-/** Personas de las cuatro categorías agrupadas por departamento de planta; cada departamento se despliega. */
+/** Personas de cada tipo de personal agrupadas por departamento de planta; cada departamento se despliega. */
 function StaffKindDialog({ selection, people, onClose, absenceAvailable }: { absenceAvailable: boolean; selection: { kind: StaffKind; label: string; color: string } | null; people: StaffEmployee[]; onClose: () => void }) {
   const [status, setStatus] = useState<'all' | 'present' | 'absent'>('all');
   const [openDepartment, setOpenDepartment] = useState<string | null>(null);
@@ -444,9 +437,9 @@ function StaffKindDialog({ selection, people, onClose, absenceAvailable }: { abs
     const rank = (value: string) => { const index = official.indexOf(value); return index >= 0 ? index : value === NO_DEPARTMENT ? 10_000 : 5_000; };
     return rank(a) - rank(b) || a.localeCompare(b, 'es');
   });
-  const visible = (person: StaffEmployee) => status === 'all' || (status === 'present' ? person.biometricEntry : person.status === status);
+  const visible = (person: StaffEmployee) => status === 'all' || (status === 'present' ? stbPresent(person) : person.status === status);
   const close = () => { onClose(); setStatus('all'); setOpenDepartment(null); };
-  const totals = countPeople(people);
+  const totals = { ...countPeople(people), present: people.filter(stbPresent).length };
   return <Dialog open={!!selection} onClose={close} fullWidth maxWidth="md">
     <DialogTitle sx={{ px: 2, py: 1.25, borderBottom: '1px solid', borderColor: 'divider' }}>
       <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1}>
@@ -466,7 +459,7 @@ function StaffKindDialog({ selection, people, onClose, absenceAvailable }: { abs
         <TableHead><TableRow><TableCell>Departamento</TableCell><TableCell align="right" sx={{ color: 'success.main' }}>Asistieron</TableCell><TableCell align="right" sx={{ color: 'error.main' }}>Faltaron</TableCell><TableCell align="right">Personal total</TableCell></TableRow></TableHead>
         <TableBody>{departments.map(department => {
           const rows = people.filter(person => departmentOf(person) === department);
-          const group = countPeople(rows);
+          const group = { ...countPeople(rows), present: rows.filter(stbPresent).length };
           const listed = rows.filter(visible).sort((a, b) => a.name.localeCompare(b.name, 'es'));
           const expanded = openDepartment === department;
           if (status !== 'all' && !listed.length) return null;
@@ -482,7 +475,7 @@ function StaffKindDialog({ selection, people, onClose, absenceAvailable }: { abs
                 <colgroup><col style={{ width: '40%' }} /><col style={{ width: '38%' }} /><col style={{ width: '22%' }} /></colgroup>
                 <TableHead><TableRow><TableCell sx={{ fontWeight: 800 }}>Nombre</TableCell><TableCell sx={{ fontWeight: 800 }}>Puesto</TableCell><TableCell sx={{ fontWeight: 800 }}>Estado</TableCell></TableRow></TableHead>
                 <TableBody>{listed.map(person => <TableRow key={person.id}>
-                  <TableCell sx={{ fontWeight: 700 }}>{person.name}<StaffJourneyButton person={person} /><Typography variant="caption" color="text.secondary" title={person.productionShift?.basis} sx={{ display: 'block' }}>{shiftLabel(person.shift)}{person.productionShift?.basis.startsWith('Última') ? ' · referencia histórica' : ''}</Typography></TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>{person.name}<StaffJourneyButton person={person} /></TableCell>
                   <TableCell>{person.job}{person.dailyActivities?.map((item, index) => <Typography key={index} variant="caption" sx={{ display: 'block', whiteSpace: 'normal' }}>{item.activity} · {item.line} · {item.start?.slice(0, 5) ?? '—'}–{item.end?.slice(0, 5) ?? '—'}{item.hours !== null ? ` (${item.hours.toFixed(2)} h)` : ''}</Typography>)}</TableCell>
                   <TableCell><Chip size="small" variant="outlined" title={person.reason} label={statusLabel(person)} color={person.status === 'present' ? 'success' : person.status === 'absent' ? 'error' : person.status === 'pending' || person.status === 'conflict' ? 'warning' : 'default'} sx={{ fontSize: 10 }} /></TableCell>
                 </TableRow>)}</TableBody>

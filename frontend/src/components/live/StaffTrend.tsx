@@ -124,7 +124,6 @@ export default function StaffTrend({ userId, includedWeekdays, onDay }: { userId
     { label: 'Ingresos a planilla', value: formatValue(current.hires), color: '#1e40af', delta: <Delta current={current.hires} previous={previous.hires} decimals={false} />, detail: `Obra ${current.hiresProduction} · Aux. ${current.hiresAuxiliary}` },
     { label: 'Retiros de planilla', value: formatValue(current.exits), color: '#9a3412', delta: <Delta current={current.exits} previous={previous.exits} decimals={false} />, detail: `Neto ${current.hires - current.exits >= 0 ? '+' : ''}${current.hires - current.exits}` },
     { label: 'Obra · asistieron por día', value: one(current.presentProduction), color: '#1e40af', delta: <Delta current={current.presentProduction} previous={previous.presentProduction} /> },
-    { label: 'Máquinas · asistieron por día', value: one(current.presentMachine), color: '#7c3aed', delta: <Delta current={current.presentMachine} previous={previous.presentMachine} /> },
     { label: 'Supervisores · asistieron por día', value: one(current.presentSupervisor), color: '#9a3412', delta: <Delta current={current.presentSupervisor} previous={previous.presentSupervisor} /> },
     { label: 'Auxiliar · asistieron por día', value: one(current.presentAuxiliary), color: '#166534', delta: <Delta current={current.presentAuxiliary} previous={previous.presentAuxiliary} /> },
   ] : [];

@@ -46,7 +46,6 @@ const limitations = [
   'Asistieron y sus desgloses cuentan exclusivamente personas con entrada biométrica I. Pesas y chequeos conservan su evidencia operativa y recorrido; no se suman a la asistencia confirmada. Los pagos positivos solo concilian.',
   'Sin evidencia queda pendiente; solo las faltas explícitas de Payroll cuentan como faltas. No se anticipa inasistencia del turno nocturno.',
   'El recorrido conserva cada chequeo del día por actividad, proceso, línea, hora inicial y final. La última ubicación registrada no implica permanencia actual.',
-  'TA es día y TB noche; sin chequeo de hoy se usa la última línea de los 30 días previos como referencia histórica, con identidad verificada.',
   'Las asignaciones e historial de sala son referencias; no equivalen a un chequeo del día.',
 ];
 const reportInfo = () => ({ name: 'Biométrico y recorrido de chequeos', dayStart: '00:00', cutoffVerified: false });

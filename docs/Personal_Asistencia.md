@@ -19,6 +19,21 @@ las marcas independientemente del estado final. Los pagos no prueban presencia.
 Sin evidencia queda pendiente en cualquier fecha; solo las faltas explícitas de Payroll
 cuentan como faltas. No se deducen faltas por no haber llegado todavía al turno nocturno.
 
+## Obra y Auxiliares (según STB)
+
+Las tarjetas por tipo de personal salen de STB, no del puesto de Payroll ni del biométrico:
+
+- **Auxiliares**: chequeados del día (DCP_PagoGrupalAsistencias) en cualquier proceso excepto
+  Decoración Anillos y Reempaque. Incluye Pelado, Clasificado, Descabezado, IQF, Empaque/Bodega,
+  Langosta, Calidad, Mantenimiento, Recepción, etc.
+- **Obra**: personas con pesa del día o chequeadas solo en Decoración Anillos / Reempaque.
+- **Supervisores**: por puesto de Payroll.
+- Sin chequeo ni pesa, el puesto de Payroll se usa solo para ubicar a la persona en el total;
+  la antigua categoría Máquinas (Clasificado + IQF) quedó dentro de Auxiliares.
+
+"Asistieron" en estas tarjetas = chequeo o pesa del día. El 26/11/2026 dio 258 auxiliares y
+640 de obra; 258 + 61 de Decoración/Reempaque = 319 chequeados.
+
 ## Recorrido por persona
 
 El encabezado DCP_PagoGrupalAsistencias identifica fecha y línea de producción;
@@ -75,6 +90,9 @@ Prueba de agrupación de interfaz desde la raíz del proyecto:
 `./backend/node_modules/.bin/tsx --test frontend/tests/staff-activities.test.ts`.
 
 ## Turnos
+
+> **Retirado de la interfaz (27/11/2026):** el filtro, la gráfica y las etiquetas de turno se quitaron
+> hasta definir bien cómo asignarlo. El backend todavía calcula la referencia descrita abajo.
 
 TA corresponde al turno A de día y TB al B de noche. Se usa la línea del chequeo
 del día o, como referencia histórica, la última línea reconocida de los 30 días

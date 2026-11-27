@@ -27,6 +27,8 @@ export interface StaffEmployee {
   productionShift?: ProductionShiftEvidence;
   biometricMarked: boolean; biometricEntry: boolean; biometricReview: boolean; hasPositivePayment: boolean;
   punchCount: number; hasCheck: boolean;
+  /** Asistencia según STB: chequeo de actividad o pesa del día. Es la base de Obra / Auxiliares. */
+  stbAttendance: boolean;
   actions: { code: string; label: string }[]; entry: string | null; exit: string | null;
   reportMark: 'A' | 'X' | null; firstPunch: string | null; lastPunch: string | null;
   sources: PayrollSource[]; hasAttendance: boolean; absenceRecorded: boolean;
@@ -43,6 +45,19 @@ export function staffKind(job: string): StaffKind {
   if (/CLASIFICADO|\bIQF|MAQUINISTA/.test(text)) return 'machine';
   if (/\bOBRA\b|DESTAJO|DECORACION|REEMPAQUE|OPERARIO/.test(text)) return 'production';
   return 'auxiliary';
+}
+/** Procesos/líneas de STB que son obra aunque se registren por chequeo (Decoración Anillos, Reempaque). */
+const OBRA_CHECK = (process: string, line: string) => /DECORACION ANILLOS/.test(normalize(process)) || /REEMPAQUE|DECORACION|PERFORACION/.test(normalize(line));
+/**
+ * Tipo de personal según STB: chequeado en cualquier otro proceso = auxiliar; pesa o chequeo de obra = obra.
+ * Sin evidencia en STB se usa el puesto de Payroll solo como referencia (Máquinas se integra a Auxiliares).
+ */
+export function stbStaffKind(job: string, checks: { process?: string; line?: string }[], weighed: boolean): StaffKind {
+  const byJob = staffKind(job);
+  if (byJob === 'supervisor') return 'supervisor';
+  if (checks.some(check => !OBRA_CHECK(check.process ?? '', check.line ?? ''))) return 'auxiliary';
+  if (weighed || checks.length) return 'production';
+  return byJob === 'machine' || byJob === 'unknown' ? 'auxiliary' : byJob;
 }
 export function payrollTime(value: string): string | null {
   const clean = value.trim();
@@ -71,7 +86,9 @@ export function buildStaffEmployees(rows: PayrollStaffRow[], day: string, _now =
   }
   return [...grouped].filter(([, values]) => values.some(row => row.source === 'payroll')).map(([id, values]): StaffEmployee => {
     const reference = values.find(row => row.source === 'payroll') ?? values[0];
-    const kind = staffKind(reference.job);
+    const checkRows = values.filter(row => row.source === 'activity' && payrollTime(row.entry) !== null);
+    const weighedToday = values.some(row => row.source === 'weighing');
+    const kind = stbStaffKind(reference.job, checkRows, weighedToday);
     const actions = new Map<string, { code: string; label: string }>();
     const states = new Set<StaffStatus>();
     const entries: string[] = [], exits: string[] = [];
@@ -128,7 +145,7 @@ export function buildStaffEmployees(rows: PayrollStaffRow[], day: string, _now =
       plantDepartment: 'Sin departamento asignado', plantDepartmentBasis: 'Sin ubicación de STB',
       paymentConcepts: [], firstPunch: clocks.map(row => payrollTime(row.firstPunch ?? '')).filter((v): v is string => !!v).sort()[0] ?? null,
       lastPunch: clocks.map(row => payrollTime(row.lastPunch ?? '')).filter((v): v is string => !!v).sort().slice(-1)[0] ?? null,
-      biometricMarked, biometricEntry, biometricReview, hasPositivePayment, hasCheck,
+      biometricMarked, biometricEntry, biometricReview, hasPositivePayment, hasCheck, stbAttendance: hasCheck || weighedToday,
       punchCount: clocks.reduce((sum,row) => sum + (row.punchCount ?? 0),0),
       reportMark: status === 'present' ? 'A' : status === 'absent' ? 'X' : null,
       entry: entries.sort()[0] ?? null, exit: exits.sort().slice(-1)[0] ?? null,
@@ -167,11 +184,11 @@ export function staffAreaRows(people: StaffEmployee[]) {
   return [...main, ...other].map(area => {
     const rows = people.filter(person => person.area === area);
     return { area, ...summarizeStaff(rows),
-      presentMachine: rows.filter(person => person.biometricEntry && person.kind === 'machine').length,
-      presentSupervisor: rows.filter(person => person.biometricEntry && person.kind === 'supervisor').length,
-      presentProduction: rows.filter(person => person.biometricEntry && person.kind === 'production').length,
-      presentAuxiliary: rows.filter(person => person.biometricEntry && person.kind === 'auxiliary').length,
-      presentUnknown: rows.filter(person => person.biometricEntry && person.kind === 'unknown').length,
+      presentMachine: rows.filter(person => person.stbAttendance && person.kind === 'machine').length,
+      presentSupervisor: rows.filter(person => person.stbAttendance && person.kind === 'supervisor').length,
+      presentProduction: rows.filter(person => person.stbAttendance && person.kind === 'production').length,
+      presentAuxiliary: rows.filter(person => person.stbAttendance && person.kind === 'auxiliary').length,
+      presentUnknown: rows.filter(person => person.stbAttendance && person.kind === 'unknown').length,
     };
   });
 }
@@ -186,7 +203,7 @@ export function buildStaffHistory(rows: PayrollStaffRow[], from: string, to: str
     const day = date.toISOString().slice(0, 10);
     const base = buildStaffEmployees(byDay.get(day) ?? [], day, now);
     const people = base;
-    const by = (kind: StaffKind, status: StaffStatus) => people.filter(person => person.kind === kind && (status === 'present' ? person.biometricEntry : person.status === status)).length;
+    const by = (kind: StaffKind, status: StaffStatus) => people.filter(person => person.kind === kind && (status === 'present' ? person.stbAttendance : person.status === status)).length;
     // Clasificación por puesto del padrón; asistencia por pesa o chequeo.
     const absenceDataAvailable = true;
     const summary = summarizeStaff(people);

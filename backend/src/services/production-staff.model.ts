@@ -59,6 +59,20 @@ export function stbStaffKind(job: string, checks: { process?: string; line?: str
   if (weighed || checks.length) return 'production';
   return byJob === 'machine' || byJob === 'unknown' ? 'auxiliary' : byJob;
 }
+/** Turno escrito en la línea o la actividad: "TA" = A, "TB" = B (como palabra suelta). */
+export function shiftToken(text: string | undefined): 'A' | 'B' | null {
+  const match = ` ${normalize(text ?? '')} `.match(/[^A-Z0-9]T([AB])[^A-Z0-9]/);
+  return match ? match[1] as 'A' | 'B' : null;
+}
+/** Turno del día según STB: el del último chequeo cuya línea o actividad dice TA/TB. */
+export function stbShift(checks: { entry: string; line?: string; activity?: string }[]): 'A' | 'B' | null {
+  const ordered = [...checks].sort((a, b) => a.entry.localeCompare(b.entry));
+  for (let index = ordered.length - 1; index >= 0; index -= 1) {
+    const found = shiftToken(ordered[index].line) ?? shiftToken(ordered[index].activity);
+    if (found) return found;
+  }
+  return null;
+}
 export function payrollTime(value: string): string | null {
   const clean = value.trim();
   const match = clean.match(/^(\d{2}):?(\d{2})(?::?(\d{2}))?$/);
@@ -96,7 +110,8 @@ export function buildStaffEmployees(rows: PayrollStaffRow[], day: string, _now =
     const clocks = values.filter(row => row.source === 'clock');
     const biometricMarked = clocks.some(row => (row.punchCount ?? 0) > 0);
     const biometricEntry = clocks.some(row => payrollTime(row.entry) !== null);
-    const biometricReview = biometricMarked && !biometricEntry;
+    // Marca sin entrada: solo cuando STB no confirma presencia (sin chequeo ni pesa); si no, es una marca mal tipificada.
+    const biometricReview = biometricMarked && !biometricEntry && !checkRows.length && !weighedToday;
     const hasPositivePayment = values.some(row => row.source === 'payment');
     const hasCheck = values.some(row => row.source === 'activity' && payrollTime(row.entry) !== null);
     for (const row of values) {
@@ -126,7 +141,10 @@ export function buildStaffEmployees(rows: PayrollStaffRow[], day: string, _now =
     const identity = (name: string) => normalize(name).replace(/[^A-Z0-9 ]/g, ' ').split(/\s+/).filter(Boolean).sort().join(' ');
     const identityMismatch = values.some(row => row.name && reference.name && identity(row.name) !== identity(reference.name));
     if (identityMismatch) status = 'conflict';
-    const productionShift = reference.productionShift ?? values.find(row => row.productionShift)?.productionShift;
+    // TB = Turno B; TA o sin TA/TB en la línea/actividad (con chequeo o pesa del día) = Turno A.
+    const explicitShift = stbShift(checkRows);
+    const shiftOfDay = explicitShift ?? (checkRows.length || weighedToday ? 'A' : null);
+    const productionShift = shiftOfDay ? { shift: shiftOfDay, basis: explicitShift ? 'TA/TB de la línea o actividad del chequeo del día' : 'Línea/actividad sin TA/TB: se toma Turno A', active: true, entranceDeadline: null, nightEnd: null } : undefined;
     // Sin programación de turno, ausencia de evidencia no crea una falta.
     const derivedAbsence = false;
     if (status === 'pending' && biometricReview) status = 'conflict';

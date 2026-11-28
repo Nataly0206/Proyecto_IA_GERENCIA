@@ -2,7 +2,7 @@ import { Fragment, useState } from 'react';
 import { isAxiosError } from 'axios';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Alert, Box, Button, Checkbox, Chip, Collapse, Dialog, DialogContent, DialogTitle, FormControlLabel, IconButton, LinearProgress, MenuItem, Paper, Popover, Skeleton,
+  Alert, Box, Button, ButtonBase, Checkbox, Chip, Collapse, Dialog, DialogContent, DialogTitle, FormControlLabel, IconButton, LinearProgress, MenuItem, Paper, Popover, Skeleton,
   Stack, Table, TableBody, TableCell, TableContainer, TableFooter, TableHead, TableRow,
   TextField, ToggleButton, ToggleButtonGroup, Typography,
 } from '@mui/material';
@@ -12,8 +12,6 @@ import CloseIcon from '@mui/icons-material/Close';
 import { apiClient } from '../../api/client';
 import type { StaffEmployee, StaffHistoryResponse, StaffKind, StaffResponse, StaffStatus } from '../../types/productionStaff';
 import { formatPeriodo, formatValue } from '../../utils/format';
-import StaffDashboardOverview from './StaffDashboardOverview';
-import StaffActivityDistribution from './StaffActivityDistribution';
 import StaffJourneyButton from './StaffJourneyButton';
 import StaffTrend, { STAFF_TREND_QUERY_KEY } from './StaffTrend';
 
@@ -22,6 +20,11 @@ const weekdayLabels = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Vi
 const NO_ACTIVITY = 'Sin actividad registrada';
 /** Debe coincidir con ACTIVITY_PROCESS_SUFFIX del backend: grupos de personas sin actividad del catálogo. */
 const ACTIVITY_PROCESS_SUFFIX = ' · sin actividad específica';
+const AUX_PREFIX = 'AUX::';
+const NO_LINE = 'Sin línea registrada';
+/** Clave de agrupación por actividad: línea de producción + actividad del último chequeo (o proceso de la pesa). */
+const activityKey = (person: StaffEmployee) => JSON.stringify([person.activityAssignment?.line?.replace(/\s+/g, ' ').trim() || NO_LINE, person.activity || NO_ACTIVITY]);
+const activityParts = (key: string) => { try { const [line, activity] = JSON.parse(key) as [string, string]; return { line, activity }; } catch { return { line: NO_LINE, activity: key }; } };
 const activityRank = (group: string) => group === NO_ACTIVITY ? 2 : group.endsWith(ACTIVITY_PROCESS_SUFFIX) ? 1 : 0;
 type GroupBy = 'area' | 'activity' | 'department';
 /** Lista oficial de departamentos de planta; debe coincidir con PLANT_DEPARTMENTS del backend (production-staff-department.ts). */
@@ -87,6 +90,7 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
   const [division, setDivision] = useState('');
     const [job, setJob] = useState('');
   const [kind, setKind] = useState<StaffKind | ''>('');
+  const [shift, setShift] = useState('');
   const [evidenceFilter, setEvidenceFilter] = useState('');
   const [search, setSearch] = useState('');
   const [directoryOpen, setDirectoryOpen] = useState(false);
@@ -146,30 +150,35 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
     } catch (error) { setRefreshError(error); }
     finally { setRefreshing(false); }
   };
-  const clearFilters = () => { setDivision(''); setJob(''); setKind(''); setEvidenceFilter(''); setSearch(''); };
-  const people = (query.data?.employees ?? []).map(person => person.kind === 'unknown' || person.kind === 'machine' ? { ...person, kind: 'auxiliary' as const } : person).filter(person => (!division || person.division === division) && (!job || person.job === job) && (!kind || person.kind === kind));
+  const clearFilters = () => { setDivision(''); setShift(''); setJob(''); setKind(''); setEvidenceFilter(''); setSearch(''); };
+  const people = (query.data?.employees ?? []).map(person => person.kind === 'unknown' || person.kind === 'machine' ? { ...person, kind: 'auxiliary' as const } : person).filter(person => (!division || person.division === division) && (!shift || person.shift === shift) && (!job || person.job === job) && (!kind || person.kind === kind));
   const evidenceMatches = (person: StaffEmployee) => !evidenceFilter || (evidenceFilter === 'marked' ? person.biometricMarked : evidenceFilter === 'entry' ? person.biometricEntry : evidenceFilter === 'review' ? person.biometricReview : evidenceFilter === 'unpaid' ? person.biometricMarked && !person.hasPositivePayment : person.hasCheck);
   const directoryPeople = people.filter(evidenceMatches).filter(person => !search || `${person.name} ${person.code} ${person.id}`.toLocaleLowerCase('es').includes(search.toLocaleLowerCase('es')));
   const absenceAvailable = query.data?.absenceDataAvailable ?? query.data?.source !== 'STB_data';
   const counted = countPeople(people);
   const counts = { ...counted, absenceRate: absenceAvailable ? counted.absenceRate : null };
   const mainAreas = [...[1, 2, 3, 4].map(number => `Pelado · Sala ${number}`), 'Descabezado', 'Clasificado'];
+  // Por área, los auxiliares no se reparten en las salas: van contabilizados en su propio bloque al final.
+  // Por actividad, la clave combina línea de producción y actividad (ver activityKey).
   const groupOf = (person: StaffEmployee) => groupBy === 'area'
-    ? person.area
+    ? person.kind === 'auxiliary' ? `${AUX_PREFIX}${person.area}` : person.area
     : groupBy === 'department'
       ? person.plantDepartment ?? NO_DEPARTMENT
-      : person.activity ?? NO_ACTIVITY;
+      : activityKey(person);
   const presentIn = (group: string) => people.filter(person => groupOf(person) === group && person.biometricEntry).length;
+  const areaKeys = [...new Set(people.map(groupOf))];
   const groups = groupBy === 'area'
-    ? [...mainAreas, ...[...new Set(people.map(person => person.area))].filter(value => !mainAreas.includes(value)).sort((a, b) => a.localeCompare(b, 'es', { numeric: true }))]
+    ? [...mainAreas, ...areaKeys.filter(value => !mainAreas.includes(value) && !value.startsWith(AUX_PREFIX)).sort((a, b) => a.localeCompare(b, 'es', { numeric: true })),
+      ...areaKeys.filter(value => value.startsWith(AUX_PREFIX)).sort((a, b) => presentIn(b) - presentIn(a) || a.localeCompare(b, 'es', { numeric: true }))]
     : groupBy === 'department'
       // La lista completa aunque tenga cero personas; lo que quede fuera de ella va al final.
       ? [...PLANT_DEPARTMENT_SECTIONS.flatMap(section => section.items), ...[...new Set(people.map(groupOf))].filter(value => !PLANT_DEPARTMENT_SECTIONS.some(section => section.items.includes(value))).sort((a, b) => Number(a === NO_DEPARTMENT) - Number(b === NO_DEPARTMENT) || a.localeCompare(b, 'es'))]
     // Por actividad: primero las del catálogo, luego los procesos sin actividad específica y al final quienes no registran nada;
     // dentro de cada bloque, de mayor a menor asistencia.
-    : [...new Set(people.map(groupOf))].sort((a, b) => activityRank(a) - activityRank(b) || presentIn(b) - presentIn(a) || a.localeCompare(b, 'es', { numeric: true }));
+    : [...new Set(people.map(groupOf))].sort((a, b) => activityRank(activityParts(a).activity) - activityRank(activityParts(b).activity) || activityParts(a).line.localeCompare(activityParts(b).line, 'es', { numeric: true }) || presentIn(b) - presentIn(a) || a.localeCompare(b, 'es', { numeric: true }));
+  const groupLabel = (group: string) => groupBy === 'area' ? group.replace(AUX_PREFIX, 'Auxiliares · ') : groupBy === 'activity' ? (({ line, activity }) => `${line} · ${activity}`)(activityParts(group)) : group;
   const emptyGroup = groupBy === 'area' ? 'Sin sala/área asignada' : groupBy === 'department' ? NO_DEPARTMENT : NO_ACTIVITY;
-  const activeFilters = [division, job, kind].filter(Boolean).length;
+  const activeFilters = [division, shift, job, kind].filter(Boolean).length;
   const cell = (rows: StaffEmployee[], area: string, status?: StaffStatus, category?: StaffKind) => {
     const unavailable = (status === 'absent' && !absenceAvailable) || !query.data?.employees.length
       || (query.data.locationAvailable === false && !!area && area !== emptyGroup);
@@ -195,6 +204,17 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
         <Button size="small" onClick={() => { setDate(today); clearFilters(); }}>Hoy</Button></>}
         {tab !== 'day' && <WeekdaySelector includedWeekdays={includedWeekdays} onWeekdaysChange={setIncludedWeekdays} />}
         {tab === 'day' && <Button size="small" startIcon={<FilterAltOutlinedIcon sx={{ fontSize: '14px !important' }} />} onClick={() => setFiltersOpen(value => !value)} aria-expanded={filtersOpen} aria-controls="staff-filters">Filtros{activeFilters ? ` (${activeFilters})` : ''}</Button>}
+        {tab === 'day' && (() => {
+          // Turno = TA/TB escrito en la línea o actividad del chequeo del día (sin TA/TB queda "Sin turno").
+          const base = (query.data?.employees ?? []).filter(person => (!division || person.division === division) && (!job || person.job === job));
+          const count = (value: string) => base.filter(person => person.shift === value && stbPresent(person)).length;
+          return <ToggleButtonGroup size="small" exclusive value={shift} onChange={(_, value) => { if (value !== null) { setShift(value); setStaffGroupSelection(null); setKindSelection(null); } }} aria-label="Separar asistencia por turno">
+            <ToggleButton value="">Todos</ToggleButton>
+            <ToggleButton value="A">Turno A ({formatValue(count('A'))})</ToggleButton>
+            <ToggleButton value="B">Turno B ({formatValue(count('B'))})</ToggleButton>
+            <ToggleButton value="Sin turno registrado">Sin turno ({formatValue(count('Sin turno registrado'))})</ToggleButton>
+          </ToggleButtonGroup>;
+        })()}
         {tab === 'day' && <Stack direction="row" gap={1.25} alignItems="center">
           <Typography variant="caption" fontWeight={700} sx={{ whiteSpace: 'nowrap', fontSize: 11 }}>Agrupar por</Typography>
           <ToggleButtonGroup exclusive size="small" value={groupBy} onChange={(_, value) => { if (value) { changeGroupBy(value); setStaffGroupSelection(null); } }} aria-label="Agrupar personal por">
@@ -214,87 +234,72 @@ export default function ProductionStaffPanel({ userId }: { userId: string }) {
     {tab !== 'trend' && (active.isError || !!refreshError) && <Alert severity="error" action={<Button color="inherit" size="small" onClick={() => void refresh()}>Reintentar</Button>}>{message(refreshError || active.error)}{active.data ? ' Se conserva la última consulta; revisa su hora de actualización.' : ''}</Alert>}
     {tab !== 'trend' && validDate && active.isLoading && <Skeleton variant="rounded" height={200} />}
     {tab === 'day' && query.data && <>
-      <StaffDashboardOverview counts={counts} people={people} groupOf={groupOf} groupLabel={groupBy === 'area' ? 'área' : groupBy === 'department' ? 'departamento' : 'actividad'} locationAvailable={query.data.locationAvailable} absenceAvailable={absenceAvailable} dateLabel={formatPeriodo(date)} currentDay={date === today}
-        onEvidence={key => { setEvidenceFilter(key); setSearch(''); setDirectoryOpen(true); }} onGroup={(label, rows) => setStaffGroupSelection({ label, rows })} />
-      {date === today && <Alert severity="info" sx={{ py: 0 }}>Sin evidencia queda pendiente. Una marca de salida sin entrada hoy requiere revisión del turno nocturno; no se convierte en falta.</Alert>}
       {!query.data.employees.length && <Alert severity="info">Sin personal registrado en las fuentes para esta fecha.</Alert>}
-      {!!query.data.absenceReconciliation?.recorded && <Alert severity={query.data.absenceReconciliation.conflicts ? 'warning' : 'info'} sx={{ py: 0 }}>
-        Novedades de inasistencia registradas: {query.data.absenceReconciliation.recorded}.
-        {query.data.absenceReconciliation.actionReference !== null && ` Referencia de novedades 013 en Payroll: ${query.data.absenceReconciliation.actionReference}.`}
-        {!!query.data.absenceReconciliation.conflicts && ` ${query.data.absenceReconciliation.conflicts} tienen registros contradictorios y aparecen en «Revisar».`}
-      </Alert>}
       {(() => {
-        // Composición de quienes asistieron según STB (chequeo o pesa): las tarjetas suman 100%.
-        const presentOf = (category: StaffKind) => members(category).filter(stbPresent).length;
-        const presentTotal = presentOf('production') + presentOf('auxiliary') + presentOf('supervisor');
-        const share = (value: number) => presentTotal ? `${formatValue(value / presentTotal * 100, 'decimal')}%` : '—';
-        return <>
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))' }, gap: { xs: 0.75, sm: 1 } }}>
-            {([
-              { kind: 'production', label: 'En Obra', short: 'Obra', color: '#1e40af', background: '#eff6ff' },
-              { kind: 'auxiliary', label: 'Auxiliares', short: 'Auxiliar', color: '#166534', background: '#f0fdf4' },
-              { kind: 'supervisor', label: 'Supervisores', short: 'Supervisores', color: '#9a3412', background: '#fff7ed' },
-            ] as const).map(category => {
-              const group = { ...countPeople(members(category.kind)), present: presentOf(category.kind) };
-              const open = () => setKindSelection({ kind: category.kind, label: category.label, color: category.color });
-              return <Paper key={category.kind} variant="outlined" role="button" tabIndex={0} aria-label={`${category.label}: ver personas por departamento`}
-                onClick={open} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } }}
-                sx={{ p: { xs: 1.25, sm: 1.75 }, borderRadius: 3, bgcolor: 'background.paper', borderColor: '#e2e8f0', borderTop: `3px solid ${category.color}`, minWidth: 0, cursor: 'pointer', transition: 'box-shadow 150ms, border-color 150ms', '&:hover': { borderColor: category.color, boxShadow: '0 2px 8px #0f172a14' }, '&:focus-visible': { outline: `2px solid ${category.color}`, outlineOffset: 2 } }}>
-                <Typography fontWeight={800} color={category.color} sx={{ fontSize: { xs: 10.5, sm: 12 }, lineHeight: 1.3 }}><Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>{category.label}</Box><Box component="span" sx={{ display: { xs: 'inline', sm: 'none' } }}>{category.short}</Box></Typography>
-                <Stack direction="row" alignItems="baseline" gap={0.75} useFlexGap flexWrap="wrap">
-                  <Typography fontWeight={800} color={category.color} sx={{ fontSize: { xs: 25, sm: 30 }, lineHeight: 1.3, fontVariantNumeric: 'tabular-nums' }}>{counts.total ? formatValue(group.present) : '—'}</Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: 9.5, sm: 11 } }}>asistieron</Typography>
-                </Stack>
-                {category.kind === 'supervisor' && group.total === 0 && <Typography variant="caption" color="text.secondary">Sin supervisores para la fecha y filtros seleccionados.</Typography>}
-                <Stack direction="row" columnGap={1} useFlexGap flexWrap="wrap" sx={{ mt: 0.25 }}>
-                  <Typography variant="caption" color="error.main" sx={{ fontSize: { xs: 9.5, sm: 11 } }} title={`${group.derivedAbsent} sin chequeo/pesa · ${group.confirmedAbsent} registradas`}>Faltaron: {absenceAvailable && counts.total ? formatValue(group.absent) : 'No disponible'}</Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: 9.5, sm: 11 } }}>Total: {counts.total ? formatValue(group.total) : '—'}</Typography>
-                </Stack>
-                {(group.pending + group.excused + group.off + group.noProduction + group.conflict > 0) && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
-                  {[group.pending ? `Pendientes: ${group.pending}` : null, group.excused ? `Permiso / incapacidad: ${group.excused}` : null, group.off ? `Descanso / vacaciones: ${group.off}` : null, group.noProduction ? `Sin producción: ${group.noProduction}` : null, group.conflict ? `Revisar: ${group.conflict}` : null].filter(Boolean).join(' · ')}
-                </Typography>}
-                <Box sx={{ mt: { xs: 0.5, sm: 0.75 }, pt: { xs: 0.5, sm: 0.75 }, borderTop: '1px solid', borderColor: `${category.color}26` }}>
-                  <Stack direction="row" alignItems="baseline" columnGap={0.75} useFlexGap flexWrap="wrap">
-                    <Typography fontWeight={800} color={category.color} sx={{ fontSize: { xs: 13, sm: 15 }, fontVariantNumeric: 'tabular-nums' }}>{share(group.present)}</Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: 9.5, sm: 11 }, lineHeight: 1.2 }}><Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>de quienes asistieron</Box><Box component="span" sx={{ display: { xs: 'inline', sm: 'none' } }}>del total</Box></Typography>
-                  </Stack>
-                  <Box role="img" aria-label={`${share(group.present)} de quienes asistieron`} sx={{ height: 6, borderRadius: 3, bgcolor: `${category.color}1f`, overflow: 'hidden', mt: 0.5 }}>
-                    <Box sx={{ height: '100%', width: presentTotal ? `${group.present / presentTotal * 100}%` : 0, bgcolor: category.color, borderRadius: 3 }} />
-                  </Box>
-                </Box>
-              </Paper>;
-            })}
+        const kindStats = (category: StaffKind) => { const rows = members(category); return { rows, present: rows.filter(stbPresent).length, total: rows.length, absent: rows.filter(person => person.status === 'absent').length }; };
+        const kinds = ([
+          { kind: 'production', label: 'Obra', color: '#1e40af' },
+          { kind: 'auxiliary', label: 'Auxiliares', color: '#166534' },
+          { kind: 'supervisor', label: 'Supervisores', color: '#9a3412' },
+        ] as const).map(item => ({ ...item, ...kindStats(item.kind) }));
+        const presentTotal = kinds.reduce((sum, item) => sum + item.present, 0);
+        const evidence = (key: string) => { setEvidenceFilter(key); setSearch(''); setDirectoryOpen(true); };
+        const tiles = [
+          { label: 'Asistieron · A', value: formatValue(counts.present), detail: 'Entrada biométrica', color: '#0f766e', onClick: () => evidence('entry') },
+          { label: 'Según biométrico', value: formatValue(counts.biometricMarked), detail: 'Alguna marca del día', color: '#2563eb', onClick: () => evidence('marked') },
+          { label: 'Marca sin entrada', value: formatValue(counts.biometricReview), detail: 'Revisar', color: '#b45309', onClick: () => evidence('review') },
+          { label: 'Chequeados', value: formatValue(counts.checkedPeople), detail: 'STB · personas únicas', color: '#6366f1', onClick: () => evidence('checks') },
+          { label: 'Marca sin pesado', value: formatValue(counts.biometricWithoutPayment), detail: 'Sin pago positivo', color: '#0284c7', onClick: () => evidence('unpaid') },
+          { label: 'Faltaron · X', value: absenceAvailable ? formatValue(counts.absent) : '—', detail: 'Registradas en Payroll', color: '#dc2626', onClick: () => setStaffGroupSelection({ label: 'Faltas registradas', rows: people.filter(person => person.status === 'absent') }) },
+          { label: 'Personal total', value: formatValue(counts.total), detail: 'Padrón temporal', color: '#475569', onClick: () => evidence('') },
+        ];
+        const tileSx = { textAlign: 'left', display: 'block', px: 1.25, py: 0.9, borderRadius: 2, minWidth: 0, '&:hover': { bgcolor: '#f8fafc' } } as const;
+        return <Paper variant="outlined" sx={{ borderRadius: 2.5, borderColor: '#e2e8f0', p: 0.5 }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(4, minmax(0, 1fr))', lg: 'repeat(7, minmax(0, 1fr))' } }}>
+            {tiles.map(tile => <ButtonBase key={tile.label} onClick={tile.onClick} sx={tileSx}>
+              <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block', fontSize: 11 }}>{tile.label}</Typography>
+              <Typography fontWeight={800} color={tile.color} sx={{ fontSize: 22, lineHeight: 1.2, fontVariantNumeric: 'tabular-nums' }}>{tile.value}</Typography>
+              <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block', fontSize: 10 }}>{tile.detail}</Typography>
+            </ButtonBase>)}
           </Box>
-        </>;
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(0, 1fr))' }, borderTop: '1px solid #e2e8f0', mt: 0.5, pt: 0.5 }}>
+            {kinds.map(item => <ButtonBase key={item.kind} onClick={() => setKindSelection({ kind: item.kind, label: item.label, color: item.color })} sx={tileSx}>
+              <Stack direction="row" alignItems="baseline" gap={0.75} useFlexGap flexWrap="wrap">
+                <Typography fontWeight={800} color={item.color} sx={{ fontSize: 12 }}>{item.label}</Typography>
+                <Typography fontWeight={800} color={item.color} sx={{ fontSize: 22, lineHeight: 1.2, fontVariantNumeric: 'tabular-nums' }}>{counts.total ? formatValue(item.present) : '—'}</Typography>
+                <Typography variant="caption" color="text.secondary">asistieron de {formatValue(item.total)} · Faltaron: {absenceAvailable ? formatValue(item.absent) : '—'} · {presentTotal ? `${formatValue(item.present / presentTotal * 100, 'decimal')}%` : '—'}</Typography>
+              </Stack>
+              <Box sx={{ height: 4, borderRadius: 2, bgcolor: `${item.color}1f`, overflow: 'hidden', mt: 0.5 }}><Box sx={{ height: '100%', width: presentTotal ? `${item.present / presentTotal * 100}%` : 0, bgcolor: item.color }} /></Box>
+            </ButtonBase>)}
+          </Box>
+        </Paper>;
       })()}
-      <Paper variant="outlined" sx={{ borderRadius: 3, borderColor: '#e2e8f0', overflow: 'hidden' }}>
-        <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1} sx={{ px: 1.75, py: 1.5 }}><Stack direction="row" alignItems="center" gap={1} useFlexGap flexWrap="wrap"><Typography fontWeight={800} fontSize={14}>{groupBy === 'area' ? 'Personal por sala y área' : groupBy === 'department' ? 'Personal por departamento' : 'Personal por actividad'}</Typography>
-</Stack><Stack direction="row" gap={0.5}><Chip size="small" label="A · Asistencia" color="success" variant="outlined" sx={{ fontSize: 10, height: 22 }} /><Chip size="small" label="X · Falta" color="error" variant="outlined" sx={{ fontSize: 10, height: 22 }} /></Stack></Stack>
-        <TableContainer sx={{ maxHeight: '70vh' }}><Table size="small" stickyHeader aria-label={groupBy === 'area' ? 'Asistencia por sala y área' : groupBy === 'department' ? 'Asistencia por departamento' : 'Asistencia por actividad'} sx={{ ...tableSx, tableLayout: 'fixed', width: groupBy === 'area' ? 885 : groupBy === 'department' ? 1155 : 945, minWidth: '100%' }}>
-          <colgroup>{[groupBy === 'area' ? 120 : groupBy === 'department' ? 210 : 180, 75, 75, 90, 90, ...(groupBy === 'department' ? [90, 90] : []), 75, 90, 90, 90, 90].map((width, index) => <col key={index} style={{ width }} />)}</colgroup>
-          <TableHead><TableRow><TableCell>{groupBy === 'area' ? 'Sala / área' : groupBy === 'department' ? 'Departamento' : 'Actividad'}</TableCell><TableCell align="right" sx={{ color: 'success.main' }}>A · Asistieron</TableCell><TableCell align="right" sx={{ color: 'error.main' }}>X · Faltaron</TableCell><TableCell align="right">Obra presentes</TableCell><TableCell align="right">Auxiliares presentes</TableCell>{groupBy === 'department' && <><TableCell align="right">Auxiliares Requeridos</TableCell><TableCell align="right">Diferencia</TableCell></>}<TableCell align="right">Personal total</TableCell><TableCell align="right">Supervisores presentes</TableCell><TableCell align="right">Sin registro</TableCell><TableCell align="right">Revisar</TableCell></TableRow></TableHead>
-          <TableBody>{groups.map(group => {
+      <Paper variant="outlined" sx={{ borderRadius: 2.5, borderColor: '#e2e8f0', overflow: 'hidden' }}>
+        <TableContainer sx={{ maxHeight: '75vh' }}><Table size="small" stickyHeader aria-label={groupBy === 'area' ? 'Asistencia por sala y área' : groupBy === 'department' ? 'Asistencia por departamento' : 'Asistencia por actividad'} sx={{ ...tableSx, tableLayout: 'fixed', width: groupBy === 'area' ? 885 : groupBy === 'department' ? 1155 : 1085, minWidth: '100%' }}>
+          <colgroup>{[...(groupBy === 'area' ? [170] : groupBy === 'department' ? [210] : [190, 190]), 75, 75, 90, 90, ...(groupBy === 'department' ? [90, 90] : []), 75, 90, 90, 90].map((width, index) => <col key={index} style={{ width }} />)}</colgroup>
+          <TableHead><TableRow>{groupBy === 'activity' ? <><TableCell>Línea de producción</TableCell><TableCell>Actividad</TableCell></> : <TableCell>{groupBy === 'area' ? 'Sala / área' : 'Departamento'}</TableCell>}<TableCell align="right" sx={{ color: 'success.main' }}>A · Asistieron</TableCell><TableCell align="right" sx={{ color: 'error.main' }}>X · Faltaron</TableCell><TableCell align="right">Obra presentes</TableCell><TableCell align="right">Auxiliares presentes</TableCell>{groupBy === 'department' && <><TableCell align="right">Auxiliares Requeridos</TableCell><TableCell align="right">Diferencia</TableCell></>}<TableCell align="right">Personal total</TableCell><TableCell align="right">Supervisores presentes</TableCell><TableCell align="right">Sin registro</TableCell><TableCell align="right">Revisar</TableCell></TableRow></TableHead>
+          <TableBody>{groups.map((group, index) => {
             const rows = people.filter(person => groupOf(person) === group);
-            const mixed = groupBy === 'activity' ? rows.filter(person => person.otherActivities?.length).length : 0;
-            const section = groupBy === 'department' ? PLANT_DEPARTMENT_SECTIONS.find(item => item.items[0] === group) : undefined;
-            const sectionRows = section ? people.filter(person => section.items.includes(groupOf(person))) : [];
-            const sectioned = groupBy === 'department' && PLANT_DEPARTMENT_SECTIONS.some(item => item.items.includes(group));
+            const auxSectionStart = groupBy === 'area' && group.startsWith(AUX_PREFIX) && !groups[index - 1]?.startsWith(AUX_PREFIX);
+            const deptSection = groupBy === 'department' ? PLANT_DEPARTMENT_SECTIONS.find(item => item.items[0] === group) : undefined;
+            const section = auxSectionStart ? { title: 'Auxiliares (contabilizados aparte, no por sala)', rows: people.filter(person => person.kind === 'auxiliary') }
+              : deptSection ? { title: `${deptSection.code}. ${deptSection.label}`, rows: people.filter(person => deptSection.items.includes(groupOf(person))) } : undefined;
+            const indented = (groupBy === 'department' && PLANT_DEPARTMENT_SECTIONS.some(item => item.items.includes(group))) || (groupBy === 'area' && group.startsWith(AUX_PREFIX));
+            const name = (label: string, bold: boolean) => <Button size="small" onClick={() => setStaffGroupSelection({ label: groupLabel(group), rows })} sx={{ p: 0, minWidth: 0, justifyContent: 'flex-start', textAlign: 'left', textTransform: 'none', fontSize: 'inherit', fontWeight: bold ? 800 : 600, lineHeight: 1.35 }}>{label}</Button>;
+            const { line, activity } = groupBy === 'activity' ? activityParts(group) : { line: '', activity: '' };
             return <Fragment key={group}>
-              {section && <TableRow sx={{ '& td': { bgcolor: '#eef2f7 !important', fontWeight: 800 } }}><TableCell><Button size="small" onClick={() => setStaffGroupSelection({ label: `${section.code}. ${section.label}`, rows: sectionRows })} sx={{ p: 0, minWidth: 0, justifyContent: 'flex-start', textAlign: 'left', textTransform: 'none', fontSize: 'inherit', fontWeight: 800, lineHeight: 1.35, color: 'text.primary' }}>{section.code}. {section.label}</Button></TableCell>{bodyCells(sectionRows, section.label)}</TableRow>}
-              <TableRow><TableCell sx={sectioned ? { pl: { xs: 2, sm: 3 } } : undefined}><Button size="small" onClick={() => setStaffGroupSelection({ label: group, rows })} sx={{ p: 0, minWidth: 0, justifyContent: 'flex-start', textAlign: 'left', textTransform: 'none', fontSize: 'inherit', fontWeight: sectioned ? 600 : 800, lineHeight: 1.35 }}>{group}</Button>{rows.some(person => person.wildcard) && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: 10 }}>{rows.filter(person => person.wildcard).length} comodines incluidos</Typography>}{!!mixed && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: 10 }}>{mixed} también en otra actividad</Typography>}</TableCell>{bodyCells(rows, group)}</TableRow>
+              {section && <TableRow sx={{ '& td': { bgcolor: '#eef2f7 !important', fontWeight: 800 } }}><TableCell colSpan={groupBy === 'activity' ? 2 : 1}><Button size="small" onClick={() => setStaffGroupSelection({ label: section.title, rows: section.rows })} sx={{ p: 0, minWidth: 0, justifyContent: 'flex-start', textAlign: 'left', textTransform: 'none', fontSize: 'inherit', fontWeight: 800, lineHeight: 1.35, color: 'text.primary' }}>{section.title}</Button></TableCell>{bodyCells(section.rows, section.title)}</TableRow>}
+              <TableRow>
+                {groupBy === 'activity'
+                  ? <><TableCell>{name(line, true)}</TableCell><TableCell>{name(activity, false)}</TableCell></>
+                  : <TableCell sx={indented ? { pl: { xs: 2, sm: 3 } } : undefined}>{name(group.replace(AUX_PREFIX, ''), !indented)}{rows.some(person => person.wildcard) && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: 10 }}>{rows.filter(person => person.wildcard).length} comodines incluidos</Typography>}</TableCell>}
+                {bodyCells(rows, group)}
+              </TableRow>
             </Fragment>;
           })}</TableBody>
-          <TableFooter><TableRow><TableCell>Total</TableCell>{bodyCells(people, '')}</TableRow></TableFooter>
+          <TableFooter><TableRow><TableCell colSpan={groupBy === 'activity' ? 2 : 1}>Total</TableCell>{bodyCells(people, '')}</TableRow></TableFooter>
         </Table></TableContainer>
       </Paper>
-      <StaffActivityDistribution people={people} available={query.data.locationAvailable} onSelect={(label, rows) => setStaffGroupSelection({ label, rows })} />
-      {(counts.pending > 0 || counts.conflict > 0 || counts.excused > 0 || counts.off > 0 || counts.noProduction > 0) && <Stack direction="row" gap={0.5} useFlexGap flexWrap="wrap">
-        {!!counts.excused && <Chip size="small" label={`Permiso / incapacidad: ${counts.excused}`} variant="outlined" />}
-        {!!counts.off && <Chip size="small" label={`Descanso / vacaciones: ${counts.off}`} variant="outlined" />}
-        {!!counts.noProduction && <Chip size="small" label={`Sin producción: ${counts.noProduction}`} variant="outlined" />}
-        {!!counts.pending && <Chip size="small" label={`Sin registro: ${counts.pending}`} color="warning" variant="outlined" />}
-        {!!counts.conflict && <Chip size="small" label={`Por revisar: ${counts.conflict}`} color="warning" variant="outlined" />}
-      </Stack>}
     </>}
     {tab === 'trend' && <StaffTrend userId={userId} includedWeekdays={includedWeekdays} onDay={day => { setDate(day); setTab('day'); clearFilters(); }} />}
     {tab === 'history' && history.data && <StaffHistory data={history.data} includedWeekdays={includedWeekdays} onDay={day => { setDate(day); setTab('day'); clearFilters(); }} />}

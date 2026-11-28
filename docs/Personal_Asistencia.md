@@ -7,7 +7,7 @@ de ingreso/retiro. Cada empleado cuenta una vez por fecha y conserva todas sus f
 | --- | --- |
 | Con marca biométrica | CHECKINOUT y USERINFO del servidor vinculado configurado; cualquier marca del día calendario. BADGENUMBER se enlaza con RH_EMPLEADOS.ID_EMPLEADO, no USERID. |
 | Con entrada biométrica | Al menos una marca CHECKTYPE=I. |
-| Marca sin entrada | Tiene marcas pero ninguna I; se muestra para revisión por posible salida del turno nocturno anterior. |
+| Marca sin entrada | Tiene marcas pero ninguna I **y no tiene chequeo ni pesa en STB** ese día; se muestra para revisión por posible salida del turno nocturno anterior. Si STB confirma presencia, la marca se considera mal tipificada y no entra aquí. |
 | Con marca, sin pesado positivo | Tiene marca y no existe PAGO>0 en V_PL_PAGOS_COLECTORES de esa fecha. No se consultan importes para mostrar ni para confirmar presencia. |
 | Con chequeo de actividad | Al menos un detalle de DCP_PagoGrupalAsistencias iniciado, con HoraDesde. Es independiente del biométrico y del pago. |
 
@@ -91,8 +91,10 @@ Prueba de agrupación de interfaz desde la raíz del proyecto:
 
 ## Turnos
 
-> **Retirado de la interfaz (27/11/2026):** el filtro, la gráfica y las etiquetas de turno se quitaron
-> hasta definir bien cómo asignarlo. El backend todavía calcula la referencia descrita abajo.
+> **Regla vigente (27/11/2026):** el turno sale únicamente de "TA"/"TB" escrito en la línea de producción
+> o en la actividad del chequeo del día (si hay varios, el último que lo indique). TA = Turno A, TB = Turno B.
+> Sin TA/TB (p. ej. obra de pelado por pesa, Langosta) se toma Turno A. Sin chequeo ni pesa queda "Sin turno". Ya no se usa la referencia histórica
+> de 30 días descrita abajo.
 
 TA corresponde al turno A de día y TB al B de noche. Se usa la línea del chequeo
 del día o, como referencia histórica, la última línea reconocida de los 30 días
